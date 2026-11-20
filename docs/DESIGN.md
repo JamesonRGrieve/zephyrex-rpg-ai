@@ -20,6 +20,15 @@ Each has its own section below:
 
 "Jev" is defined in the Zephyrex SOP, *AI Environment → Decision models (Jev-style System-1)*.
 
+Added the same day:
+
+> "We also need scenario modeling and campaign framing. And we need support for narrative
+> mode as well as rigid mechanical mode."
+
+- [Campaign framing](#campaign-framing)
+- [Scenario modeling](#scenario-modeling)
+- [Narrative and mechanical modes](#narrative-and-mechanical-modes)
+
 ## What sets it apart from SillyTavern
 
 SillyTavern is the reference for depth of control: cards, lorebooks, presets, swipes,
@@ -40,10 +49,13 @@ branching, group chats, extensions. Its gaps are what this product fills:
    because the LLM said so".
 6. **Multi-player.** Several humans at one AI-run table (SaaS), not a single-user desktop app.
 7. **A finished UI.** Polished, accessible, installable, on phone and desktop.
+8. **A GM with a plan and a contract.** A campaign frame agreed at session zero, scenarios
+   modeled as moving parts (clocks, clues, agendas) and rehearsed before play, and play that
+   is as loose or as rules-tight as the table chooses.
 
-## Modes
+## Ways to play
 
-| Mode | Who plays | Who runs the world |
+| Way to play | Who plays | Who runs the world |
 |---|---|---|
 | **Character chat** | You, as your persona | One AI character (SillyTavern classic) |
 | **Group chat** | You | Several AI characters, turn-taking by the `next_speaker` decision |
@@ -51,8 +63,8 @@ branching, group chats, extensions. Its gaps are what this product fills:
 | **AI party** | A human GM | AI characters as player characters |
 | **GM assistant** | A human GM running a table | The AI supplies NPC voices, roll outcomes, recaps and "what do they know" answers on request |
 
-Every mode runs on the same conversation and agent machinery, and differs only in seats and
-grants.
+Every way to play runs on the same conversation and agent machinery, and differs only in seats
+and grants. How outcomes are decided is separate: the [resolution mode](#narrative-and-mechanical-modes).
 
 ## Feature parity matrix: full parity
 
@@ -132,6 +144,17 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A54 | Animated avatars: Live2D and talking-head extensions | SillyTavern (extension) *(verify)* | ✓ | ✓ |
 | A55 | Code blocks that run JavaScript or STscript (Code Runner), sandboxed | SillyTavern (extension) | ✓ | ✓ |
 | A56 | Backups and chat exports (JSONL, text) | SillyTavern | ✓ | ✓ |
+| **Campaigns, scenarios and modes** |
+| A57 | Campaign frame: premise, genre and tone, themes, pillars, structure, pacing, setting truths, content boundaries, ties between characters; a session-zero flow that fills it in with the players | ours | ✓ | ✓ |
+| A58 | Campaign brief: the frame as a page the players read, without the GM's secrets | ours | ✓ | ✓ |
+| A59 | Scenarios: premise, hook, stakes, situation, cast with agendas and secrets, places, clocks, clues, beats, and outcomes | ours | ✓ | ✓ |
+| A60 | Scenario state in play: clocks advance, clues are found, beats are hit, NPCs move on their agendas; the GM reads it every turn | ours | ✓ | ✓ |
+| A61 | Draft a scenario from a prompt or from the world, then edit it; import and export as JSON | ours | ✓ | ✓ |
+| A62 | Rehearse a scenario: AI players play it through in the background, and a report flags unreachable clues, dead ends, pacing and difficulty | ours | – | ✓ |
+| A63 | Narrative mode: fiction first; the GM resolves by the story, rolls only at real stakes and uncertainty, in a light dice style if the frame names one | ours | ✓ | ✓ |
+| A64 | Mechanical mode: rules as written; every action the rules cover is resolved by the VTT's rules, only legal actions are offered, and results are never overridden by the narrator | ours | ✓ (with the VTT loaded) | ✓ |
+| A65 | Hybrid: a mode per kind of scene (e.g. combat mechanical, talk narrative), and a per-scene switch the table can call for out of character | ours | ✓ | ✓ |
+| A66 | The mode in force shown at all times, and every resolution labelled by how it was decided (rules, roll, decision model, narrator) | ours | ✓ | ✓ |
 
 Third-party extensions (A39) and code runners (A37, A55) run third-party code. They run
 only in a sandbox with declared permissions (an iframe or worker with a message API, and
@@ -346,6 +369,143 @@ speech, not a typed-decision call. A `decide` ability (enumerated options in, ch
 plus confidence out) is generic, so it is raised on card 253 for the framework. The
 product's decision kinds and thresholds are its own.
 
+## Campaign framing
+
+A campaign starts as an agreement about what kind of game it is. The frame records that
+agreement. The GM reads it on every turn, and the players read it as the campaign brief.
+
+**What the frame holds** (`ai_campaign.CampaignFrameModel`, one per campaign):
+
+| Part | What it says |
+|---|---|
+| Premise and pitch | the one-paragraph promise of the campaign |
+| Genre and tone | the genre, and positions on a few dials: grim to hopeful, serious to comic, grounded to fantastic, slow-burn to pulpy |
+| Themes | what the story is about (loyalty, the cost of power), so the GM can lean on them |
+| Pillars | the weight of combat, exploration, social play and mystery, which steers what scenes the GM offers |
+| Structure | sandbox, linear, episodic or one-shot; how long a session runs; how a session ends (a cliffhanger, a breather) |
+| Setting truths | the facts the table agrees on before play ("magic is feared", "the empire fell last winter"), drawn from the wiki when it is loaded |
+| Content boundaries | the content rating, lines and veils (from the safety tools, under OOC), and what the X-card skips |
+| The characters | each player character's ties to the others and to the setting, and what each player wants from the game |
+| Resolution | the default [mode](#narrative-and-mechanical-modes), and the game system when the mode is mechanical |
+| GM style | a link to the GM profile (`ai_gm.GMProfileModel`): voice, verbosity, difficulty |
+
+**Session zero** (A57) is a guided flow, usable by one person or the whole table:
+
+- The GM agent asks the questions above, one screen each, with tap-to-pick answers and a
+  free-text box for each.
+- It proposes a frame, and the table edits and accepts it.
+- Lines and veils are collected privately and pooled anonymously, so nobody is put on the
+  spot.
+
+**The brief** (A58) is the frame rendered for players: premise, tone, truths, characters and
+boundaries. It never carries the GM's secrets, and in the SaaS edition it is shareable by link.
+
+**What the frame changes in play:**
+
+- It is a context section of its own (below), above the characters.
+- The pillars and structure feed the GM's scene choices.
+- The boundaries are enforced on every turn.
+- The resolution mode decides which tools the GM may use.
+
+**Ownership.** The frame belongs to this product. Campaigns themselves belong to the wiki
+([SUITE.md](SUITE.md)). With the wiki loaded, a frame links to its wiki campaign and reads the
+setting truths from it. Without the wiki, the frame stands alone, so a lite install with only
+this product still frames a campaign.
+
+## Scenario modeling
+
+A scenario is a playable situation the GM runs: a mystery, a heist, a siege, a court
+intrigue. It is written as a model of moving parts, not as a script, so play can go anywhere
+and the GM still knows what is true and what happens next.
+
+**The model** (`ai_campaign.ScenarioModel` and its parts):
+
+| Part | What it is |
+|---|---|
+| Premise, hook, stakes | what is going on, how the characters get pulled in, what is lost if nobody acts |
+| Situation | the state of things when play starts |
+| Cast | each NPC's agenda (what they want and will do unprompted), secrets, disposition, and what they know. Links to wiki people and AI characters |
+| Places | where things happen; links to wiki locations and VTT scenes |
+| Clocks | progress tracks of n segments: "the cult completes the ritual", "the guard notices". Each says what advances it (time passing, a failed roll, a named event) and what happens when it fills |
+| Secrets and clues | each truth the characters can learn, with several clues pointing to it from different places (a dead end on one clue is not a dead end on the truth) |
+| Beats | optional moments, ordered or conditional ("when the bridge is crossed"). Guidance for the GM, never rails |
+| Encounters | set pieces, with VTT encounters attached when the VTT is loaded |
+| Outcomes | how it can end, and what each ending writes back to the campaign and the wiki |
+
+**State in play** (`ai_campaign.ScenarioRunModel`, one per play session that runs the
+scenario):
+
+- the clock values, the clues found and by whom, the beats hit, and each NPC's current
+  disposition and whereabouts;
+- changed only through the GM's abilities (`advance_clock`, `reveal_clue`, `mark_beat`,
+  `move_npc`, `end_scenario`), each recorded with the turn that did it;
+- a context section of its own every turn: what is true now, which clocks are close to
+  filling, which clues are still unfound, and which NPC agendas would move next;
+- shown in the GM view; players see only what their characters have found.
+
+**Making scenarios** (A61):
+
+- written by hand in the scenario editor;
+- drafted by the GM from a prompt, or from the world when the wiki is loaded (its plots,
+  quests, factions and places), then edited;
+- imported and exported as JSON.
+
+**Rehearsing** (A62, SaaS), which is the modeling half of *scenario modeling*:
+
+- A rehearsal runs the scenario with AI players on background model pools, several times
+  and with different party styles (cautious, reckless, social).
+- Each run is a transcript plus the scenario state's history.
+- The report shows:
+  - clues nobody found, and secrets that became unreachable;
+  - clocks that filled too early or never moved;
+  - beats never reached, and encounters too easy or too hard by the VTT's numbers;
+  - how long the scenario took in turns.
+- The author fixes the scenario and rehearses again. Rehearsals run on the pools' spare
+  capacity at low priority, never in front of a live table.
+
+## Narrative and mechanical modes
+
+How an action's outcome is decided is a mode, set in the campaign frame and switchable per
+scene.
+
+| | Narrative | Mechanical |
+|---|---|---|
+| Who decides an outcome | the GM, from the fiction and the frame | the game system's rules, through the VTT |
+| When dice are rolled | only when the outcome is uncertain and the stakes matter; the `needs_roll` decision runs with a high bar | whenever the rules call for a check; `needs_roll` picks the check, never whether to roll |
+| Dice style | the frame's light style (e.g. 2d6 with full success, partial and miss), rolled by the VTT when it is loaded and by this product otherwise | the system pack's checks, rolled by the VTT |
+| What an NPC may do | anything the fiction allows; decision models steer pacing and disposition | only `legal_actions` from the VTT; decision models choose among them (combat kinds) |
+| Combat | narrated exchanges, no turn order unless the GM calls for one | the VTT's initiative, turns, movement and cover, strictly |
+| State | the scenario's clocks and the story | the sheets, conditions and positions on the VTT, plus the scenario |
+| Narrator's freedom | describes and decides | describes the resolved facts only. It never invents a result and never overrides a roll |
+| Without the VTT | works fully | not offered (A64 needs the VTT's rules) |
+
+**Hybrid** (A65): the frame maps each kind of scene to a mode, e.g. combat → mechanical,
+social and exploration → narrative.
+
+- The GM classifies the current scene (a decision kind, `scene_kind`) and applies its mode.
+- The table can switch the mode for a scene from the OOC lane ("let's play this fight
+  loose"). The table GM records the switch as a table note for that scene.
+
+**What a mode changes in the machinery:**
+
+- **Tools:** in mechanical mode the GM's resolution tools are the VTT's (`roll`,
+  `legal_actions`, `apply_action`). In narrative mode, `resolve_narratively` records an
+  outcome with its reason, and `light_roll` is allowed.
+- **Prompt:** a resolution section states the mode in force and its rules ("you may not
+  decide outcomes the rules cover; describe the result given").
+- **Decision kinds:** combat kinds run only in mechanical mode. `scene_kind` and `needs_roll`
+  run in both, with mode-specific thresholds.
+- **Records:** every resolution is labelled with how it was decided (rules, roll, decision
+  model or narrator) and shown that way in the why panel (A66).
+
+**In the UI:**
+
+- The top bar shows the mode in force (*Narrative*, *Mechanical* or *Hybrid: mechanical
+  now*).
+- Roll cards appear for every roll in either mode.
+- In mechanical mode the composer's *Do* offers the character's legal actions as chips,
+  thumb-sized on a phone.
+
 ## The GM agent
 
 The GM is a framework agent (`ai_agents`):
@@ -369,16 +529,22 @@ GM.
 toggle:
 
 1. the system and style;
-2. table notes (house rules, lines and veils);
-3. the character cards present;
-4. the scene: the location entity, who is present, and what is perceivable from
+2. the campaign frame: premise, tone, themes, pillars, truths, boundaries;
+3. the resolution mode in force and its rules;
+4. table notes (house rules, lines and veils, scene mode switches);
+5. the character cards present;
+6. the scenario's state: what is true now, the clocks near filling, unfound clues, NPC
+   agendas;
+7. the scene: the location entity, who is present, and what is perceivable from
    `scene_snapshot`;
-5. mechanical state: the sheets and the encounter, as a structured block;
-6. lore: gated lorebook entries;
-7. memory: rolling summary and recalled memories;
-8. recent transcript (`ic` only);
-9. author's note;
-10. the turn's resolved facts (rolls, decisions).
+8. mechanical state: the sheets and the encounter, as a structured block (mechanical mode,
+   or whenever the VTT holds a scene);
+9. lore: gated lorebook entries;
+10. memory: rolling summary and recalled memories;
+11. recent transcript (`ic` only);
+12. author's note;
+13. the turn's resolved facts (rolls, decisions, narrative resolutions), each labelled by how
+    it was decided.
 
 The context inspector (A18) shows exactly this per turn.
 
@@ -392,7 +558,12 @@ The context inspector (A18) shows exactly this per turn.
 | `/characters`, `/characters/[id]` | Card gallery; card editor with every V2/V3 field, greetings, examples, sprites, voice, and "link to a wiki person". |
 | `/personas` | Your personas. |
 | `/lorebooks`, `/lorebooks/[id]` | Lorebook list and entry editor (the full field surface), with "generate from the world". |
-| `/campaigns/[id]/gm` | The GM: style, difficulty, content rating, table notes, model roles for this campaign, decision thresholds. |
+| `/campaigns`, `/campaigns/[id]` | Campaigns, and one campaign's home: its frame, scenarios, sessions and brief. |
+| `/campaigns/[id]/frame` | The frame editor, and *Session zero*: a guided flow, one question a screen on a phone. |
+| `/campaigns/[id]/brief` | The players' brief (shareable by link in SaaS). |
+| `/campaigns/[id]/scenarios/[sid]` | The scenario editor: cast, places, clocks, clues, beats, encounters, outcomes, with *Draft from a prompt*, *Draft from the world* and *Rehearse*. |
+| `/campaigns/[id]/scenarios/[sid]/rehearsals` | Rehearsal reports (SaaS). |
+| `/campaigns/[id]/gm` | The GM: style, difficulty, content rating, the resolution mode and per-scene-kind modes, table notes, model roles for this campaign, decision thresholds. |
 | `/models` | Providers, pools, instances, role mapping, live status (A28). |
 | `/presets` | Sampler presets, instruct and context templates. |
 | `/settings` | Theme, text size, reduced motion, contrast, TTS voice, keybindings, OOC display. |
@@ -415,6 +586,8 @@ The context inspector (A18) shows exactly this per turn.
 - **Left drawer, World:** the current location's entity card, the NPCs present, active
   quests, and lore cards for anything mentioned. A hover on any `@` name shows its wiki
   preview card.
+- **GM view** (the person running a scenario, or watching the AI GM run it): the scenario's
+  clocks as segmented rings, unfound clues, NPC agendas, and the mode switch.
 - **Right drawer, Table:**
   - a live mini-map of the VTT scene (read-only here; *Open table* goes to the VTT);
   - the combat HUD (initiative, turn, HP bars);
@@ -453,6 +626,17 @@ The server extensions this product owns:
 - **`ai_decision`** [NEW]:
   - `DecisionPolicyModel`: kind, pool, threshold, fallback role.
   - `DecisionRecordModel`: as above.
+- **`ai_campaign`** [NEW]:
+  - `CampaignFrameModel`: as under Campaign framing. It holds the resolution mode, the
+    per-scene-kind modes and the light dice style, and optionally links to the wiki campaign.
+  - `ScenarioModel` and its parts: `ScenarioCastMemberModel`, `ScenarioPlaceModel`,
+    `ScenarioClockModel`, `ScenarioSecretModel` (with its clues), `ScenarioBeatModel`,
+    `ScenarioEncounterModel`, `ScenarioOutcomeModel`.
+  - `ScenarioRunModel` and `ScenarioRunEventModel`: the state in play and every change to
+    it, with the turn that made it.
+  - `RehearsalModel`: a rehearsal's settings, runs and report (SaaS).
+  - Limits, enums (modes, clock triggers, scene kinds) and rule cases go in `contract/`, as
+    the prompt cases do.
 - **Adapters:** SillyTavern card PNG/JSON (V2/V3), lorebook JSON, chat JSONL; import and
   export.
 
@@ -494,6 +678,11 @@ Each phase ends with polished, finished UI for what it covers, not a scaffold.
    wiki-linked characters and generated lorebooks (with the wiki extensions loaded).
 3. **AI GM and OOC:** the GM agent, channels, the OOC lane, table notes, safety tools,
    recaps from the wiki, session reports written back.
+   - **Campaigns:** the frame, session zero and the brief (A57–A58).
+   - **Scenarios:** the model, its editor, state in play, and drafting and import/export
+     (A59–A61).
+   - **Narrative mode** (A63) and the mode display (A66). Narrative play needs no VTT, so it
+     comes first.
 4. **Many models:**
    - roles, pools, the models page;
    - the per-turn parallel scheduler on the framework's pool mode;
@@ -502,7 +691,9 @@ Each phase ends with polished, finished UI for what it covers, not a scaffold.
    - the VTT's phase-1 mechanics as tools;
    - the decision kinds with records and the why panel;
    - calibration review;
-   - group-chat turn-taking.
+   - group-chat turn-taking;
+   - **mechanical and hybrid modes** (A64–A65), with legal-action chips in the composer;
+   - **scenario rehearsal** (A62), once pools and AI players exist.
 6. **Table:** multi-player (after room sync), the AI party mode, sprites and VN mode, TTS
    and STT, image generation.
 7. **The remaining SillyTavern parity:**
