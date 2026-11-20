@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import { useState } from 'react';
-import { expect, within } from 'storybook/test';
+import { expect, userEvent, within } from 'storybook/test';
 import { type CharacterVoice, DEFAULT_VOICE } from '~/features/speech/voice';
 import { VoicePicker } from './VoicePicker';
 
@@ -18,12 +18,15 @@ const meta: Meta<typeof Harness> = {
 export default meta;
 type Story = StoryObj<typeof Harness>;
 
-/** The browser's voices, speed and pitch; hidden where the browser cannot speak. */
+/** The server voice and speed on every device; the browser's voices and pitch where it can speak. */
 export const Default: Story = {
   play: async ({ canvasElement }) => {
-    if (!('speechSynthesis' in window)) return;
     const canvas = within(canvasElement);
     await expect(canvas.getByRole('group', { name: 'Voice' })).toBeInTheDocument();
     await expect(canvas.getByLabelText(/Speed/)).toHaveValue('1');
+    const server = canvas.getByLabelText('Voice on your speech model');
+    await userEvent.type(server, 'onyx');
+    await expect(server).toHaveValue('onyx');
+    if ('speechSynthesis' in window) await expect(canvas.getByLabelText(/Pitch on this device/)).toHaveValue('1');
   },
 };

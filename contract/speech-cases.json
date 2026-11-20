@@ -1,0 +1,81 @@
+{
+  "$comment": "Server voices (A29): what both twins send a model set to speak, and what they accept back. Run by client/src/lib/speech.test.ts and server/extensions/ai_chat/Speech_test.py.",
+  "url_cases": [
+    {
+      "name": "beside the chat completions",
+      "base_url": "http://h:1/v1/chat/completions",
+      "url": "http://h:1/v1/audio/speech"
+    },
+    {
+      "name": "beside the text completions",
+      "base_url": "http://h:1/v1/completions",
+      "url": "http://h:1/v1/audio/speech"
+    },
+    {
+      "name": "under a bare base, trailing slash dropped",
+      "base_url": "http://h:1/v1/",
+      "url": "http://h:1/v1/audio/speech"
+    }
+  ],
+  "body_cases": [
+    {
+      "name": "no voice chosen: the contract's default voice at normal speed",
+      "model": "kokoro",
+      "speech": {
+        "text": "Mind the coolant.",
+        "voice": null,
+        "speed": 1
+      },
+      "body": {
+        "model": "kokoro",
+        "input": "Mind the coolant.",
+        "voice": "alloy",
+        "speed": 1,
+        "response_format": "mp3"
+      }
+    },
+    {
+      "name": "the character's own voice and speed",
+      "model": "tts-1",
+      "speech": {
+        "text": "Welcome aboard.",
+        "voice": "af_bella",
+        "speed": 1.5
+      },
+      "body": {
+        "model": "tts-1",
+        "input": "Welcome aboard.",
+        "voice": "af_bella",
+        "speed": 1.5,
+        "response_format": "mp3"
+      }
+    }
+  ],
+  "audio_type_cases": [
+    {
+      "name": "audio as named",
+      "content_type": "audio/mpeg",
+      "audio_type": "audio/mpeg"
+    },
+    {
+      "name": "parameters dropped",
+      "content_type": "Audio/MPEG; charset=binary",
+      "audio_type": "audio/mpeg"
+    },
+    {
+      "name": "another audio format the browser can play",
+      "content_type": "audio/wav",
+      "audio_type": "audio/wav"
+    },
+    {
+      "name": "an error body is not audio",
+      "content_type": "application/json",
+      "audio_type": null
+    },
+    {
+      "name": "no type at all",
+      "content_type": null,
+      "audio_type": null
+    }
+  ]
+}
