@@ -7,8 +7,7 @@
  * template's markup (A17); a chat API takes the messages as they are.
  */
 import { type ReactElement, useId, useState } from 'react';
-import { notify } from 'zephyrex/hooks/useToast';
-import { writeProblem } from 'zephyrex';
+import { useWrites } from 'zephyrex/hooks/useWrites';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
@@ -24,7 +23,7 @@ import {
   type InstructTemplateId,
   LIMITS,
 } from '~/contract';
-import { type ModelEndpoint, endpoints } from '~/features/data/records';
+import { type ModelEndpoint, endpoints, refreshedByRecords } from '~/features/data/records';
 import { pingEndpoint } from '~/features/models/ping';
 import { ManagedList } from './ManagedList';
 import { ModelStatus } from './ModelStatus';
@@ -55,7 +54,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
   const [api, setApi] = useState<EndpointApi>(endpoint?.api ?? 'chat');
   const [template, setTemplate] = useState<InstructTemplateId>(endpoint?.instruct_template ?? 'chatml');
   const [roles, setRoles] = useState<EndpointRole[]>(endpoint?.roles ?? []);
-  const [problem, setProblem] = useState<string | null>(null);
+  const writes = useWrites(refreshedByRecords);
   const ids = {
     name: useId(),
     url: useId(),
@@ -77,12 +76,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
       roles,
       ...(apiKey === '' ? {} : { api_key: apiKey }),
     };
-    const failed = await writeProblem(endpoint === null ? create(fields) : update(endpoint, fields), 'Not saved');
-    setProblem(failed);
-    if (failed === null) {
-      notify('Saved');
-      done();
-    }
+    if (await writes.run(endpoint === null ? create(fields) : update(endpoint, fields), 'Not saved', 'Saved')) done();
   };
 
   return (
@@ -173,12 +167,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
               ['text', 'Text completion'],
             ] as const
           ).map(([value, label]) => (
-            <ChoiceChip
-              key={value}
-              checked={api === value}
-              className='h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground'
-              onClick={() => setApi(value)}
-            >
+            <ChoiceChip key={value} checked={api === value} className='h-11 px-4' onClick={() => setApi(value)}>
               {label}
             </ChoiceChip>
           ))}
@@ -228,7 +217,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
         <Label htmlFor={ids.isDefault}>Use for new chats</Label>
         <Switch id={ids.isDefault} checked={isDefault} onCheckedChange={setIsDefault} />
       </div>
-      <WriteProblem problem={problem} />
+      <WriteProblem problem={writes.problem} />
       <Button type='submit' className='h-11' disabled={name.trim() === '' || baseUrl.trim() === '' || model.trim() === ''}>
         Save
       </Button>

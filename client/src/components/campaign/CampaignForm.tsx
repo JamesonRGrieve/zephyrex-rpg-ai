@@ -8,8 +8,7 @@
 import Link from 'next/link';
 import { type ReactElement, useId, useState } from 'react';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
-import { notify } from 'zephyrex/hooks/useToast';
-import { writeProblem } from 'zephyrex';
+import { useWrites } from 'zephyrex/hooks/useWrites';
 import { Button } from 'zephyrex/ui/button';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { Input } from 'zephyrex/ui/input';
@@ -18,10 +17,9 @@ import { Textarea } from 'zephyrex/ui/textarea';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { CAMPAIGN, LIMITS } from '~/contract';
 import { parseTags } from '~/features/chat/library';
-import { type Campaign, campaigns } from '~/features/data/records';
+import { type Campaign, campaigns, refreshedByRecords } from '~/features/data/records';
 
-const CHIP =
-  'h-11 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const CHIP = 'h-11';
 const STRUCTURE_LABELS: Record<(typeof CAMPAIGN.structures)[number], string> = {
   sandbox: 'Sandbox',
   linear: 'Linear',
@@ -88,7 +86,7 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
   const [truths, setTruths] = useState((campaign?.truths ?? []).join('\n'));
   const [characters, setCharacters] = useState(campaign?.characters ?? '');
   const [mode, setMode] = useState<Campaign['resolution_mode']>(campaign?.resolution_mode ?? null);
-  const [problem, setProblem] = useState<string | null>(null);
+  const writes = useWrites(refreshedByRecords);
   const ids = { name: useId(), premise: useId(), genre: useId(), themes: useId(), truths: useId(), characters: useId() };
 
   const save = async () => {
@@ -108,12 +106,7 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
       characters,
       resolution_mode: mode,
     };
-    const failed = await writeProblem(campaign === null ? create(fields) : update(campaign, fields), 'Not saved');
-    setProblem(failed);
-    if (failed === null) {
-      notify('Saved');
-      done();
-    }
+    if (await writes.run(campaign === null ? create(fields) : update(campaign, fields), 'Not saved', 'Saved')) done();
   };
 
   return (
@@ -229,7 +222,7 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
         value={mode}
         onChange={setMode}
       />
-      <WriteProblem problem={problem} />
+      <WriteProblem problem={writes.problem} />
       <div className='flex flex-wrap gap-2'>
         <Button type='submit' className='h-11 flex-1' disabled={name.trim() === ''}>
           Save

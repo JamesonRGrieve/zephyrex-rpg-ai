@@ -32,8 +32,7 @@ const AUTO_RUN_LABELS = {
 } as const;
 /** Whether a quick reply with this trigger may send (A38): only on opening, else it would run without end. */
 const maySend = (autoRun: QuickReply['auto_run']) => (QUICK_REPLY.sending_auto_runs as readonly string[]).includes(autoRun);
-const CHIP =
-  'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const CHIP = 'h-11 px-4';
 
 function Chips<T extends string>({
   label,

@@ -160,12 +160,7 @@ export function CharacterGallery(): ReactElement {
       {tags.length > 0 && (
         <div ref={chipGroup} role='radiogroup' aria-label='Tag' className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-1'>
           {[null, ...tags].map((one) => (
-            <ChoiceChip
-              key={one ?? ''}
-              checked={tag === one}
-              className='h-9 shrink-0 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground'
-              onClick={() => setTag(one)}
-            >
+            <ChoiceChip key={one ?? ''} checked={tag === one} className='h-9 shrink-0' onClick={() => setTag(one)}>
               {one ?? 'All'}
             </ChoiceChip>
           ))}

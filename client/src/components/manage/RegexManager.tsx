@@ -9,8 +9,8 @@
 import { FileUp } from 'lucide-react';
 import { type ChangeEvent, type ReactElement, useId, useRef, useState } from 'react';
 import { notify } from 'zephyrex/hooks/useToast';
+import { useWrites } from 'zephyrex/hooks/useWrites';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
-import { writeProblem } from 'zephyrex';
 import { Button } from 'zephyrex/ui/button';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { Input } from 'zephyrex/ui/input';
@@ -21,7 +21,7 @@ import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, REGEX } from '~/contract';
 import { applyRegex, compileFind, type RegexPlacement, type RegexTarget } from '~/features/chat/regex';
 import { regexScriptsFromJson } from '~/features/import/stScripts';
-import { type RegexScriptRecord, regexScripts } from '~/features/data/records';
+import { type RegexScriptRecord, regexScripts, refreshedByRecords } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
 
 const PLACEMENT_LABELS: Record<RegexPlacement, string> = { user_input: 'Your messages', ai_output: 'Characters’ replies' };
@@ -30,8 +30,7 @@ const TARGET_LABELS: Record<RegexTarget, string> = {
   display: 'Only as shown',
   prompt: 'Only for the model',
 };
-const CHIP =
-  'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const CHIP = 'h-11 px-4';
 
 export function targetOf(script: Pick<RegexScriptRecord, 'display_only' | 'prompt_only'>): RegexTarget {
   return script.display_only ? 'display' : script.prompt_only ? 'prompt' : 'stored';
@@ -54,7 +53,7 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
   const [enabled, setEnabled] = useState(script?.enabled ?? true);
   const [position, setPosition] = useState(String(script?.position ?? 0));
   const [sample, setSample] = useState('');
-  const [problem, setProblem] = useState<string | null>(null);
+  const writes = useWrites(refreshedByRecords);
   const ids = {
     name: useId(),
     find: useId(),
@@ -82,12 +81,7 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
       enabled,
       position: Math.max(0, Number.parseInt(position, 10) || 0),
     };
-    const failed = await writeProblem(script === null ? create(fields) : update(script, fields), 'Not saved');
-    setProblem(failed);
-    if (failed === null) {
-      notify('Saved');
-      done();
-    }
+    if (await writes.run(script === null ? create(fields) : update(script, fields), 'Not saved', 'Saved')) done();
   };
 
   const preview =
@@ -266,7 +260,7 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
           {preview}
         </output>
       </div>
-      <WriteProblem problem={problem} />
+      <WriteProblem problem={writes.problem} />
       <Button type='submit' className='h-11' disabled={name.trim() === '' || !valid || placements.length === 0}>
         Save
       </Button>

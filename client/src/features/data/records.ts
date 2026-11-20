@@ -34,6 +34,12 @@ import {
 const JSON_BODY = z.json();
 
 /**
+ * For useWrites: a record's own actions already have every list of it read again, so a form that
+ * writes through them has nothing more to refresh.
+ */
+export const refreshedByRecords = async (): Promise<void> => {};
+
+/**
  * A request body as the JSON the wire carries (fields left undefined are dropped). Typed form
  * fields hold `unknown` in places (extensions, layouts), which JSON alone can vouch for.
  */

@@ -8,15 +8,14 @@
  */
 import { Plus, Trash2 } from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
-import { notify } from 'zephyrex/hooks/useToast';
-import { writeProblem } from 'zephyrex';
+import { useWrites } from 'zephyrex/hooks/useWrites';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, SCENARIO } from '~/contract';
-import { type Scenario, scenarios } from '~/features/data/records';
+import { type Scenario, scenarios, refreshedByRecords } from '~/features/data/records';
 
 type Cast = Scenario['cast'][number];
 type Clock = Scenario['clocks'][number];
@@ -110,7 +109,7 @@ export function ScenarioForm({
   const [places, setPlaces] = useState((scenario?.places ?? []).join('\n'));
   const [beats, setBeats] = useState((scenario?.beats ?? []).map((beat) => beat.text).join('\n'));
   const [outcomes, setOutcomes] = useState((scenario?.outcomes ?? []).join('\n'));
-  const [problem, setProblem] = useState<string | null>(null);
+  const writes = useWrites(refreshedByRecords);
   const ids = { name: useId(), campaign: useId() };
   const limits = SCENARIO.limits;
   const [fewest, most] = SCENARIO.clock_segment_range as [number, number];
@@ -144,12 +143,7 @@ export function ScenarioForm({
       beats: lines(beats, limits.beats).map((text) => ({ text, done: doneBeats.has(text) })),
       outcomes: lines(outcomes, limits.outcomes),
     };
-    const failed = await writeProblem(scenario === null ? create(fields) : update(scenario, fields), 'Not saved');
-    setProblem(failed);
-    if (failed === null) {
-      notify('Saved');
-      done();
-    }
+    if (await writes.run(scenario === null ? create(fields) : update(scenario, fields), 'Not saved', 'Saved')) done();
   };
 
   return (
@@ -389,7 +383,7 @@ export function ScenarioForm({
         onChange={setBeats}
       />
       <Lines label='Endings' hint='How it can end, one per line.' value={outcomes} onChange={setOutcomes} />
-      <WriteProblem problem={problem} />
+      <WriteProblem problem={writes.problem} />
       <Button type='submit' className='h-11' disabled={name.trim() === ''}>
         Save
       </Button>

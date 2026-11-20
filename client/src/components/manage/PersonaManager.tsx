@@ -2,8 +2,7 @@
 'use client';
 /** Who the person plays as: name, description, picture, and which one chats use by default. */
 import { type ReactElement, useId, useState } from 'react';
-import { notify } from 'zephyrex/hooks/useToast';
-import { writeProblem } from 'zephyrex';
+import { useWrites } from 'zephyrex/hooks/useWrites';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
@@ -11,7 +10,7 @@ import { Switch } from 'zephyrex/ui/switch';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS } from '~/contract';
-import { type Persona, personas } from '~/features/data/records';
+import { type Persona, personas, refreshedByRecords } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
 
 function PersonaForm({ persona, done }: { persona: Persona | null; done: () => void }): ReactElement {
@@ -19,17 +18,12 @@ function PersonaForm({ persona, done }: { persona: Persona | null; done: () => v
   const [name, setName] = useState(persona?.name ?? '');
   const [description, setDescription] = useState(persona?.description ?? '');
   const [isDefault, setIsDefault] = useState(persona?.is_default ?? false);
-  const [problem, setProblem] = useState<string | null>(null);
+  const writes = useWrites(refreshedByRecords);
   const ids = { name: useId(), description: useId(), isDefault: useId() };
 
   const save = async () => {
     const fields = { name: name.trim(), description, is_default: isDefault };
-    const failed = await writeProblem(persona === null ? create(fields) : update(persona, fields), 'Not saved');
-    setProblem(failed);
-    if (failed === null) {
-      notify('Saved');
-      done();
-    }
+    if (await writes.run(persona === null ? create(fields) : update(persona, fields), 'Not saved', 'Saved')) done();
   };
 
   return (
@@ -65,7 +59,7 @@ function PersonaForm({ persona, done }: { persona: Persona | null; done: () => v
         <Label htmlFor={ids.isDefault}>Use in new chats</Label>
         <Switch id={ids.isDefault} checked={isDefault} onCheckedChange={setIsDefault} />
       </div>
-      <WriteProblem problem={problem} />
+      <WriteProblem problem={writes.problem} />
       <Button type='submit' className='h-11' disabled={name.trim() === ''}>
         Save
       </Button>

@@ -2,8 +2,7 @@
 'use client';
 /** Sampler presets: each setting within the contract's range, with the defaults one tap away. */
 import { type ReactElement, useId, useState } from 'react';
-import { notify } from 'zephyrex/hooks/useToast';
-import { writeProblem } from 'zephyrex';
+import { useWrites } from 'zephyrex/hooks/useWrites';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
@@ -12,7 +11,7 @@ import { PromptLayoutEditor } from '~/components/prompt/PromptLayoutEditor';
 import type { PromptSection } from '~/features/prompt/assemble';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, PRESET_DEFAULTS, SAMPLER_RANGES, type SamplerSetting, SAMPLER_EXTRAS } from '~/contract';
-import { type Preset, presets } from '~/features/data/records';
+import { type Preset, presets, refreshedByRecords } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
 
 type Samplers = Record<SamplerSetting, number>;
@@ -102,7 +101,7 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
   );
   const [negative, setNegative] = useState(preset?.negative_prompt ?? '');
   const [guidance, setGuidance] = useState(preset?.guidance_scale?.toString() ?? '');
-  const [problem, setProblem] = useState<string | null>(null);
+  const writes = useWrites(refreshedByRecords);
   const ids = { name: useId(), stops: useId(), bias: useId(), negative: useId(), guidance: useId() };
 
   const save = async () => {
@@ -117,12 +116,7 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
       negative_prompt: negative,
       guidance_scale: Number.isNaN(scale) ? null : Math.min(high, Math.max(low, scale)),
     };
-    const failed = await writeProblem(preset === null ? create(fields) : update(preset, fields), 'Not saved');
-    setProblem(failed);
-    if (failed === null) {
-      notify('Saved');
-      done();
-    }
+    if (await writes.run(preset === null ? create(fields) : update(preset, fields), 'Not saved', 'Saved')) done();
   };
 
   return (
@@ -218,7 +212,7 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
           </div>
         </div>
       </details>
-      <WriteProblem problem={problem} />
+      <WriteProblem problem={writes.problem} />
       <div className='flex gap-2'>
         <Button type='submit' className='h-11 flex-1' disabled={name.trim() === ''}>
           Save

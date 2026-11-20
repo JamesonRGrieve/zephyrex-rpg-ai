@@ -21,8 +21,7 @@ import { ManagedList } from './ManagedList';
 
 type Scope = DataDocument['scope'];
 const SCOPE_LABELS: Record<Scope, string> = { global: 'Every chat', chat: 'One chat', character: 'One character' };
-const CHIP =
-  'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const CHIP = 'h-11 px-4';
 
 function DocumentForm({ document, done }: { document: DataDocument | null; done: () => void }): ReactElement {
   const { create, update } = dataDocuments.useActions();

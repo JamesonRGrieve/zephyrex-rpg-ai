@@ -416,7 +416,7 @@ export function ChatSettings({
                   <ChoiceChip
                     key={rating ?? 'none'}
                     checked={draft.content_rating === rating}
-                    className='h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground'
+                    className='h-11 px-4'
                     onClick={() => set('content_rating', rating)}
                   >
                     {rating === null ? 'Not set' : RATING_LABELS[rating]}

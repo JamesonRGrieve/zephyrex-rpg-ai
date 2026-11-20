@@ -22,8 +22,7 @@ import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 
 const LAYOUT_LABELS: Record<ChatLayout, string> = { flat: 'Flat', bubbles: 'Bubbles', document: 'Document' };
 const SIZE_LABELS: Record<TextSize, string> = { small: 'Small', normal: 'Normal', large: 'Large', larger: 'Larger' };
-const CHIP =
-  'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const CHIP = 'h-11 px-4';
 
 const TIER_OPTIONS: { value: TierChoice; label: string; hint: string }[] = [
   { value: 'auto', label: 'Automatic', hint: 'Use what this device can do' },

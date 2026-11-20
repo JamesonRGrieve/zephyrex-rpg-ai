@@ -9,8 +9,7 @@ import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import type { FolderFilter } from '~/features/chat/library';
 
-const CHIP =
-  'h-9 shrink-0 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const CHIP = 'h-9 shrink-0';
 
 export function FolderChips({
   folders,
