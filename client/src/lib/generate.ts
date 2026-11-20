@@ -20,7 +20,7 @@
 import type { NextRequest } from 'next/server';
 import { ApiError, apiErrorResponse, localOwner, notFound, readJsonObject, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { type EndpointApi, type InstructTemplateId, LIMITS, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
+import { type EndpointApi, type EndpointRole, type InstructTemplateId, LIMITS, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import { type AssembledPrompt, assemblePrompt, type CampaignFrame, type ScenarioView, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
@@ -63,10 +63,17 @@ export interface Endpoint {
 }
 
 /** Everything a reply needs, read as the owner sees it. */
+/** The role a request's model serves (A27). */
+export function roleOf(mode: z.infer<typeof request>['mode'], purpose: 'reply' | 'summary' | 'translate' = 'reply'): EndpointRole {
+  if (purpose !== 'reply') return purpose;
+  return mode === 'table' || mode === 'narrate' ? 'gm' : 'story';
+}
+
 export async function generationInputs(
   ownerId: string,
   body: z.infer<typeof request>,
   roll: () => number = Math.random,
+  purpose: 'reply' | 'summary' | 'translate' = 'reply',
 ): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState; activeLore: string[]; images: string[]; paused: boolean }> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
@@ -147,12 +154,20 @@ export async function generationInputs(
   const presetRow = chatFields.preset_id === null ? null : await presets.find(chatFields.preset_id, ownerId);
   const sampler: Sampler = presetRow === null ? { ...PRESET_DEFAULTS, stop: [], prompt_layout: [] } : (presets.fields(presetRow) as unknown as Sampler);
 
+  // The model for this request's role (A27): a model serving the role; for replies the chat's own
+  // choice comes first. Otherwise the chat's model, then the default, then any.
+  const role = roleOf(body.mode, purpose);
+  const all = await endpoints.list(ownerId, NO_QUERY);
+  const serving = all.filter((row) => (endpoints.fields(row).roles as string[]).includes(role));
+  const chosen = chatFields.endpoint_id === null ? null : await endpoints.find(chatFields.endpoint_id, ownerId);
   const endpointRow =
-    chatFields.endpoint_id === null
-      ? ((await prisma.modelEndpoint.findFirst({ where: { createdById: ownerId, isDefault: true } })) ??
-        (await endpoints.list(ownerId, NO_QUERY))[0] ??
-        null)
-      : await endpoints.find(chatFields.endpoint_id, ownerId);
+    (role === 'story' ? chosen : null) ??
+    serving.find((row) => row.isDefault) ??
+    serving[0] ??
+    chosen ??
+    all.find((row) => row.isDefault) ??
+    all[0] ??
+    null;
   if (endpointRow === null) throw new ApiError(409, { message: 'Add a model endpoint first', code: 'no_model_endpoint' });
 
   return {
@@ -349,7 +364,7 @@ export async function summarize(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, endpoint } = await generationInputs(owner.id, body);
+    const { prompt, sampler, endpoint } = await generationInputs(owner.id, body, Math.random, 'summary');
     const asked = summaryPrompt(prompt);
     const stream = await askModel(endpoint, upstreamBody(endpoint, sampler, asked.messages, 'reply'), nextRequest.signal);
     const text = await collect(completionDeltas(stream)).catch(() => {
@@ -378,7 +393,7 @@ export async function translate(nextRequest: NextRequest): Promise<Response> {
     const parsed = translateRequest.safeParse(Reflect.get(envelope, 'translate'));
     if (!parsed.success) throw validationError('A translate object with a chat_id, text and language is required', 'translate');
     const asked = parsed.data;
-    const { sampler, endpoint } = await generationInputs(owner.id, { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' });
+    const { sampler, endpoint } = await generationInputs(owner.id, { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' }, Math.random, 'translate');
     const stream = await askModel(endpoint, upstreamBody(endpoint, sampler, translatePrompt(asked.text, asked.language), 'reply'), nextRequest.signal);
     const text = await collect(completionDeltas(stream)).catch(() => {
       throw new ApiError(502, { message: 'The model stopped mid-translation', code: 'model_refused' });

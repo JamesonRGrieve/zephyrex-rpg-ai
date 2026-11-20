@@ -16,9 +16,12 @@ import { Switch } from 'zephyrex/ui/switch';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { WriteProblem } from '~/components/common/WriteProblem';
-import { type EndpointApi, INSTRUCT_TEMPLATES, type InstructTemplateId, LIMITS } from '~/contract';
+import { type EndpointApi, type EndpointRole, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId, LIMITS } from '~/contract';
 import { type ModelEndpoint, endpoints } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
+
+/** What a model can be used for (A27), as the form names it. */
+const ROLE_LABELS: Record<EndpointRole, string> = { story: 'Character replies', gm: 'The GM', summary: 'Summaries', translate: 'Translation' };
 
 /** Common local servers' addresses, to fill in with one tap. */
 export const KNOWN_ENDPOINTS = [
@@ -36,11 +39,12 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
   const [isDefault, setIsDefault] = useState(endpoint?.is_default ?? false);
   const [api, setApi] = useState<EndpointApi>(endpoint?.api ?? 'chat');
   const [template, setTemplate] = useState<InstructTemplateId>(endpoint?.instruct_template ?? 'chatml');
+  const [roles, setRoles] = useState<EndpointRole[]>(endpoint?.roles ?? []);
   const [problem, setProblem] = useState<string | null>(null);
   const ids = { name: useId(), url: useId(), model: useId(), key: useId(), isDefault: useId(), api: useId(), template: useId() };
 
   const save = async () => {
-    const fields = { name: name.trim(), base_url: baseUrl.trim(), model: model.trim(), is_default: isDefault, api, instruct_template: template, ...(apiKey === '' ? {} : { api_key: apiKey }) };
+    const fields = { name: name.trim(), base_url: baseUrl.trim(), model: model.trim(), is_default: isDefault, api, instruct_template: template, roles, ...(apiKey === '' ? {} : { api_key: apiKey }) };
     const failed = await writeProblem(endpoint === null ? create(fields) : update(endpoint, fields), 'Not saved');
     setProblem(failed);
     if (failed === null) {
@@ -132,6 +136,18 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           </select>
         </div>
       )}
+      <fieldset className='grid gap-2'>
+        <legend className='text-sm font-medium'>Used for</legend>
+        <p className='text-xs text-muted-foreground'>Run each job on the model that suits it: a big model for replies, a small fast one for summaries.</p>
+        <div className='flex flex-wrap gap-2'>
+          {ENDPOINT_ROLES.map((role) => (
+            <label key={role} className='flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm'>
+              <input type='checkbox' className='size-5' checked={roles.includes(role)} onChange={() => setRoles(roles.includes(role) ? roles.filter((one) => one !== role) : [...roles, role])} />
+              {ROLE_LABELS[role]}
+            </label>
+          ))}
+        </div>
+      </fieldset>
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <Label htmlFor={ids.isDefault}>Use for new chats</Label>
         <Switch id={ids.isDefault} checked={isDefault} onCheckedChange={setIsDefault} />

@@ -69,6 +69,9 @@ export type DepthRole = (typeof DEPTH_ROLES)[number];
 export const INSTRUCT_TEMPLATES = contract.instruct_templates;
 export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;
 export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text'];
+/** What a model can be used for (A27): replies, the GM's voices, summaries, translation. */
+export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly ['story', 'gm', 'summary', 'translate'];
+export type EndpointRole = (typeof ENDPOINT_ROLES)[number];
 export type EndpointApi = (typeof ENDPOINT_APIS)[number];
 
 /** Regex scripts (features/chat/regex.ts; cases in contract/regex-cases.json). */

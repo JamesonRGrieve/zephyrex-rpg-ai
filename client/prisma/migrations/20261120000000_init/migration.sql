@@ -117,6 +117,7 @@ CREATE TABLE "ModelEndpoint" (
     "isDefault" BOOLEAN NOT NULL DEFAULT false,
     "api" TEXT NOT NULL DEFAULT 'chat',
     "instructTemplate" TEXT NOT NULL DEFAULT 'chatml',
+    "roles" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

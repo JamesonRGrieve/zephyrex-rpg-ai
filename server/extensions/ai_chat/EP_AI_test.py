@@ -424,6 +424,20 @@ class TestGenerate:
         assert "- Ada: Ada fixes engines." in prompt["messages"][0]["content"]
         assert prompt["messages"][-1]["content"] == "User: I step inside."
 
+    def test_each_role_goes_to_the_model_serving_it(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, user, "model_endpoint", name="Summaries", base_url=model_url, model="small", roles=["summary"])
+        bad = server.post("/v1/model_endpoint", json={"model_endpoint": {"name": "x", "base_url": model_url, "model": "m", "roles": ["poetry"]}}, headers=_headers(user))
+        assert bad.status_code == 422, bad.text
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["We dock."]).json()["chat_message"]
+        RECEIVED.clear()
+        server.post("/v1/ai_chat/summarize", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert [sent["body"]["model"] for sent in RECEIVED] == ["small", "tiny"]
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

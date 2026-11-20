@@ -232,6 +232,17 @@ describe('the table GM and the pause', () => {
   });
 });
 
+describe('models by role (A27)', () => {
+  it('sends a summary to the model that serves summaries, and replies to the default', async () => {
+    const { chat, line } = await seed();
+    await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Summaries', baseUrl, model: 'small', roles: JSON.stringify(['summary']) } });
+    await summarize(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+    expect(received.at(-1)?.body.model).toBe('small');
+    await (await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).text();
+    expect(received.at(-1)?.body.model).toBe('tiny');
+  });
+});
+
 describe('the prompt manager', () => {
   it('lays the system text out as the chat’s preset says, with the chat’s own system prompt', async () => {
     const { chat, line } = await seed();

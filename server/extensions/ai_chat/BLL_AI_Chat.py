@@ -674,6 +674,13 @@ class EndpointChecks(PlainModel):
     def _checked_api(cls, value: Any) -> Any:
         return _one_of(value, CONTRACT["endpoint_apis"], "api")
 
+    @field_validator("roles", check_fields=False)
+    @classmethod
+    def _checked_roles(cls, value: Any) -> Any:
+        if value is not None and (len(set(value)) != len(value) or any(role not in CONTRACT["endpoint_roles"] for role in value)):
+            raise ValueError(f"roles are {', '.join(CONTRACT['endpoint_roles'])}, each once")
+        return value
+
     @field_validator("instruct_template", check_fields=False)
     @classmethod
     def _checked_template(cls, value: Any) -> Any:
@@ -687,6 +694,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
     model: str = Field(..., description="The model to ask")
     is_default: bool = Field(False, description="Used by chats that name no model")
     api: str = Field("chat", description="chat (chat completions) or text (one prompt in the instruct template)")
+    roles: list[str] = Field(default_factory=list, description="What it is used for: story, gm, summary, translate")
     instruct_template: str = Field("chatml", description="A text API's prompt markup")
     has_api_key: bool = Field(False, description="Set by the server: whether a key is stored")
     # Write-only: excluded from every serialization, kept encrypted.
@@ -704,6 +712,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         is_default: bool = False
         api: str = "chat"
         instruct_template: str = "chatml"
+        roles: list[str] = Field(default_factory=list)
 
     class Update(EndpointChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -714,6 +723,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         is_default: bool | None = None
         api: str | None = None
         instruct_template: str | None = None
+        roles: list[str] | None = None
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -1124,7 +1134,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         return manager(requester_id=str(self.requester.id), model_registry=self.model_registry)
 
     def _inputs(
-        self, body: GenerateRequest, save_timers: bool = True
+        self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply"
     ) -> tuple[Any, dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
         """Everything a reply needs, read as the requester sees it (lib/generate.ts, step for step)."""
         try:
@@ -1196,11 +1206,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             preset = self._manager(GenerationPresetManager).get(id=chat.preset_id)
             sampler = {key: getattr(preset, key) for key in (*PRESET_DEFAULTS.keys(), "stop", "prompt_layout")}
 
+        # The model for this request's role (A27): a model serving the role; for replies the chat's
+        # own choice comes first. Otherwise the chat's model, then the default, then any.
+        role = purpose if purpose != "reply" else "gm" if body.mode in ("table", "narrate") else "story"
         endpoints = self._manager(ModelEndpointManager)
-        if chat.endpoint_id:
-            endpoint = endpoints.get(id=chat.endpoint_id)
-        else:
-            endpoint = next(iter(endpoints.list(is_default=True)), None) or next(iter(endpoints.list()), None)
+        every = sorted(endpoints.list(), key=lambda row: row.name)
+        serving = [row for row in every if role in (row.roles or [])]
+        chosen = endpoints.get(id=chat.endpoint_id) if chat.endpoint_id else None
+        endpoint = (
+            (chosen if role == "story" else None)
+            or next((row for row in serving if row.is_default), None)
+            or next(iter(serving), None)
+            or chosen
+            or next((row for row in every if row.is_default), None)
+            or next(iter(every), None)
+        )
         if endpoint is None:
             raise HTTPException(status_code=409, detail={"message": "Add a model endpoint first", "code": "no_model_endpoint"})
 
@@ -1286,7 +1306,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     )
     async def summarize_route(self, body: GenerateEnvelope) -> SummaryEnvelope:
         # Nothing is written: the person saves the summary to the chat like any other edit.
-        _assembled, _request, sampler, _active, context = self._inputs(body.generate, save_timers=False)
+        _assembled, _request, sampler, _active, context = self._inputs(body.generate, save_timers=False, purpose="summary")
         asked = summary_prompt(context["cast"], context["persona"], context["history"], int(sampler["context_tokens"]), int(sampler["max_tokens"]))
         text = await self._ask(context, sampler, asked.messages)
         return SummaryEnvelope(summary=Summary(text=text, dropped=asked.dropped))
@@ -1303,7 +1323,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     )
     async def translate_route(self, body: TranslateEnvelope) -> TranslateEnvelope:
         asked = body.translate
-        _assembled, _request, sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id), save_timers=False)
+        _assembled, _request, sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id), save_timers=False, purpose="translate")
         text = await self._ask(context, sampler, translate_prompt(asked.text, asked.language))
         return TranslateEnvelope(translate=TranslateRequest(chat_id=asked.chat_id, text=text, language=asked.language))
 

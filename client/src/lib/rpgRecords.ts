@@ -20,7 +20,7 @@
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAFETY, SAMPLER_RANGES, TABLE, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAFETY, SAMPLER_RANGES, TABLE, ENDPOINT_APIS, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -590,6 +590,7 @@ const ENDPOINT_COLUMNS: Columns = {
   is_default: plain('isDefault'),
   api: plain('api'),
   instruct_template: plain('instructTemplate'),
+  roles: jsonList('roles'),
 };
 
 const baseUrl = z
@@ -606,6 +607,8 @@ const endpointFields = {
   /** `chat` (chat completions) or `text` (one prompt string, in the instruct template's markup). */
   api: z.enum(ENDPOINT_APIS),
   instruct_template: z.enum(Object.keys(INSTRUCT_TEMPLATES) as [InstructTemplateId, ...InstructTemplateId[]]),
+  /** What it is used for (A27); none means only where a chat names it or it is the default. */
+  roles: z.array(z.enum(ENDPOINT_ROLES)).refine((roles) => new Set(roles).size === roles.length, 'Each role once'),
 };
 const endpointCreate = z.object({
   name,
@@ -615,6 +618,7 @@ const endpointCreate = z.object({
   is_default: z.boolean().default(false),
   api: endpointFields.api.default('chat'),
   instruct_template: endpointFields.instruct_template.default('chatml'),
+  roles: endpointFields.roles.default([]),
 });
 const endpointUpdate = z.object({ name, ...endpointFields }).partial();
 

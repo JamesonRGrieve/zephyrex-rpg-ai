@@ -498,5 +498,11 @@
       "beats": 30,
       "outcomes": 10
     }
-  }
+  },
+  "endpoint_roles": [
+    "story",
+    "gm",
+    "summary",
+    "translate"
+  ]
 }
