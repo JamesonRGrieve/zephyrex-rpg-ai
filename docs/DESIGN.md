@@ -685,7 +685,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A10, A52 | Group chats: turn order, pick who speaks next, members left out of turns | natural order by a decision model; group greetings |
 | A11 | OOC channels kept out of the story; table notes (house rules, pacing, tone, reminders) in every prompt | notes proposed by the GM, confirmed by a player |
 | A20 | The table GM: answers `gm` questions out of character from the safety tools, notes, summary and recent story; pause | the narrator voice and GM style (A20, phase 4) |
-| A12 | Chat library: search by title, cast or tag; folders and tags | search inside messages |
+| A12 | Chat library: search by title, cast, tag or the words of any message (opening the chat there); folders and tags | |
 | A13, A56 | SillyTavern chat import; branch export as JSONL or text; a backup of everything as one file, restored beside what is there | |
 | A14 | World Info, the full entry surface and activation; ST import and export | |
 | A16 | Author's note, a chat's own system prompt, the prompt manager (order, on/off, budgets) | |

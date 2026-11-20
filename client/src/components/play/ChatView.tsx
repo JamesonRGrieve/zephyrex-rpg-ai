@@ -9,6 +9,7 @@
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
 import { Clock3, Download, Ellipsis, GitFork, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -107,7 +108,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const { create, update, remove } = messages.useActions();
   const { update: updateChat } = chats.useActions();
   const reply = useReply();
-  const [leafId, setLeafId] = useState<string | null>(null);
+  // A link to a message (`?at=`, from the library's search) opens the branch through it.
+  const params = useSearchParams();
+  const [leafId, setLeafId] = useState<string | null>(() => params.get('at'));
   const [writingAfter, setWritingAfter] = useState<{ parentId: string | null; speakerId: string } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [treeOpen, setTreeOpen] = useState(false);
@@ -121,7 +124,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     () => [...(list.data ?? [])].filter((message) => !hidden.has(message.id)).sort((a, b) => a.created_at.localeCompare(b.created_at)),
     [list.data, hidden],
   );
-  const leaf = leafId !== null && all.some((message) => message.id === leafId) ? leafId : (latestLeaf(all)?.id ?? null);
+  const leaf = leafId !== null && all.some((message) => message.id === leafId) ? (latestLeaf(all, leafId)?.id ?? leafId) : (latestLeaf(all)?.id ?? null);
   const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
   const persona = useMemo(() => {

@@ -13,7 +13,7 @@ import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { Badge } from 'zephyrex/ui/badge';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { Input } from 'zephyrex/ui/input';
-import { chatMatches, type FolderFilter, foldersOf, inFolder } from '~/features/chat/library';
+import { chatMatches, type FolderFilter, foldersOf, inFolder, searchMessages } from '~/features/chat/library';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -73,6 +73,9 @@ export function ChatLibrary(): ReactElement {
   const folders = foldersOf(list.data ?? []);
   const all = (list.data ?? []).filter((chat) => !hidden.has(chat.id));
   // Newest first, whatever order the back end answers in.
+  // Inside messages too, once three characters are typed (A12): every message is read for it.
+  const allMessages = messages.useList(undefined, query.trim().length >= 3);
+  const found = searchMessages(allMessages.data ?? [], query);
   const shown = all
     .filter((chat) => inFolder(chat, folder) && chatMatches(chat, castNames, query))
     .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
@@ -120,7 +123,24 @@ export function ChatLibrary(): ReactElement {
       {list.data !== undefined && all.length === 0 && (
         <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>No chats yet. Start one with a character.</p>
       )}
-      {all.length > 0 && shown.length === 0 && <p className='p-4 text-center text-muted-foreground'>No chat matches.</p>}
+      {all.length > 0 && shown.length === 0 && found.length === 0 && <p className='p-4 text-center text-muted-foreground'>No chat matches.</p>}
+      {found.length > 0 && (
+        <section aria-labelledby='found-lines' className='grid gap-2'>
+          <h2 id='found-lines' className='text-sm font-semibold'>
+            In the chats
+          </h2>
+          <ul className='divide-y rounded-xl border'>
+            {found.map((line) => (
+              <li key={line.messageId}>
+                <Link href={`/play/${line.chatId}?at=${line.messageId}`} className='block min-h-11 p-3 text-sm hover:bg-accent'>
+                  <span className='block text-xs text-muted-foreground'>{all.find((chat) => chat.id === line.chatId)?.title ?? 'A chat'}</span>
+                  <span className='[overflow-wrap:anywhere]'>{line.excerpt}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
       <ul className={shown.length === 0 ? 'hidden' : 'divide-y rounded-xl border'}>
         {shown.map((chat) => (
           <li key={chat.id} className='relative flex items-center gap-3 p-3'>

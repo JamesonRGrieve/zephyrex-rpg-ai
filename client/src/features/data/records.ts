@@ -126,7 +126,8 @@ function one<T>(schema: z.ZodType<T>, key: string, body: unknown): T {
 
 export interface ResourceHooks<T extends Versioned, Create, Extra> {
   path: string;
-  useList(query?: Record<string, string>): SWRResponse<T[], Error>;
+  /** The records, read only while `enabled` (by default, always). */
+  useList(query?: Record<string, string>, enabled?: boolean): SWRResponse<T[], Error>;
   useOne(id: string | null): SWRResponse<T, Error>;
   useActions(): {
     create(fields: Create): Promise<T>;
@@ -146,10 +147,10 @@ export function resource<T extends Versioned, Create extends object, Extra = obj
     query === undefined || Object.keys(query).length === 0 ? path : `${path}?${new URLSearchParams(query).toString()}`;
   return {
     path,
-    useList(query) {
+    useList(query, enabled = true) {
       const client = useClient();
       const key = listKey(query);
-      return useSWR(key, () => client.list(key, plural, schema));
+      return useSWR(enabled ? key : null, () => client.list(key, plural, schema));
     },
     useOne(id) {
       const client = useClient();
