@@ -43,6 +43,7 @@ export interface ChatSettingsValue {
   veils: string[];
   table_notes: TableNoteValue[];
   campaign_id: string | null;
+  scenario_id: string | null;
 }
 
 /** What a chat sets of World Info's settings; the rest take the contract's defaults. */
@@ -106,6 +107,7 @@ export function ChatSettings({
   folders = [],
   cast = [],
   campaigns = [],
+  scenarios = [],
   onSave,
   onSummarize,
 }: {
@@ -122,6 +124,8 @@ export function ChatSettings({
   cast?: readonly Option[];
   /** The campaigns a chat can belong to (A57); its frame is read every turn. */
   campaigns?: readonly Option[];
+  /** The scenarios a chat can run (A59, A60); the GM's view of it is read every turn. */
+  scenarios?: readonly Option[];
   onSave: (value: ChatSettingsValue) => void;
   /** Asks the model for a summary of the branch so far (null when it could not). */
   onSummarize?: () => Promise<string | null>;
@@ -200,6 +204,7 @@ export function ChatSettings({
             </div>
           </div>
           <Choice label='Campaign' value={draft.campaign_id} options={campaigns} noneLabel='None' onChange={(next) => set('campaign_id', next)} />
+          <Choice label='Scenario' value={draft.scenario_id} options={scenarios} noneLabel='None' onChange={(next) => set('scenario_id', next)} />
           <Choice label='You play as' value={draft.persona_id} options={personas} noneLabel='Your default persona' onChange={(next) => set('persona_id', next)} />
           <Choice label='Preset' value={draft.preset_id} options={presets} noneLabel='Default settings' onChange={(next) => set('preset_id', next)} />
           <Choice label='Model' value={draft.endpoint_id} options={endpoints} noneLabel='Your default model' onChange={(next) => set('endpoint_id', next)} />

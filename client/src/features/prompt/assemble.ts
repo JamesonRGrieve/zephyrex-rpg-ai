@@ -28,7 +28,7 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { CAMPAIGN, PROMPT, REASONING, SAFETY, TABLE } from '~/contract';
+import { CAMPAIGN, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandMacros, type MacroNames } from './macros';
@@ -88,6 +88,68 @@ export interface PromptInput {
   table_notes?: readonly TableNote[];
   /** The campaign's frame (A57), when the chat belongs to a campaign. */
   frame?: CampaignFrame | null;
+  /** The scenario the chat is running (A59, A60), with its state. */
+  scenario?: ScenarioView | null;
+}
+
+export interface ScenarioView {
+  premise?: string;
+  hook?: string;
+  stakes?: string;
+  situation?: string;
+  cast?: readonly { name: string; agenda?: string; secret?: string; disposition?: string }[];
+  places?: readonly string[];
+  clocks?: readonly { name: string; segments: number; filled: number; advances?: string; when_full?: string }[];
+  secrets?: readonly { truth: string; clues?: readonly { text: string; found: boolean }[] }[];
+  beats?: readonly { text: string; done: boolean }[];
+  outcomes?: readonly string[];
+}
+
+/**
+ * A running scenario as the GM sees it (A59, A60): what is going on, who wants what, the clocks
+ * (those about to fill flagged), each secret with its clues found or not, the beats still to come
+ * and how it can end. Parts left empty are left out; nothing when there is no scenario.
+ */
+export function scenarioText(scenario: ScenarioView | null | undefined): string {
+  if (scenario === null || scenario === undefined) return '';
+  const said = (text: string | undefined) => (text ?? '').trim();
+  const cast = (scenario.cast ?? []).flatMap((person) => {
+    const name = said(person.name);
+    if (name === '') return [];
+    const disposition = said(person.disposition);
+    const agenda = said(person.agenda);
+    const secret = said(person.secret);
+    return [`- ${name}${disposition === '' ? '' : ` (${disposition})`}${agenda === '' ? '' : `: wants ${agenda}`}${secret === '' ? '' : `. Secret: ${secret}`}`];
+  });
+  const places = (scenario.places ?? []).map((place) => place.trim()).filter(Boolean);
+  const clocks = (scenario.clocks ?? []).map((clock) => {
+    const filled = Math.trunc(clock.filled);
+    const segments = Math.trunc(clock.segments);
+    const state = filled >= segments ? 'full' : segments - filled <= SCENARIO.close_segments ? 'close to filling' : '';
+    const advances = said(clock.advances);
+    const whenFull = said(clock.when_full);
+    return `- ${clock.name.trim()}: ${Math.min(filled, segments)}/${segments}${state === '' ? '' : ` (${state})`}${advances === '' ? '' : `; advances when ${advances}`}${whenFull === '' ? '' : `; when full: ${whenFull}`}`;
+  });
+  const secrets = (scenario.secrets ?? []).map((secret) => {
+    const clues = (secret.clues ?? []).filter((clue) => clue.text.trim() !== '').map((clue) => `${clue.text.trim()} (${clue.found ? 'found' : 'not found'})`);
+    const learned = (secret.clues ?? []).some((clue) => clue.found);
+    return `- ${secret.truth.trim()} [${learned ? 'learned' : 'not yet learned'}]${clues.length === 0 ? '' : `. Clues: ${clues.join('; ')}`}`;
+  });
+  const beats = (scenario.beats ?? []).filter((beat) => !beat.done && beat.text.trim() !== '').map((beat) => beat.text.trim());
+  const outcomes = (scenario.outcomes ?? []).map((outcome) => outcome.trim()).filter(Boolean);
+  const lines = [
+    said(scenario.premise) === '' ? '' : `Premise: ${said(scenario.premise)}`,
+    said(scenario.hook) === '' ? '' : `Hook: ${said(scenario.hook)}`,
+    said(scenario.stakes) === '' ? '' : `Stakes: ${said(scenario.stakes)}`,
+    said(scenario.situation) === '' ? '' : `Situation: ${said(scenario.situation)}`,
+    cast.length === 0 ? '' : `Cast:\n${cast.join('\n')}`,
+    places.length === 0 ? '' : `Places: ${places.join('; ')}.`,
+    clocks.length === 0 ? '' : `Clocks:\n${clocks.join('\n')}`,
+    secrets.length === 0 ? '' : `Secrets and clues:\n${secrets.join('\n')}`,
+    beats.length === 0 ? '' : `Beats still to come: ${beats.join('; ')}.`,
+    outcomes.length === 0 ? '' : `It can end: ${outcomes.join('; ')}.`,
+  ].filter((line) => line !== '');
+  return lines.length === 0 ? '' : [SCENARIO.heading, ...lines].join('\n');
 }
 
 export interface CampaignFrame {
@@ -332,6 +394,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     safety: safetyText(input.safety),
     table_notes: tableNotesText(input.table_notes),
     campaign: frameText(input.frame),
+    running_scenario: scenarioText(input.scenario),
     lore_before_char: loreSections.before_char ?? '',
     description: speaker.description,
     personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,

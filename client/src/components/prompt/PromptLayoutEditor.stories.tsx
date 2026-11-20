@@ -18,8 +18,8 @@ export const Reorder: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: 'Move Description up' }));
-    const rows = canvas.getAllByRole('listitem');
-    await expect(rows[1]).toHaveTextContent('Description');
+    const names = canvas.getAllByRole('listitem').map((row) => row.textContent ?? '');
+    await expect(names.findIndex((name) => name.includes('Description'))).toBeLessThan(names.findIndex((name) => name.includes('Lore before the character')));
     await userEvent.click(canvas.getByRole('switch', { name: 'Include Scenario' }));
     await expect(canvas.getByRole('switch', { name: 'Include Scenario' })).not.toBeChecked();
   },

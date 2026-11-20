@@ -2,12 +2,12 @@
 /**
  * The lite edition's campaign frames (A57, A58): the same resource, fields and rules as the SaaS
  * server's ai_campaign extension, with the limits read from contract/rpg_ai.json. Deleting one
- * unlinks it from the chats that named it.
+ * unlinks it from the chats that named it. And scenarios (A59-A61), with their state in play.
  */
 import type { Prisma } from '@prisma/client';
-import type { ResourceSpec } from '@zephyrex/lite';
+import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CAMPAIGN, LIMITS } from '~/contract';
+import { CAMPAIGN, LIMITS, SCENARIO } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -85,3 +85,101 @@ export const campaigns: ResourceSpec<Row, z.infer<typeof create>, z.infer<typeof
   },
   fields: (row) => fieldsOf(COLUMNS, row),
 };
+
+// ---- scenario -----------------------------------------------------------------------------
+
+const SCENARIO_COLUMNS: Columns = {
+  name: plain('name'),
+  campaign_id: plain('campaignId'),
+  premise: plain('premise'),
+  hook: plain('hook'),
+  stakes: plain('stakes'),
+  situation: plain('situation'),
+  cast: jsonList('cast'),
+  places: jsonList('places'),
+  clocks: jsonList('clocks'),
+  secrets: jsonList('secrets'),
+  beats: jsonList('beats'),
+  outcomes: jsonList('outcomes'),
+};
+
+const limits = SCENARIO.limits;
+const short = z.string().trim().max(LIMITS.short_text_characters);
+const long = z.string().trim().max(LIMITS.card_field_characters);
+const named = z.string().trim().min(1).max(LIMITS.short_text_characters);
+const [fewestSegments, mostSegments] = SCENARIO.clock_segment_range as [number, number];
+const clock = z
+  .object({ name: named, segments: z.number().int().min(fewestSegments).max(mostSegments), filled: z.number().int().min(0), advances: short, when_full: short })
+  .strict()
+  .refine((one) => one.filled <= one.segments, { message: 'A clock’s filled segments are 0 to its segments', path: ['filled'] });
+const scenarioFields = {
+  name: z.string().trim().min(1).max(LIMITS.name_characters),
+  campaign_id: z.string().min(1).nullable(),
+  premise: long,
+  hook: long,
+  stakes: long,
+  situation: long,
+  cast: z.array(z.object({ name: named, agenda: long, secret: long, disposition: short }).strict()).max(limits.cast),
+  places: z.array(named).max(limits.places),
+  clocks: z.array(clock).max(limits.clocks),
+  secrets: z
+    .array(z.object({ truth: z.string().trim().min(1).max(LIMITS.card_field_characters), clues: z.array(z.object({ text: named, found: z.boolean() }).strict()).max(limits.clues_per_secret) }).strict())
+    .max(limits.secrets),
+  beats: z.array(z.object({ text: named, done: z.boolean() }).strict()).max(limits.beats),
+  outcomes: z.array(named).max(limits.outcomes),
+};
+const scenarioCreate = z.object({
+  name: scenarioFields.name,
+  campaign_id: scenarioFields.campaign_id.default(null),
+  premise: long.default(''),
+  hook: long.default(''),
+  stakes: long.default(''),
+  situation: long.default(''),
+  cast: scenarioFields.cast.default([]),
+  places: scenarioFields.places.default([]),
+  clocks: scenarioFields.clocks.default([]),
+  secrets: scenarioFields.secrets.default([]),
+  beats: scenarioFields.beats.default([]),
+  outcomes: scenarioFields.outcomes.default([]),
+});
+const scenarioUpdate = z.object(scenarioFields).partial();
+
+type ScenarioRow = Prisma.ScenarioGetPayload<object>;
+
+async function checkCampaign(ownerId: string, campaignId: string | null | undefined): Promise<void> {
+  if (campaignId === null || campaignId === undefined) return;
+  if ((await prisma.campaign.count({ where: { id: campaignId, createdById: ownerId } })) === 0) throw validationError('That campaign is not one of yours', 'campaign_id');
+}
+
+export const scenarios: ResourceSpec<ScenarioRow, z.infer<typeof scenarioCreate>, z.infer<typeof scenarioUpdate>> = {
+  resource: 'scenario',
+  plural: 'scenarios',
+  modelName: 'ScenarioModel',
+  createSchema: scenarioCreate,
+  updateSchema: scenarioUpdate,
+  list: (ownerId) => prisma.scenario.findMany({ where: { createdById: ownerId }, orderBy: { name: 'asc' } }),
+  find: (id, ownerId) => prisma.scenario.findFirst({ where: { id, createdById: ownerId } }),
+  async insert(ownerId, input, stamp) {
+    await checkCampaign(ownerId, input.campaign_id);
+    return prisma.scenario.create({ data: { createdById: ownerId, ...columnsOf(SCENARIO_COLUMNS, input), updatedAt: stamp } as Prisma.ScenarioUncheckedCreateInput });
+  },
+  async updateIfCurrent(id, version, input, stamp, userId) {
+    const row = await prisma.scenario.findUnique({ where: { id }, select: { createdById: true } });
+    if (row !== null) await checkCampaign(row.createdById, input.campaign_id);
+    const { count } = await prisma.scenario.updateMany({
+      where: { id, updatedAt: version },
+      data: { ...columnsOf(SCENARIO_COLUMNS, input), updatedAt: stamp, ...(userId === undefined ? {} : { updatedById: userId }) } as Prisma.ScenarioUncheckedUpdateManyInput,
+    });
+    return count === 0 ? null : prisma.scenario.findUnique({ where: { id } });
+  },
+  async remove(id) {
+    const scenario = await prisma.scenario.findUnique({ where: { id }, select: { createdById: true } });
+    if (scenario === null) return;
+    await prisma.$transaction([
+      prisma.chat.updateMany({ where: { createdById: scenario.createdById, scenarioId: id }, data: { scenarioId: null, updatedAt: new Date() } }),
+      prisma.scenario.delete({ where: { id } }),
+    ]);
+  },
+  fields: (row) => fieldsOf(SCENARIO_COLUMNS, row),
+};
+

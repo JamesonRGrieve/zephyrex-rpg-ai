@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LORE } from '~/contract';
 import { ChatSettings } from './ChatSettings';
 
-const VALUE = { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: [], lore_settings: {}, system_prompt: '', summary: '', tags: [], folder: '', muted_ids: [], background: null, objectives: [], content_rating: null, lines: [], veils: [], table_notes: [], campaign_id: null };
+const VALUE = { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: [], lore_settings: {}, system_prompt: '', summary: '', tags: [], folder: '', muted_ids: [], background: null, objectives: [], content_rating: null, lines: [], veils: [], table_notes: [], campaign_id: null, scenario_id: null };
 
 describe('ChatSettings', () => {
   it('saves the lorebooks picked, World Info settings within range, and leaves blank settings out', async () => {

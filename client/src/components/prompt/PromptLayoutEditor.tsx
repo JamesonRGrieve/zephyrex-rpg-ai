@@ -16,6 +16,10 @@ import { cn } from '~/lib/utils';
 
 export const SECTION_LABELS: Record<PromptSectionId, string> = {
   main: 'System prompt',
+  safety: 'Table safety',
+  table_notes: 'Table notes',
+  campaign: 'Campaign frame',
+  running_scenario: 'Running scenario',
   lore_before_char: 'Lore before the character',
   description: 'Description',
   personality: 'Personality',
@@ -25,6 +29,8 @@ export const SECTION_LABELS: Record<PromptSectionId, string> = {
   lore_before_example: 'Lore before the examples',
   examples: 'Example dialogue',
   lore_after_example: 'Lore after the examples',
+  data_bank: 'Data bank notes',
+  summary: 'Summary',
   author_note: 'Author’s note',
   post_history: 'Post-history instructions',
 };

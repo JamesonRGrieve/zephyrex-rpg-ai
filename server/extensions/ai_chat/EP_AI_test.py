@@ -387,6 +387,32 @@ class TestGenerate:
         prompt = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"]}}, headers=_headers(user)).json()["prompt"]
         assert "Premise: Smugglers on a dying freighter.\nSetting truths:\n- The Guild owns every port." in prompt["messages"][0]["content"]
 
+    def test_a_running_scenario_is_the_gms_view(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        for refused in (
+            {"clocks": [{"name": "x", "segments": 1, "filled": 0, "advances": "", "when_full": ""}]},
+            {"clocks": [{"name": "x", "segments": 4, "filled": 5, "advances": "", "when_full": ""}]},
+            {"secrets": [{"truth": "x", "clues": [{"text": "y"}]}]},
+            {"cast": [{"name": " ", "agenda": "", "secret": "", "disposition": ""}]},
+        ):
+            answer = server.post("/v1/scenario", json={"scenario": {"name": "Bad", **refused}}, headers=_headers(user))
+            assert answer.status_code == 422, (refused, answer.text)
+        scenario = _create(
+            server,
+            user,
+            "scenario",
+            name="Sabotage",
+            premise="Someone cuts the coolant line.",
+            clocks=[{"name": "The pump fails", "segments": 4, "filled": 3, "advances": "a jump", "when_full": "the ship drifts"}],
+            secrets=[{"truth": "Reyes cut it.", "clues": [{"text": "Cut marks", "found": True}]}],
+        ).json()["scenario"]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], scenario_id=scenario["id"]).json()["chat"]
+        system = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"]}}, headers=_headers(user)).json()["prompt"]["messages"][0]["content"]
+        assert "- The pump fails: 3/4 (close to filling); advances when a jump; when full: the ship drifts" in system
+        assert "- Reyes cut it. [learned]. Clues: Cut marks (found)" in system
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

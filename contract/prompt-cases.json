@@ -938,6 +938,125 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "the running scenario is the GM's view: clocks near full flagged, clues found or not, beats to come",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "scenario": {
+          "premise": "Someone is sabotaging the coolant.",
+          "hook": "The pump fails mid-jump.",
+          "stakes": "The Kestrel cooks if it fails again.",
+          "situation": "  ",
+          "cast": [
+            {
+              "name": "Reyes",
+              "agenda": "to sell the ship",
+              "secret": "she cut the line",
+              "disposition": "friendly"
+            },
+            {
+              "name": "Bram",
+              "agenda": "",
+              "secret": "",
+              "disposition": ""
+            },
+            {
+              "name": " ",
+              "agenda": "x"
+            }
+          ],
+          "places": [
+            "the engine room",
+            "bay two",
+            " "
+          ],
+          "clocks": [
+            {
+              "name": "The pump fails",
+              "segments": 4,
+              "filled": 3,
+              "advances": "a jump is made",
+              "when_full": "the ship drifts"
+            },
+            {
+              "name": "Buyer arrives",
+              "segments": 6,
+              "filled": 1,
+              "advances": "",
+              "when_full": ""
+            },
+            {
+              "name": "Done",
+              "segments": 2,
+              "filled": 5
+            }
+          ],
+          "secrets": [
+            {
+              "truth": "Reyes cut the line.",
+              "clues": [
+                {
+                  "text": "Cut marks",
+                  "found": true
+                },
+                {
+                  "text": "Her gloves",
+                  "found": false
+                }
+              ]
+            },
+            {
+              "truth": "A buyer is coming.",
+              "clues": []
+            }
+          ],
+          "beats": [
+            {
+              "text": "The pump fails",
+              "done": true
+            },
+            {
+              "text": "The buyer hails",
+              "done": false
+            }
+          ],
+          "outcomes": [
+            "Reyes is caught",
+            " "
+          ]
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Hi."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nThe scenario (the GM's view; reveal only what the characters find or see):\nPremise: Someone is sabotaging the coolant.\nHook: The pump fails mid-jump.\nStakes: The Kestrel cooks if it fails again.\nCast:\n- Reyes (friendly): wants to sell the ship. Secret: she cut the line\n- Bram\nPlaces: the engine room; bay two.\nClocks:\n- The pump fails: 3/4 (close to filling); advances when a jump is made; when full: the ship drifts\n- Buyer arrives: 1/6\n- Done: 2/2 (full)\nSecrets and clues:\n- Reyes cut the line. [learned]. Clues: Cut marks (found); Her gloves (not found)\n- A buyer is coming. [not yet learned]\nBeats still to come: The buyer hails.\nIt can end: Reyes is caught.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

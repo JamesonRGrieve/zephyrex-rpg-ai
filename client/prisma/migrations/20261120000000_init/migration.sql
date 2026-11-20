@@ -63,6 +63,7 @@ CREATE TABLE "Chat" (
     "tableNotes" TEXT NOT NULL DEFAULT '[]',
     "paused" BOOLEAN NOT NULL DEFAULT false,
     "campaignId" TEXT,
+    "scenarioId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
@@ -282,4 +283,28 @@ CREATE TABLE "Campaign" (
 
 -- CreateIndex
 CREATE INDEX "Campaign_createdById_idx" ON "Campaign"("createdById");
+
+-- CreateTable
+CREATE TABLE "Scenario" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "campaignId" TEXT,
+    "premise" TEXT NOT NULL DEFAULT '',
+    "hook" TEXT NOT NULL DEFAULT '',
+    "stakes" TEXT NOT NULL DEFAULT '',
+    "situation" TEXT NOT NULL DEFAULT '',
+    "cast" TEXT NOT NULL DEFAULT '[]',
+    "places" TEXT NOT NULL DEFAULT '[]',
+    "clocks" TEXT NOT NULL DEFAULT '[]',
+    "secrets" TEXT NOT NULL DEFAULT '[]',
+    "beats" TEXT NOT NULL DEFAULT '[]',
+    "outcomes" TEXT NOT NULL DEFAULT '[]',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "Scenario_createdById_idx" ON "Scenario"("createdById");
 

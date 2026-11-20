@@ -143,6 +143,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A50 | Multi-user accounts on one install, with per-user data and an admin | SillyTavern | ✓ | ✓ |
 | A53 | Objectives: the first not done is the character's current task | the model ticking tasks off itself |
 | A57, A58 | Campaign frames (premise, genre, tone dials, themes, pillars, structure, truths, characters, resolution) read every turn by a chat in the campaign; the brief for players | session zero as a guided flow; linking a wiki campaign |
+| A59–A61 | Scenarios as moving parts (cast, places, clocks, secrets with clues, beats, endings); a chat runs one and the model reads the GM's view every turn; play state at the table; files in and out | the GM's abilities moving the state itself (decide); drafting a scenario by model or from the wiki; rehearsal (A62, SaaS) |
 | A51 | Character tags, folders and favourites; welcome screen with recents | SillyTavern | ✓ | ✓ |
 | A52 | Group greetings; `/sendas` a group member; group member muting and join modes | SillyTavern | ✓ | ✓ |
 | A53 | Objectives and tasks for a character, tracked across a chat | SillyTavern (extension) | ✓ | ✓ |

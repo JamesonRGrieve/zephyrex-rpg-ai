@@ -230,6 +230,7 @@ const CHAT_COLUMNS: Columns = {
   table_notes: jsonList('tableNotes'),
   paused: plain('paused'),
   campaign_id: plain('campaignId'),
+  scenario_id: plain('scenarioId'),
 };
 
 const title = z.string().trim().min(1).max(LIMITS.chat_title_characters);
@@ -283,6 +284,8 @@ const chatFields = {
   paused: z.boolean(),
   /** The campaign it belongs to (A57); its frame is read every turn. */
   campaign_id: recordId.nullable(),
+  /** The scenario it runs (A59, A60); the GM's view of it is read every turn. */
+  scenario_id: recordId.nullable(),
 };
 const chatCreate = z.object({
   title,
@@ -307,6 +310,7 @@ const chatCreate = z.object({
   table_notes: chatFields.table_notes.default([]),
   paused: chatFields.paused.default(false),
   campaign_id: chatFields.campaign_id.default(null),
+  scenario_id: chatFields.scenario_id.default(null),
 });
 const chatUpdate = z.object({ title, ...chatFields }).partial();
 
@@ -330,6 +334,7 @@ async function checkChatReferences(ownerId: string, input: z.infer<typeof chatUp
     ['preset_id', () => prisma.generationPreset.count({ where: { ...owned, id: input.preset_id ?? '' } })],
     ['endpoint_id', () => prisma.modelEndpoint.count({ where: { ...owned, id: input.endpoint_id ?? '' } })],
     ['campaign_id', () => prisma.campaign.count({ where: { ...owned, id: input.campaign_id ?? '' } })],
+    ['scenario_id', () => prisma.scenario.count({ where: { ...owned, id: input.scenario_id ?? '' } })],
   ];
   const named = single.filter(([field]) => typeof input[field] === 'string');
   const counts = await Promise.all(named.map(([, count]) => count()));

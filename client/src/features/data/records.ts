@@ -70,6 +70,7 @@ export const chatSchema = z.object({
   table_notes: z.array(z.object({ kind: z.enum(TABLE.note_kinds), text: z.string() })),
   paused: z.boolean(),
   campaign_id: z.string().nullable(),
+  scenario_id: z.string().nullable(),
 });
 export type Chat = z.infer<typeof chatSchema>;
 
@@ -289,4 +290,22 @@ export const campaignSchema = z.object({
 });
 export type Campaign = z.infer<typeof campaignSchema>;
 export const campaigns = resource<Campaign, Fields<Campaign> & { name: string }>('campaign', 'campaigns', campaignSchema);
+
+export const scenarioSchema = z.object({
+  ...versioned,
+  name: z.string(),
+  campaign_id: z.string().nullable(),
+  premise: z.string(),
+  hook: z.string(),
+  stakes: z.string(),
+  situation: z.string(),
+  cast: z.array(z.object({ name: z.string(), agenda: z.string(), secret: z.string(), disposition: z.string() })),
+  places: z.array(z.string()),
+  clocks: z.array(z.object({ name: z.string(), segments: z.number(), filled: z.number(), advances: z.string(), when_full: z.string() })),
+  secrets: z.array(z.object({ truth: z.string(), clues: z.array(z.object({ text: z.string(), found: z.boolean() })) })),
+  beats: z.array(z.object({ text: z.string(), done: z.boolean() })),
+  outcomes: z.array(z.string()),
+});
+export type Scenario = z.infer<typeof scenarioSchema>;
+export const scenarios = resource<Scenario, Fields<Scenario> & { name: string }>('scenario', 'scenarios', scenarioSchema);
 

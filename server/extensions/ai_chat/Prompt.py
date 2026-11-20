@@ -166,6 +166,61 @@ def frame_text(frame: Mapping[str, Any] | None) -> str:
     return "\n".join([CAMPAIGN["heading"], *kept]) if kept else ""
 
 
+SCENARIO = CONTRACT["scenario"]
+
+
+def scenario_text(scenario: Mapping[str, Any] | None) -> str:
+    """A running scenario as the GM sees it (A59, A60): what is going on, who wants what, the clocks
+    (those about to fill flagged), each secret with its clues found or not, the beats still to come
+    and how it can end. Parts left empty are left out; nothing when there is no scenario."""
+    if not scenario:
+        return ""
+
+    def said(key: str) -> str:
+        return (scenario.get(key) or "").strip()
+
+    cast = [
+        f"- {person['name'].strip()}"
+        + (f" ({person['disposition'].strip()})" if (person.get("disposition") or "").strip() else "")
+        + (f": wants {person['agenda'].strip()}" if (person.get("agenda") or "").strip() else "")
+        + (f". Secret: {person['secret'].strip()}" if (person.get("secret") or "").strip() else "")
+        for person in scenario.get("cast") or []
+        if (person.get("name") or "").strip()
+    ]
+    places = [place.strip() for place in scenario.get("places") or [] if place.strip()]
+    clocks = []
+    for clock in scenario.get("clocks") or []:
+        filled, segments = int(clock["filled"]), int(clock["segments"])
+        state = "full" if filled >= segments else "close to filling" if segments - filled <= SCENARIO["close_segments"] else ""
+        clocks.append(
+            f"- {clock['name'].strip()}: {min(filled, segments)}/{segments}"
+            + (f" ({state})" if state else "")
+            + (f"; advances when {clock['advances'].strip()}" if (clock.get("advances") or "").strip() else "")
+            + (f"; when full: {clock['when_full'].strip()}" if (clock.get("when_full") or "").strip() else "")
+        )
+    secrets = []
+    for secret in scenario.get("secrets") or []:
+        clues = [f"{clue['text'].strip()} ({'found' if clue['found'] else 'not found'})" for clue in secret.get("clues") or [] if clue["text"].strip()]
+        found = any(clue["found"] for clue in secret.get("clues") or [])
+        secrets.append(f"- {secret['truth'].strip()} [{'learned' if found else 'not yet learned'}]" + (f". Clues: {'; '.join(clues)}" if clues else ""))
+    beats = [beat["text"].strip() for beat in scenario.get("beats") or [] if not beat["done"] and beat["text"].strip()]
+    outcomes = [outcome.strip() for outcome in scenario.get("outcomes") or [] if outcome.strip()]
+    lines = [
+        f"Premise: {said('premise')}" if said("premise") else "",
+        f"Hook: {said('hook')}" if said("hook") else "",
+        f"Stakes: {said('stakes')}" if said("stakes") else "",
+        f"Situation: {said('situation')}" if said("situation") else "",
+        "Cast:\n" + "\n".join(cast) if cast else "",
+        "Places: " + "; ".join(places) + "." if places else "",
+        "Clocks:\n" + "\n".join(clocks) if clocks else "",
+        "Secrets and clues:\n" + "\n".join(secrets) if secrets else "",
+        "Beats still to come: " + "; ".join(beats) + "." if beats else "",
+        "It can end: " + "; ".join(outcomes) + "." if outcomes else "",
+    ]
+    kept = [line for line in lines if line]
+    return "\n".join([SCENARIO["heading"], *kept]) if kept else ""
+
+
 def _history_message(
     turn: Mapping[str, Any], speaker_id: str, names_by_id: Mapping[str, str], group: bool, user_name: str
 ) -> dict[str, str]:
@@ -205,6 +260,7 @@ def assemble_prompt(
     safety: Mapping[str, Any] | None = None,
     table_notes: Sequence[Mapping[str, Any]] | None = None,
     frame: Mapping[str, Any] | None = None,
+    scenario: Mapping[str, Any] | None = None,
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -228,6 +284,7 @@ def assemble_prompt(
         "safety": safety_text(safety),
         "table_notes": table_notes_text(table_notes),
         "campaign": frame_text(frame),
+        "running_scenario": scenario_text(scenario),
         "lore_before_char": sections.get("before_char", ""),
         "description": speaker["description"],
         "personality": f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",

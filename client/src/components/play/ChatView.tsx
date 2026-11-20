@@ -8,7 +8,7 @@
  * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
-import { Download, Ellipsis, GitFork, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
+import { Clock3, Download, Ellipsis, GitFork, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -34,10 +34,11 @@ import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
 import { TABLE } from '~/contract';
-import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts, campaigns } from '~/features/data/records';
+import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts, campaigns, scenarios } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
+import { ScenarioPlay } from '~/components/campaign/ScenarioPlay';
 import { BranchTree } from './BranchTree';
 import { ContextInspector } from './ContextInspector';
 import { NextSpeaker } from './NextSpeaker';
@@ -87,6 +88,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const lorebookList = lorebooks.useList();
   const chatList = chats.useList();
   const campaignList = campaigns.useList();
+  const scenarioList = scenarios.useList();
+  const running = scenarioList.data?.find((one) => one.id === chat.scenario_id);
+  const { update: updateScenario } = scenarios.useActions();
+  const [scenarioOpen, setScenarioOpen] = useState(false);
   const scriptList = regexScripts.useList();
   const scripts = scriptList.data ?? [];
   const quickList = quickReplies.useList();
@@ -333,6 +338,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           <Button type='button' variant='outline' className='h-11' onClick={() => void xCardLatest()} aria-label='X-card the latest reply'>
             <X aria-hidden /> X-card
           </Button>
+          {running !== undefined && (
+            <Button type='button' variant='ghost' className='h-11' onClick={() => setScenarioOpen(true)}>
+              <Clock3 aria-hidden /> Scenario
+            </Button>
+          )}
           <Button type='button' variant='ghost' className='h-11' onClick={() => void openInspector()}>
             <ScanText aria-hidden /> Context
           </Button>
@@ -456,6 +466,24 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             }),
           }))}
       />
+      <Sheet open={scenarioOpen && running !== undefined} onOpenChange={setScenarioOpen}>
+        <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
+          <SheetHeader>
+            <SheetTitle>{running?.name ?? 'Scenario'}</SheetTitle>
+            <SheetDescription>The state in play. The GM reads it every turn.</SheetDescription>
+          </SheetHeader>
+          <div className='p-4'>
+            {running !== undefined && (
+              <ScenarioPlay
+                scenario={running}
+                onChange={(next) =>
+                  void updateScenario(running, next).catch((error: unknown) => notify('Not saved', error instanceof Error ? error.message : undefined))
+                }
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
       <Sheet open={treeOpen} onOpenChange={setTreeOpen}>
         <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
           <SheetHeader>
@@ -512,7 +540,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           veils: chat.veils,
           table_notes: chat.table_notes,
           campaign_id: chat.campaign_id,
+          scenario_id: chat.scenario_id,
         }}
+        scenarios={(scenarioList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}
         campaigns={(campaignList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}
         cast={chat.character_ids.flatMap((id) => {
           const character = castById.get(id);

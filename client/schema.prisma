@@ -82,6 +82,7 @@ model Chat {
   tableNotes   String   @default("[]")
   paused       Boolean  @default(false)
   campaignId   String?
+  scenarioId   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   updatedById  String?
@@ -280,6 +281,29 @@ model Campaign {
   createdAt      DateTime @default(now())
   updatedAt      DateTime
   updatedById    String?
+
+  @@index([createdById])
+}
+
+/// A scenario: a playable situation as moving parts, with its state in play (A59, A60).
+model Scenario {
+  id          String   @id @default(uuid())
+  createdById String
+  name        String
+  campaignId  String?
+  premise     String   @default("")
+  hook        String   @default("")
+  stakes      String   @default("")
+  situation   String   @default("")
+  cast        String   @default("[]")
+  places      String   @default("[]")
+  clocks      String   @default("[]")
+  secrets     String   @default("[]")
+  beats       String   @default("[]")
+  outcomes    String   @default("[]")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
 
   @@index([createdById])
 }

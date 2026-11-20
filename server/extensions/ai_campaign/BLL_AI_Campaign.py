@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Campaign frames (A57, A58), on the framework's records: the same resource, fields and rules as the
+"""Campaign frames (A57, A58) and scenarios (A59-A61), on the framework's records: the same resource, fields and rules as the
 lite edition's (client/src/lib/campaignRecords.ts).
 
 ``/v1/campaign``: the table's agreement about what kind of game it is: premise, genre, the tone
@@ -10,6 +10,7 @@ frame shown to the players.
 
 from typing import Any, ClassVar
 
+from fastapi import HTTPException
 from pydantic import BaseModel as PlainModel
 from pydantic import Field, field_validator
 
@@ -164,3 +165,235 @@ class CampaignManager(AbstractBLLManager[CampaignModel], RouterMixin):
 def frame_of(campaign: Any) -> dict[str, Any]:
     """A campaign record's frame, as Prompt.frame_text reads it."""
     return {field: getattr(campaign, field) for field in FRAME_FIELDS}
+
+
+# ---- scenario --------------------------------------------------------------------------
+
+SCENARIO: dict[str, Any] = CONTRACT["scenario"]
+SCENARIO_LIMITS: dict[str, int] = SCENARIO["limits"]
+SEGMENTS: list[int] = SCENARIO["clock_segment_range"]
+
+
+def _text(value: Any, field: str, required: bool = False, limit: int = MAX_SHORT) -> str:
+    if not isinstance(value, str) or len(value.strip()) > limit or (required and not value.strip()):
+        raise ValueError(f"{field} is {'1' if required else '0'} to {limit} characters of text")
+    return value.strip()
+
+
+def _shaped(value: Any, keys: set[str], field: str) -> dict[str, Any]:
+    if not isinstance(value, dict) or set(value) != keys:
+        raise ValueError(f"Each of {field} is {{{', '.join(sorted(keys))}}}")
+    return value
+
+
+def _limited(value: Any, field: str) -> list[Any]:
+    if not isinstance(value, list) or len(value) > SCENARIO_LIMITS[field]:
+        raise ValueError(f"At most {SCENARIO_LIMITS[field]} {field}")
+    return value
+
+
+def _flag(value: Any, field: str) -> bool:
+    if not isinstance(value, bool):
+        raise ValueError(f"{field} is true or false")
+    return value
+
+
+def _cast(value: Any) -> Any:
+    if value is None:
+        return None
+    people = []
+    for person in _limited(value, "cast"):
+        shaped = _shaped(person, {"name", "agenda", "secret", "disposition"}, "cast")
+        people.append(
+            {
+                "name": _text(shaped["name"], "A name", required=True),
+                "agenda": _text(shaped["agenda"], "An agenda", limit=MAX_CARD),
+                "secret": _text(shaped["secret"], "A secret", limit=MAX_CARD),
+                "disposition": _text(shaped["disposition"], "A disposition"),
+            }
+        )
+    return people
+
+
+def _texts(value: Any, field: str) -> Any:
+    if value is None:
+        return None
+    return [_text(item, f"Each of {field}", required=True) for item in _limited(value, field)]
+
+
+def _clocks(value: Any) -> Any:
+    if value is None:
+        return None
+    clocks = []
+    for clock in _limited(value, "clocks"):
+        shaped = _shaped(clock, {"name", "segments", "filled", "advances", "when_full"}, "clocks")
+        segments, filled = shaped["segments"], shaped["filled"]
+        if isinstance(segments, bool) or not isinstance(segments, int) or not SEGMENTS[0] <= segments <= SEGMENTS[1]:
+            raise ValueError(f"A clock has {SEGMENTS[0]} to {SEGMENTS[1]} segments")
+        if isinstance(filled, bool) or not isinstance(filled, int) or not 0 <= filled <= segments:
+            raise ValueError("A clock's filled segments are 0 to its segments")
+        clocks.append(
+            {
+                "name": _text(shaped["name"], "A clock's name", required=True),
+                "segments": segments,
+                "filled": filled,
+                "advances": _text(shaped["advances"], "What advances a clock"),
+                "when_full": _text(shaped["when_full"], "What happens when a clock fills"),
+            }
+        )
+    return clocks
+
+
+def _secrets(value: Any) -> Any:
+    if value is None:
+        return None
+    secrets = []
+    for secret in _limited(value, "secrets"):
+        shaped = _shaped(secret, {"truth", "clues"}, "secrets")
+        clues = shaped["clues"]
+        if not isinstance(clues, list) or len(clues) > SCENARIO_LIMITS["clues_per_secret"]:
+            raise ValueError(f"At most {SCENARIO_LIMITS['clues_per_secret']} clues to a secret")
+        secrets.append(
+            {
+                "truth": _text(shaped["truth"], "A truth", required=True, limit=MAX_CARD),
+                "clues": [
+                    {"text": _text(clue["text"], "A clue", required=True), "found": _flag(clue["found"], "found")}
+                    for clue in (_shaped(clue, {"text", "found"}, "clues") for clue in clues)
+                ],
+            }
+        )
+    return secrets
+
+
+def _beats(value: Any) -> Any:
+    if value is None:
+        return None
+    return [
+        {"text": _text(beat["text"], "A beat", required=True), "done": _flag(beat["done"], "done")}
+        for beat in (_shaped(beat, {"text", "done"}, "beats") for beat in _limited(value, "beats"))
+    ]
+
+
+class ScenarioChecks(PlainModel):
+    @field_validator("name", check_fields=False)
+    @classmethod
+    def _checked_name(cls, value: Any) -> Any:
+        return _name(value)
+
+    @field_validator("cast", check_fields=False)
+    @classmethod
+    def _checked_cast(cls, value: Any) -> Any:
+        return _cast(value)
+
+    @field_validator("places", check_fields=False)
+    @classmethod
+    def _checked_places(cls, value: Any) -> Any:
+        return _texts(value, "places")
+
+    @field_validator("outcomes", check_fields=False)
+    @classmethod
+    def _checked_outcomes(cls, value: Any) -> Any:
+        return _texts(value, "outcomes")
+
+    @field_validator("clocks", check_fields=False)
+    @classmethod
+    def _checked_clocks(cls, value: Any) -> Any:
+        return _clocks(value)
+
+    @field_validator("secrets", check_fields=False)
+    @classmethod
+    def _checked_secrets(cls, value: Any) -> Any:
+        return _secrets(value)
+
+    @field_validator("beats", check_fields=False)
+    @classmethod
+    def _checked_beats(cls, value: Any) -> Any:
+        return _beats(value)
+
+
+class ScenarioModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
+    Manager: ClassVar[type["ScenarioManager"]]
+    name: str = Field(..., description="Name")
+    campaign_id: str | None = Field(None, description="The campaign it belongs to")
+    premise: str = Field("", description="What is going on")
+    hook: str = Field("", description="How the characters get pulled in")
+    stakes: str = Field("", description="What is lost if nobody acts")
+    situation: str = Field("", description="The state of things when play starts")
+    cast: list[dict[str, Any]] = Field(default_factory=list, description="Each person's agenda, secret and disposition")
+    places: list[str] = Field(default_factory=list, description="Where things happen")
+    clocks: list[dict[str, Any]] = Field(default_factory=list, description="Progress tracks, each with what advances it and what happens when full")
+    secrets: list[dict[str, Any]] = Field(default_factory=list, description="Truths the characters can learn, each with its clues (found or not)")
+    beats: list[dict[str, Any]] = Field(default_factory=list, description="Optional moments, done or not")
+    outcomes: list[str] = Field(default_factory=list, description="How it can end")
+
+    table_comment: ClassVar[str] = "Zephyrex RPG AI scenarios"
+
+    class Create(ScenarioChecks, BaseModel):
+        name: str = Field(..., min_length=1, max_length=MAX_NAME)
+        campaign_id: str | None = None
+        premise: str = Field("", max_length=MAX_CARD)
+        hook: str = Field("", max_length=MAX_CARD)
+        stakes: str = Field("", max_length=MAX_CARD)
+        situation: str = Field("", max_length=MAX_CARD)
+        cast: list[dict[str, Any]] = Field(default_factory=list)
+        places: list[str] = Field(default_factory=list)
+        clocks: list[dict[str, Any]] = Field(default_factory=list)
+        secrets: list[dict[str, Any]] = Field(default_factory=list)
+        beats: list[dict[str, Any]] = Field(default_factory=list)
+        outcomes: list[str] = Field(default_factory=list)
+
+    class Update(ScenarioChecks, BaseModel):
+        name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
+        campaign_id: str | None = None
+        premise: str | None = Field(None, max_length=MAX_CARD)
+        hook: str | None = Field(None, max_length=MAX_CARD)
+        stakes: str | None = Field(None, max_length=MAX_CARD)
+        situation: str | None = Field(None, max_length=MAX_CARD)
+        cast: list[dict[str, Any]] | None = None
+        places: list[str] | None = None
+        clocks: list[dict[str, Any]] | None = None
+        secrets: list[dict[str, Any]] | None = None
+        beats: list[dict[str, Any]] | None = None
+        outcomes: list[str] | None = None
+
+    class Search(ApplicationModel.Search):
+        name: StringSearchModel | None = None
+        campaign_id: StringSearchModel | None = None
+
+
+SCENARIO_FIELDS = ("premise", "hook", "stakes", "situation", "cast", "places", "clocks", "secrets", "beats", "outcomes")
+
+
+class ScenarioManager(AbstractBLLManager[ScenarioModel], RouterMixin):
+    _model = ScenarioModel
+
+    def _check_campaign(self, fields: dict[str, Any]) -> None:
+        if fields.get("campaign_id") is not None:
+            try:
+                CampaignManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(id=fields["campaign_id"])
+            except HTTPException as error:
+                raise HTTPException(
+                    status_code=422,
+                    detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": ["campaign_id"], "msg": "That campaign is not one of yours"}]},
+                ) from error
+
+    def create(self, **kwargs: Any) -> Any:
+        for key in ("premise", "hook", "stakes", "situation"):
+            kwargs.setdefault(key, "")
+        for key in ("cast", "places", "clocks", "secrets", "beats", "outcomes"):
+            kwargs.setdefault(key, [])
+        self._check_campaign(kwargs)
+        return super().create(**kwargs)
+
+    def update(self, id: str, **kwargs: Any) -> Any:
+        self._check_campaign(kwargs)
+        return super().update(id, **kwargs)
+
+    def list(self, *args: Any, **kwargs: Any) -> Any:
+        rows = super().list(*args, **kwargs)
+        return sorted(rows, key=lambda row: row.name) if isinstance(rows, list) else rows
+
+
+def scenario_of(scenario: Any) -> dict[str, Any]:
+    """A scenario record as Prompt.scenario_text reads it."""
+    return {field: getattr(scenario, field) for field in SCENARIO_FIELDS}

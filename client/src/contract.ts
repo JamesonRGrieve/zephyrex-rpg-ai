@@ -31,6 +31,7 @@ export const PROMPT = {
     'safety',
     'table_notes',
     'campaign',
+    'running_scenario',
     'lore_before_char',
     'description',
     'personality',
@@ -111,4 +112,7 @@ export const CAMPAIGN = {
   structures: contract.campaign.structures as unknown as readonly ['sandbox', 'linear', 'episodic', 'one_shot'],
   resolution_modes: contract.campaign.resolution_modes as unknown as readonly ['narrative', 'mechanical', 'hybrid'],
 };
+
+/** Scenario modeling (A59–A61): clocks, clues and the GM's view of a running scenario. */
+export const SCENARIO = contract.scenario;
 

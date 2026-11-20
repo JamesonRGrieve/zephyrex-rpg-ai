@@ -125,6 +125,7 @@
       "safety",
       "table_notes",
       "campaign",
+      "running_scenario",
       "lore_before_char",
       "description",
       "personality",
@@ -476,5 +477,22 @@
       "hybrid"
     ],
     "heading": "The campaign (the table agreed to this; keep to it):"
+  },
+  "scenario": {
+    "heading": "The scenario (the GM's view; reveal only what the characters find or see):",
+    "clock_segment_range": [
+      2,
+      12
+    ],
+    "close_segments": 1,
+    "limits": {
+      "cast": 20,
+      "places": 30,
+      "clocks": 12,
+      "secrets": 20,
+      "clues_per_secret": 6,
+      "beats": 30,
+      "outcomes": 10
+    }
   }
 }

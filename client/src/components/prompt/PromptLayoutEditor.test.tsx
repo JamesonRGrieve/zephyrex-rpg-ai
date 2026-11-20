@@ -17,7 +17,8 @@ describe('PromptLayoutEditor', () => {
     const onChange = vi.fn();
     render(<PromptLayoutEditor value={[]} onChange={onChange} />);
     await userEvent.click(screen.getByRole('button', { name: 'Move Description up' }));
-    expect(onChange.mock.lastCall?.[0].slice(0, 3).map((section: { id: string }) => section.id)).toEqual(['main', 'description', 'lore_before_char']);
+    const ids: string[] = onChange.mock.lastCall?.[0].map((section: { id: string }) => section.id);
+    expect(ids.indexOf('description')).toBe(ids.indexOf('lore_before_char') - 1);
     await userEvent.click(screen.getByRole('switch', { name: 'Include Example dialogue' }));
     expect(onChange.mock.lastCall?.[0].find((section: { id: string }) => section.id === 'examples')).toMatchObject({ enabled: false });
     await userEvent.type(screen.getAllByLabelText('Max tokens')[0] as HTMLElement, '5');
