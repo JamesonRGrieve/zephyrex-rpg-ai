@@ -5,7 +5,8 @@
  * line at once or fills it in for you to edit, to the story or as table talk. `{{char}}` and
  * `{{user}}` are filled with the character about to speak and your persona.
  */
-import { type ReactElement, useId, useState } from 'react';
+import { FileUp } from 'lucide-react';
+import { type ChangeEvent, type ReactElement, useId, useRef, useState } from 'react';
 import { notify } from 'zephyrex/hooks/useToast';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { writeProblem } from 'zephyrex';
@@ -18,6 +19,7 @@ import { Textarea } from 'zephyrex/ui/textarea';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, QUICK_REPLY } from '~/contract';
 import { type QuickReply, quickReplies } from '~/features/data/records';
+import { quickRepliesFromJson } from '~/features/import/stScripts';
 import { ManagedList } from './ManagedList';
 
 const ACTION_LABELS = { send: 'Send at once', fill: 'Fill in to edit' } as const;
@@ -104,8 +106,33 @@ export function QuickReplyForm({ reply, done }: { reply: QuickReply | null; done
 
 export function QuickReplyManager(): ReactElement {
   const list = quickReplies.useList();
-  const { remove } = quickReplies.useActions();
+  const { create, remove } = quickReplies.useActions();
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /** SillyTavern Quick Reply sets: each button with a label and a line is added. */
+  const readFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = [...(event.target.files ?? [])];
+    event.target.value = '';
+    const read = await Promise.all(files.map(async (file) => quickRepliesFromJson(JSON.parse(await file.text()) as unknown))).catch(() => null);
+    if (read === null) {
+      notify('Not read in', 'Each file must be a SillyTavern Quick Reply set (.json).');
+      return;
+    }
+    const offset = list.data?.length ?? 0;
+    const replies = read.flat().slice(0, Math.max(0, LIMITS.quick_replies - offset));
+    const results = await Promise.allSettled(replies.map((reply, index) => create({ ...reply, label: reply.label.slice(0, LIMITS.quick_reply_label_characters), position: offset + index })));
+    const added = results.filter((result) => result.status === 'fulfilled').length;
+    notify(`${added} quick ${added === 1 ? 'reply' : 'replies'} read in`);
+  };
+
   return (
+    <div className='grid gap-4'>
+      <div className='flex flex-wrap gap-2'>
+        <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
+          <FileUp aria-hidden /> Read in from SillyTavern
+        </Button>
+        <input ref={fileInput} type='file' accept='.json,application/json' multiple hidden onChange={(event) => void readFiles(event)} />
+      </div>
     <ManagedList
       what='quick reply'
       rows={list.data?.map((row) => ({ ...row, name: row.label }))}
@@ -117,5 +144,6 @@ export function QuickReplyManager(): ReactElement {
       editor={(row, done) => <QuickReplyForm reply={row} done={done} />}
       onDelete={(row) => void remove(row)}
     />
+    </div>
   );
 }

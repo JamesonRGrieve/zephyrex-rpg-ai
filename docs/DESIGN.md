@@ -694,8 +694,8 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A19 | Rolling summaries (asked of the chat's model, kept or edited) | recall by meaning (`ai_memories`, SaaS) |
 | A29 | Read aloud per character voice; dictation (both by the browser) | server voices |
 | A31 | A picture behind each chat | per wiki location |
-| A32, A38 | Quick replies (send or fill, story or table talk) | auto-run triggers, ST set import |
-| A33 | Regex scripts: stored, display-only, prompt-only, by depth | ST script import |
+| A32, A38 | Quick replies (send or fill, story or table talk); SillyTavern Quick Reply sets read in | auto-run triggers |
+| A33 | Regex scripts: stored, display-only, prompt-only, by depth; SillyTavern scripts read in | |
 | A36 | Installable; every screen works on a phone | |
 | A43 | Translate a message by the chat's model, for display | automatic translation of every message |
 | A45 | Reasoning folded under Thinking, never read back to the model | `reasoning_content` streams |

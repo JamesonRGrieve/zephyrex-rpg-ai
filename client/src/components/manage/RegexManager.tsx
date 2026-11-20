@@ -6,7 +6,8 @@
  * as the message is saved, only as it is shown, or only as the model reads it. A try-it box shows
  * the result as you type. Scripts run in the order of their position.
  */
-import { type ReactElement, useId, useState } from 'react';
+import { FileUp } from 'lucide-react';
+import { type ChangeEvent, type ReactElement, useId, useRef, useState } from 'react';
 import { notify } from 'zephyrex/hooks/useToast';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { writeProblem } from 'zephyrex';
@@ -19,6 +20,7 @@ import { Textarea } from 'zephyrex/ui/textarea';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, REGEX } from '~/contract';
 import { applyRegex, compileFind, type RegexPlacement, type RegexTarget } from '~/features/chat/regex';
+import { regexScriptsFromJson } from '~/features/import/stScripts';
 import { type RegexScriptRecord, regexScripts } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
 
@@ -186,8 +188,34 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
 
 export function RegexManager(): ReactElement {
   const list = regexScripts.useList();
-  const { remove } = regexScripts.useActions();
+  const { create, remove } = regexScripts.useActions();
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /** SillyTavern regex script files: each script this app can run alike is added; the rest are named. */
+  const readFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = [...(event.target.files ?? [])];
+    event.target.value = '';
+    const read = await Promise.all(files.map(async (file) => regexScriptsFromJson(JSON.parse(await file.text()) as unknown))).catch(() => null);
+    if (read === null) {
+      notify('Not read in', 'Each file must be a SillyTavern regex script (.json).');
+      return;
+    }
+    const offset = list.data?.length ?? 0;
+    const scripts = read.flatMap((one) => one.scripts);
+    const results = await Promise.allSettled(scripts.map((script, index) => create({ ...script, position: Math.min(LIMITS.regex_scripts, offset + index) })));
+    const added = results.filter((result) => result.status === 'fulfilled').length;
+    const refused = read.flatMap((one) => one.refused);
+    notify(`${added} ${added === 1 ? 'script' : 'scripts'} read in`, refused.length === 0 ? undefined : `Not usable here: ${refused.join(', ')}.`);
+  };
+
   return (
+    <div className='grid gap-4'>
+      <div className='flex flex-wrap gap-2'>
+        <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
+          <FileUp aria-hidden /> Read in from SillyTavern
+        </Button>
+        <input ref={fileInput} type='file' accept='.json,application/json' multiple hidden onChange={(event) => void readFiles(event)} />
+      </div>
     <ManagedList
       what='regex script'
       rows={list.data}
@@ -199,5 +227,6 @@ export function RegexManager(): ReactElement {
       editor={(row, done) => <RegexForm script={row} done={done} />}
       onDelete={(row) => void remove(row)}
     />
+    </div>
   );
 }
