@@ -107,6 +107,63 @@ The bar is the shipped sibling apps: 16 Worldviews, Zephyreader and Chronos.
     expression sprites), and the world and table in side drawers.
 - **SPDX headers** on every file (`AGPL-3.0-or-later`, as in the siblings).
 
+## Mobile and PWA, everywhere (operator, 2026-11-20)
+
+Every screen of all three products works fully on a phone and a tablet, and every product
+installs as a PWA. That includes the features that assume a GPU or a strong client: the VTT's
+WebGL canvas and lighting, the map editor, in-browser models, 3D dice, and voice. "Works on a
+phone" means the whole feature, adapted, never "open this on a desktop".
+
+**Layout and input**
+- Phone-first layouts at 360 px wide and up, with nothing that needs a hover or a right-click.
+- Every hover and context-menu action is also a tap target (≥ 44 px), and long-press opens
+  context menus.
+- Canvases take touch gestures as first-class: one-finger pan or drag, pinch to zoom, two-finger
+  rotate where it applies, long-press for context. Apple Pencil and stylus pressure work in the
+  map editor.
+- Side panels become bottom sheets on narrow screens, and toolbars collapse to a thumb-reach
+  bar. The keyboard never covers the composer or the focused field (`visualViewport`).
+- Playwright e2e runs every flow on a phone project as well as desktop (the Zephyreader
+  `*-phone` pattern), and the visual audit checks phone widths.
+
+**PWA**
+- A real manifest (name, icons including maskable ones, theme colours, `display: standalone`,
+  shortcuts to the main screens) and a service worker (the framework's Serwist).
+- The app shell and read-only data work offline. The lite edition works fully offline when its
+  models are local.
+- Installable on Android, iOS/iPadOS and desktop. Use the screen wake lock where a screen must
+  stay on (a table in play, a timer, voice), and safe-area insets for notches.
+
+**Heavy features: adapt to the device**
+
+A capability probe (`features/device/`) reads WebGPU and WebGL2 support, the GPU's limits
+(max texture size), `navigator.deviceMemory` and `hardwareConcurrency`, a short frame-time
+sample, the battery and save-data hints, and `prefers-reduced-motion`. It picks a tier, and
+the person can override it in settings.
+
+- **Rendering (VTT canvas, map editor, chronicles):** one Pixi.js scene graph with
+  tier-dependent detail.
+  - Strong devices get WebGL2 (WebGPU where present), dynamic lighting and vision shaders,
+    animated effects and full-resolution textures.
+  - Mid devices get lighting and fog baked to cached textures, capped particle counts and
+    texture atlases at a lower resolution.
+  - Weak devices, or no WebGL, get the Canvas2D fallback. Lighting and fog come as
+    server-computed masks (the server is the referee for vision anyway), with static effects.
+  - Textures stream by viewport and level of detail at every tier.
+  - Frame rate is held by lowering detail, never by dropping features.
+- **Map authoring on a phone:** the same tools, in a touch layout: palette sheet, gesture
+  transforms, tap-to-place stamps, and a finger or stylus brush. Very large exports (8K, print
+  sizes) render on the server when the device cannot hold the texture.
+- **Models (AI product):**
+  - A device that can run a small model locally (WebGPU, with enough memory) may run the
+    decision models or a small chat model in the browser.
+  - Every other device sends the same work to the server's pools.
+  - Behaviour is the same either way. The device tier only changes where the work runs.
+- **Voice and media:** speech to text and text to speech use the device's engines where they
+  are good enough, and the server otherwise. Audio streams adapt their bitrate.
+- **Budgets:** an initial-load JavaScript budget per route, enforced in CI (size-limit). Heavy
+  modules (Pixi, editors, local-model runtimes) load on demand, never on first paint.
+
 ## Repository shape (each of the three)
 
 ```
