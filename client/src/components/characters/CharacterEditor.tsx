@@ -2,18 +2,21 @@
 'use client';
 /**
  * One character: the card's form, saved with the version it was opened at (a stale save says so
- * instead of overwriting). Export as a SillyTavern V2 card, start a chat, or delete with undo. On a
+ * instead of overwriting). Export as a SillyTavern V2 card (a PNG card when it has a picture, its
+ * lorebook inside), start a chat, or delete with undo. On a
  * phone the save bar stays at the bottom, above the home indicator.
  */
 import { Download, MessageSquarePlus, Save, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type ReactElement, useEffect, useId, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
-import { writeProblem } from 'zephyrex';
+import { useClient, writeProblem } from 'zephyrex';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
-import { type Character, characters, chats, lorebooks } from '~/features/data/records';
+import { type Character, characters, chats, lorebookEntrySchema, lorebooks } from '~/features/data/records';
+import { exportCard } from '~/features/import/exportCard';
+import { characterBookFromEntries } from '~/features/import/stLorebook';
 import { cardToJson } from '~/features/import/stCard';
 import { WriteProblem } from '../common/WriteProblem';
 import { type CharacterDraft, CharacterForm } from './CharacterForm';
@@ -28,13 +31,6 @@ export function isChanged(draft: CharacterDraft, saved: Character): boolean {
   return JSON.stringify(draft) !== JSON.stringify(draftOf(saved));
 }
 
-function download(name: string, json: unknown): void {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(json, null, 2)], { type: 'application/json' }));
-  const link = Object.assign(document.createElement('a'), { href: url, download: `${name.replace(/[^\w.-]+/g, '_') || 'character'}.json` });
-  link.click();
-  URL.revokeObjectURL(url);
-}
-
 export function CharacterEditor({ id }: { id: string }): ReactElement {
   const record = characters.useOne(id);
   const { update, remove } = characters.useActions();
@@ -45,6 +41,7 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const [problem, setProblem] = useState<string | null>(null);
   const books = lorebooks.useList();
   const bookPicker = useId();
+  const client = useClient();
 
   useEffect(() => {
     if (record.data !== undefined && draft === null) setDraft(draftOf(record.data));
@@ -67,6 +64,18 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
     setSaving(false);
   };
 
+  /** The card, with the character's lorebook as its character_book, as a PNG card or JSON. */
+  const exportThis = async () => {
+    const card = cardToJson({ ...draft, extensions: saved.extensions });
+    const book = (books.data ?? []).find((one) => one.id === saved.lorebook_id);
+    if (book !== undefined) {
+      const path = `/v1/lorebook_entry?${new URLSearchParams({ lorebook_id: book.id }).toString()}`;
+      const entries = await client.list(path, 'lorebook_entries', lorebookEntrySchema);
+      Reflect.set(Object(card.data), 'character_book', characterBookFromEntries(book, entries));
+    }
+    await exportCard(saved.name, draft.avatar, card);
+  };
+
   const startChat = async () => {
     const chat = await createChat({ title: `Chat with ${saved.name}`, character_ids: [saved.id] });
     router.push(`/play/${chat.id}`);
@@ -83,7 +92,7 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
         <Button type='button' className='h-11' onClick={() => void startChat()}>
           <MessageSquarePlus aria-hidden /> Chat
         </Button>
-        <Button type='button' variant='outline' className='h-11' onClick={() => download(saved.name, cardToJson({ ...draft, extensions: saved.extensions }))}>
+        <Button type='button' variant='outline' className='h-11' onClick={() => void exportThis()}>
           <Download aria-hidden /> Export card
         </Button>
         <Button type='button' variant='ghost' className='h-11 text-destructive' onClick={deleteCharacter}>

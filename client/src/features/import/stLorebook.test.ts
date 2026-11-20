@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { lorebookFromJson, lorebookToJson } from './stLorebook';
+import { characterBookFromEntries, lorebookFromJson, lorebookToJson } from './stLorebook';
 
 const WORLD_INFO = {
   name: 'Kestrel',
@@ -94,5 +94,11 @@ describe('SillyTavern lorebooks', () => {
     const book = lorebookFromJson({ entries: { '0': { key: ['x'], probability: 400, depth: -5 } } }, 'x');
     expect(book.entries[0]).toMatchObject({ probability: 100, depth: 0 });
     expect(() => lorebookFromJson({ entries: {} }, 'x')).toThrow('This file has no lorebook entries');
+  });
+
+  it('writes a card book that reads back the same, at depth and all', () => {
+    const book = lorebookFromJson(WORLD_INFO, 'x');
+    const card = { spec: 'chara_card_v2', data: { name: 'Ada', character_book: characterBookFromEntries({ name: 'Kestrel', description: '' }, book.entries) } };
+    expect(lorebookFromJson(card, 'Ada').entries).toEqual(book.entries);
   });
 });

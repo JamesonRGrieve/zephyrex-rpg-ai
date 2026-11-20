@@ -134,3 +134,44 @@ export function lorebookToJson(book: { name: string; description: string }, entr
     ),
   };
 }
+
+/** A lorebook as a Character Card V2 `character_book` (spec fields, SillyTavern's extras in `extensions`). */
+export function characterBookFromEntries(book: { name: string; description: string }, entries: readonly EntryFields[]): Record<string, unknown> {
+  return {
+    name: book.name,
+    description: book.description,
+    extensions: {},
+    entries: entries.map((entry, id) => ({
+      id,
+      keys: entry.keys,
+      secondary_keys: entry.secondary_keys,
+      comment: entry.comment,
+      content: entry.content,
+      constant: entry.constant,
+      selective: entry.secondary_keys.length > 0,
+      insertion_order: entry.order,
+      enabled: entry.enabled,
+      position: entry.position === 'before_char' ? 'before_char' : 'after_char',
+      case_sensitive: entry.case_sensitive,
+      extensions: {
+        position: POSITIONS.indexOf(entry.position),
+        selectiveLogic: LOGIC.indexOf(entry.selective_logic),
+        depth: entry.depth,
+        role: ROLES.indexOf(entry.role),
+        probability: entry.probability,
+        useProbability: entry.probability < 100,
+        group: entry.group,
+        group_weight: entry.group_weight,
+        group_override: entry.prioritize,
+        sticky: entry.sticky,
+        cooldown: entry.cooldown,
+        delay: entry.delay,
+        exclude_recursion: entry.exclude_recursion,
+        prevent_recursion: entry.prevent_recursion,
+        delay_until_recursion: entry.delay_until_recursion,
+        match_whole_words: entry.match_whole_words,
+        characterFilter: { names: entry.character_names, isExclude: entry.character_exclude },
+      },
+    })),
+  };
+}
