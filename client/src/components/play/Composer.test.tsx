@@ -62,6 +62,18 @@ describe('Composer', () => {
     expect(onSend).toHaveBeenCalledWith('What is this?', 'ic', ['data:image/png;base64,AQID']);
   });
 
+  it('runs a slash command instead of sending it, and says why a line is not one', async () => {
+    const onSend = vi.fn();
+    const onCommand = vi.fn();
+    render(<Composer writing={false} onSend={onSend} onStop={vi.fn()} onCommand={onCommand} />);
+    const box = screen.getByLabelText('Your next line');
+    await userEvent.type(box, '/sys The lights flicker.{Enter}');
+    expect(onCommand).toHaveBeenCalledWith({ name: 'sys', text: 'The lights flicker.' });
+    await userEvent.type(box, '/dance{Enter}');
+    expect(screen.getByRole('alert')).toHaveTextContent('/dance is not a command (try /help)');
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it('offers to stop a reply being written', async () => {
     const onStop = vi.fn();
     render(<Composer writing onSend={vi.fn()} onStop={onStop} />);

@@ -132,6 +132,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A38 | Quick Replies sets bound to buttons, with auto-run triggers | SillyTavern | ✓ | ✓ |
 | A39 | Extensions: built-ins that can be enabled or disabled, plus third-party extensions installed from a URL into a sandbox with declared permissions | SillyTavern | ✓ | ✓ |
 | A40 | Extensions and assets browser (characters, backgrounds, themes, ambient audio) | SillyTavern | ✓ | ✓ |
+| A37 (part) | Slash commands, the safe subset: /sys, /sendas, /narrate, /continue, /impersonate, /xcard, /pause, /resume, /help (beside /ic, /ooc, /gm) | variables, conditionals, closures and the rest of STscript |
 | A41 | Data Bank: documents attached to a chat, a character or globally, retrieved by meaning (built-in RAG) | SillyTavern | ✓ | ✓ |
 | A42 | Web search injected into context | SillyTavern (extension) | ✓ | ✓ |
 | A41 | Data bank: documents for every chat, one chat or one character, found by the words the story uses | recall by meaning (embeddings, SaaS) |

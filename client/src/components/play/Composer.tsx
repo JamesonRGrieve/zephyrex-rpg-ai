@@ -10,6 +10,7 @@ import { BookOpen, ImagePlus, Mic, MicOff, Send, Square, WandSparkles, X } from 
 import { type KeyboardEvent, type ReactElement, useId, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
 import { useDictation } from '~/features/speech/useDictation';
+import { type Command, parseCommand } from '~/features/chat/commands';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
@@ -45,6 +46,8 @@ export function Composer({
   onStop,
   onImpersonate,
   onNarrate,
+  onCommand,
+  castNames = [],
   quickReplies = [],
 }: {
   writing: boolean;
@@ -56,6 +59,10 @@ export function Composer({
   onImpersonate?: () => Promise<string | null>;
   /** Asks the GM to narrate what happens next (A20). */
   onNarrate?: () => void;
+  /** Runs a slash command (A37); without it, a slash line is sent as text. */
+  onCommand?: (command: Command) => void;
+  /** The cast's names, so `/sendas` finds a name with spaces. */
+  castNames?: readonly string[];
   /** Buttons that send or fill in a saved line (A32), their macros already filled. */
   quickReplies?: readonly ComposerQuickReply[];
 }): ReactElement {
@@ -69,7 +76,29 @@ export function Composer({
   const [pictureProblem, setPictureProblem] = useState<string | null>(null);
   const attachId = useId();
 
+  const [commandProblem, setCommandProblem] = useState<string | null>(null);
+
   const send = () => {
+    // A slash command (A37) runs instead of being sent; one that is not a command says why.
+    const command = onCommand === undefined ? null : parseCommand(text, castNames);
+    if (command !== null && onCommand !== undefined) {
+      if ('unknown' in command) {
+        setCommandProblem(command.unknown);
+        return;
+      }
+      setCommandProblem(null);
+      setText('');
+      // /impersonate fills this box, as Write my line does.
+      if (command.name === 'impersonate' && onImpersonate !== undefined) {
+        void onImpersonate().then((line) => {
+          if (line !== null && line.trim() !== '') setText(line.trim());
+        });
+        return;
+      }
+      onCommand(command);
+      return;
+    }
+    setCommandProblem(null);
     const message = outgoing(text, channel);
     if (message === null || disabled) return;
     if (images.length > 0 && message.channel === 'ic') onSend(message.text, message.channel, images);
@@ -145,6 +174,11 @@ export function Composer({
             </button>
           ))}
         </div>
+        {commandProblem !== null && (
+          <p role='alert' className='text-sm text-destructive'>
+            {commandProblem}
+          </p>
+        )}
         {(images.length > 0 || pictureProblem !== null) && (
           <div className='flex flex-wrap items-center gap-2'>
             {images.map((url, index) => (

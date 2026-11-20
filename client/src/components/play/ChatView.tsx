@@ -28,6 +28,7 @@ import { deviceLanguage, expressionFor, type InspectedPrompt, inspectPrompt, sum
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
+import { type Command, COMMAND_HELP } from '~/features/chat/commands';
 import { speak, speechSupport, voiceOf } from '~/features/speech/voice';
 import { DEFAULT_USER_NAME } from '~/features/prompt/assemble';
 import { expandMacros } from '~/features/prompt/macros';
@@ -208,6 +209,51 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   /** Text as saved, after the regex scripts that change what is stored (A33). */
   const stored = (text: string, placement: RegexPlacement) => applyRegex(text, scripts, placement, 'stored');
+
+  /** A slash command from the composer (A37): each one something the chat already does. */
+  const runCommand = async (command: Command) => {
+    switch (command.name) {
+      case 'sys': {
+        const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'narrator', channel: 'ic', swipes: [command.text] });
+        setLeafId(saved.id);
+        return;
+      }
+      case 'sendas': {
+        const id = chat.character_ids.find((one) => castById.get(one)?.name.toLowerCase() === command.character.toLowerCase());
+        if (id === undefined) {
+          notify(`${command.character} is not in this chat`);
+          return;
+        }
+        const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'character', speaker_character_id: id, swipes: [stored(command.text, 'ai_output')] });
+        setLeafId(saved.id);
+        return;
+      }
+      case 'narrate':
+        await narrate();
+        return;
+      case 'continue': {
+        const last = branch.at(-1);
+        if (last?.role === 'character') await continueMessage(last);
+        else notify('Nothing to continue', 'The last line is not a character’s.');
+        return;
+      }
+      case 'impersonate':
+        // The composer fills its own box for /impersonate; reached only without a cast.
+        notify('Nobody to write as', 'Add a character to the chat first.');
+        return;
+      case 'xcard':
+        await xCardLatest();
+        return;
+      case 'pause':
+      case 'resume':
+        if (chat.paused !== (command.name === 'pause')) await updateChat(chat, { paused: command.name === 'pause' });
+        notify(command.name === 'pause' ? 'Paused' : 'Resumed');
+        return;
+      case 'help':
+        notify('Commands', COMMAND_HELP.map(([usage, what]) => `${usage}: ${what}`).join('\n'));
+        return;
+    }
+  };
 
   /** The narrator (A20): the GM tells what happens next, as a narrator turn in the story. */
   const narrate = async () => {
@@ -507,6 +553,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         onStop={reply.stop}
         onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
         onNarrate={chat.character_ids.length > 0 ? () => void narrate() : undefined}
+        onCommand={(command) => void runCommand(command)}
+        castNames={chat.character_ids.flatMap((id) => castById.get(id)?.name ?? [])}
         quickReplies={(quickList.data ?? [])
           .filter((reply) => reply.enabled)
           .map((reply) => ({
