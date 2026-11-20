@@ -135,6 +135,7 @@ def assemble_prompt(
     summary: str = "",
     regex: Sequence[Mapping[str, Any]] = (),
     objective: str = "",
+    data_bank: str = "",
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -164,6 +165,8 @@ def assemble_prompt(
         "lore_before_example": sections.get("before_example", ""),
         "examples": f"Example dialogue:\n{speaker['example_messages']}" if speaker["example_messages"].strip() else "",
         "lore_after_example": sections.get("after_example", ""),
+        # The data bank's retrieved notes (A41, DataBank.py), as one section.
+        "data_bank": data_bank,
         "summary": PROMPT["summary_prefix"] + summary if summary.strip() else "",
     }
     system = {"role": "system", "content": _system_text(texts, order, names)}

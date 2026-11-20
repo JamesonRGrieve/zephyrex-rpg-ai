@@ -27,7 +27,7 @@ const VIEWPORTS = {
 } as const;
 const THEMES = ['dark', 'light'] as const;
 const VISITOR_PAGES = ['/', '/user', '/docs/privacy'];
-const APP_PAGES = ['/play', '/characters', '/lorebooks', '/personas', '/presets', '/models', '/regex', '/quick-replies', '/settings'];
+const APP_PAGES = ['/play', '/characters', '/lorebooks', '/data-bank', '/personas', '/presets', '/models', '/regex', '/quick-replies', '/settings'];
 /** The dev server's own badge is not part of the app: leave it out of the shots. */
 const HIDE_DEV_TOOLS = 'nextjs-portal { display: none !important; }';
 const PER_SHOT_MS = 15_000;

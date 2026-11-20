@@ -322,6 +322,22 @@ class TestGenerate:
         )
         assert too_many.status_code == 422, too_many.text
 
+    def test_the_data_bank_finds_what_the_story_is_about(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        _create(server, user, "data_document", name="Ship", text="The coolant spare is in bay two.")
+        _create(server, user, "data_document", name="Ada", text="Ada once rebuilt a coolant pump.", scope="character", scope_id=ada["id"])
+        _create(server, user, "data_document", name="Food", text="Bram's stew is famous.")
+        unnamed = server.post("/v1/data_document", json={"data_document": {"name": "x", "text": "y", "scope": "chat"}}, headers=_headers(user))
+        assert unnamed.status_code == 422, unnamed.text
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Where is the coolant?"]).json()["chat_message"]
+        prompt = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)).json()["prompt"]
+        system = prompt["messages"][0]["content"]
+        assert "Notes that may be relevant:\nThe coolant spare is in bay two.\n\nAda once rebuilt a coolant pump." in system
+        assert "stew" not in system
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

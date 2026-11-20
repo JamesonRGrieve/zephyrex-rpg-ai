@@ -130,6 +130,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A40 | Extensions and assets browser (characters, backgrounds, themes, ambient audio) | SillyTavern | ✓ | ✓ |
 | A41 | Data Bank: documents attached to a chat, a character or globally, retrieved by meaning (built-in RAG) | SillyTavern | ✓ | ✓ |
 | A42 | Web search injected into context | SillyTavern (extension) | ✓ | ✓ |
+| A41 | Data bank: documents for every chat, one chat or one character, found by the words the story uses | recall by meaning (embeddings, SaaS) |
 | A43 | Chat translation: auto-translate input and output | SillyTavern (extension) | ✓ | ✓ |
 | A44 | Image captioning and multimodal input (send an image; a vision model describes or reads it) | SillyTavern | ✓ | ✓ |
 | A44 | Pictures sent with a line; a vision model reads the newest line's | captioning for text-only models |
@@ -139,6 +140,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A48 | AI Horde as a backend | SillyTavern | ✓ | ✓ |
 | A49 | UI customisation: themes, custom CSS, layout modes (bubble, document, VN), font scale, avatar style | SillyTavern | ✓ | ✓ |
 | A50 | Multi-user accounts on one install, with per-user data and an admin | SillyTavern | ✓ | ✓ |
+| A53 | Objectives: the first not done is the character's current task | the model ticking tasks off itself |
 | A51 | Character tags, folders and favourites; welcome screen with recents | SillyTavern | ✓ | ✓ |
 | A52 | Group greetings; `/sendas` a group member; group member muting and join modes | SillyTavern | ✓ | ✓ |
 | A53 | Objectives and tasks for a character, tracked across a chat | SillyTavern (extension) | ✓ | ✓ |

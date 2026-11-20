@@ -238,3 +238,19 @@ CREATE TABLE "QuickReply" (
 -- CreateIndex
 CREATE INDEX "QuickReply_createdById_idx" ON "QuickReply"("createdById");
 
+-- CreateTable
+CREATE TABLE "DataDocument" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "text" TEXT NOT NULL,
+    "scope" TEXT NOT NULL DEFAULT 'global',
+    "scopeId" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "DataDocument_createdById_idx" ON "DataDocument"("createdById");
+

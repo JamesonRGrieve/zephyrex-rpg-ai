@@ -37,6 +37,7 @@ export const PROMPT = {
     'lore_before_example',
     'examples',
     'lore_after_example',
+    'data_bank',
     'summary',
     'author_note',
     'post_history',
@@ -80,5 +81,11 @@ export const REASONING = contract.reasoning;
 export const QUICK_REPLY = {
   actions: contract.quick_reply.actions as unknown as readonly ['send', 'fill'],
   channels: contract.quick_reply.channels as unknown as readonly ['ic', 'ooc'],
+};
+
+/** The data bank: chunking, retrieval and its place in the prompt (features/chat/dataBank.ts). */
+export const DATA_BANK = {
+  ...contract.data_bank,
+  scopes: contract.data_bank.scopes as unknown as readonly ['global', 'chat', 'character'],
 };
 

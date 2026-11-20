@@ -202,6 +202,20 @@ describe('POST /v1/ai_chat/translate', () => {
   });
 });
 
+describe('the data bank', () => {
+  it('puts the notes the story is about into the prompt: everyone’s, the chat’s and the cast’s', async () => {
+    await prisma.dataDocument.deleteMany();
+    const { ada, chat, line } = await seed();
+    await prisma.dataDocument.create({ data: { ...stamp(), name: 'Tools', text: 'The spanner rack is by the hatch.' } });
+    await prisma.dataDocument.create({ data: { ...stamp(), name: 'Ada', text: 'Ada keeps her own spanner.', scope: 'character', scopeId: ada.id } });
+    await prisma.dataDocument.create({ data: { ...stamp(), name: 'Food', text: 'Bram cooks stew.' } });
+    const body = (await (await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).json()) as { prompt: { messages: { content: string }[] } };
+    const system = body.prompt.messages[0]?.content ?? '';
+    expect(system).toContain('Notes that may be relevant:\nThe spanner rack is by the hatch.\n\nAda keeps her own spanner.');
+    expect(system).not.toContain('stew');
+  });
+});
+
 describe('the prompt manager', () => {
   it('lays the system text out as the chat’s preset says, with the chat’s own system prompt', async () => {
     const { chat, line } = await seed();

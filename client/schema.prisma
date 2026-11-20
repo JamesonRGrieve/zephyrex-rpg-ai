@@ -241,3 +241,18 @@ model QuickReply {
   @@index([createdById])
 }
 
+/// A document for the data bank (SillyTavern's Data Bank): for everyone, one chat or one character.
+model DataDocument {
+  id          String   @id @default(uuid())
+  createdById String
+  name        String
+  text        String
+  scope       String   @default("global")
+  scopeId     String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@index([createdById])
+}
+

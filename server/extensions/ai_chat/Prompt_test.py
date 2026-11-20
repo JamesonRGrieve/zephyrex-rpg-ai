@@ -29,6 +29,7 @@ def test_case(case: dict[str, Any]) -> None:
         summary=given.get("summary", ""),
         regex=given.get("regex", []),
         objective=given.get("objective", ""),
+        data_bank=given.get("data_bank", ""),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]

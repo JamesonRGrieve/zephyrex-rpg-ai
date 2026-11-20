@@ -1,0 +1,118 @@
+{
+  "cases": [
+    {
+      "name": "the chunks most about the last turns, in their documents' order",
+      "documents": [
+        "The Kestrel is a light freighter.\n\nIts coolant pump fails in cold space; the spare is in bay two.\n\nCaptain Reyes keeps the bay key.",
+        "Bram cooks. He hates the coolant smell.\n\n\n   \nAda Vance is the engineer; she trained on Vell."
+      ],
+      "story": [
+        "We dock at Vell.",
+        "The coolant pump is failing!"
+      ],
+      "chunks": [
+        [
+          "The Kestrel is a light freighter.\n\nIts coolant pump fails in cold space; the spare is in bay two.\n\nCaptain Reyes keeps the bay key."
+        ],
+        [
+          "Bram cooks. He hates the coolant smell.\n\nAda Vance is the engineer; she trained on Vell."
+        ]
+      ],
+      "retrieved": [
+        "The Kestrel is a light freighter.\n\nIts coolant pump fails in cold space; the spare is in bay two.\n\nCaptain Reyes keeps the bay key.",
+        "Bram cooks. He hates the coolant smell.\n\nAda Vance is the engineer; she trained on Vell."
+      ],
+      "text": "Notes that may be relevant:\nThe Kestrel is a light freighter.\n\nIts coolant pump fails in cold space; the spare is in bay two.\n\nCaptain Reyes keeps the bay key.\n\nBram cooks. He hates the coolant smell.\n\nAda Vance is the engineer; she trained on Vell."
+    },
+    {
+      "name": "only the last turns count, and stop words never match",
+      "documents": [
+        "The Kestrel is a light freighter.\n\nIts coolant pump fails in cold space; the spare is in bay two.\n\nCaptain Reyes keeps the bay key."
+      ],
+      "story": [
+        "Talk about the coolant pump.",
+        "x",
+        "y",
+        "z",
+        "What is there for them?"
+      ],
+      "chunks": [
+        [
+          "The Kestrel is a light freighter.\n\nIts coolant pump fails in cold space; the spare is in bay two.\n\nCaptain Reyes keeps the bay key."
+        ]
+      ],
+      "retrieved": [],
+      "text": ""
+    },
+    {
+      "name": "nothing found leaves the section out",
+      "documents": [
+        "The Kestrel is a light freighter.\n\nIts coolant pump fails in cold space; the spare is in bay two.\n\nCaptain Reyes keeps the bay key."
+      ],
+      "story": [
+        "Hello there."
+      ],
+      "chunks": [
+        [
+          "The Kestrel is a light freighter.\n\nIts coolant pump fails in cold space; the spare is in bay two.\n\nCaptain Reyes keeps the bay key."
+        ]
+      ],
+      "retrieved": [],
+      "text": ""
+    },
+    {
+      "name": "a long paragraph is cut, short ones joined within the limit",
+      "documents": [
+        "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word",
+        "a\n\nb\n\nc"
+      ],
+      "story": [
+        "word"
+      ],
+      "chunks": [
+        [
+          "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
+          "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word"
+        ],
+        [
+          "a\n\nb\n\nc"
+        ]
+      ],
+      "retrieved": [
+        "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word ",
+        "word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word"
+      ],
+      "text": "Notes that may be relevant:\nword word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word \n\nword word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word word"
+    },
+    {
+      "name": "ties keep the earlier chunk, and at most the contract's number",
+      "documents": [
+        "alpha one\n\nxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\n\nalpha two",
+        "alpha three",
+        "alpha four"
+      ],
+      "story": [
+        "alpha"
+      ],
+      "chunks": [
+        [
+          "alpha one",
+          "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+          "alpha two"
+        ],
+        [
+          "alpha three"
+        ],
+        [
+          "alpha four"
+        ]
+      ],
+      "retrieved": [
+        "alpha one",
+        "alpha two",
+        "alpha three"
+      ],
+      "text": "Notes that may be relevant:\nalpha one\n\nalpha two\n\nalpha three"
+    }
+  ]
+}

@@ -11,7 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CHAT_MODES, DATA_BANK, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
@@ -256,4 +256,14 @@ export const quickReplySchema = z.object({
 });
 export type QuickReply = z.infer<typeof quickReplySchema>;
 export const quickReplies = resource<QuickReply, Fields<QuickReply> & { label: string; message: string }>('quick_reply', 'quick_replies', quickReplySchema);
+
+export const dataDocumentSchema = z.object({
+  ...versioned,
+  name: z.string(),
+  text: z.string(),
+  scope: z.enum(DATA_BANK.scopes),
+  scope_id: z.string().nullable(),
+});
+export type DataDocument = z.infer<typeof dataDocumentSchema>;
+export const dataDocuments = resource<DataDocument, Fields<DataDocument> & { name: string; text: string }>('data_document', 'data_documents', dataDocumentSchema);
 

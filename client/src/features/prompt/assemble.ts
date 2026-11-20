@@ -78,6 +78,8 @@ export interface PromptInput {
   regex?: readonly RegexScript[];
   /** The chat's current task (A53); blank for none. */
   objective?: string;
+  /** The data bank's retrieved notes (A41, features/chat/dataBank.ts); blank for none. */
+  data_bank?: string;
 }
 
 export type PromptSectionId = (typeof PROMPT.sections)[number];
@@ -242,6 +244,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     lore_before_example: loreSections.before_example ?? '',
     examples: speaker.example_messages.trim() === '' ? '' : `Example dialogue:\n${speaker.example_messages}`,
     lore_after_example: loreSections.after_example ?? '',
+    data_bank: input.data_bank ?? '',
     summary: (input.summary ?? '').trim() === '' ? '' : PROMPT.summary_prefix + (input.summary ?? ''),
   };
   const system: ModelMessage = { role: 'system', content: systemText(texts, layout, names) };

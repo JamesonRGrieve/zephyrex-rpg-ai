@@ -36,7 +36,9 @@
     "translate_characters": 100000,
     "language_characters": 40,
     "images_per_message": 4,
-    "objectives_per_chat": 50
+    "objectives_per_chat": 50,
+    "data_document_characters": 200000,
+    "data_documents": 200
   },
   "message_roles": [
     "user",
@@ -125,6 +127,7 @@
       "lore_before_example",
       "examples",
       "lore_after_example",
+      "data_bank",
       "summary",
       "author_note",
       "post_history"
@@ -305,6 +308,70 @@
     "channels": [
       "ic",
       "ooc"
+    ]
+  },
+  "data_bank": {
+    "chunk_characters": 800,
+    "scan_turns": 4,
+    "chunks": 3,
+    "min_word_characters": 3,
+    "prefix": "Notes that may be relevant:\n",
+    "stop_words": [
+      "the",
+      "and",
+      "for",
+      "are",
+      "but",
+      "not",
+      "you",
+      "your",
+      "with",
+      "this",
+      "that",
+      "have",
+      "has",
+      "had",
+      "was",
+      "were",
+      "from",
+      "they",
+      "them",
+      "their",
+      "what",
+      "when",
+      "where",
+      "which",
+      "who",
+      "will",
+      "would",
+      "can",
+      "could",
+      "should",
+      "there",
+      "here",
+      "into",
+      "about",
+      "just",
+      "like",
+      "then",
+      "than",
+      "she",
+      "her",
+      "his",
+      "him",
+      "our",
+      "out",
+      "all",
+      "any",
+      "its",
+      "it's",
+      "i'm",
+      "don't"
+    ],
+    "scopes": [
+      "global",
+      "chat",
+      "character"
     ]
   }
 }

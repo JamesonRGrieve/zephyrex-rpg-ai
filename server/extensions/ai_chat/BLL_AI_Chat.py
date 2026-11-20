@@ -47,6 +47,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     SAMPLER_RANGES,
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
@@ -850,6 +851,65 @@ class QuickReplyManager(AbstractBLLManager[QuickReplyModel], RouterMixin):
         return sorted(rows, key=lambda row: (row.position, row.label)) if isinstance(rows, list) else rows
 
 
+# ---- data_document ---------------------------------------------------------------------
+
+BANK = CONTRACT["data_bank"]
+
+
+class DataDocumentChecks(PlainModel):
+    @field_validator("scope", check_fields=False)
+    @classmethod
+    def _checked_scope(cls, value: Any) -> Any:
+        return _one_of(value, BANK["scopes"], "scope")
+
+
+class DataDocumentModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
+    Manager: ClassVar[type["DataDocumentManager"]]
+    name: str = Field(..., description="Name")
+    text: str = Field(..., description="The document's text")
+    scope: str = Field("global", description="global, chat or character")
+    scope_id: str | None = Field(None, description="The chat or character it is for (null when global)")
+
+    table_comment: ClassVar[str] = "Zephyrex RPG AI data bank documents"
+
+    class Create(DataDocumentChecks, BaseModel):
+        name: str = Field(..., min_length=1, max_length=MAX_NAME)
+        text: str = Field(..., min_length=1, max_length=LIMITS["data_document_characters"])
+        scope: str = "global"
+        scope_id: str | None = None
+
+        @model_validator(mode="after")
+        def _scope_named(self) -> "DataDocumentModel.Create":
+            if (self.scope == "global") != (self.scope_id is None):
+                raise ValueError("A global document names no chat or character; a chat or character document names one")
+            return self
+
+    # A document keeps its scope; its name and text can change.
+    class Update(DataDocumentChecks, BaseModel):
+        name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
+        text: str | None = Field(None, min_length=1, max_length=LIMITS["data_document_characters"])
+
+    class Search(ApplicationModel.Search):
+        name: StringSearchModel | None = None
+        scope: StringSearchModel | None = None
+        scope_id: StringSearchModel | None = None
+
+
+class DataDocumentManager(AbstractBLLManager[DataDocumentModel], RouterMixin):
+    _model = DataDocumentModel
+
+    def create(self, **kwargs: Any) -> Any:
+        kwargs.setdefault("scope", "global")
+        kwargs.setdefault("scope_id", None)
+        if kwargs["scope_id"] is not None:
+            manager = ChatManager if kwargs["scope"] == "chat" else CharacterManager
+            try:
+                manager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(id=kwargs["scope_id"])
+            except HTTPException as error:
+                raise not_yours("scope_id") from error
+        return super().create(**kwargs)
+
+
 # ---- generation ------------------------------------------------------------------------
 
 
@@ -1091,6 +1151,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 for script in self._manager(RegexScriptManager).list()
             ],
             next((objective["text"] for objective in (chat.objectives or []) if not objective["done"]), ""),
+            self._data_bank(chat, story_texts),
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {
@@ -1158,6 +1219,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         _assembled, _request, sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id), save_timers=False)
         text = await self._ask(context, sampler, translate_prompt(asked.text, asked.language))
         return TranslateEnvelope(translate=TranslateRequest(chat_id=asked.chat_id, text=text, language=asked.language))
+
+    def _data_bank(self, chat: Any, story: list[str]) -> str:
+        """The data bank's notes for this turn (A41): everyone's documents, the chat's and its cast's."""
+        documents = self._manager(DataDocumentManager)
+
+        def named(rows: Any) -> list[Any]:
+            # Each group by name, as the lite edition orders them: the order breaks retrieval ties.
+            return sorted(rows, key=lambda row: row.name)
+
+        found = [
+            *named(documents.list(scope="global")),
+            *named(documents.list(scope="chat", scope_id=chat.id)),
+            *(document for character_id in chat.character_ids or [] for document in named(documents.list(scope="character", scope_id=character_id))),
+        ]
+        return data_bank_text([document.text for document in found], story)
 
     async def _ask(self, context: dict[str, Any], sampler: dict[str, Any], messages: list[dict[str, str]]) -> str:
         """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""

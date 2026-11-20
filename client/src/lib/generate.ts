@@ -27,6 +27,7 @@ import { assemblePrompt, estimateTokens, summaryPrompt, translatePrompt, type Mo
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
+import { dataBankText } from '~/features/chat/dataBank';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { prisma } from '~/lib/prisma';
@@ -158,6 +159,7 @@ export async function generationInputs(
       system_prompt: chatFields.system_prompt,
       summary: chatFields.summary,
       objective: chatFields.objectives.find((one) => !one.done)?.text ?? '',
+      data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
     },
     sampler,
@@ -172,6 +174,20 @@ export async function generationInputs(
     activeLore: lore.active,
     images,
   };
+}
+
+/** The data bank's documents for a chat (A41): everyone's, the chat's own and its cast's. */
+async function dataBankDocuments(ownerId: string, chatId: string, characterIds: readonly string[]): Promise<string[]> {
+  const rows = await prisma.dataDocument.findMany({
+    where: {
+      createdById: ownerId,
+      OR: [{ scope: 'global' }, { scope: 'chat', scopeId: chatId }, { scope: 'character', scopeId: { in: [...characterIds] } }],
+    },
+    orderBy: { name: 'asc' },
+  });
+  // In the server's order: everyone's, then the chat's, then each cast member's in turn.
+  const rank = (row: (typeof rows)[number]) => (row.scope === 'global' ? -2 : row.scope === 'chat' ? -1 : characterIds.indexOf(row.scopeId ?? ''));
+  return rows.sort((a, b) => rank(a) - rank(b)).map((row) => row.text);
 }
 
 /** A chat's lore timers, kept beside the chat so writing them never makes its version stale. */
