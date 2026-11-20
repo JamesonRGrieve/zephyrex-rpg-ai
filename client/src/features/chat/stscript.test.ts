@@ -92,6 +92,40 @@ describe('runScript', () => {
     expect(chat.echoed).toEqual(['hello Ana']);
   });
 
+  it('does math on numbers and variable names', async () => {
+    const chat = host();
+    chat.locals.set('hp', '10');
+    expect((await runScript('/add hp 5 2.5', chat)).pipe).toBe('17.5');
+    expect((await runScript('/sub 10 3 2 | /mul {{pipe}} 4', chat)).pipe).toBe('20');
+    expect((await runScript('/div 7 2', chat)).pipe).toBe('3.5');
+    expect((await runScript('/max 3 9 4 | /pow {{pipe}} 2', chat)).pipe).toBe('81');
+    expect((await runScript('/div 1 0', chat)).stopped).toBe('/div: no finite answer');
+    expect((await runScript('/add ten 1', chat)).stopped).toBe('/add: ten is not a number');
+  });
+
+  it('works on text: length, case, slices, replacing and patterns', async () => {
+    const chat = host();
+    expect((await runScript('/len "héllo"', chat)).pipe).toBe('5');
+    expect((await runScript('/upper the moon | /lower {{pipe}} | /trim {{pipe}}', chat)).pipe).toBe('the moon');
+    expect((await runScript('/substr start=1 end=4 dragon', chat)).pipe).toBe('rag');
+    expect((await runScript('/replace pattern=cat replacer=dog the cat sat', chat)).pipe).toBe('the dog sat');
+    expect((await runScript('/test pattern=/^D/i dragon', chat)).pipe).toBe('true');
+    expect((await runScript('/match pattern=[0-9]+ room 42 left', chat)).pipe).toBe('42');
+  });
+
+  it('refuses a pattern that could hang the page', async () => {
+    const chat = host();
+    expect((await runScript('/test pattern=(a+)+$ aaaa', chat)).stopped).toBe(
+      '/test: pattern= is not a usable regular expression',
+    );
+  });
+
+  it('gives a number in range for /rand, never a game roll', async () => {
+    const chat = host();
+    const value = Number((await runScript('/rand from=1 to=6 round=1', chat)).pipe);
+    expect(Number.isInteger(value) && value >= 1 && value <= 6).toBe(true);
+  });
+
   it('passes named arguments to the chat’s own commands', async () => {
     const chat = host();
     await runScript('/sendas name=Mira The door creaks.', chat);

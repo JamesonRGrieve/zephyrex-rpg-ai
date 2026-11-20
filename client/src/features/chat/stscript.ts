@@ -164,7 +164,31 @@ export function isScript(line: string): boolean {
   return calls.length > 1 || calls.some((call) => SCRIPT_COMMANDS.has(call.name));
 }
 
+/** Math (SillyTavern's /add …): each takes numbers or variable names, unnamed, and gives a number. */
+const MATH: Record<string, (values: number[]) => number> = {
+  add: (values) => values.reduce((sum, value) => sum + value, 0),
+  sub: (values) => values.slice(1).reduce((rest, value) => rest - value, values[0] ?? 0),
+  mul: (values) => values.reduce((product, value) => product * value, 1),
+  div: ([left = 0, right = 1]) => left / right,
+  mod: ([left = 0, right = 1]) => left % right,
+  pow: ([base = 0, exponent = 1]) => base ** exponent,
+  max: (values) => Math.max(...values),
+  min: (values) => Math.min(...values),
+  abs: ([value = 0]) => Math.abs(value),
+  round: ([value = 0]) => Math.round(value),
+};
+
 const SCRIPT_COMMANDS = new Set([
+  ...Object.keys(MATH),
+  'rand',
+  'len',
+  'trim',
+  'upper',
+  'lower',
+  'substr',
+  'replace',
+  'test',
+  'match',
   'pass',
   'echo',
   'setvar',
@@ -197,6 +221,26 @@ const RULES: Record<string, (left: string, right: string) => boolean> = {
   nin: (left, right) => !right.includes(left),
   not: (left) => left === '' || left === 'false' || left === '0',
 };
+
+/** The most characters a /test or /match pattern may have; long patterns are refused, not run. */
+const PATTERN_LIMIT = 200;
+
+/**
+ * A pattern for /test and /match: `/body/flags` or a plain body, refused when too long or
+ * malformed. Patterns with nested quantifiers (`(a+)+`) are refused too, so a script can't hang
+ * the page on catastrophic backtracking.
+ */
+function safePattern(source: string): RegExp | null {
+  if (source === '' || source.length > PATTERN_LIMIT || /\([^)]*[+*][^)]*\)[+*{]/.test(source)) return null;
+  const literal = /^\/(.+)\/([a-z]*)$/s.exec(source);
+  try {
+    return literal === null
+      ? new RegExp(source)
+      : new RegExp(literal[1] as string, (literal[2] as string).replace(/g/g, ''));
+  } catch {
+    return null;
+  }
+}
 
 /** A number's text without a trailing `.0`; anything else as given. */
 const numberText = (value: number): string => (Number.isInteger(value) ? String(value) : String(Number(value.toFixed(10))));
@@ -279,7 +323,55 @@ export async function runScript(script: string, host: ScriptHost): Promise<Scrip
       }
     }
 
+    const math = MATH[call.name];
+    if (math !== undefined) {
+      // A word that names a variable is its value, as in SillyTavern.
+      const values = call.unnamed.map((item) => {
+        const word = text(item);
+        const named = scope.get(word) ?? host.locals.get(word) ?? host.globals.get(word);
+        const value = Number(named ?? word);
+        if (Number.isNaN(value)) throw new Stop(`/${call.name}: ${word} is not a number`);
+        return value;
+      });
+      const result = math(values);
+      if (!Number.isFinite(result)) throw new Stop(`/${call.name}: no finite answer`);
+      return numberText(result);
+    }
+
     switch (call.name) {
+      case 'rand': {
+        // A number for a script (a choice, a variation), never a game roll: rolls go through the VTT.
+        const from = Number(arg('from') || 0);
+        const to = Number(arg('to') || 1);
+        const raw = from + Math.random() * (to - from);
+        return arg('round') === '' ? numberText(raw) : String(Math.round(raw));
+      }
+      case 'len':
+        return String(Array.from(unnamedText).length);
+      case 'trim':
+        return unnamedText.trim();
+      case 'upper':
+        return unnamedText.toUpperCase();
+      case 'lower':
+        return unnamedText.toLowerCase();
+      case 'substr': {
+        const characters = Array.from(unnamedText);
+        const start = Number(arg('start') || 0);
+        const end = arg('end') === '' ? characters.length : Number(arg('end'));
+        return characters.slice(start, end).join('');
+      }
+      case 'replace': {
+        const find = arg('pattern');
+        if (find === '') throw new Stop('/replace needs pattern=');
+        return unnamedText.split(find).join(arg('replacer'));
+      }
+      case 'test':
+      case 'match': {
+        const pattern = safePattern(arg('pattern'));
+        if (pattern === null) throw new Stop(`/${call.name}: pattern= is not a usable regular expression`);
+        if (call.name === 'test') return String(pattern.test(unnamedText));
+        return unnamedText.match(pattern)?.[0] ?? '';
+      }
       case 'pass':
         return unnamedText;
       case 'echo':
