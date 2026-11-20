@@ -4,16 +4,18 @@
  * Every chat, the newest first, with who is in it; tap one to carry on. The install shortcut
  * "New chat" (`/play?new=1`) opens the picker straight away.
  */
-import { MessageSquarePlus, Trash2 } from 'lucide-react';
+import { FileUp, MessageSquarePlus, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { type ReactElement, useMemo, useState } from 'react';
-import { deferWithUndo } from 'zephyrex/hooks/useToast';
+import { type ChangeEvent, type ReactElement, useMemo, useRef, useState } from 'react';
+import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
-import { characters, chats } from '~/features/data/records';
+import { characters, chats, messages } from '~/features/data/records';
+import { chatFromJsonl } from '~/features/import/stChat';
+import { writeImportedChat } from './importChat';
 import { initials } from '../characters/CharacterTile';
 import { NewChat } from './NewChat';
 
@@ -32,7 +34,28 @@ export function lastActive(stamp: string | null, now: Date = new Date()): string
 export function ChatLibrary(): ReactElement {
   const list = chats.useList();
   const cast = characters.useList();
-  const { remove } = chats.useActions();
+  const { remove, create: createChat } = chats.useActions();
+  const { create: createCharacter } = characters.useActions();
+  const { create: createMessage } = messages.useActions();
+  const fileInput = useRef<HTMLInputElement>(null);
+
+  /** SillyTavern chats: each matched to the character of that name, who is made if there is none. */
+  const importFiles = async (event: ChangeEvent<HTMLInputElement>) => {
+    const files = [...(event.target.files ?? [])];
+    event.target.value = '';
+    const results = await Promise.allSettled(
+      files.map(async (file) => {
+        const imported = chatFromJsonl(await file.text());
+        const name = imported.characterName || 'Imported character';
+        const existing = (cast.data ?? []).find((character) => character.name.toLowerCase() === name.toLowerCase());
+        const character = existing ?? (await createCharacter({ name }));
+        return writeImportedChat(imported, character.id, { createChat, createMessage });
+      }),
+    );
+    const done = results.filter((result) => result.status === 'fulfilled').length;
+    if (done > 0) notify(done === 1 ? 'Chat imported' : `${done} chats imported`);
+    if (done < files.length) notify('Some files were not imported', 'Each must be a SillyTavern chat (.jsonl).');
+  };
   const params = useSearchParams();
   const [picking, setPicking] = useState(params.get('new') === '1');
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
@@ -42,9 +65,15 @@ export function ChatLibrary(): ReactElement {
 
   return (
     <div className='space-y-4'>
-      <Button type='button' className='h-11' onClick={() => setPicking(true)}>
-        <MessageSquarePlus aria-hidden /> New chat
-      </Button>
+      <div className='flex flex-wrap gap-2'>
+        <Button type='button' className='h-11' onClick={() => setPicking(true)}>
+          <MessageSquarePlus aria-hidden /> New chat
+        </Button>
+        <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
+          <FileUp aria-hidden /> Import chat
+        </Button>
+        <input ref={fileInput} type='file' accept='.jsonl,application/jsonl,application/x-ndjson' multiple hidden onChange={(event) => void importFiles(event)} />
+      </div>
       {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} avatar />}
       {list.data !== undefined && shown.length === 0 && (

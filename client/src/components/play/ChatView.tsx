@@ -8,11 +8,12 @@
  * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
-import { ScanText, Settings2 } from 'lucide-react';
+import { Download, Ellipsis, ScanText, Settings2 } from 'lucide-react';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from 'zephyrex/ui/dropdown-menu';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
@@ -22,6 +23,7 @@ import { branchTo, latestLeaf } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
 import { type InspectedPrompt, inspectPrompt } from '~/features/chat/inspectPrompt';
+import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets } from '~/features/data/records';
@@ -157,6 +159,21 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
   };
 
+  /** The shown branch as a file: SillyTavern's JSONL, or plain text. */
+  const exportBranch = (format: 'jsonl' | 'text') => {
+    // Every turn of the branch, table talk included, whatever this device shows.
+    const speakers = messageViews(branch, all, castById, persona);
+    const named = branch.map((message, index) => ({ ...message, name: speakers[index]?.speaker ?? NARRATOR }));
+    const content =
+      format === 'jsonl'
+        ? chatToJsonl({ characterName: castById.get(chat.character_ids[0] ?? '')?.name ?? '', userName: persona?.name ?? YOU, createdAt: chat.created_at }, named)
+        : chatToText(named);
+    const url = URL.createObjectURL(new Blob([content], { type: format === 'jsonl' ? 'application/jsonl' : 'text/plain' }));
+    const link = Object.assign(document.createElement('a'), { href: url, download: `${chat.title.replace(/[^\w.-]+/g, '_')}.${format === 'jsonl' ? 'jsonl' : 'txt'}` });
+    link.click();
+    URL.revokeObjectURL(url);
+  };
+
   const fork = (message: ChatMessage, step: -1 | 1) => {
     const { siblings, index } = siblingsOf(all, message);
     const target = siblings[index + step];
@@ -202,6 +219,21 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           <Button type='button' variant='ghost' className='h-11' onClick={() => setSettingsOpen(true)}>
             <Settings2 aria-hidden /> Chat settings
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button type='button' variant='ghost' size='icon' className='size-11' aria-label='More for this chat'>
+                <Ellipsis aria-hidden />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align='end'>
+              <DropdownMenuItem onSelect={() => exportBranch('jsonl')}>
+                <Download aria-hidden /> Export for SillyTavern
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => exportBranch('text')}>
+                <Download aria-hidden /> Export as text
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
       <ol className='mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4' aria-label='Chat' aria-live='polite'>
