@@ -1140,8 +1140,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if getattr(row, "lorebook_id", None):
                 own_books.append(row.lorebook_id)
             cast.append({key: getattr(row, key) for key in ("id", "name", "description", "personality", "scenario", "example_messages", "system_prompt", "post_history_instructions")})
-        speaker_id = body.speaker_id or (cast[0]["id"] if cast else None)
-        if speaker_id is None or all(character["id"] != speaker_id for character in cast):
+        # Narrating (A20), the GM speaks, so no character is named as the speaker.
+        speaker_id = "" if body.mode == "narrate" else body.speaker_id or (cast[0]["id"] if cast else None)
+        if speaker_id is None or (body.mode != "narrate" and all(character["id"] != speaker_id for character in cast)):
             raise HTTPException(status_code=422, detail={"message": "The speaker must be a character in the chat", "code": "validation_error"})
 
         personas = self._manager(PersonaManager)
@@ -1185,7 +1186,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             "match_whole_words": False,
             **(chat.lore_settings or {}),
         }
-        speaker_name = next(character["name"] for character in cast if character["id"] == speaker_id)
+        speaker_name = next((character["name"] for character in cast if character["id"] == speaker_id), "")
         lore = activate_lore(entries, story_texts, len(story_texts), speaker_name, timers.read(chat.id), settings, random.random)
         if save_timers:
             timers.save(chat.id, lore.state)

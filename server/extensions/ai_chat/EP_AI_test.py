@@ -413,6 +413,17 @@ class TestGenerate:
         assert "- The pump fails: 3/4 (close to filling); advances when a jump; when full: the ship drifts" in system
         assert "- Reyes cut it. [learned]. Clues: Cut marks (found)" in system
 
+    def test_the_narrator_speaks_for_the_world(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada", description="{{char}} fixes engines.").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I step inside."]).json()["chat_message"]
+        prompt = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "narrate"}}, headers=_headers(user)).json()["prompt"]
+        assert prompt["messages"][0]["content"].startswith("You are the game master, narrating this story.")
+        assert "- Ada: Ada fixes engines." in prompt["messages"][0]["content"]
+        assert prompt["messages"][-1]["content"] == "User: I step inside."
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

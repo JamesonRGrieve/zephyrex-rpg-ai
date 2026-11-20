@@ -56,6 +56,8 @@ const MODE_HINTS = {
   hybrid: 'rules for some scenes, story for others',
 } as const;
 const NARRATOR = 'Narrator';
+/** The pending turn is the narrator's (A20), not a character's. */
+const NARRATOR_TURN = 'narrator';
 const YOU = 'You';
 
 /** What each turn of the branch shows: who said it, which alternative, and where it forks. */
@@ -194,6 +196,21 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   /** Text as saved, after the regex scripts that change what is stored (A33). */
   const stored = (text: string, placement: RegexPlacement) => applyRegex(text, scripts, placement, 'stored');
+
+  /** The narrator (A20): the GM tells what happens next, as a narrator turn in the story. */
+  const narrate = async () => {
+    if (chat.paused) {
+      notify('The game is paused', 'Resume to go on with the story.');
+      return;
+    }
+    setWritingAfter({ parentId: leaf, speakerId: NARRATOR_TURN });
+    const result = await reply.write({ chat_id: chat.id, leaf_id: leaf, speaker_id: null, mode: 'narrate' });
+    setWritingAfter(null);
+    if (result === null || result.text.trim() === '') return;
+    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'narrator', channel: 'ic', swipes: [stored(result.text, 'ai_output')] });
+    if (settings.readAloud) readAloud(null, saved.swipes[0] ?? '');
+    setLeafId(saved.id);
+  };
 
   /** The table GM's answer to a question on the `gm` channel (A11, A20): out of character, never in the story. */
   const askGm = async (question: ChatMessage) => {
@@ -439,7 +456,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               writing
               message={{
                 id: 'writing',
-                role: 'character',
+                role: writingAfter?.speakerId === NARRATOR_TURN ? 'narrator' : 'character',
                 channel: 'ic',
                 speaker: pending?.name ?? (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
                 avatar: pending?.avatar ?? null,
@@ -471,6 +488,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         onSend={(text, channel, images) => void send(text, channel, images)}
         onStop={reply.stop}
         onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
+        onNarrate={chat.character_ids.length > 0 ? () => void narrate() : undefined}
         quickReplies={(quickList.data ?? [])
           .filter((reply) => reply.enabled)
           .map((reply) => ({

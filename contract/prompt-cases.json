@@ -1057,6 +1057,69 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "narrating, the GM speaks: every character named and described in brief, its own narration as its voice",
+      "input": {
+        "characters": [
+          "ada",
+          "bram"
+        ],
+        "speaker_id": "",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "",
+        "mode": "narrate",
+        "history": [
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "The hatch hisses open."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I step inside."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Mind the coolant."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are the game master, narrating this story. Describe what happens next: the world, the people in it and what comes of what the characters did, in a few vivid paragraphs. Never speak, act or decide for Sam.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
+        },
+        {
+          "role": "assistant",
+          "content": "The hatch hisses open."
+        },
+        {
+          "role": "user",
+          "content": "Sam: I step inside."
+        },
+        {
+          "role": "user",
+          "content": "Ada: Mind the coolant."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

@@ -6,7 +6,7 @@
  * on a touch screen Enter is a new line and the send button sends. It stays above the on-screen
  * keyboard and the home indicator.
  */
-import { ImagePlus, Mic, MicOff, Send, Square, WandSparkles, X } from 'lucide-react';
+import { BookOpen, ImagePlus, Mic, MicOff, Send, Square, WandSparkles, X } from 'lucide-react';
 import { type KeyboardEvent, type ReactElement, useId, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
 import { useDictation } from '~/features/speech/useDictation';
@@ -44,6 +44,7 @@ export function Composer({
   onSend,
   onStop,
   onImpersonate,
+  onNarrate,
   quickReplies = [],
 }: {
   writing: boolean;
@@ -53,6 +54,8 @@ export function Composer({
   onStop: () => void;
   /** Writes the person's own next line for them to edit and send (Impersonate). */
   onImpersonate?: () => Promise<string | null>;
+  /** Asks the GM to narrate what happens next (A20). */
+  onNarrate?: () => void;
   /** Buttons that send or fill in a saved line (A32), their macros already filled. */
   quickReplies?: readonly ComposerQuickReply[];
 }): ReactElement {
@@ -215,6 +218,11 @@ export function Composer({
               onClick={dictation.toggle}
             >
               {dictation.listening ? <MicOff aria-hidden /> : <Mic aria-hidden />}
+            </Button>
+          )}
+          {onNarrate !== undefined && !writing && channel === 'ic' && (
+            <Button type='button' size='icon' variant='ghost' className='size-11 shrink-0' aria-label='Narrate what happens next' disabled={disabled} onClick={onNarrate}>
+              <BookOpen aria-hidden />
             </Button>
           )}
           {onImpersonate !== undefined && !writing && channel === 'ic' && (

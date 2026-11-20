@@ -38,7 +38,7 @@ const request = z.object({
   chat_id: z.string().min(1),
   leaf_id: z.string().min(1).nullable().default(null),
   speaker_id: z.string().min(1).nullable().default(null),
-  mode: z.enum(['reply', 'continue', 'impersonate', 'table']).default('reply'),
+  mode: z.enum(['reply', 'continue', 'impersonate', 'table', 'narrate']).default('reply'),
 });
 
 const NO_QUERY = new URLSearchParams();
@@ -93,8 +93,9 @@ export async function generationInputs(
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
   const ordered = chatFields.character_ids.flatMap((id) => cast.filter((character) => character.id === id));
   const promptCharacters = ordered.map((row) => ({ id: row.id, ...(characters.fields(row) as Omit<PromptInput['characters'][number], 'id'>) }));
-  const speakerId = body.speaker_id ?? promptCharacters[0]?.id;
-  if (speakerId === undefined || !promptCharacters.some((character) => character.id === speakerId)) {
+  // Narrating (A20), the GM speaks, so no character is named as the speaker.
+  const speakerId = body.mode === 'narrate' ? '' : (body.speaker_id ?? promptCharacters[0]?.id);
+  if (speakerId === undefined || (body.mode !== 'narrate' && !promptCharacters.some((character) => character.id === speakerId))) {
     throw validationError('The speaker must be a character in the chat', 'speaker_id');
   }
 

@@ -268,7 +268,7 @@ function capped(text: string, maxTokens: number | null): string {
     .trimEnd();
 }
 
-export type PromptMode = 'reply' | 'continue' | 'impersonate';
+export type PromptMode = 'reply' | 'continue' | 'impersonate' | 'narrate';
 
 export interface ModelMessage {
   role: 'system' | 'user' | 'assistant';
@@ -329,6 +329,7 @@ function historyMessage(
   namesById: ReadonlyMap<string, string>,
   group: boolean,
   userName: string,
+  narrating = false,
 ): ModelMessage {
   // A model's reasoning is never read back to it (A45).
   const thinks = turn.role === 'character' && REASONING.pairs.some(([opening]) => turn.content.includes(opening as string));
@@ -337,6 +338,8 @@ function historyMessage(
     return { role: 'assistant', content };
   }
   if (turn.role === 'system' || turn.channel === 'roll') return { role: 'system', content: turn.content };
+  // The narrator's own past narration is its own voice.
+  if (narrating && turn.role === 'narrator') return { role: 'assistant', content: turn.content };
   const name =
     turn.role === 'narrator'
       ? NARRATOR
@@ -374,11 +377,16 @@ function noteBlock(note: string, lore: LoreSections): string {
 }
 
 export function assemblePrompt(input: PromptInput): AssembledPrompt {
-  const speaker = input.characters.find((character) => character.id === input.speaker_id);
+  const narrating = input.mode === 'narrate';
+  // Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
+  const speaker: PromptCharacter | undefined = narrating
+    ? { id: '', name: PROMPT.narrator_name, description: '', personality: '', scenario: '', example_messages: '', system_prompt: '', post_history_instructions: '' }
+    : input.characters.find((character) => character.id === input.speaker_id);
   if (speaker === undefined) throw new Error('The speaker must be one of the chat’s characters');
-  const names: MacroNames = { char: speaker.name, user: input.persona?.name ?? DEFAULT_USER_NAME };
+  const userName = input.persona?.name ?? DEFAULT_USER_NAME;
+  const names: MacroNames = { char: speaker.name, user: userName };
   const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
-  const group = input.characters.length > 1;
+  const group = input.characters.length > 1 || narrating;
   const story = new Set<string>(PROMPT.story_channels);
 
   const loreSections: LoreSections = input.lore?.sections ?? {};
@@ -388,15 +396,22 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     return section === undefined || !section.enabled ? '' : capped(expandMacros(text, names), section.max_tokens);
   };
   const override = input.system_prompt ?? '';
+  const castText = [
+    PROMPT.cast_heading,
+    ...input.characters
+      .filter((character) => character.description.trim() !== '')
+      .map((character) => `- ${character.name}: ${expandMacros(character.description.trim(), { char: character.name, user: userName })}`),
+  ].join('\n');
   const persona = input.persona;
   const texts: Partial<Record<PromptSectionId, string>> = {
-    main: override.trim() !== '' ? override : speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
+    main: override.trim() !== '' ? override : narrating ? PROMPT.narrate_prompt : speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
     safety: safetyText(input.safety),
     table_notes: tableNotesText(input.table_notes),
     campaign: frameText(input.frame),
     running_scenario: scenarioText(input.scenario),
     lore_before_char: loreSections.before_char ?? '',
-    description: speaker.description,
+    // The narrator reads every character, in brief: each one's description with its own name filled in.
+    description: narrating && input.characters.some((character) => character.description.trim() !== '') ? castText : speaker.description,
     personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
     scenario: speaker.scenario.trim() === '' ? '' : `Scenario: ${speaker.scenario}`,
     lore_after_char: loreSections.after_char ?? '',
@@ -434,7 +449,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
       const placement = turn.role === 'user' ? 'user_input' : turn.role === 'character' ? 'ai_output' : null;
       return placement === null ? turn : { ...turn, content: applyRegex(turn.content, input.regex ?? [], placement, 'prompt', storyTurns.length - 1 - index) };
     })
-    .map((turn) => historyMessage(turn, speaker.id, namesById, group, names.user));
+    .map((turn) => historyMessage(turn, speaker.id, namesById, group, names.user, narrating));
 
   const budget = input.context_tokens - input.max_tokens;
   const cost = (messages: readonly ModelMessage[]) => messages.reduce((total, message) => total + estimateTokens(message), 0);

@@ -222,7 +222,7 @@ def scenario_text(scenario: Mapping[str, Any] | None) -> str:
 
 
 def _history_message(
-    turn: Mapping[str, Any], speaker_id: str, names_by_id: Mapping[str, str], group: bool, user_name: str
+    turn: Mapping[str, Any], speaker_id: str, names_by_id: Mapping[str, str], group: bool, user_name: str, narrating: bool = False
 ) -> dict[str, str]:
     if turn["role"] == "character" and any(opening in turn["content"] for opening, _closing in REASONING_PAIRS):
         # A model's reasoning is never read back to it (A45).
@@ -231,6 +231,9 @@ def _history_message(
         return {"role": "assistant", "content": turn["content"]}
     if turn["role"] == "system" or turn["channel"] == "roll":
         return {"role": "system", "content": turn["content"]}
+    if narrating and turn["role"] == "narrator":
+        # The narrator's own past narration is its own voice.
+        return {"role": "assistant", "content": turn["content"]}
     if turn["role"] == "narrator":
         name = NARRATOR
     elif turn["role"] == "user":
@@ -262,12 +265,20 @@ def assemble_prompt(
     frame: Mapping[str, Any] | None = None,
     scenario: Mapping[str, Any] | None = None,
 ) -> Assembled:
-    speaker = next((character for character in characters if character["id"] == speaker_id), None)
+    narrating = mode == "narrate"
+    # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
+    speaker = (
+        {key: "" for key in ("id", "description", "personality", "scenario", "example_messages", "system_prompt", "post_history_instructions")}
+        | {"name": PROMPT["narrator_name"]}
+        if narrating
+        else next((character for character in characters if character["id"] == speaker_id), None)
+    )
     if speaker is None:
         raise ValueError("The speaker must be one of the chat’s characters")
-    names = {"char": speaker["name"], "user": persona["name"] if persona is not None else DEFAULT_USER_NAME}
+    user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
+    names = {"char": speaker["name"], "user": user_name}
     names_by_id = {character["id"]: character["name"] for character in characters}
-    group = len(characters) > 1
+    group = len(characters) > 1 or narrating
     story = set(PROMPT["story_channels"])
 
     sections: Mapping[str, str] = (lore or {}).get("sections", {})
@@ -278,7 +289,21 @@ def assemble_prompt(
         section = arranged[id_]
         return _capped(expand_macros(text, names), section["max_tokens"]) if section["enabled"] else ""
 
-    main = system_prompt if system_prompt.strip() else speaker["system_prompt"] if speaker["system_prompt"].strip() else PROMPT["default_system_prompt"]
+    if system_prompt.strip():
+        main = system_prompt
+    elif narrating:
+        main = PROMPT["narrate_prompt"]
+    else:
+        main = speaker["system_prompt"] if speaker["system_prompt"].strip() else PROMPT["default_system_prompt"]
+    # The narrator reads every character, in brief: each one's description with its own name filled in.
+    cast_text = "\n".join(
+        [PROMPT["cast_heading"]]
+        + [
+            f"- {character['name']}: {expand_macros(character['description'].strip(), {'char': character['name'], 'user': user_name})}"
+            for character in characters
+            if character["description"].strip()
+        ]
+    )
     texts = {
         "main": main,
         "safety": safety_text(safety),
@@ -286,7 +311,7 @@ def assemble_prompt(
         "campaign": frame_text(frame),
         "running_scenario": scenario_text(scenario),
         "lore_before_char": sections.get("before_char", ""),
-        "description": speaker["description"],
+        "description": cast_text if narrating and any(character["description"].strip() for character in characters) else speaker["description"],
         "personality": f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",
         "scenario": f"Scenario: {speaker['scenario']}" if speaker["scenario"].strip() else "",
         "lore_after_char": sections.get("after_char", ""),
@@ -328,7 +353,7 @@ def assemble_prompt(
         else turn
         for index, turn in enumerate(story_turns)
     ]
-    turns = [_history_message(turn, speaker["id"], names_by_id, group, names["user"]) for turn in story_turns]
+    turns = [_history_message(turn, speaker["id"], names_by_id, group, names["user"], narrating) for turn in story_turns]
 
     budget = context_tokens - max_tokens
     used = sum(estimate_tokens(message) for message in [system, *after, *(message for _depth, message in inserts)])

@@ -118,7 +118,8 @@
       "reply",
       "continue",
       "impersonate",
-      "table"
+      "table",
+      "narrate"
     ],
     "sections": [
       "main",
@@ -148,7 +149,10 @@
     "summarize_prompt": "Summarize the story so far in a few short paragraphs: who is in it, where they are, what has happened and what is still unresolved. Write only the summary.",
     "translate_prompt": "Translate the user's text into {{language}}. Keep its meaning, tone, names and any *action* markup. Write only the translation.",
     "objective_prompt": "{{char}}'s current task: {{task}} Work toward it naturally, without stating it.",
-    "objective_depth": 2
+    "objective_depth": 2,
+    "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the people in it and what comes of what the characters did, in a few vivid paragraphs. Never speak, act or decide for {{user}}.",
+    "cast_heading": "The characters:",
+    "narrator_name": "Narrator"
   },
   "lore": {
     "$comment": "World Info (SillyTavern's lorebooks): how entries activate and where they go. client/src/features/lore/activate.ts and server/extensions/ai_chat/Lore.py implement it; contract/lore-cases.json holds the cases both run.",
