@@ -16,24 +16,24 @@ import { Label } from 'zephyrex/ui/label';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { CAMPAIGN, LIMITS } from '~/contract';
-import { parseTags } from '~/features/chat/library';
+import { frameFields } from '~/features/campaign/frame';
 import { type Campaign, campaigns, refreshedByRecords } from '~/features/data/records';
 
 const CHIP = 'h-11';
-const STRUCTURE_LABELS: Record<(typeof CAMPAIGN.structures)[number], string> = {
+export const STRUCTURE_LABELS: Record<(typeof CAMPAIGN.structures)[number], string> = {
   sandbox: 'Sandbox',
   linear: 'Linear',
   episodic: 'Episodic',
   one_shot: 'One-shot',
 };
-const MODE_LABELS: Record<(typeof CAMPAIGN.resolution_modes)[number], string> = {
+export const MODE_LABELS: Record<(typeof CAMPAIGN.resolution_modes)[number], string> = {
   narrative: 'Narrative',
   mechanical: 'Rules as written',
   hybrid: 'Hybrid',
 };
 
 /** One row of chips choosing one value (or none, by choosing it again). */
-function Pick<T extends string | number>({
+export function Pick<T extends string | number>({
   label,
   options,
   value,
@@ -66,7 +66,7 @@ function Pick<T extends string | number>({
   );
 }
 
-const dialOptions = (left: string, right: string) => [
+export const dialOptions = (left: string, right: string): { value: number; label: string }[] => [
   { value: -2, label: `Very ${left}` },
   { value: -1, label: left },
   { value: 0, label: 'Balanced' },
@@ -99,23 +99,19 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
   };
 
   const save = async () => {
-    const fields = {
-      name: name.trim(),
+    const fields = frameFields({
+      name,
       premise,
-      genre: genre.trim(),
-      dials: Object.fromEntries(Object.entries(dials).filter(([, value]) => value !== 0)),
-      themes: parseTags(themes).slice(0, LIMITS.campaign_list_items),
-      pillars: Object.fromEntries(Object.entries(pillars).filter(([, value]) => value !== 0)),
+      genre,
+      dials,
+      themes,
+      pillars,
       structure,
-      truths: truths
-        .split('\n')
-        .map((truth) => truth.trim())
-        .filter(Boolean)
-        .slice(0, LIMITS.campaign_list_items),
+      truths,
       characters,
-      gm_style: gmStyle.trim(),
-      resolution_mode: mode,
-    };
+      gmStyle,
+      mode,
+    });
     if (await writes.run(campaign === null ? create(fields) : update(campaign, fields), 'Not saved', 'Saved')) done();
   };
 
