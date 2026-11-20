@@ -404,6 +404,51 @@ export async function translate(nextRequest: NextRequest): Promise<Response> {
   }
 }
 
+/** The address a server lists its models at (OpenAI-compatible `GET /models`). */
+export function modelsUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, '').replace(/\/(chat\/)?completions$/, '')}/models`;
+}
+
+const PING_TIMEOUT_MS = 8000;
+
+/**
+ * `POST /v1/ai_chat/ping` (A28): whether a model's server answers, how quickly, and whether it
+ * offers the model asked for. Request `{ "ping": { "endpoint_id" } }`; answer `{ "ping": { "ok",
+ * "latency_ms", "status", "has_model", "detail" } }` (a server that cannot be reached is `ok:
+ * false`, never an error: this is a check).
+ */
+export async function ping(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = z.object({ endpoint_id: z.string().min(1) }).safeParse(Reflect.get(envelope, 'ping'));
+    if (!parsed.success) throw validationError('A ping object with an endpoint_id is required', 'ping');
+    const row = await endpoints.find(parsed.data.endpoint_id, owner.id);
+    if (row === null) throw notFound(endpoints.modelName);
+    const started = Date.now();
+    const answer = await fetch(modelsUrl(row.baseUrl), {
+      headers: row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` },
+      signal: AbortSignal.any([nextRequest.signal, AbortSignal.timeout(PING_TIMEOUT_MS)]),
+    }).catch(() => null);
+    const latency = Date.now() - started;
+    if (answer === null) return Response.json({ ping: { ok: false, latency_ms: latency, status: null, has_model: null, detail: 'The server could not be reached' } });
+    const body: unknown = await answer.json().catch(() => null);
+    const listed: unknown = Reflect.get(Object(body), 'data');
+    const ids = Array.isArray(listed) ? listed.flatMap((model) => (typeof Reflect.get(Object(model), 'id') === 'string' ? [String(Reflect.get(Object(model), 'id'))] : [])) : null;
+    return Response.json({
+      ping: {
+        ok: answer.ok,
+        latency_ms: latency,
+        status: answer.status,
+        has_model: ids === null ? null : ids.includes(row.model),
+        detail: answer.ok ? (ids === null ? 'Answered, without a model list' : `${ids.length} models offered`) : `Answered ${answer.status}`,
+      },
+    });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
 export async function generate(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);

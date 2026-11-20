@@ -21,6 +21,7 @@ Actions on ``/v1/ai_chat``:
 import json
 import random
 import re
+import time
 from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any, ClassVar
 
@@ -1043,6 +1044,34 @@ class TranslateEnvelope(PlainModel):
     translate: TranslateRequest
 
 
+class PingRequest(PlainModel):
+    endpoint_id: str = Field(..., min_length=1)
+
+
+class PingRequestEnvelope(PlainModel):
+    ping: PingRequest
+
+
+class Ping(PlainModel):
+    ok: bool
+    latency_ms: int
+    status: int | None
+    has_model: bool | None
+    detail: str
+
+
+class PingEnvelope(PlainModel):
+    ping: Ping
+
+
+PING_TIMEOUT_SECONDS = 8.0
+
+
+def models_url(base_url: str) -> str:
+    """The address a server lists its models at (OpenAI-compatible ``GET /models``)."""
+    return re.sub(r"/(chat/)?completions$", "", base_url.rstrip("/")) + "/models"
+
+
 class GenerateEnvelope(PlainModel):
     generate: GenerateRequest
 
@@ -1341,6 +1370,37 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             *(document for character_id in chat.character_ids or [] for document in named(documents.list(scope="character", scope_id=character_id))),
         ]
         return data_bank_text([document.text for document in found], story)
+
+    @custom_route(
+        method="POST",
+        path="/ping",
+        input_model=PingRequestEnvelope,
+        output_model=PingEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Whether a model's server answers, how quickly, and whether it offers the model (A28)",
+    )
+    async def ping_route(self, body: PingRequestEnvelope) -> PingEnvelope:
+        # A check, not a request for work: a server that cannot be reached is ok=false, never an error.
+        endpoint = self._manager(ModelEndpointManager).get(id=body.ping.endpoint_id)
+        key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
+        started = time.monotonic()
+        try:
+            async with httpx.AsyncClient(timeout=PING_TIMEOUT_SECONDS) as client:
+                answer = await client.get(models_url(endpoint.base_url), headers={"Authorization": f"Bearer {key}"} if key else {})
+        except httpx.HTTPError:
+            latency = int((time.monotonic() - started) * 1000)
+            return PingEnvelope(ping=Ping(ok=False, latency_ms=latency, status=None, has_model=None, detail="The server could not be reached"))
+        latency = int((time.monotonic() - started) * 1000)
+        try:
+            listed = answer.json().get("data")
+        except ValueError:
+            listed = None
+        ids = [str(model["id"]) for model in listed if isinstance(model, dict) and isinstance(model.get("id"), str)] if isinstance(listed, list) else None
+        ok = answer.status_code < 400
+        detail = ("Answered, without a model list" if ids is None else f"{len(ids)} models offered") if ok else f"Answered {answer.status_code}"
+        return PingEnvelope(ping=Ping(ok=ok, latency_ms=latency, status=answer.status_code, has_model=None if ids is None else endpoint.model in ids, detail=detail))
 
     async def _ask(self, context: dict[str, Any], sampler: dict[str, Any], messages: list[dict[str, str]]) -> str:
         """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""

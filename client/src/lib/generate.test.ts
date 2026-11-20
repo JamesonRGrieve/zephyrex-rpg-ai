@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { completionsUrl, generate, inspectPrompt, summarize, translate, upstreamBody, withImages } from './generate';
+import { completionsUrl, generate, inspectPrompt, modelsUrl, ping, summarize, translate, upstreamBody, withImages } from './generate';
 
 interface Received {
   path: string;
@@ -287,6 +287,21 @@ describe('withImages', () => {
       ...messages.slice(0, 3),
       { role: 'user', content: [{ type: 'text', text: 'What is this?' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] },
     ]);
+  });
+});
+
+describe('the model check (A28)', () => {
+  it('finds the models list beside the completions', () => {
+    expect(modelsUrl('http://h:1/v1/')).toBe('http://h:1/v1/models');
+    expect(modelsUrl('http://h:1/v1/chat/completions')).toBe('http://h:1/v1/models');
+  });
+
+  it('says a server that cannot be reached is down, as an answer and not an error', async () => {
+    const endpoint = await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Gone', baseUrl: 'http://127.0.0.1:9/v1', model: 'x' } });
+    const response = await ping(call({ ping: { endpoint_id: endpoint.id } }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ ping: { ok: false, status: null, detail: 'The server could not be reached' } });
+    expect((await ping(call({ ping: { endpoint_id: 'nope' } }))).status).toBe(404);
   });
 });
 

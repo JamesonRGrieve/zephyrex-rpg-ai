@@ -25,6 +25,15 @@ RECEIVED: list[dict[str, Any]] = []
 class FakeModel(BaseHTTPRequestHandler):
     """A real HTTP server answering as an OpenAI-compatible endpoint: a two-piece streamed reply."""
 
+    def do_GET(self) -> None:
+        # The model list (A28's check).
+        body = json.dumps({"data": [{"id": "tiny"}, {"id": "small"}]}).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         RECEIVED.append({"path": self.path, "authorization": self.headers.get("Authorization"), "body": json.loads(self.rfile.read(length))})
@@ -437,6 +446,15 @@ class TestGenerate:
         server.post("/v1/ai_chat/summarize", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
         server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
         assert [sent["body"]["model"] for sent in RECEIVED] == ["small", "tiny"]
+
+    def test_the_model_check_says_whether_the_server_answers(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        up = _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny").json()["model_endpoint"]
+        down = _create(server, user, "model_endpoint", name="Gone", base_url="http://127.0.0.1:9/v1", model="x").json()["model_endpoint"]
+        answered = server.post("/v1/ai_chat/ping", json={"ping": {"endpoint_id": up["id"]}}, headers=_headers(user)).json()["ping"]
+        assert (answered["ok"], answered["has_model"], answered["detail"]) == (True, True, "2 models offered")
+        gone = server.post("/v1/ai_chat/ping", json={"ping": {"endpoint_id": down["id"]}}, headers=_headers(user)).json()["ping"]
+        assert (gone["ok"], gone["status"], gone["detail"]) == (False, None, "The server could not be reached")
 
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

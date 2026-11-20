@@ -18,7 +18,9 @@ import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { type EndpointApi, type EndpointRole, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId, LIMITS } from '~/contract';
 import { type ModelEndpoint, endpoints } from '~/features/data/records';
+import { pingEndpoint } from '~/features/models/ping';
 import { ManagedList } from './ManagedList';
+import { ModelStatus } from './ModelStatus';
 
 /** What a model can be used for (A27), as the form names it. */
 const ROLE_LABELS: Record<EndpointRole, string> = { story: 'Character replies', gm: 'The GM', summary: 'Summaries', translate: 'Translation' };
@@ -164,6 +166,7 @@ export function EndpointManager(): ReactElement {
   const list = endpoints.useList();
   const { remove } = endpoints.useActions();
   return (
+    <div className='grid gap-8'>
     <ManagedList
       what='model'
       rows={list.data}
@@ -176,5 +179,7 @@ export function EndpointManager(): ReactElement {
       editor={(row, done) => <EndpointForm endpoint={row} done={done} />}
       onDelete={(row) => void remove(row)}
     />
+    <ModelStatus models={list.data ?? []} check={pingEndpoint} />
+    </div>
   );
 }

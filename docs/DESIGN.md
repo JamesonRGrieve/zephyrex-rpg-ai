@@ -115,6 +115,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | **Media** |
 | A25 | Safety tools: content rating, lines and veils in every prompt; the X-card takes a reply out of the story at once (undoable) | pause; the GM agent honouring them in narration (A20) |
 | A27 (part) | Models by role: each model serves roles (character replies, the GM, summaries, translation), and every request goes to the model serving its role | pools of servers and parallel fan-out (framework, card 253); the model status page (A28) |
+| A28 (part) | Model status: each model's roles, and a check of whether its server answers, how fast, and whether it offers the model | load and failure history across pools (framework) |
 | A29 | Text to speech per character voice; speech to text input | SillyTavern | ✓ | ✓ |
 | A30 | Image generation for scenes and portraits (ComfyUI and others through the framework) | SillyTavern | ✓ | ✓ |
 | A31 | Backgrounds per chat or per wiki location | SillyTavern | ✓ | ✓ |
