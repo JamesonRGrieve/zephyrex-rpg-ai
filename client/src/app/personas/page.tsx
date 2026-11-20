@@ -5,8 +5,7 @@ import { PersonaManager } from '~/components/manage/PersonaManager';
 
 export default function PersonasPage(): ReactNode {
   return (
-    <AppPage title='Personas' width='medium'>
-      <h1 className='sr-only'>Who you play as</h1>
+    <AppPage title='Personas' heading='Who you play as' width='medium'>
       <PersonaManager />
     </AppPage>
   );

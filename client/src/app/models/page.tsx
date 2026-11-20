@@ -2,12 +2,15 @@
 import type { ReactNode } from 'react';
 import { AppPage } from '~/components/common/AppPage';
 import { EndpointManager } from '~/components/manage/EndpointManager';
+import { InstructTemplateManager } from '~/components/manage/InstructTemplateManager';
 
 export default function ModelsPage(): ReactNode {
   return (
-    <AppPage title='Models' width='medium'>
-      <h1 className='sr-only'>Your models</h1>
-      <EndpointManager />
+    <AppPage title='Models' heading='Your models' width='medium'>
+      <div className='grid gap-10'>
+        <EndpointManager />
+        <InstructTemplateManager />
+      </div>
     </AppPage>
   );
 }

@@ -13,7 +13,7 @@ import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
-import { lorebookEntries, lorebooks } from '~/features/data/records';
+import { lorebookEntries, lorebooks, idOf } from '~/features/data/records';
 import { lorebookFromJson } from '~/features/import/stLorebook';
 import { writeImportedBook } from './importBook';
 
@@ -23,7 +23,7 @@ export function LorebookLibrary(): ReactElement {
   const { create: createEntry } = lorebookEntries.useActions();
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
-  const hidden = useHidden(list.data ?? [], (book) => book.id);
+  const hidden = useHidden(list.data ?? [], idOf);
   const shown = hidden.shown;
 
   const importFiles = async (event: ChangeEvent<HTMLInputElement>) => {

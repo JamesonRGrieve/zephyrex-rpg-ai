@@ -17,6 +17,8 @@ export interface ReplyRequest {
   speaker_id: string | null;
   /** `reply` when left out; `continue` carries on the leaf; `impersonate` writes the person's line. */
   mode?: 'reply' | 'continue' | 'impersonate' | 'table' | 'narrate';
+  /** AP4: this turn asked of another of the person's models, to compare. */
+  endpoint_id?: string;
 }
 
 export interface ReplyResult {

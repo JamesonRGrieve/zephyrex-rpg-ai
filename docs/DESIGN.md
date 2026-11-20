@@ -693,12 +693,13 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | AP2 | Previously…: the rolling summary at the top of a chat when a session starts, read aloud where the browser can speak, hidden on request | written from the last session report too (A24, VTT) |
 | AP9 | Names without lore: names the story keeps using that no character, persona or lore entry covers, each a tap from a stub entry in a chosen lorebook | a stub drafted by a model; wiki pages (A15) |
 | AP5 | Each reply written while the chat is open says about how many tokens it came to and how long it took | cost for hosted APIs (a price per endpoint); kept across visits |
+| AP4 | Again with another model: a reply's alternative asked of another of the person's models, kept as a swipe beside the first to compare | the same turn sent to two at once |
 | A48 | AI Horde as a backend: an endpoint whose API is AI Horde is asked as a job (submitted, then polled) and answers as any reply does, in both editions; anonymous without a key | the Horde's worker and model list in the model check |
 | A12 | Chat library: search by title, cast, tag or the words of any message (opening the chat there); folders and tags | |
 | A13, A56 | SillyTavern chat import; branch export as JSONL or text; a backup of everything as one file, restored beside what is there | |
 | A14 | World Info, the full entry surface and activation; ST import and export | |
 | A16 | Author's note, a chat's own system prompt, the prompt manager (order, on/off, budgets) | |
-| A17 | Instruct templates for text-completion endpoints (ChatML, Llama 3, Alpaca, Mistral) | custom templates |
+| A17 | Instruct templates for text-completion endpoints (ChatML, Llama 3, Alpaca, Mistral), and a person's own (on the Models page), picked per endpoint | |
 | A18 | Context inspector with token estimates | |
 | A19 | Rolling summaries (asked of the chat's model, kept or edited) | recall by meaning (`ai_memories`, SaaS) |
 | A29 | Read aloud per character voice; dictation (both by the browser) | server voices |

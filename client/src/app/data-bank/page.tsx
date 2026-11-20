@@ -5,8 +5,7 @@ import { DataBankManager } from '~/components/manage/DataBankManager';
 
 export default function DataBankPage(): ReactNode {
   return (
-    <AppPage title='Data bank' width='medium'>
-      <h1 className='sr-only'>Data bank</h1>
+    <AppPage title='Data bank' heading='Data bank' width='medium'>
       <DataBankManager />
     </AppPage>
   );

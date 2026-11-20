@@ -5,8 +5,7 @@ import { CampaignManager } from '~/components/manage/CampaignManager';
 
 export default function CampaignsPage(): ReactNode {
   return (
-    <AppPage title='Campaigns' width='medium'>
-      <h1 className='sr-only'>Campaigns</h1>
+    <AppPage title='Campaigns' heading='Campaigns' width='medium'>
       <CampaignManager />
     </AppPage>
   );

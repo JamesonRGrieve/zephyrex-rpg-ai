@@ -5,8 +5,7 @@ import { LorebookLibrary } from '~/components/lore/LorebookLibrary';
 
 export default function LorebooksPage(): ReactNode {
   return (
-    <AppPage title='Lorebooks' width='medium'>
-      <h1 className='sr-only'>Lorebooks</h1>
+    <AppPage title='Lorebooks' heading='Lorebooks' width='medium'>
       <LorebookLibrary />
     </AppPage>
   );

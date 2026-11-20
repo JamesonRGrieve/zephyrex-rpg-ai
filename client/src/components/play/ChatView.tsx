@@ -79,6 +79,7 @@ import {
   campaigns,
   scenarios,
   characterExpressions,
+  idOf,
 } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
@@ -186,7 +187,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [treeOpen, setTreeOpen] = useState(false);
   const [inspected, setInspected] = useState<InspectedPrompt | 'loading' | null>(null);
   const mobile = useIsMobile();
-  const hidden = useHidden(list.data ?? [], (message) => message.id);
+  const hidden = useHidden(list.data ?? [], idOf);
   const end = useRef<HTMLDivElement>(null);
 
   // Oldest first, whatever order the back end answers in: the tree's latest leaf is the last child.
@@ -461,13 +462,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     else if (channel === 'ic' && !chat.paused) await replyAfter(saved.id, [...branch, saved]);
   };
 
-  const regenerate = async (message: ChatMessage) => {
+  /** Another alternative for a reply; with `endpointId`, from that model (AP4), to compare them side by side. */
+  const regenerate = async (message: ChatMessage, endpointId?: string) => {
     if (message.speaker_character_id === null) return;
     setWritingAfter({ parentId: message.parent_id, speakerId: message.speaker_character_id });
     const result = await timedWrite({
       chat_id: chat.id,
       leaf_id: message.parent_id,
       speaker_id: message.speaker_character_id,
+      ...(endpointId === undefined ? {} : { endpoint_id: endpointId }),
     });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
@@ -774,6 +777,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 }
                 onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
                 onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
+                onRegenerateWith={
+                  message.role === 'character' && !writing && (endpointList.data ?? []).length > 1
+                    ? {
+                        models: (endpointList.data ?? []).map((one) => ({ id: one.id, name: one.name })),
+                        run: (endpointId) => void regenerate(message, endpointId),
+                      }
+                    : undefined
+                }
                 onFork={(step) => fork(message, step)}
                 onEdit={(text) =>
                   void update(message, {

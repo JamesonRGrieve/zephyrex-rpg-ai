@@ -53,7 +53,8 @@ import {
   type PromptSection,
   type PromptTurn,
 } from '~/features/prompt/assemble';
-import { instructStops, renderInstruct } from '~/features/prompt/instruct';
+import { type InstructTemplate, instructStops, renderInstruct } from '~/features/prompt/instruct';
+import { ownTemplate } from '~/lib/instructTemplateRecords';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
 import { dataBankText } from '~/features/chat/dataBank';
@@ -68,6 +69,8 @@ const request = z.object({
   leaf_id: z.string().min(1).nullable().default(null),
   speaker_id: z.string().min(1).nullable().default(null),
   mode: z.enum(['reply', 'continue', 'impersonate', 'table', 'narrate']).default('reply'),
+  /** AP4: this turn asked of another of the person's models, to compare (kept as another swipe). */
+  endpoint_id: z.string().min(1).nullable().default(null),
 });
 
 const NO_QUERY = new URLSearchParams();
@@ -91,7 +94,7 @@ export interface Endpoint {
   model: string;
   api_key: string;
   api: EndpointApi;
-  instruct_template: InstructTemplateId;
+  instruct_template: InstructTemplateId | InstructTemplate;
 }
 
 /** Everything a reply needs, read as the owner sees it. */
@@ -227,7 +230,11 @@ export async function generationInputs(
   const all = await endpoints.list(ownerId, NO_QUERY);
   const serving = all.filter((row) => (endpoints.fields(row).roles as string[]).includes(role));
   const chosen = chatFields.endpoint_id === null ? null : await endpoints.find(chatFields.endpoint_id, ownerId);
+  // AP4: one of the person's own models, asked for this turn; another person's is not found.
+  const asked = body.endpoint_id === null ? null : await endpoints.find(body.endpoint_id, ownerId);
+  if (body.endpoint_id !== null && asked === null) throw notFound(endpoints.modelName);
   const endpointRow =
+    asked ??
     (role === 'story' ? chosen : null) ??
     serving.find((row) => row.isDefault) ??
     serving[0] ??
@@ -265,7 +272,10 @@ export async function generationInputs(
       model: endpointRow.model,
       api_key: endpointRow.apiKey,
       api: endpointRow.api as EndpointApi,
-      instruct_template: endpointRow.instructTemplate as InstructTemplateId,
+      // The person's own template (A17) when it names one that is still theirs, else the built-in.
+      instruct_template:
+        (endpointRow.customTemplateId === null ? null : await ownTemplate(ownerId, endpointRow.customTemplateId)) ??
+        (endpointRow.instructTemplate as InstructTemplateId),
     },
     loreState: lore.state,
     activeLore: lore.active,
@@ -575,7 +585,7 @@ export async function translate(nextRequest: NextRequest): Promise<Response> {
     const asked = parsed.data;
     const { sampler, endpoint } = await generationInputs(
       owner.id,
-      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' },
+      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply', endpoint_id: null },
       Math.random,
       'translate',
     );
@@ -678,7 +688,7 @@ export async function expression(nextRequest: NextRequest): Promise<Response> {
     if (labels.length === 0) return Response.json({ expression: { label: null } });
     const { sampler, endpoint } = await generationInputs(
       owner.id,
-      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' },
+      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply', endpoint_id: null },
       Math.random,
       'summary',
     );
@@ -741,6 +751,7 @@ export async function picture(nextRequest: NextRequest): Promise<Response> {
       leaf_id: asked.leaf_id,
       speaker_id: null,
       mode: 'reply',
+      endpoint_id: null,
     });
     const drawing = (await endpoints.list(owner.id, NO_QUERY))
       .filter((row) => (endpoints.fields(row).roles as string[]).includes('image'))

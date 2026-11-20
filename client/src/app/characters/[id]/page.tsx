@@ -6,8 +6,7 @@ import { AppPage } from '~/components/common/AppPage';
 export default async function CharacterPage({ params }: { params: Promise<{ id: string }> }): Promise<ReactNode> {
   const { id } = await params;
   return (
-    <AppPage title='Character' width='medium'>
-      <h1 className='sr-only'>Edit character</h1>
+    <AppPage title='Character' heading='Edit character' width='medium'>
       <CharacterEditor id={id} />
     </AppPage>
   );

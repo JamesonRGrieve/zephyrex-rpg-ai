@@ -6,8 +6,7 @@ import { LorebookEditor } from '~/components/lore/LorebookEditor';
 export default async function LorebookPage({ params }: { params: Promise<{ id: string }> }): Promise<ReactNode> {
   const { id } = await params;
   return (
-    <AppPage title='Lorebook' width='medium'>
-      <h1 className='sr-only'>Edit lorebook</h1>
+    <AppPage title='Lorebook' heading='Edit lorebook' width='medium'>
       <LorebookEditor id={id} />
     </AppPage>
   );

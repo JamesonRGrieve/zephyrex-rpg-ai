@@ -13,6 +13,7 @@ const MODEL = {
   model: 'tiny',
   is_default: true,
   has_api_key: false,
+  custom_template_id: null,
   api: 'chat' as const,
   instruct_template: 'chatml' as const,
   roles: ['story' as const],

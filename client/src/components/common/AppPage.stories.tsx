@@ -9,7 +9,12 @@ const meta: Meta<typeof AppPage> = {
   component: AppPage,
   tags: ['autodocs'],
   decorators: [(Story) => <SidebarProvider>{Story()}</SidebarProvider>],
-  args: { title: 'Chats', children: <h1>Chats</h1> },
+  args: {
+    title: 'Chats',
+    heading: 'Your chats',
+    description: 'Every story you have going, the latest first.',
+    children: <p>The chats go here.</p>,
+  },
 };
 export default meta;
 type Story = StoryObj<typeof AppPage>;
@@ -18,11 +23,21 @@ export const Wide: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByRole('banner')).toHaveTextContent('Chats');
-    await expect(canvas.getByRole('heading', { level: 1, name: 'Chats' })).toBeVisible();
+    // The body's PageHeader is the page's one h1; the sidebar title is chrome.
+    await expect(canvas.getByRole('heading', { level: 1, name: 'Your chats' })).toBeVisible();
+    await expect(canvas.getAllByRole('heading', { level: 1 })).toHaveLength(1);
   },
 };
 
-export const Narrow: Story = { args: { width: 'narrow', title: 'Settings', children: <h1>Settings</h1> } };
+export const Narrow: Story = { args: { width: 'narrow', title: 'Settings', heading: 'Settings', description: undefined } };
+
+/** A page that renders its own h1 (the open chat): no PageHeader. */
+export const OwnHeading: Story = {
+  args: { heading: null, children: <h1 className='sr-only'>Chat</h1> },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getAllByRole('heading', { level: 1 })).toHaveLength(1);
+  },
+};
 
 /**
  * The header carries the button that opens the navigation on a phone (CSS shows it below the

@@ -21,7 +21,7 @@ import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { Switch } from 'zephyrex/ui/switch';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS } from '~/contract';
-import { type Lorebook, type LorebookEntry, lorebookEntries, lorebooks } from '~/features/data/records';
+import { type Lorebook, type LorebookEntry, lorebookEntries, lorebooks, idOf } from '~/features/data/records';
 import { type EntryFields, lorebookToJson } from '~/features/import/stLorebook';
 import { EntryForm } from './EntryForm';
 import { BLANK_ENTRY } from './fixtures';
@@ -101,7 +101,7 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
   const mobile = useIsMobile();
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<{ entry: LorebookEntry | null; draft: EntryFields } | null>(null);
-  const hidden = useHidden(entries.data ?? [], (entry) => entry.id);
+  const hidden = useHidden(entries.data ?? [], idOf);
   const searchId = useId();
   const [problem, setProblem] = useState<string | null>(null);
 

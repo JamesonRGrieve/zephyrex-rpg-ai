@@ -56,6 +56,8 @@ export interface MessageActions {
   onSwipe?: (step: -1 | 1) => void;
   /** Writes another alternative (offered on the last swipe of a character's reply). */
   onRegenerate?: () => void;
+  /** Another alternative from a chosen model (AP4), kept as a swipe beside this one to compare. */
+  onRegenerateWith?: { models: readonly { id: string; name: string }[]; run: (endpointId: string) => void };
   onFork?: (step: -1 | 1) => void;
   onEdit?: (text: string) => void;
   onBookmark?: () => void;
@@ -402,6 +404,11 @@ export function MessageItem({
                     <Bookmark aria-hidden /> {message.bookmarked ? 'Remove bookmark' : 'Bookmark'}
                   </DropdownMenuItem>
                 )}
+                {actions.onRegenerateWith?.models.map((model) => (
+                  <DropdownMenuItem key={model.id} onSelect={() => actions.onRegenerateWith?.run(model.id)}>
+                    <RotateCw aria-hidden /> Again with {model.name}
+                  </DropdownMenuItem>
+                ))}
                 {actions.onMoveUp !== undefined && (
                   <DropdownMenuItem onSelect={actions.onMoveUp}>
                     <ArrowUp aria-hidden /> Move up

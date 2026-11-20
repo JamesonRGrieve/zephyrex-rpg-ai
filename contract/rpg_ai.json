@@ -552,5 +552,20 @@
     "wait_ms": 300000,
     "client_agent": "zephyrex-rpg-ai:0.1:self-hosted",
     "anonymous_key": "0000000000"
+  },
+  "instruct_custom": {
+    "$comment": "A person's own instruct template (A17): the built-ins' fields, each within these limits.",
+    "fields": [
+      "start",
+      "system_prefix",
+      "system_suffix",
+      "user_prefix",
+      "user_suffix",
+      "assistant_prefix",
+      "assistant_suffix"
+    ],
+    "field_characters": 200,
+    "stops": 8,
+    "stop_characters": 64
   }
 }

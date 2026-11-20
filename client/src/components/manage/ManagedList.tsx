@@ -5,6 +5,7 @@
  * models pages share. The sheet opens from the bottom on a phone and from the side on a wide screen;
  * deleting offers an undo.
  */
+import { idOf } from '~/features/data/records';
 import { useHidden } from 'zephyrex/hooks/useWrites';
 import { Plus, Trash2 } from 'lucide-react';
 import { type ReactElement, type ReactNode, useState } from 'react';
@@ -48,7 +49,7 @@ export function ManagedList<T extends ManagedRow>({
 }): ReactElement {
   const mobile = useIsMobile();
   const [editing, setEditing] = useState<T | 'new' | null>(null);
-  const hidden = useHidden(rows ?? [], (row) => row.id);
+  const hidden = useHidden(rows ?? [], idOf);
   const shown = hidden.shown;
   const close = () => setEditing(null);
 

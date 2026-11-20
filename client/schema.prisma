@@ -148,6 +148,8 @@ model ModelEndpoint {
   isDefault   Boolean  @default(false)
   api         String   @default("chat")
   instructTemplate String @default("chatml")
+  /// The person's own instruct template (A17), used in place of instructTemplate.
+  customTemplateId String?
   roles       String   @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime
@@ -332,3 +334,22 @@ model CharacterExpression {
   @@index([createdById, characterId])
 }
 
+/// A person's own instruct template (A17): the markup a text API's model was trained on.
+model InstructTemplate {
+  id              String   @id @default(uuid())
+  createdById     String
+  name            String
+  start           String   @default("")
+  systemPrefix    String   @default("")
+  systemSuffix    String   @default("")
+  userPrefix      String   @default("")
+  userSuffix      String   @default("")
+  assistantPrefix String   @default("")
+  assistantSuffix String   @default("")
+  stop            String   @default("[]")
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime
+  updatedById     String?
+
+  @@index([createdById])
+}

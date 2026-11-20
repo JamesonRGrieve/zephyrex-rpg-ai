@@ -19,8 +19,13 @@ from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[i
 TEMPLATES: Mapping[str, Mapping[str, Any]] = CONTRACT["instruct_templates"]
 
 
-def render_instruct(messages: Sequence[Mapping[str, str]], template_id: str, open_last: bool = False) -> str:
-    template = TEMPLATES[template_id]
+def template_of(template: str | Mapping[str, Any]) -> Mapping[str, Any]:
+    """A built-in template by its id, or a person's own (A17) as its fields."""
+    return TEMPLATES[template] if isinstance(template, str) else template
+
+
+def render_instruct(messages: Sequence[Mapping[str, str]], template_id: str | Mapping[str, Any], open_last: bool = False) -> str:
+    template = template_of(template_id)
     closing = messages[-1] if messages else None
     left_open = open_last and closing is not None and closing["role"] == "assistant"
     body = messages[:-1] if left_open else messages
@@ -32,5 +37,5 @@ def render_instruct(messages: Sequence[Mapping[str, str]], template_id: str, ope
     return text + template["assistant_prefix"]
 
 
-def instruct_stops(template_id: str) -> list[str]:
-    return list(TEMPLATES[template_id]["stop"])
+def instruct_stops(template_id: str | Mapping[str, Any]) -> list[str]:
+    return list(template_of(template_id)["stop"])

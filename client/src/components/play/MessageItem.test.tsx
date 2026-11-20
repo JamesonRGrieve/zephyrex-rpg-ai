@@ -115,4 +115,12 @@ describe('MessageItem', () => {
     render(<MessageItem message={ADA_REPLY} cost={{ tokens: 21, seconds: 3.4 }} />);
     expect(screen.getByText('About 21 tokens · 3.4 s')).toBeInTheDocument();
   });
+
+  it('asks another model for an alternative from the menu, to compare (AP4)', async () => {
+    const run = vi.fn();
+    render(<MessageItem message={ADA_REPLY} onRegenerateWith={{ models: [{ id: 'e2', name: 'Big' }], run }} />);
+    await userEvent.click(screen.getByRole('button', { name: /More for/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Again with Big' }));
+    expect(run).toHaveBeenCalledWith('e2');
+  });
 });

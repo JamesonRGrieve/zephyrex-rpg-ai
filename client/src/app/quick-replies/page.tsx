@@ -5,8 +5,7 @@ import { QuickReplyManager } from '~/components/manage/QuickReplyManager';
 
 export default function QuickRepliesPage(): ReactNode {
   return (
-    <AppPage title='Quick replies' width='medium'>
-      <h1 className='sr-only'>Quick replies</h1>
+    <AppPage title='Quick replies' heading='Quick replies' width='medium'>
       <QuickReplyManager />
     </AppPage>
   );

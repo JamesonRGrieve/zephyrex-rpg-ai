@@ -13,7 +13,7 @@ import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { EXPRESSION } from '~/contract';
-import { characterExpressions } from '~/features/data/records';
+import { characterExpressions, idOf } from '~/features/data/records';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 
 export interface Sprite {
@@ -39,7 +39,7 @@ export function ExpressionSprites({
 }): ReactElement {
   const [label, setLabel] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  const hidden = useHidden(sprites, (sprite) => sprite.id);
+  const hidden = useHidden(sprites, idOf);
   const ids = { label: useId(), file: useId() };
   const shown = hidden.shown;
 

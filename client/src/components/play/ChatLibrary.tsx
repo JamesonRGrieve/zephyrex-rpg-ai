@@ -19,7 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
-import { characters, chats, messages } from '~/features/data/records';
+import { characters, chats, messages, idOf } from '~/features/data/records';
 import { chatFromJsonl } from '~/features/import/stChat';
 import { writeImportedChat } from './importChat';
 import { initials } from '../characters/CharacterTile';
@@ -64,7 +64,7 @@ export function ChatLibrary(): ReactElement {
   };
   const params = useSearchParams();
   const [picking, setPicking] = useState(params.get('new') === '1');
-  const hidden = useHidden(list.data ?? [], (chat) => chat.id);
+  const hidden = useHidden(list.data ?? [], idOf);
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
   const [query, setQuery] = useState('');
   const [folder, setFolder] = useState<FolderFilter>({ kind: 'all' });

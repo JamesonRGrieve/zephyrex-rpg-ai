@@ -5,8 +5,7 @@ import { ChatLibrary } from '~/components/play/ChatLibrary';
 
 export default function PlayPage(): ReactNode {
   return (
-    <AppPage title='Play' width='medium'>
-      <h1 className='sr-only'>Your chats</h1>
+    <AppPage title='Play' heading='Your chats' width='medium'>
       {/* The library reads the URL's ?new=1 (the install shortcut). */}
       <Suspense>
         <ChatLibrary />

@@ -33,6 +33,9 @@ import {
 
 const JSON_BODY = z.json();
 
+/** A record's id: one function for every list, so hooks keyed on it (useHidden) stay stable. */
+export const idOf = (record: { id: string }): string => record.id;
+
 /**
  * For useWrites: a record's own actions already have every list of it read again, so a form that
  * writes through them has nothing more to refresh.
@@ -150,6 +153,7 @@ export const endpointSchema = z.object({
   has_api_key: z.boolean(),
   api: z.enum(ENDPOINT_APIS),
   instruct_template: z.enum(Object.keys(INSTRUCT_TEMPLATES) as [InstructTemplateId, ...InstructTemplateId[]]),
+  custom_template_id: z.string().nullable(),
   roles: z.array(z.enum(ENDPOINT_ROLES)),
 });
 export type ModelEndpoint = z.infer<typeof endpointSchema>;
@@ -392,3 +396,23 @@ export const characterExpressions = resource<
   CharacterExpression,
   Fields<CharacterExpression> & { character_id: string; label: string; image: string }
 >('character_expression', 'character_expressions', characterExpressionSchema);
+
+/** A person's own instruct template (A17). */
+export const instructTemplateSchema = z.object({
+  ...versioned,
+  name: z.string(),
+  start: z.string(),
+  system_prefix: z.string(),
+  system_suffix: z.string(),
+  user_prefix: z.string(),
+  user_suffix: z.string(),
+  assistant_prefix: z.string(),
+  assistant_suffix: z.string(),
+  stop: z.array(z.string()),
+});
+export type InstructTemplateRecord = z.infer<typeof instructTemplateSchema>;
+export const instructTemplates = resource<InstructTemplateRecord, Fields<InstructTemplateRecord> & { name: string }>(
+  'instruct_template',
+  'instruct_templates',
+  instructTemplateSchema,
+);

@@ -5,8 +5,7 @@ import { RegexManager } from '~/components/manage/RegexManager';
 
 export default function RegexPage(): ReactNode {
   return (
-    <AppPage title='Regex' width='medium'>
-      <h1 className='sr-only'>Regex scripts</h1>
+    <AppPage title='Regex' heading='Regex scripts' width='medium'>
       <RegexManager />
     </AppPage>
   );

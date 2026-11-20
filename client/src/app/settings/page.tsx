@@ -5,8 +5,7 @@ import { SettingsPanel } from '~/components/settings/SettingsPanel';
 
 export default function SettingsPage(): ReactNode {
   return (
-    <AppPage title='Settings' width='medium'>
-      <h1 className='sr-only'>Settings</h1>
+    <AppPage title='Settings' heading='Settings' width='medium'>
       <SettingsPanel />
     </AppPage>
   );

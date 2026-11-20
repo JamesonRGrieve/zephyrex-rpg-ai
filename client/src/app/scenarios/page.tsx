@@ -5,8 +5,7 @@ import { ScenarioManager } from '~/components/manage/ScenarioManager';
 
 export default function ScenariosPage(): ReactNode {
   return (
-    <AppPage title='Scenarios' width='medium'>
-      <h1 className='sr-only'>Scenarios</h1>
+    <AppPage title='Scenarios' heading='Scenarios' width='medium'>
       <ScenarioManager />
     </AppPage>
   );

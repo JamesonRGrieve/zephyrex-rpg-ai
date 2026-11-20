@@ -5,8 +5,7 @@ import { AppPage } from '~/components/common/AppPage';
 
 export default function CharactersPage(): ReactNode {
   return (
-    <AppPage title='Characters'>
-      <h1 className='sr-only'>Characters</h1>
+    <AppPage title='Characters' heading='Characters'>
       <CharacterGallery />
     </AppPage>
   );

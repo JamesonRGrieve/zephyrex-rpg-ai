@@ -12,8 +12,29 @@
 import { INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 import type { ModelMessage } from './assemble';
 
-export function renderInstruct(messages: readonly ModelMessage[], templateId: InstructTemplateId, openLast = false): string {
-  const template = INSTRUCT_TEMPLATES[templateId];
+/** An instruct template's markup: a built-in one's, or a person's own (A17). */
+export interface InstructTemplate {
+  start: string;
+  system_prefix: string;
+  system_suffix: string;
+  user_prefix: string;
+  user_suffix: string;
+  assistant_prefix: string;
+  assistant_suffix: string;
+  stop: readonly string[];
+}
+
+/** A built-in template by its id, or a person's own as its fields (Instruct.py template_of). */
+export function templateOf(template: InstructTemplateId | InstructTemplate): InstructTemplate {
+  return typeof template === 'string' ? INSTRUCT_TEMPLATES[template] : template;
+}
+
+export function renderInstruct(
+  messages: readonly ModelMessage[],
+  templateId: InstructTemplateId | InstructTemplate,
+  openLast = false,
+): string {
+  const template = templateOf(templateId);
   const closing = messages.at(-1);
   const leftOpen = openLast && closing !== undefined && closing.role === 'assistant';
   const body = leftOpen ? messages.slice(0, -1) : messages;
@@ -27,6 +48,6 @@ export function renderInstruct(messages: readonly ModelMessage[], templateId: In
     : text + template.assistant_prefix;
 }
 
-export function instructStops(templateId: InstructTemplateId): string[] {
-  return [...INSTRUCT_TEMPLATES[templateId].stop];
+export function instructStops(templateId: InstructTemplateId | InstructTemplate): string[] {
+  return [...templateOf(templateId).stop];
 }

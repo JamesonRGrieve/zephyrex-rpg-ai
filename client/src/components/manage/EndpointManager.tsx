@@ -23,10 +23,13 @@ import {
   type InstructTemplateId,
   LIMITS,
 } from '~/contract';
-import { type ModelEndpoint, endpoints, refreshedByRecords } from '~/features/data/records';
+import { type ModelEndpoint, endpoints, refreshedByRecords, instructTemplates } from '~/features/data/records';
 import { pingEndpoint } from '~/features/models/ping';
 import { ManagedList } from './ManagedList';
 import { ModelStatus } from './ModelStatus';
+
+/** The select's value for one of the person's own templates (A17): this, then its id. */
+const OWN = 'own:';
 
 /** What a model can be used for (A27), as the form names it. */
 const ROLE_LABELS: Record<EndpointRole, string> = {
@@ -53,6 +56,9 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
   const [isDefault, setIsDefault] = useState(endpoint?.is_default ?? false);
   const [api, setApi] = useState<EndpointApi>(endpoint?.api ?? 'chat');
   const [template, setTemplate] = useState<InstructTemplateId>(endpoint?.instruct_template ?? 'chatml');
+  // The person's own template (A17), when chosen; it is used in place of the built-in one.
+  const [customId, setCustomId] = useState<string | null>(endpoint?.custom_template_id ?? null);
+  const ownTemplates = instructTemplates.useList();
   const [roles, setRoles] = useState<EndpointRole[]>(endpoint?.roles ?? []);
   const writes = useWrites(refreshedByRecords);
   const ids = {
@@ -73,6 +79,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
       is_default: isDefault,
       api,
       instruct_template: template,
+      custom_template_id: customId,
       roles,
       ...(apiKey === '' ? {} : { api_key: apiKey }),
     };
@@ -188,16 +195,35 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           </p>
           <select
             id={ids.template}
-            value={template}
+            value={customId === null ? template : `${OWN}${customId}`}
             aria-describedby={`${ids.template}-hint`}
             className='h-11 rounded-md border bg-background px-3 text-sm'
-            onChange={(event) => setTemplate(event.target.value as InstructTemplateId)}
+            onChange={(event) => {
+              const value = event.target.value;
+              if (value.startsWith(OWN)) {
+                setCustomId(value.slice(OWN.length));
+                return;
+              }
+              setCustomId(null);
+              setTemplate(value as InstructTemplateId);
+            }}
           >
-            {(Object.keys(INSTRUCT_TEMPLATES) as InstructTemplateId[]).map((id) => (
-              <option key={id} value={id}>
-                {INSTRUCT_TEMPLATES[id].name}
-              </option>
-            ))}
+            <optgroup label='Built in'>
+              {(Object.keys(INSTRUCT_TEMPLATES) as InstructTemplateId[]).map((id) => (
+                <option key={id} value={id}>
+                  {INSTRUCT_TEMPLATES[id].name}
+                </option>
+              ))}
+            </optgroup>
+            {(ownTemplates.data ?? []).length > 0 && (
+              <optgroup label='Your templates'>
+                {(ownTemplates.data ?? []).map((own) => (
+                  <option key={own.id} value={`${OWN}${own.id}`}>
+                    {own.name}
+                  </option>
+                ))}
+              </optgroup>
+            )}
           </select>
         </div>
       )}

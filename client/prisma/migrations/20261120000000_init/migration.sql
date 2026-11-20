@@ -121,6 +121,7 @@ CREATE TABLE "ModelEndpoint" (
     "isDefault" BOOLEAN NOT NULL DEFAULT false,
     "api" TEXT NOT NULL DEFAULT 'chat',
     "instructTemplate" TEXT NOT NULL DEFAULT 'chatml',
+    "customTemplateId" TEXT,
     "roles" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
@@ -330,3 +331,23 @@ CREATE TABLE "CharacterExpression" (
 -- CreateIndex
 CREATE INDEX "CharacterExpression_createdById_characterId_idx" ON "CharacterExpression"("createdById", "characterId");
 
+-- CreateTable
+CREATE TABLE "InstructTemplate" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "start" TEXT NOT NULL DEFAULT '',
+    "systemPrefix" TEXT NOT NULL DEFAULT '',
+    "systemSuffix" TEXT NOT NULL DEFAULT '',
+    "userPrefix" TEXT NOT NULL DEFAULT '',
+    "userSuffix" TEXT NOT NULL DEFAULT '',
+    "assistantPrefix" TEXT NOT NULL DEFAULT '',
+    "assistantSuffix" TEXT NOT NULL DEFAULT '',
+    "stop" TEXT NOT NULL DEFAULT '[]',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "InstructTemplate_createdById_idx" ON "InstructTemplate"("createdById");

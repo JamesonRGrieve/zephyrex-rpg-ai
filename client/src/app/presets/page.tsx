@@ -5,8 +5,7 @@ import { PresetManager } from '~/components/manage/PresetManager';
 
 export default function PresetsPage(): ReactNode {
   return (
-    <AppPage title='Presets' width='medium'>
-      <h1 className='sr-only'>Sampler presets</h1>
+    <AppPage title='Presets' heading='Sampler presets' width='medium'>
       <PresetManager />
     </AppPage>
   );

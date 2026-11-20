@@ -163,6 +163,15 @@ describe('POST /v1/ai_chat/generate', () => {
     expect(await response.json()).toMatchObject({ detail: { code: 'no_model_endpoint' } });
   });
 
+  it("asks another of the person's models for this turn when named, to compare (AP4)", async () => {
+    const { chat, line } = await seed();
+    const other = await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Big', baseUrl, model: 'big' } });
+    await events(await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id, endpoint_id: other.id } })));
+    expect(received.at(-1)?.body.model).toBe('big');
+    const missing = await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id, endpoint_id: 'not-mine' } }));
+    expect(missing.status).toBe(404);
+  });
+
   it('asks the AI Horde as a job and streams its answer like any reply (A48)', async () => {
     const { chat, line } = await seed(false);
     await prisma.modelEndpoint.create({

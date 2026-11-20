@@ -320,6 +320,32 @@ class TestGenerate:
         made_loop = _put(server, user, "quick_reply", filler.json()["quick_reply"]["id"], filler.headers["ETag"], action="send")
         assert made_loop.status_code == 422, made_loop.text
 
+    def test_a_text_api_uses_the_persons_own_instruct_template(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        stranger = create_user(server)
+        theirs = _create(server, stranger, "instruct_template", name="Theirs").json()["instruct_template"]
+        mine = _create(
+            server, user, "instruct_template", name="Bracketed", system_prefix="[SYS] ", user_prefix="[ME] ", user_suffix="\n", assistant_prefix="[AI] ", stop=["[ME]"]
+        ).json()["instruct_template"]
+        bad = server.post("/v1/instruct_template", json={"instruct_template": {"name": "Bad", "stop": [""]}}, headers=_headers(user))
+        assert bad.status_code == 422, bad.text
+        refused = server.post(
+            "/v1/model_endpoint",
+            json={"model_endpoint": {"name": "Theirs", "base_url": model_url, "model": "tiny", "api": "text", "custom_template_id": theirs["id"]}},
+            headers=_headers(user),
+        )
+        assert refused.status_code == 422, refused.text
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", api="text", custom_template_id=mine["id"], is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ready?"]).json()["chat_message"]
+        RECEIVED.clear()
+        response = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert response.status_code == 200, response.text
+        sent = RECEIVED[0]["body"]
+        assert sent["prompt"].startswith("[SYS] ") and "[ME] Ready?\n" in sent["prompt"] and sent["prompt"].endswith("[AI] ")
+        assert "[ME]" in sent["stop"]
+
     def test_the_ai_horde_answers_as_a_job(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]
@@ -530,6 +556,15 @@ class TestGenerate:
         server.post("/v1/ai_chat/summarize", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
         server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
         assert [sent["body"]["model"] for sent in RECEIVED] == ["small", "tiny"]
+        # AP4: the same turn asked of another of the person's models; another person's is not found.
+        RECEIVED.clear()
+        other = _create(server, user, "model_endpoint", name="Other", base_url=model_url, model="big").json()["model_endpoint"]
+        server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "endpoint_id": other["id"]}}, headers=_headers(user))
+        assert [sent["body"]["model"] for sent in RECEIVED] == ["big"]
+        stranger = create_user(server)
+        theirs = _create(server, stranger, "model_endpoint", name="Theirs", base_url=model_url, model="x").json()["model_endpoint"]
+        refused = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "endpoint_id": theirs["id"]}}, headers=_headers(user))
+        assert refused.status_code == 404, refused.text
 
     def test_the_model_check_says_whether_the_server_answers(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

@@ -726,6 +726,75 @@ class EndpointChecks(PlainModel):
         return _one_of(value, list(CONTRACT["instruct_templates"]), "instruct_template")
 
 
+# ---- instruct_template (A17) -------------------------------------------------------------
+
+CUSTOM = CONTRACT["instruct_custom"]
+
+
+class InstructTemplateChecks(PlainModel):
+    @field_validator("stop", check_fields=False)
+    @classmethod
+    def _checked_stop(cls, value: Any) -> Any:
+        if value is not None and (len(value) > CUSTOM["stops"] or any(not item or len(item) > CUSTOM["stop_characters"] for item in value)):
+            raise ValueError(f"At most {CUSTOM['stops']} stop strings, each 1 to {CUSTOM['stop_characters']} characters")
+        return value
+
+
+class InstructTemplateModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
+    """A person's own instruct template (A17): the markup a text API's model was trained on."""
+
+    Manager: ClassVar[type["InstructTemplateManager"]]
+    name: str = Field(..., description="Name")
+    start: str = Field("", description="Before everything")
+    system_prefix: str = Field("", description="Before a system message")
+    system_suffix: str = Field("", description="After a system message")
+    user_prefix: str = Field("", description="Before a user message")
+    user_suffix: str = Field("", description="After a user message")
+    assistant_prefix: str = Field("", description="Before a reply")
+    assistant_suffix: str = Field("", description="After a reply")
+    stop: list[str] = Field(default_factory=list, description="Where the model's reply ends")
+
+    table_comment: ClassVar[str] = "Zephyrex RPG AI instruct templates"
+
+    class Create(InstructTemplateChecks, BaseModel):
+        name: str = Field(..., min_length=1, max_length=MAX_NAME)
+        start: str = Field("", max_length=CUSTOM["field_characters"])
+        system_prefix: str = Field("", max_length=CUSTOM["field_characters"])
+        system_suffix: str = Field("", max_length=CUSTOM["field_characters"])
+        user_prefix: str = Field("", max_length=CUSTOM["field_characters"])
+        user_suffix: str = Field("", max_length=CUSTOM["field_characters"])
+        assistant_prefix: str = Field("", max_length=CUSTOM["field_characters"])
+        assistant_suffix: str = Field("", max_length=CUSTOM["field_characters"])
+        stop: list[str] = Field(default_factory=list)
+
+    class Update(InstructTemplateChecks, BaseModel):
+        name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
+        start: str | None = Field(None, max_length=CUSTOM["field_characters"])
+        system_prefix: str | None = Field(None, max_length=CUSTOM["field_characters"])
+        system_suffix: str | None = Field(None, max_length=CUSTOM["field_characters"])
+        user_prefix: str | None = Field(None, max_length=CUSTOM["field_characters"])
+        user_suffix: str | None = Field(None, max_length=CUSTOM["field_characters"])
+        assistant_prefix: str | None = Field(None, max_length=CUSTOM["field_characters"])
+        assistant_suffix: str | None = Field(None, max_length=CUSTOM["field_characters"])
+        stop: list[str] | None = None
+
+    class Search(ApplicationModel.Search):
+        name: StringSearchModel | None = None
+
+
+class InstructTemplateManager(AbstractBLLManager[InstructTemplateModel], RouterMixin):
+    _model = InstructTemplateModel
+
+    def create(self, **kwargs: Any) -> Any:
+        kwargs.setdefault("stop", [])
+        return super().create(**kwargs)
+
+
+def template_fields(row: Any) -> dict[str, Any]:
+    """A stored template as the twins' render_instruct reads one."""
+    return {field: getattr(row, field) or "" for field in CUSTOM["fields"]} | {"stop": list(row.stop or [])}
+
+
 class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["ModelEndpointManager"]]
     name: str = Field(..., description="Name")
@@ -735,6 +804,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
     api: str = Field("chat", description="chat (chat completions) or text (one prompt in the instruct template)")
     roles: list[str] = Field(default_factory=list, description="What it is used for: story, gm, summary, translate")
     instruct_template: str = Field("chatml", description="A text API's prompt markup")
+    custom_template_id: str | None = Field(None, description="The person's own template (A17), used in place of instruct_template")
     has_api_key: bool = Field(False, description="Set by the server: whether a key is stored")
     # Write-only: excluded from every serialization, kept encrypted.
     api_key: str | None = Field(None, exclude=True, description="Set by the server: the encrypted API key")
@@ -751,6 +821,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         is_default: bool = False
         api: str = "chat"
         instruct_template: str = "chatml"
+        custom_template_id: str | None = None
         roles: list[str] = Field(default_factory=list)
 
     class Update(EndpointChecks, BaseModel):
@@ -762,6 +833,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         is_default: bool | None = None
         api: str | None = None
         instruct_template: str | None = None
+        custom_template_id: str | None = None
         roles: list[str] | None = None
 
     class Search(ApplicationModel.Search):
@@ -790,15 +862,29 @@ class ModelEndpointManager(AbstractBLLManager[ModelEndpointModel], RouterMixin):
             if other.id != keep_id:
                 super().update(other.id, is_default=False)
 
+    def _check_custom_template(self, template_id: Any) -> None:
+        """A custom template (A17) must be one of the requester's own."""
+        if not template_id:
+            return
+        try:
+            InstructTemplateManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(id=template_id)
+        except HTTPException as error:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": ["custom_template_id"], "msg": "Not one of your instruct templates"}]},
+            ) from error
+
     def create(self, **kwargs: Any) -> Any:
         kwargs.setdefault("is_default", False)
         # JSON columns get no column default: an unset list is stored as [] (as every manager here does).
         kwargs.setdefault("roles", [])
+        self._check_custom_template(kwargs.get("custom_template_id"))
         if kwargs["is_default"]:
             self._clear_other_defaults(None)
         return super().create(**{"has_api_key": False, **_keyed(kwargs)})
 
     def update(self, id: str, **kwargs: Any) -> Any:
+        self._check_custom_template(kwargs.get("custom_template_id"))
         updated = super().update(id, **_keyed(kwargs))
         if kwargs.get("is_default"):
             self._clear_other_defaults(id)
@@ -1069,6 +1155,8 @@ class GenerateRequest(PlainModel):
     leaf_id: str | None = None
     speaker_id: str | None = None
     mode: str = "reply"
+    # AP4: this turn asked of another of the person's models, to compare (kept as another swipe).
+    endpoint_id: str | None = None
 
     @field_validator("mode")
     @classmethod
@@ -1248,16 +1336,23 @@ def with_images(messages: list[dict[str, str]], images: Sequence[str]) -> list[d
 
 
 def upstream_body(
-    endpoint: Any, sampler: Mapping[str, Any], messages: list[dict[str, str]], mode: str, images: Sequence[str] = ()
+    endpoint: Any,
+    sampler: Mapping[str, Any],
+    messages: list[dict[str, str]],
+    mode: str,
+    images: Sequence[str] = (),
+    template: str | Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     """The messages for a chat API; for a text API one prompt in the endpoint's instruct template (a
-    continued reply left open), with the template's stop strings added."""
+    continued reply left open), with the template's stop strings added. ``template``: the person's
+    own (A17), resolved by the caller; else the endpoint's built-in one."""
     # AI Horde (A48) takes one prompt, as a text API does.
     text = endpoint.api in ("text", "horde")
-    stop = [*sampler["stop"], *(instruct_stops(endpoint.instruct_template) if text else [])]
+    markup = template if template is not None else endpoint.instruct_template
+    stop = [*sampler["stop"], *(instruct_stops(markup) if text else [])]
     return {
         "model": endpoint.model,
-        **({"prompt": render_instruct(messages, endpoint.instruct_template, mode == "continue")} if text else {"messages": with_images(messages, images)}),
+        **({"prompt": render_instruct(messages, markup, mode == "continue")} if text else {"messages": with_images(messages, images)}),
         "stream": True,
         "temperature": sampler["temperature"],
         "top_p": sampler["top_p"],
@@ -1402,6 +1497,16 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     def _manager(self, manager: type[Any]) -> Any:
         return manager(requester_id=str(self.requester.id), model_registry=self.model_registry)
 
+    def _template_of(self, endpoint: Any) -> str | dict[str, Any]:
+        """The endpoint's instruct markup: the person's own template (A17) when it names one that
+        still exists, else its built-in one."""
+        if getattr(endpoint, "custom_template_id", None):
+            try:
+                return template_fields(self._manager(InstructTemplateManager).get(id=endpoint.custom_template_id))
+            except HTTPException:
+                pass
+        return str(endpoint.instruct_template)
+
     def _inputs(
         self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply"
     ) -> tuple[Any, dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
@@ -1482,8 +1587,16 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         every = sorted(endpoints.list(), key=lambda row: row.name)
         serving = [row for row in every if role in (row.roles or [])]
         chosen = endpoints.get(id=chat.endpoint_id) if chat.endpoint_id else None
+        asked = None
+        if body.endpoint_id:
+            # AP4: one of the person's own models, asked for this turn; another person's is not found.
+            try:
+                asked = endpoints.get(id=body.endpoint_id)
+            except HTTPException as error:
+                raise HTTPException(status_code=404, detail={"message": "Request searched ModelEndpointModel and could not find the required record."}) from error
         endpoint = (
-            (chosen if role == "story" else None)
+            asked
+            or (chosen if role == "story" else None)
             or next((row for row in serving if row.is_default), None)
             or next(iter(serving), None)
             or chosen
@@ -1531,13 +1644,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 chat.table_notes or [],
                 frame,
             )
+        template = self._template_of(endpoint)
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-            "json": upstream_body(endpoint, sampler, assembled.messages, body.mode, images),
+            "json": upstream_body(endpoint, sampler, assembled.messages, body.mode, images, template),
         }
-        context = {"cast": cast, "persona": persona, "history": history, "endpoint": endpoint, "key": key}
+        context = {"cast": cast, "persona": persona, "history": history, "endpoint": endpoint, "key": key, "template": template}
         return assembled, request, sampler, lore.active, context
 
     @custom_route(
@@ -1740,11 +1854,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""
         endpoint, key = context["endpoint"], context["key"]
         if endpoint.api == "horde":
-            return (await horde_text(endpoint, key, upstream_body(endpoint, sampler, messages, "reply"))).strip()
+            return (await horde_text(endpoint, key, upstream_body(endpoint, sampler, messages, "reply", template=context.get("template")))).strip()
         request = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-            "json": upstream_body(endpoint, sampler, messages, "reply"),
+            "json": upstream_body(endpoint, sampler, messages, "reply", template=context.get("template")),
         }
         pieces: list[str] = []
         joiner = ReasoningJoiner()

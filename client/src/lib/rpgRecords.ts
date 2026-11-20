@@ -19,6 +19,7 @@
  */
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
+import { ownTemplate } from '~/lib/instructTemplateRecords';
 import { z } from 'zod';
 import {
   CHAT_MODES,
@@ -654,6 +655,7 @@ const ENDPOINT_COLUMNS: Columns = {
   is_default: plain('isDefault'),
   api: plain('api'),
   instruct_template: plain('instructTemplate'),
+  custom_template_id: plain('customTemplateId'),
   roles: jsonList('roles'),
 };
 
@@ -671,6 +673,8 @@ const endpointFields = {
   /** `chat` (chat completions) or `text` (one prompt string, in the instruct template's markup). */
   api: z.enum(ENDPOINT_APIS),
   instruct_template: z.enum(Object.keys(INSTRUCT_TEMPLATES) as [InstructTemplateId, ...InstructTemplateId[]]),
+  /** The person's own template (A17), used in place of instruct_template; theirs only. */
+  custom_template_id: z.string().min(1).nullable(),
   /** What it is used for (A27); none means only where a chat names it or it is the default. */
   roles: z.array(z.enum(ENDPOINT_ROLES)).refine((roles) => new Set(roles).size === roles.length, 'Each role once'),
 };
@@ -682,6 +686,7 @@ const endpointCreate = z.object({
   is_default: z.boolean().default(false),
   api: endpointFields.api.default('chat'),
   instruct_template: endpointFields.instruct_template.default('chatml'),
+  custom_template_id: endpointFields.custom_template_id.default(null),
   roles: endpointFields.roles.default([]),
 });
 const endpointUpdate = z.object({ name, ...endpointFields }).partial();
@@ -693,6 +698,14 @@ function endpointData(input: z.infer<typeof endpointUpdate>, stamp: Date, userId
     ...written(ENDPOINT_COLUMNS, input, stamp, userId),
     ...(input.api_key === undefined ? {} : { apiKey: input.api_key }),
   };
+}
+
+/** A custom template (A17) must be one of the owner's own (BLL_AI_Chat _check_custom_template). */
+async function checkOwnTemplate(ownerId: string, templateId: string | null | undefined): Promise<void> {
+  if (templateId === null || templateId === undefined) return;
+  if ((await ownTemplate(ownerId, templateId)) === null) {
+    throw validationError('Not one of your instruct templates', 'custom_template_id');
+  }
 }
 
 async function clearOtherDefaultEndpoints(ownerId: string, keepId: string | null, stamp: Date): Promise<void> {
@@ -711,12 +724,15 @@ export const endpoints: ResourceSpec<EndpointRow, z.infer<typeof endpointCreate>
   list: (ownerId) => prisma.modelEndpoint.findMany({ where: { createdById: ownerId }, orderBy: { name: 'asc' } }),
   find: (id, ownerId) => prisma.modelEndpoint.findFirst({ where: { id, createdById: ownerId } }),
   async insert(ownerId, input, stamp) {
+    await checkOwnTemplate(ownerId, input.custom_template_id);
     if (input.is_default) await clearOtherDefaultEndpoints(ownerId, null, stamp);
     return prisma.modelEndpoint.create({
       data: { createdById: ownerId, ...endpointData(input, stamp) } as Prisma.ModelEndpointUncheckedCreateInput,
     });
   },
   async updateIfCurrent(id, version, input, stamp, userId) {
+    const owner = await prisma.modelEndpoint.findUnique({ where: { id }, select: { createdById: true } });
+    if (owner !== null) await checkOwnTemplate(owner.createdById, input.custom_template_id);
     const { count } = await prisma.modelEndpoint.updateMany({
       where: { id, updatedAt: version },
       data: endpointData(input, stamp, userId) as Prisma.ModelEndpointUncheckedUpdateManyInput,
