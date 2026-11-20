@@ -9,7 +9,19 @@
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
 import { useHidden } from 'zephyrex/hooks/useWrites';
-import { Clock3, Download, Ellipsis, GitFork, Image as ImageIcon, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
+import {
+  BookOpen,
+  Clock3,
+  Download,
+  Ellipsis,
+  GitFork,
+  Image as ImageIcon,
+  Pause,
+  Play,
+  ScanText,
+  Settings2,
+  X,
+} from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
@@ -54,6 +66,7 @@ import {
   characters,
   chats,
   endpoints,
+  lorebookEntries,
   lorebooks,
   messages,
   type Persona,
@@ -72,6 +85,9 @@ import { ScenarioPlay } from '~/components/campaign/ScenarioPlay';
 import { BranchTree } from './BranchTree';
 import { ContextInspector } from './ContextInspector';
 import { NextSpeaker } from './NextSpeaker';
+import { NamesWithoutLore } from '~/components/lore/NamesWithoutLore';
+import { namesWithoutLore } from '~/features/lore/namesWithoutLore';
+import { writeProblem } from 'zephyrex';
 import { Recap } from './Recap';
 import { MessageItem, type MessageView } from './MessageItem';
 
@@ -151,6 +167,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const running = scenarioList.data?.find((one) => one.id === chat.scenario_id);
   const { update: updateScenario } = scenarios.useActions();
   const [scenarioOpen, setScenarioOpen] = useState(false);
+  const [namesOpen, setNamesOpen] = useState(false);
+  const entryList = lorebookEntries.useList(undefined, namesOpen);
+  const { create: createEntry } = lorebookEntries.useActions();
   const scriptList = regexScripts.useList();
   const scripts = scriptList.data ?? [];
   const quickList = quickReplies.useList();
@@ -654,6 +673,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <DropdownMenuItem disabled={drawing || chat.character_ids.length === 0} onSelect={() => void drawScene()}>
                 <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setNamesOpen(true)}>
+                <BookOpen aria-hidden /> Names without lore
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
                 <GitFork aria-hidden /> Every branch
               </DropdownMenuItem>
@@ -816,6 +838,39 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             }),
           }))}
       />
+      <Sheet open={namesOpen} onOpenChange={setNamesOpen}>
+        <SheetContent
+          side={mobile ? 'bottom' : 'right'}
+          className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
+        >
+          <SheetHeader>
+            <SheetTitle>Names without lore</SheetTitle>
+            <SheetDescription>Names this story keeps using that nothing describes yet.</SheetDescription>
+          </SheetHeader>
+          <div className='p-4'>
+            {namesOpen && (
+              <NamesWithoutLore
+                names={namesWithoutLore(
+                  branch
+                    .filter((one) => one.channel === 'ic' && !one.x_carded)
+                    .map((one) => one.swipes[one.swipe_index] ?? ''),
+                  [
+                    ...chat.character_ids.flatMap((id) => castById.get(id)?.name ?? []),
+                    ...(persona === null ? [] : [persona.name]),
+                    ...(entryList.data ?? []).flatMap((entry) => entry.keys),
+                  ],
+                )}
+                books={[...(lorebookList.data ?? [])].sort(
+                  (a, b) => Number(chat.lorebook_ids.includes(b.id)) - Number(chat.lorebook_ids.includes(a.id)),
+                )}
+                onAdd={(name, bookId) =>
+                  writeProblem(createEntry({ lorebook_id: bookId, keys: [name], comment: name }), 'Not saved')
+                }
+              />
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
       <Sheet open={scenarioOpen && running !== undefined} onOpenChange={setScenarioOpen}>
         <SheetContent
           side={mobile ? 'bottom' : 'right'}

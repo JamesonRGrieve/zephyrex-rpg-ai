@@ -691,6 +691,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A11 | OOC channels kept out of the story; table notes (house rules, pacing, tone, reminders) in every prompt; the table GM proposes a note as its answer's last line, which a player adds or leaves | |
 | A20 | The GM's two voices: the narrator tells what happens next in the story (every character in brief, its own narration as its voice); the table GM answers `gm` questions out of character; pause; the campaign's GM style, read by the GM's voices only | the GM taking turns on its own |
 | AP2 | Previously…: the rolling summary at the top of a chat when a session starts, read aloud where the browser can speak, hidden on request | written from the last session report too (A24, VTT) |
+| AP9 | Names without lore: names the story keeps using that no character, persona or lore entry covers, each a tap from a stub entry in a chosen lorebook | a stub drafted by a model; wiki pages (A15) |
 | A12 | Chat library: search by title, cast, tag or the words of any message (opening the chat there); folders and tags | |
 | A13, A56 | SillyTavern chat import; branch export as JSONL or text; a backup of everything as one file, restored beside what is there | |
 | A14 | World Info, the full entry surface and activation; ST import and export | |
