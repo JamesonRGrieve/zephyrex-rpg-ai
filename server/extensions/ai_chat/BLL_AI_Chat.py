@@ -31,6 +31,12 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as PlainModel
 from pydantic import Field, field_validator, model_validator
+from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[import-not-found]
+    CampaignManager,
+    ScenarioManager,
+    frame_of,
+    scenario_of,
+)
 
 # Resolve only at runtime, through the extensions namespace path.
 from zephyrex.extensions.ai_character.BLL_AI_Character import (  # type: ignore[import-not-found]
@@ -41,26 +47,19 @@ from zephyrex.extensions.ai_character.BLL_AI_Character import (  # type: ignore[
     _tags,
     not_yours,
 )
-from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-not-found]  # type: ignore[import-not-found]
     CHAT_MODES,
+    CONTRACT,
     LIMITS,
     MESSAGE_CHANNELS,
     MESSAGE_ROLES,
     PRESET_DEFAULTS,
+    PROMPT,
     SAMPLER_RANGES,
-)
-from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[import-not-found]
-    CampaignManager,
-    ScenarioManager,
-    frame_of,
-    scenario_of,
 )
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Search import QUERY_CHARACTERS as SEARCH_QUERY_CHARACTERS, search_context, web_search  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Speech import SPEECH, audio_data_url, audio_type, speech_body, speech_url  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     assemble_prompt,
     background_picture_prompt,
@@ -74,7 +73,18 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
     table_gm_prompt,
     translate_prompt,
 )
-from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Search import (  # type: ignore[import-not-found]
+    QUERY_CHARACTERS as SEARCH_QUERY_CHARACTERS,
+)
+from zephyrex.extensions.ai_chat.Search import search_context, web_search
+from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-found]
+    SPEECH,
+    audio_data_url,
+    audio_type,
+    speech_body,
+    speech_url,
+)
 from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
     ChatLoreStateManager,
     LorebookEntryManager,
@@ -114,9 +124,30 @@ MAX_BOOKS: int = LIMITS["lorebooks_per_chat"]
 LORE: dict[str, Any] = CONTRACT["lore"]
 LORE_SETTING_RANGES = {"scan_depth", "token_budget", "recursion_steps"}
 LORE_ENTRY_FIELDS = (
-    "id", "keys", "secondary_keys", "selective_logic", "content", "enabled", "constant", "position", "depth", "role",
-    "order", "probability", "group", "group_weight", "prioritize", "sticky", "cooldown", "delay", "exclude_recursion",
-    "prevent_recursion", "delay_until_recursion", "case_sensitive", "match_whole_words", "character_names",
+    "id",
+    "keys",
+    "secondary_keys",
+    "selective_logic",
+    "content",
+    "enabled",
+    "constant",
+    "position",
+    "depth",
+    "role",
+    "order",
+    "probability",
+    "group",
+    "group_weight",
+    "prioritize",
+    "sticky",
+    "cooldown",
+    "delay",
+    "exclude_recursion",
+    "prevent_recursion",
+    "delay_until_recursion",
+    "case_sensitive",
+    "match_whole_words",
+    "character_names",
     "character_exclude",
 )
 UPSTREAM_TIMEOUT_SECONDS = 120.0
@@ -169,7 +200,9 @@ def _prompt_layout(layout: Any) -> Any:
         if not isinstance(section["enabled"], bool):
             raise ValueError("A section's enabled is true or false")
         budget = section["max_tokens"]
-        if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or not low <= budget <= high):
+        if budget is not None and (
+            isinstance(budget, bool) or not isinstance(budget, int) or not low <= budget <= high
+        ):
             raise ValueError(f"A section's max_tokens is null or {low} to {high}")
         seen.add(section["id"])
     return layout
@@ -250,8 +283,14 @@ class ChatChecks(PlainModel):
         cleaned = []
         for note in value:
             text = note.get("text") if isinstance(note, dict) else None
-            if set(note) != {"kind", "text"} or note["kind"] not in CONTRACT["table"]["note_kinds"] or not isinstance(text, str):
-                raise ValueError(f"A table note is {{kind, text}}, kind one of {', '.join(CONTRACT['table']['note_kinds'])}")
+            if (
+                set(note) != {"kind", "text"}
+                or note["kind"] not in CONTRACT["table"]["note_kinds"]
+                or not isinstance(text, str)
+            ):
+                raise ValueError(
+                    f"A table note is {{kind, text}}, kind one of {', '.join(CONTRACT['table']['note_kinds'])}"
+                )
             if not text.strip() or len(text.strip()) > LIMITS["short_text_characters"]:
                 raise ValueError(f"A table note is 1 to {LIMITS['short_text_characters']} characters")
             cleaned.append({"kind": note["kind"], "text": text.strip()})
@@ -268,8 +307,14 @@ class ChatChecks(PlainModel):
         if value is None:
             return None
         cleaned = [item.strip() for item in value if isinstance(item, str)]
-        if len(cleaned) != len(value) or len(cleaned) > LIMITS["safety_items"] or any(not item or len(item) > LIMITS["short_text_characters"] for item in cleaned):
-            raise ValueError(f"At most {LIMITS['safety_items']} items of 1 to {LIMITS['short_text_characters']} characters")
+        if (
+            len(cleaned) != len(value)
+            or len(cleaned) > LIMITS["safety_items"]
+            or any(not item or len(item) > LIMITS["short_text_characters"] for item in cleaned)
+        ):
+            raise ValueError(
+                f"At most {LIMITS['safety_items']} items of 1 to {LIMITS['short_text_characters']} characters"
+            )
         return cleaned
 
     @field_validator("objectives", check_fields=False)
@@ -282,7 +327,11 @@ class ChatChecks(PlainModel):
         cleaned = []
         for objective in value:
             text = objective.get("text") if isinstance(objective, dict) else None
-            if set(objective) != {"text", "done"} or not isinstance(text, str) or not isinstance(objective["done"], bool):
+            if (
+                set(objective) != {"text", "done"}
+                or not isinstance(text, str)
+                or not isinstance(objective["done"], bool)
+            ):
                 raise ValueError("An objective is {text, done}")
             if not text.strip() or len(text.strip()) > LIMITS["short_text_characters"]:
                 raise ValueError(f"An objective is 1 to {LIMITS['short_text_characters']} characters")
@@ -338,11 +387,15 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     folder: str = Field("", description="The library folder it sits in (blank: none)")
     muted_ids: list[str] = Field(default_factory=list, description="Group members left out of the turn order")
     background: str | None = Field(None, description="A picture behind the chat (a data URL)")
-    objectives: list[dict[str, Any]] = Field(default_factory=list, description="Its tasks in order; the first not done is put to the model")
+    objectives: list[dict[str, Any]] = Field(
+        default_factory=list, description="Its tasks in order; the first not done is put to the model"
+    )
     content_rating: str | None = Field(None, description="general, teen or mature (null: none set)")
     lines: list[str] = Field(default_factory=list, description="Never in the story, even off-screen")
     veils: list[str] = Field(default_factory=list, description="Only ever off-screen")
-    table_notes: list[dict[str, Any]] = Field(default_factory=list, description="House rules, pacing, tone and reminders, read every turn")
+    table_notes: list[dict[str, Any]] = Field(
+        default_factory=list, description="House rules, pacing, tone and reminders, read every turn"
+    )
     campaign_id: str | None = Field(None, description="The campaign it belongs to; its frame is read every turn")
     scenario_id: str | None = Field(None, description="The scenario it runs; the GM's view of it is read every turn")
     paused: bool = Field(False, description="No story turns until the table resumes")
@@ -546,7 +599,11 @@ class ChatMessageManager(AbstractBLLManager[ChatMessageModel], RouterMixin):
     def _invalid(self, field: str, message: str) -> HTTPException:
         return HTTPException(
             status_code=422,
-            detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": [field], "msg": message}]},
+            detail={
+                "message": "Validation error",
+                "code": "validation_error",
+                "errors": [{"loc": [field], "msg": message}],
+            },
         )
 
     def create(self, **kwargs: Any) -> Any:
@@ -573,8 +630,8 @@ class ChatMessageManager(AbstractBLLManager[ChatMessageModel], RouterMixin):
 
     def update(self, id: str, **kwargs: Any) -> Any:
         current = self.get(id=id)
-        swipes = kwargs.get("swipes") if kwargs.get("swipes") is not None else current.swipes
-        index = kwargs.get("swipe_index") if kwargs.get("swipe_index") is not None else current.swipe_index
+        swipes: list[str] = kwargs["swipes"] if kwargs.get("swipes") is not None else (current.swipes or [])
+        index: int = kwargs["swipe_index"] if kwargs.get("swipe_index") is not None else (current.swipe_index or 0)
         if index >= len(swipes):
             raise self._invalid("swipe_index", "swipe_index must name one of the swipes")
         return super().update(id, **kwargs)
@@ -605,7 +662,9 @@ class ChatMessageManager(AbstractBLLManager[ChatMessageModel], RouterMixin):
 
 
 class PresetChecks(PlainModel):
-    @field_validator("temperature", "top_p", "top_k", "repetition_penalty", "max_tokens", "context_tokens", check_fields=False)
+    @field_validator(
+        "temperature", "top_p", "top_k", "repetition_penalty", "max_tokens", "context_tokens", check_fields=False
+    )
     @classmethod
     def _within_range(cls, value: Any, info: Any) -> Any:
         return _ranged(info.field_name, value)
@@ -626,9 +685,14 @@ class PresetChecks(PlainModel):
         extras = CONTRACT["sampler_extras"]
         low, high = extras["logit_bias_range"]
         if value is not None and (
-            len(value) > extras["logit_bias_entries"] or any(not key.isdigit() or isinstance(bias, bool) or not low <= bias <= high for key, bias in value.items())
+            len(value) > extras["logit_bias_entries"]
+            or any(
+                not key.isdigit() or isinstance(bias, bool) or not low <= bias <= high for key, bias in value.items()
+            )
         ):
-            raise ValueError(f"At most {extras['logit_bias_entries']} token ids (whole numbers), each biased {low} to {high}")
+            raise ValueError(
+                f"At most {extras['logit_bias_entries']} token ids (whole numbers), each biased {low} to {high}"
+            )
         return value
 
     @field_validator("guidance_scale", check_fields=False)
@@ -650,8 +714,12 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
     max_tokens: int = Field(int(PRESET_DEFAULTS["max_tokens"]))
     context_tokens: int = Field(int(PRESET_DEFAULTS["context_tokens"]))
     stop: list[str] = Field(default_factory=list)
-    prompt_layout: list[dict[str, Any]] = Field(default_factory=list, description="The prompt manager's sections, in order")
-    logit_bias: dict[str, float] = Field(default_factory=dict, description="Token id to bias, for chat APIs that take it")
+    prompt_layout: list[dict[str, Any]] = Field(
+        default_factory=list, description="The prompt manager's sections, in order"
+    )
+    logit_bias: dict[str, float] = Field(
+        default_factory=dict, description="Token id to bias, for chat APIs that take it"
+    )
     negative_prompt: str = Field("", description="What classifier-free guidance steers away from")
     guidance_scale: float | None = Field(None, description="How hard guidance steers (null: none)")
 
@@ -732,7 +800,9 @@ class EndpointChecks(PlainModel):
     @field_validator("roles", check_fields=False)
     @classmethod
     def _checked_roles(cls, value: Any) -> Any:
-        if value is not None and (len(set(value)) != len(value) or any(role not in CONTRACT["endpoint_roles"] for role in value)):
+        if value is not None and (
+            len(set(value)) != len(value) or any(role not in CONTRACT["endpoint_roles"] for role in value)
+        ):
             raise ValueError(f"roles are {', '.join(CONTRACT['endpoint_roles'])}, each once")
         return value
 
@@ -758,8 +828,12 @@ class InstructTemplateChecks(PlainModel):
     @field_validator("stop", check_fields=False)
     @classmethod
     def _checked_stop(cls, value: Any) -> Any:
-        if value is not None and (len(value) > CUSTOM["stops"] or any(not item or len(item) > CUSTOM["stop_characters"] for item in value)):
-            raise ValueError(f"At most {CUSTOM['stops']} stop strings, each 1 to {CUSTOM['stop_characters']} characters")
+        if value is not None and (
+            len(value) > CUSTOM["stops"] or any(not item or len(item) > CUSTOM["stop_characters"] for item in value)
+        ):
+            raise ValueError(
+                f"At most {CUSTOM['stops']} stop strings, each 1 to {CUSTOM['stop_characters']} characters"
+            )
         return value
 
 
@@ -827,7 +901,9 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
     api: str = Field("chat", description="chat (chat completions) or text (one prompt in the instruct template)")
     roles: list[str] = Field(default_factory=list, description="What it is used for: story, gm, summary, translate")
     instruct_template: str = Field("chatml", description="A text API's prompt markup")
-    custom_template_id: str | None = Field(None, description="The person's own template (A17), used in place of instruct_template")
+    custom_template_id: str | None = Field(
+        None, description="The person's own template (A17), used in place of instruct_template"
+    )
     image_size: str = Field("", description="The size it is asked to draw at (A30); empty for the contract's default")
     has_api_key: bool = Field(False, description="Set by the server: whether a key is stored")
     # Write-only: excluded from every serialization, kept encrypted.
@@ -872,7 +948,10 @@ def _keyed(fields: dict[str, Any]) -> dict[str, Any]:
     fields.pop("has_api_key", None)
     raw = fields.get("api_key")
     if isinstance(raw, str) and len(raw) > MAX_KEY:
-        raise HTTPException(status_code=422, detail={"message": f"An API key is at most {MAX_KEY} characters", "code": "validation_error"})
+        raise HTTPException(
+            status_code=422,
+            detail={"message": f"An API key is at most {MAX_KEY} characters", "code": "validation_error"},
+        )
     if "api_key" not in fields or fields["api_key"] is None:
         fields.pop("api_key", None)
         return fields
@@ -893,11 +972,17 @@ class ModelEndpointManager(AbstractBLLManager[ModelEndpointModel], RouterMixin):
         if not template_id:
             return
         try:
-            InstructTemplateManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(id=template_id)
+            InstructTemplateManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(
+                id=template_id
+            )
         except HTTPException as error:
             raise HTTPException(
                 status_code=422,
-                detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": ["custom_template_id"], "msg": "Not one of your instruct templates"}]},
+                detail={
+                    "message": "Validation error",
+                    "code": "validation_error",
+                    "errors": [{"loc": ["custom_template_id"], "msg": "Not one of your instruct templates"}],
+                },
             ) from error
 
     def create(self, **kwargs: Any) -> Any:
@@ -929,7 +1014,9 @@ def _regex_find(value: Any) -> Any:
 
 
 def _regex_placements(value: Any) -> Any:
-    if value is not None and (not value or len(set(value)) != len(value) or any(one not in REGEX["placements"] for one in value)):
+    if value is not None and (
+        not value or len(set(value)) != len(value) or any(one not in REGEX["placements"] for one in value)
+    ):
         raise ValueError(f"placements are one or more of {', '.join(REGEX['placements'])}, each once")
     return value
 
@@ -1011,7 +1098,14 @@ class RegexScriptManager(AbstractBLLManager[RegexScriptModel], RouterMixin):
     _model = RegexScriptModel
 
     def create(self, **kwargs: Any) -> Any:
-        for key, value in (("replace", ""), ("placements", ["ai_output"]), ("display_only", False), ("prompt_only", False), ("enabled", True), ("position", 0)):
+        for key, value in (
+            ("replace", ""),
+            ("placements", ["ai_output"]),
+            ("display_only", False),
+            ("prompt_only", False),
+            ("enabled", True),
+            ("position", 0),
+        ):
             kwargs.setdefault(key, value)
         return super().create(**kwargs)
 
@@ -1091,11 +1185,21 @@ class QuickReplyManager(AbstractBLLManager[QuickReplyModel], RouterMixin):
     def _invalid(self, field: str, message: str) -> HTTPException:
         return HTTPException(
             status_code=422,
-            detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": [field], "msg": message}]},
+            detail={
+                "message": "Validation error",
+                "code": "validation_error",
+                "errors": [{"loc": [field], "msg": message}],
+            },
         )
 
     def create(self, **kwargs: Any) -> Any:
-        for key, value in (("action", "send"), ("channel", "ic"), ("enabled", True), ("position", 0), ("auto_run", "none")):
+        for key, value in (
+            ("action", "send"),
+            ("channel", "ic"),
+            ("enabled", True),
+            ("position", 0),
+            ("auto_run", "none"),
+        ):
             kwargs.setdefault(key, value)
         if quick_reply_loops(kwargs["action"], kwargs["auto_run"]):
             raise self._invalid("auto_run", QUICK_LOOP_MESSAGE)
@@ -1103,8 +1207,8 @@ class QuickReplyManager(AbstractBLLManager[QuickReplyModel], RouterMixin):
 
     def update(self, id: str, **kwargs: Any) -> Any:
         current = self.get(id=id)
-        action = kwargs.get("action") if kwargs.get("action") is not None else current.action
-        auto_run = kwargs.get("auto_run") if kwargs.get("auto_run") is not None else current.auto_run or "none"
+        action: str = kwargs["action"] if kwargs.get("action") is not None else (current.action or "")
+        auto_run: str = kwargs["auto_run"] if kwargs.get("auto_run") is not None else (current.auto_run or "none")
         if quick_reply_loops(action, auto_run):
             raise self._invalid("auto_run", QUICK_LOOP_MESSAGE)
         return super().update(id, **kwargs)
@@ -1167,7 +1271,9 @@ class DataDocumentManager(AbstractBLLManager[DataDocumentModel], RouterMixin):
         if kwargs["scope_id"] is not None:
             manager = ChatManager if kwargs["scope"] == "chat" else CharacterManager
             try:
-                manager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(id=kwargs["scope_id"])
+                manager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(
+                    id=kwargs["scope_id"]
+                )
             except HTTPException as error:
                 raise not_yours("scope_id") from error
         return super().create(**kwargs)
@@ -1286,7 +1392,9 @@ class PictureRequest(PlainModel):
 
     @model_validator(mode="after")
     def _names_its_subject(self) -> "PictureRequest":
-        if (self.kind == "portrait" and self.character_id is None) or (self.kind != "portrait" and self.chat_id is None):
+        if (self.kind == "portrait" and self.character_id is None) or (
+            self.kind != "portrait" and self.chat_id is None
+        ):
             raise ValueError("A portrait names a character_id; a scene or background a chat_id")
         return self
 
@@ -1391,11 +1499,16 @@ def images_url(base_url: str) -> str:
 def picture_of(answer: Any) -> str | None:
     """The picture in an image model's answer, as a data URL: its ``b64_json``, or a ``url`` that is
     already a data URL. A link elsewhere is not fetched (the server never follows a model's links)."""
-    first = answer.get("data", [None])[0] if isinstance(answer, dict) and isinstance(answer.get("data"), list) and answer["data"] else None
+    first = (
+        answer.get("data", [None])[0]
+        if isinstance(answer, dict) and isinstance(answer.get("data"), list) and answer["data"]
+        else None
+    )
     if not isinstance(first, dict):
         return None
-    if isinstance(first.get("b64_json"), str) and first["b64_json"]:
-        return "data:image/png;base64," + first["b64_json"]
+    b64 = first.get("b64_json")
+    if isinstance(b64, str) and b64:
+        return "data:image/png;base64," + b64
     url = first.get("url")
     return url if isinstance(url, str) and url.startswith("data:image/") else None
 
@@ -1426,7 +1539,10 @@ def with_images(messages: list[dict[str, str]], images: Sequence[str]) -> list[d
     return [
         {
             "role": message["role"],
-            "content": [{"type": "text", "text": message["content"]}, *({"type": "image_url", "image_url": {"url": url}} for url in images)],
+            "content": [
+                {"type": "text", "text": message["content"]},
+                *({"type": "image_url", "image_url": {"url": url}} for url in images),
+            ],
         }
         if index == last
         else message
@@ -1451,7 +1567,11 @@ def upstream_body(
     stop = [*sampler["stop"], *(instruct_stops(markup) if text else [])]
     return {
         "model": endpoint.model,
-        **({"prompt": render_instruct(messages, markup, mode == "continue")} if text else {"messages": with_images(messages, images)}),
+        **(
+            {"prompt": render_instruct(messages, markup, mode == "continue")}
+            if text
+            else {"messages": with_images(messages, images)}
+        ),
         "stream": True,
         "temperature": sampler["temperature"],
         "top_p": sampler["top_p"],
@@ -1489,7 +1609,9 @@ def pieces_of(payload: str) -> tuple[str, str]:
     try:
         delta = json.loads(body)["choices"][0].get("delta") or {}
         # DeepSeek, llama.cpp and vLLM name it reasoning_content; OpenRouter, reasoning.
-        reasoning = delta.get("reasoning_content") if delta.get("reasoning_content") is not None else delta.get("reasoning")
+        reasoning = (
+            delta.get("reasoning_content") if delta.get("reasoning_content") is not None else delta.get("reasoning")
+        )
     except (ValueError, KeyError, IndexError, TypeError, AttributeError):
         reasoning = None
     return (reasoning if isinstance(reasoning, str) else ""), (delta_of(payload) or "")
@@ -1541,33 +1663,50 @@ def horde_body(body: Mapping[str, Any]) -> dict[str, Any]:
     if isinstance(stop, list) and stop:
         params["stop_sequence"] = stop
     model = body.get("model")
-    return {"prompt": body.get("prompt"), "params": params, "models": [model] if isinstance(model, str) and model else []}
+    return {
+        "prompt": body.get("prompt"),
+        "params": params,
+        "models": [model] if isinstance(model, str) and model else [],
+    }
 
 
 async def horde_text(endpoint: Any, key: str, body: Mapping[str, Any]) -> str:
     """AI Horde (A48): the job submitted, then polled until done; its text, or the framework's 502/504."""
     base = endpoint.base_url.rstrip("/")
-    headers = {"Content-Type": "application/json", "apikey": key or HORDE["anonymous_key"], "Client-Agent": HORDE["client_agent"]}
+    headers = {
+        "Content-Type": "application/json",
+        "apikey": key or HORDE["anonymous_key"],
+        "Client-Agent": HORDE["client_agent"],
+    }
     deadline = time.monotonic() + HORDE["wait_ms"] / 1000
     try:
         async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
             submitted = await client.post(base + HORDE["submit_path"], headers=headers, json=horde_body(body))
             if submitted.status_code >= 400:
-                raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {submitted.status_code}", "code": "model_refused"})
+                raise HTTPException(
+                    status_code=502,
+                    detail={"message": f"The model endpoint answered {submitted.status_code}", "code": "model_refused"},
+                )
             job = submitted.json().get("id") if isinstance(submitted.json(), dict) else None
             if not isinstance(job, str):
-                raise HTTPException(status_code=502, detail={"message": "The Horde gave no job", "code": "model_refused"})
+                raise HTTPException(
+                    status_code=502, detail={"message": "The Horde gave no job", "code": "model_refused"}
+                )
             while time.monotonic() < deadline:
                 await asyncio.sleep(HORDE["poll_ms"] / 1000)
                 status = (await client.get(base + HORDE["status_path"] + job, headers=headers)).json()
                 if status.get("faulted"):
-                    raise HTTPException(status_code=502, detail={"message": "The Horde could not write it", "code": "model_refused"})
+                    raise HTTPException(
+                        status_code=502, detail={"message": "The Horde could not write it", "code": "model_refused"}
+                    )
                 if status.get("done"):
                     generations = status.get("generations") or [{}]
                     text = generations[0].get("text") if isinstance(generations[0], dict) else None
                     return text if isinstance(text, str) else ""
     except (httpx.HTTPError, ValueError) as error:
-        raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+        raise HTTPException(
+            status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}
+        ) from error
     raise HTTPException(status_code=504, detail={"message": "The Horde took too long", "code": "model_timeout"})
 
 
@@ -1613,7 +1752,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         try:
             chat = self._manager(ChatManager).get(id=body.chat_id)
         except HTTPException as error:
-            raise HTTPException(status_code=404, detail={"message": "Request searched ChatModel and could not find the required record."}) from error
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Request searched ChatModel and could not find the required record."},
+            ) from error
 
         characters = self._manager(CharacterManager)
         cast = []
@@ -1622,19 +1764,41 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             row = characters.get(id=character_id)
             if getattr(row, "lorebook_id", None):
                 own_books.append(row.lorebook_id)
-            cast.append({key: getattr(row, key) for key in ("id", "name", "description", "personality", "scenario", "example_messages", "system_prompt", "post_history_instructions")})
+            cast.append(
+                {
+                    key: getattr(row, key)
+                    for key in (
+                        "id",
+                        "name",
+                        "description",
+                        "personality",
+                        "scenario",
+                        "example_messages",
+                        "system_prompt",
+                        "post_history_instructions",
+                    )
+                }
+            )
         # Narrating (A20), the GM speaks, so no character is named as the speaker.
         speaker_id = "" if body.mode == "narrate" else body.speaker_id or (cast[0]["id"] if cast else None)
         if speaker_id is None or (body.mode != "narrate" and all(character["id"] != speaker_id for character in cast)):
-            raise HTTPException(status_code=422, detail={"message": "The speaker must be a character in the chat", "code": "validation_error"})
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "The speaker must be a character in the chat", "code": "validation_error"},
+            )
 
         personas = self._manager(PersonaManager)
-        persona_row = personas.get(id=chat.persona_id) if chat.persona_id else next(iter(personas.list(is_default=True)), None)
+        persona_row = (
+            personas.get(id=chat.persona_id) if chat.persona_id else next(iter(personas.list(is_default=True)), None)
+        )
         persona = None if persona_row is None else {"name": persona_row.name, "description": persona_row.description}
 
         messages = self._manager(ChatMessageManager).list(chat_id=chat.id)
         if body.leaf_id is not None and all(message.id != body.leaf_id for message in messages):
-            raise HTTPException(status_code=422, detail={"message": "The leaf must be a message in the chat", "code": "validation_error"})
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "The leaf must be a message in the chat", "code": "validation_error"},
+            )
         path = branch_to(messages, body.leaf_id) if body.leaf_id is not None else []
         # The newest line's pictures go to a vision model (A44); older ones stay in the chat only.
         leaf = path[-1] if path else None
@@ -1652,7 +1816,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
 
         # World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
         # What lore and the data bank scan: the story, less what the table X-carded (A25).
-        story_texts = [turn["content"] for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"]]
+        story_texts = [
+            turn["content"] for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"]
+        ]
         book_ids = list(dict.fromkeys([*(chat.lorebook_ids or []), *own_books]))
         entries_manager = self._manager(LorebookEntryManager)
         entries = [
@@ -1670,21 +1836,35 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             **(chat.lore_settings or {}),
         }
         speaker_name = next((character["name"] for character in cast if character["id"] == speaker_id), "")
-        lore = activate_lore(entries, story_texts, len(story_texts), speaker_name, timers.read(chat.id), settings, random.random)
+        lore = activate_lore(
+            entries, story_texts, len(story_texts), speaker_name, timers.read(chat.id), settings, random.random
+        )
         if save_timers:
             timers.save(chat.id, lore.state)
 
         sampler: dict[str, Any] = {**PRESET_DEFAULTS, "stop": [], "prompt_layout": []}
         if chat.preset_id:
             preset = self._manager(GenerationPresetManager).get(id=chat.preset_id)
-            sampler = {key: getattr(preset, key) for key in (*PRESET_DEFAULTS.keys(), "stop", "prompt_layout", "logit_bias", "negative_prompt", "guidance_scale")}
+            sampler = {
+                key: getattr(preset, key)
+                for key in (
+                    *PRESET_DEFAULTS.keys(),
+                    "stop",
+                    "prompt_layout",
+                    "logit_bias",
+                    "negative_prompt",
+                    "guidance_scale",
+                )
+            }
 
         # The model for this request's role (A27): a model serving the role; for replies the chat's
         # own choice comes first. Otherwise the chat's model, then the default, then any.
         role = purpose if purpose != "reply" else "gm" if body.mode in ("table", "narrate") else "story"
         endpoints = self._manager(ModelEndpointManager)
         # Search sources (A42) are endpoints too, but never a model.
-        every = sorted((row for row in endpoints.list() if row.api not in CONTRACT["search_apis"]), key=lambda row: row.name)
+        every = sorted(
+            (row for row in endpoints.list() if row.api not in CONTRACT["search_apis"]), key=lambda row: row.name
+        )
         serving = [row for row in every if role in (row.roles or [])]
         chosen = endpoints.get(id=chat.endpoint_id) if chat.endpoint_id else None
         if chosen is not None and chosen.api in CONTRACT["search_apis"]:
@@ -1695,9 +1875,19 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             try:
                 asked = endpoints.get(id=body.endpoint_id)
             except HTTPException as error:
-                raise HTTPException(status_code=404, detail={"message": "Request searched ModelEndpointModel and could not find the required record."}) from error
+                raise HTTPException(
+                    status_code=404,
+                    detail={"message": "Request searched ModelEndpointModel and could not find the required record."},
+                ) from error
             if asked.api in CONTRACT["search_apis"]:
-                raise HTTPException(status_code=422, detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": ["endpoint_id"], "msg": "A search source is not a model"}]})
+                raise HTTPException(
+                    status_code=422,
+                    detail={
+                        "message": "Validation error",
+                        "code": "validation_error",
+                        "errors": [{"loc": ["endpoint_id"], "msg": "A search source is not a model"}],
+                    },
+                )
         endpoint = (
             asked
             or (chosen if role == "story" else None)
@@ -1708,7 +1898,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             or next(iter(every), None)
         )
         if endpoint is None:
-            raise HTTPException(status_code=409, detail={"message": "Add a model endpoint first", "code": "no_model_endpoint"})
+            raise HTTPException(
+                status_code=409, detail={"message": "Add a model endpoint first", "code": "no_model_endpoint"}
+            )
 
         frame = frame_of(self._manager(CampaignManager).get(id=chat.campaign_id)) if chat.campaign_id else None
         assembled = assemble_prompt(
@@ -1725,7 +1917,19 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             chat.system_prompt or "",
             chat.summary or "",
             [
-                {key: getattr(script, key) for key in ("find", "replace", "placements", "display_only", "prompt_only", "min_depth", "max_depth", "enabled")}
+                {
+                    key: getattr(script, key)
+                    for key in (
+                        "find",
+                        "replace",
+                        "placements",
+                        "display_only",
+                        "prompt_only",
+                        "min_depth",
+                        "max_depth",
+                        "enabled",
+                    )
+                }
                 for script in self._manager(RegexScriptManager).list()
             ],
             next((objective["text"] for objective in (chat.objectives or []) if not objective["done"]), ""),
@@ -1750,12 +1954,19 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             )
         template = self._template_of(endpoint)
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
-        request = {
+        request: dict[str, Any] = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
             "json": upstream_body(endpoint, sampler, assembled.messages, body.mode, images, template),
         }
-        context = {"cast": cast, "persona": persona, "history": history, "endpoint": endpoint, "key": key, "template": template}
+        context = {
+            "cast": cast,
+            "persona": persona,
+            "history": history,
+            "endpoint": endpoint,
+            "key": key,
+            "template": template,
+        }
         return assembled, request, sampler, lore.active, context
 
     @custom_route(
@@ -1795,8 +2006,16 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     )
     async def summarize_route(self, body: GenerateEnvelope) -> SummaryEnvelope:
         # Nothing is written: the person saves the summary to the chat like any other edit.
-        _assembled, _request, sampler, _active, context = self._inputs(body.generate, save_timers=False, purpose="summary")
-        asked = summary_prompt(context["cast"], context["persona"], context["history"], int(sampler["context_tokens"]), int(sampler["max_tokens"]))
+        _assembled, _request, sampler, _active, context = self._inputs(
+            body.generate, save_timers=False, purpose="summary"
+        )
+        asked = summary_prompt(
+            context["cast"],
+            context["persona"],
+            context["history"],
+            int(sampler["context_tokens"]),
+            int(sampler["max_tokens"]),
+        )
         text = await self._ask(context, sampler, asked.messages)
         return SummaryEnvelope(summary=Summary(text=text, dropped=asked.dropped))
 
@@ -1812,7 +2031,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     )
     async def translate_route(self, body: TranslateEnvelope) -> TranslateEnvelope:
         asked = body.translate
-        _assembled, _request, sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id), save_timers=False, purpose="translate")
+        _assembled, _request, sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id), save_timers=False, purpose="translate"
+        )
         text = await self._ask(context, sampler, translate_prompt(asked.text, asked.language))
         return TranslateEnvelope(translate=TranslateRequest(chat_id=asked.chat_id, text=text, language=asked.language))
 
@@ -1827,9 +2048,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         found = [
             *named(documents.list(scope="global")),
             *named(documents.list(scope="chat", scope_id=chat.id)),
-            *(document for character_id in chat.character_ids or [] for document in named(documents.list(scope="character", scope_id=character_id))),
+            *(
+                document
+                for character_id in chat.character_ids or []
+                for document in named(documents.list(scope="character", scope_id=character_id))
+            ),
         ]
-        return data_bank_text([document.text for document in found], story)
+        # The extension modules are imported by the framework at run time, so mypy sees them as Any.
+        text: str = data_bank_text([document.text for document in found], story)
+        return text
 
     @custom_route(
         method="POST",
@@ -1848,19 +2075,41 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         started = time.monotonic()
         try:
             async with httpx.AsyncClient(timeout=PING_TIMEOUT_SECONDS) as client:
-                answer = await client.get(models_url(endpoint.base_url), headers={"Authorization": f"Bearer {key}"} if key else {})
+                answer = await client.get(
+                    models_url(endpoint.base_url), headers={"Authorization": f"Bearer {key}"} if key else {}
+                )
         except httpx.HTTPError:
             latency = int((time.monotonic() - started) * 1000)
-            return PingEnvelope(ping=Ping(ok=False, latency_ms=latency, status=None, has_model=None, detail="The server could not be reached"))
+            return PingEnvelope(
+                ping=Ping(
+                    ok=False, latency_ms=latency, status=None, has_model=None, detail="The server could not be reached"
+                )
+            )
         latency = int((time.monotonic() - started) * 1000)
         try:
             listed = answer.json().get("data")
         except ValueError:
             listed = None
-        ids = [str(model["id"]) for model in listed if isinstance(model, dict) and isinstance(model.get("id"), str)] if isinstance(listed, list) else None
+        ids = (
+            [str(model["id"]) for model in listed if isinstance(model, dict) and isinstance(model.get("id"), str)]
+            if isinstance(listed, list)
+            else None
+        )
         ok = answer.status_code < 400
-        detail = ("Answered, without a model list" if ids is None else f"{len(ids)} models offered") if ok else f"Answered {answer.status_code}"
-        return PingEnvelope(ping=Ping(ok=ok, latency_ms=latency, status=answer.status_code, has_model=None if ids is None else endpoint.model in ids, detail=detail))
+        detail = (
+            ("Answered, without a model list" if ids is None else f"{len(ids)} models offered")
+            if ok
+            else f"Answered {answer.status_code}"
+        )
+        return PingEnvelope(
+            ping=Ping(
+                ok=ok,
+                latency_ms=latency,
+                status=answer.status_code,
+                has_model=None if ids is None else endpoint.model in ids,
+                detail=detail,
+            )
+        )
 
     @custom_route(
         method="POST",
@@ -1877,9 +2126,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         labels = [row.label for row in self._manager(CharacterExpressionManager).list(character_id=asked.character_id)]
         if not labels:
             return ExpressionEnvelope(expression=Expression(label=None))
-        _assembled, _request, sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id), save_timers=False, purpose="summary")
+        _assembled, _request, sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id), save_timers=False, purpose="summary"
+        )
         try:
-            answer = await self._ask(context, {**sampler, "max_tokens": 8}, expression_prompt(split_reasoning(asked.text)[1], labels))
+            answer = await self._ask(
+                context, {**sampler, "max_tokens": 8}, expression_prompt(split_reasoning(asked.text)[1], labels)
+            )
         except HTTPException:
             answer = ""
         return ExpressionEnvelope(expression=Expression(label=pick_option(answer, labels)))
@@ -1888,12 +2141,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         """What the picture route asks the image model to draw, for each kind (the lite twin's picturePrompt)."""
         if asked.kind == "portrait":
             row = self._manager(CharacterManager).get(id=asked.character_id)
-            return portrait_picture_prompt({"name": row.name, "description": row.description or ""}, asked.prompt)
-        _assembled, _request, _sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id or "", leaf_id=asked.leaf_id), save_timers=False)
+            portrait: str = portrait_picture_prompt(
+                {"name": row.name, "description": row.description or ""}, asked.prompt
+            )
+            return portrait
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id or "", leaf_id=asked.leaf_id), save_timers=False
+        )
         if asked.kind == "background":
             scenario = context["cast"][0]["scenario"] if context["cast"] else ""
-            return background_picture_prompt(context["cast"], context["persona"], context["history"], scenario or "", asked.prompt)
-        return scene_picture_prompt(context["cast"], context["persona"], context["history"], asked.prompt)
+            background: str = background_picture_prompt(
+                context["cast"], context["persona"], context["history"], scenario or "", asked.prompt
+            )
+            return background
+        scene: str = scene_picture_prompt(context["cast"], context["persona"], context["history"], asked.prompt)
+        return scene
 
     @custom_route(
         method="POST",
@@ -1908,10 +2170,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     async def picture_route(self, body: PictureRequestEnvelope) -> PictureEnvelope:
         asked = body.picture
         # Only a model the person set to draw: a chat model is never asked for a picture.
-        drawing = sorted((row for row in self._manager(ModelEndpointManager).list() if "image" in (row.roles or [])), key=lambda row: row.name)
+        drawing = sorted(
+            (row for row in self._manager(ModelEndpointManager).list() if "image" in (row.roles or [])),
+            key=lambda row: row.name,
+        )
         endpoint = next((row for row in drawing if row.is_default), None) or next(iter(drawing), None)
         if endpoint is None:
-            raise HTTPException(status_code=409, detail={"message": "Set a model to draw pictures first", "code": "no_image_model"})
+            raise HTTPException(
+                status_code=409, detail={"message": "Set a model to draw pictures first", "code": "no_image_model"}
+            )
         prompt = self._picture_prompt(asked)
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         try:
@@ -1919,18 +2186,33 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 answer = await client.post(
                     images_url(endpoint.base_url),
                     headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-                    json={"model": endpoint.model, "prompt": prompt, "n": 1, "size": getattr(endpoint, "image_size", "") or CONTRACT["picture"]["size"], "response_format": "b64_json"},
+                    json={
+                        "model": endpoint.model,
+                        "prompt": prompt,
+                        "n": 1,
+                        "size": getattr(endpoint, "image_size", "") or CONTRACT["picture"]["size"],
+                        "response_format": "b64_json",
+                    },
                 )
         except httpx.HTTPError as error:
-            raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+            raise HTTPException(
+                status_code=502,
+                detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"},
+            ) from error
         if answer.status_code >= 400:
-            raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {answer.status_code}", "code": "model_refused"})
+            raise HTTPException(
+                status_code=502,
+                detail={"message": f"The model endpoint answered {answer.status_code}", "code": "model_refused"},
+            )
         try:
             image = picture_of(answer.json())
         except ValueError:
             image = None
         if image is None or len(image) > LIMITS["avatar_bytes"]:
-            raise HTTPException(status_code=502, detail={"message": "The model sent no picture this app can keep", "code": "model_refused"})
+            raise HTTPException(
+                status_code=502,
+                detail={"message": "The model sent no picture this app can keep", "code": "model_refused"},
+            )
         return PictureEnvelope(picture=Picture(prompt=prompt, image=image))
 
     @custom_route(
@@ -1945,14 +2227,25 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     )
     async def search_route(self, body: SearchRequestEnvelope) -> SearchEnvelope:
         query = body.search.query
-        sources = sorted((row for row in self._manager(ModelEndpointManager).list() if row.api in CONTRACT["search_apis"]), key=lambda row: row.name)
+        sources = sorted(
+            (row for row in self._manager(ModelEndpointManager).list() if row.api in CONTRACT["search_apis"]),
+            key=lambda row: row.name,
+        )
         source = next((row for row in sources if row.is_default), None) or next(iter(sources), None)
         if source is None:
-            raise HTTPException(status_code=409, detail={"message": "Set a search source first", "code": "no_search_source"})
+            raise HTTPException(
+                status_code=409, detail={"message": "Set a search source first", "code": "no_search_source"}
+            )
         key = decrypt_secret(source.api_key) if source.api_key else ""
         async with httpx.AsyncClient() as client:
             results = await web_search(client, {"kind": source.api, "base_url": source.base_url, "api_key": key}, query)
-        return SearchEnvelope(search=SearchAnswer(query=query, results=[SearchResultItem(**result) for result in results], context=search_context(query, results)))
+        return SearchEnvelope(
+            search=SearchAnswer(
+                query=query,
+                results=[SearchResultItem(**result) for result in results],
+                context=search_context(query, results),
+            )
+        )
 
     @custom_route(
         method="POST",
@@ -1967,10 +2260,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     async def speech_route(self, body: SpeechRequestEnvelope) -> SpeechEnvelope:
         asked = body.speech
         # Only a model the person set to speak: a chat model is never asked to.
-        speaking = sorted((row for row in self._manager(ModelEndpointManager).list() if "voice" in (row.roles or [])), key=lambda row: row.name)
+        speaking = sorted(
+            (row for row in self._manager(ModelEndpointManager).list() if "voice" in (row.roles or [])),
+            key=lambda row: row.name,
+        )
         endpoint = next((row for row in speaking if row.is_default), None) or next(iter(speaking), None)
         if endpoint is None:
-            raise HTTPException(status_code=409, detail={"message": "Set a model to speak first", "code": "no_voice_model"})
+            raise HTTPException(
+                status_code=409, detail={"message": "Set a model to speak first", "code": "no_voice_model"}
+            )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         try:
             async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
@@ -1980,12 +2278,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     json=speech_body(endpoint.model, asked.text, asked.voice, asked.speed),
                 )
         except httpx.HTTPError as error:
-            raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+            raise HTTPException(
+                status_code=502,
+                detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"},
+            ) from error
         if answer.status_code >= 400:
-            raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {answer.status_code}", "code": "model_refused"})
+            raise HTTPException(
+                status_code=502,
+                detail={"message": f"The model endpoint answered {answer.status_code}", "code": "model_refused"},
+            )
         media_type = audio_type(answer.headers.get("content-type"))
         if media_type is None or not answer.content or len(answer.content) > SPEECH["audio_bytes"]:
-            raise HTTPException(status_code=502, detail={"message": "The model sent no speech this app can play", "code": "model_refused"})
+            raise HTTPException(
+                status_code=502,
+                detail={"message": "The model sent no speech this app can play", "code": "model_refused"},
+            )
         return SpeechEnvelope(speech=Speech(audio=audio_data_url(media_type, answer.content)))
 
     @custom_route(
@@ -2003,14 +2310,23 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         try:
             message = messages.get(id=body.move.message_id)
         except HTTPException as error:
-            raise HTTPException(status_code=404, detail={"message": "Request searched ChatMessageModel and could not find the required record."}) from error
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Request searched ChatMessageModel and could not find the required record."},
+            ) from error
         if message.parent_id is None:
-            raise HTTPException(status_code=422, detail={"message": "The first message has nothing above it", "code": "validation_error"})
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "The first message has nothing above it", "code": "validation_error"},
+            )
         parent = messages.get(id=message.parent_id)
         # Only along one branch: with other replies under the parent, a swap would reorder their branches too.
         replies = [one for one in messages.list(chat_id=message.chat_id) if one.parent_id == parent.id]
         if len(replies) != 1:
-            raise HTTPException(status_code=422, detail={"message": "Its parent has other replies, so it can't move up", "code": "validation_error"})
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "Its parent has other replies, so it can't move up", "code": "validation_error"},
+            )
         upper = {field: getattr(parent, field) for field in MOVED_FIELDS}
         lower = {field: getattr(message, field) for field in MOVED_FIELDS}
         # The speaker and role change places too, which a client's update may not do: the framework's
@@ -2023,8 +2339,12 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""
         endpoint, key = context["endpoint"], context["key"]
         if endpoint.api == "horde":
-            return (await horde_text(endpoint, key, upstream_body(endpoint, sampler, messages, "reply", template=context.get("template")))).strip()
-        request = {
+            return (
+                await horde_text(
+                    endpoint, key, upstream_body(endpoint, sampler, messages, "reply", template=context.get("template"))
+                )
+            ).strip()
+        request: dict[str, Any] = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
             "json": upstream_body(endpoint, sampler, messages, "reply", template=context.get("template")),
@@ -2032,9 +2352,18 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         pieces: list[str] = []
         joiner = ReasoningJoiner()
         try:
-            async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client, client.stream("POST", **request) as upstream:
+            async with (
+                httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client,
+                client.stream("POST", request["url"], headers=request["headers"], json=request["json"]) as upstream,
+            ):
                 if upstream.status_code >= 400:
-                    raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {upstream.status_code}", "code": "model_refused"})
+                    raise HTTPException(
+                        status_code=502,
+                        detail={
+                            "message": f"The model endpoint answered {upstream.status_code}",
+                            "code": "model_refused",
+                        },
+                    )
                 async for line in upstream.aiter_lines():
                     if not line.startswith("data:"):
                         continue
@@ -2048,7 +2377,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 if closing is not None:
                     pieces.append(closing)
         except httpx.HTTPError as error:
-            raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+            raise HTTPException(
+                status_code=502,
+                detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"},
+            ) from error
         return "".join(pieces).strip()
 
     @custom_route(
@@ -2070,7 +2402,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             except HTTPException:
                 paused = False  # an unknown chat is refused by _inputs, as for every route
             if paused:
-                raise HTTPException(status_code=409, detail={"message": "The table has paused the game", "code": "paused"})
+                raise HTTPException(
+                    status_code=409, detail={"message": "The table has paused the game", "code": "paused"}
+                )
         assembled, request, _sampler, _active, _context = self._inputs(body.generate)
         if _context["endpoint"].api == "horde":
             # AI Horde (A48): asked as a job, then answered as one text completion would be.
@@ -2089,14 +2423,23 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             return event_stream(answered())
         client = httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS)
         try:
-            upstream = await client.send(client.build_request("POST", **request), stream=True)
+            upstream = await client.send(
+                client.build_request("POST", request["url"], headers=request["headers"], json=request["json"]),
+                stream=True,
+            )
         except httpx.HTTPError as error:
             await client.aclose()
-            raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+            raise HTTPException(
+                status_code=502,
+                detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"},
+            ) from error
         if upstream.status_code >= 400:
             await upstream.aclose()
             await client.aclose()
-            raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {upstream.status_code}", "code": "model_refused"})
+            raise HTTPException(
+                status_code=502,
+                detail={"message": f"The model endpoint answered {upstream.status_code}", "code": "model_refused"},
+            )
 
         async def events() -> AsyncIterator[str]:
             joiner = ReasoningJoiner()
