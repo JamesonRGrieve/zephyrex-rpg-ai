@@ -33,6 +33,7 @@
   },
   "dependencies": {
     "@jgrieve/forms": "^0.0.1-alpha.1",
+    "@mlc-ai/web-llm": "0.2.87",
     "@prisma/adapter-better-sqlite3": "7.10.0",
     "@prisma/client": "^7.10.0",
     "@radix-ui/react-icons": "^1.3.2",

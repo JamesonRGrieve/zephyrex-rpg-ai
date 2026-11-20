@@ -24,6 +24,9 @@ importers:
       '@jgrieve/forms':
         specifier: file:../../dynamic-form
         version: file:../../dynamic-form(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      '@mlc-ai/web-llm':
+        specifier: 0.2.87
+        version: 0.2.87
       '@prisma/adapter-better-sqlite3':
         specifier: 7.10.0
         version: 7.10.0
@@ -1598,6 +1601,9 @@ packages:
   '@mermaid-js/parser@2.0.1':
     resolution: {integrity: sha512-j37dj/h6p6pots1L7pLPPNuABEEu9WP4OYg9pW1g+nYG331j0+3canE9OagtYdytYvdSAMG+2fKU5cxep6LgjA==}
     engines: {node: '>=22.12.0'}
+
+  '@mlc-ai/web-llm@0.2.87':
+    resolution: {integrity: sha512-34N19988MdaEtzh8Mq/IOrfKCk2HRDOrXgEkLT28r3aiyAU6ZJSUB+v35t7zyU+0QEaFl91Y4U5SuPN/cwoHNw==}
 
   '@napi-rs/wasm-runtime@1.2.6':
     resolution: {integrity: sha512-mRyDmEw9/fCDXCGfL1sbgIw/GUK0PVxRW4YwgPN61F3LQ+fSyoBFarJVzgGyhF6kRzEQZ0FejDqm4WLXSeqQmw==}
@@ -8630,6 +8636,7 @@ packages:
 
   zephyrex@file:../../client-framework/packages/zephyrex:
     resolution: {directory: ../../client-framework/packages/zephyrex, type: directory}
+    hasBin: true
     peerDependencies:
       '@testing-library/react': ^16.3.3
       msw: ^3.0.1
@@ -10189,6 +10196,10 @@ snapshots:
   '@mermaid-js/parser@2.0.1':
     dependencies:
       '@chevrotain/types': 13.2.0
+
+  '@mlc-ai/web-llm@0.2.87':
+    dependencies:
+      loglevel: 1.9.2
 
   '@napi-rs/wasm-runtime@1.2.6(@emnapi/core@2.0.0-beta.2)(@emnapi/runtime@2.0.0-beta.2)':
     dependencies:
