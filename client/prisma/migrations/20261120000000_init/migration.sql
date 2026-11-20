@@ -51,6 +51,7 @@ CREATE TABLE "Chat" (
     "lorebookIds" TEXT NOT NULL DEFAULT '[]',
     "loreSettings" TEXT NOT NULL DEFAULT '{}',
     "systemPrompt" TEXT NOT NULL DEFAULT '',
+    "summary" TEXT NOT NULL DEFAULT '',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

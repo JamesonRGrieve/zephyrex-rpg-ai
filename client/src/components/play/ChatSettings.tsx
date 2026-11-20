@@ -6,6 +6,7 @@
  * own picker. Opens from the side on a wide screen and from the bottom on a phone.
  */
 import { type ReactElement, useId, useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
@@ -23,6 +24,7 @@ export interface ChatSettingsValue {
   lorebook_ids: string[];
   lore_settings: LoreSettingsValue;
   system_prompt: string;
+  summary: string;
 }
 
 /** What a chat sets of World Info's settings; the rest take the contract's defaults. */
@@ -84,6 +86,7 @@ export function ChatSettings({
   endpoints,
   lorebooks,
   onSave,
+  onSummarize,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -93,10 +96,13 @@ export function ChatSettings({
   endpoints: readonly Option[];
   lorebooks: readonly Option[];
   onSave: (value: ChatSettingsValue) => void;
+  /** Asks the model for a summary of the branch so far (null when it could not). */
+  onSummarize?: () => Promise<string | null>;
 }): ReactElement {
   const mobile = useIsMobile();
   const [draft, setDraft] = useState(value);
-  const ids = { title: useId(), system: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
+  const [summarizing, setSummarizing] = useState(false);
+  const ids = { title: useId(), summary: useId(), system: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
   const setLore = <K extends keyof LoreSettingsValue>(key: K, next: LoreSettingsValue[K]) => set('lore_settings', { ...draft.lore_settings, [key]: next });
   const loreNumber = (key: 'scan_depth' | 'token_budget' | 'recursion_steps', text: string) => {
     const [low, high] = LORE.ranges[key];
@@ -105,7 +111,7 @@ export function ChatSettings({
   };
   const toggleBook = (id: string) =>
     set('lorebook_ids', draft.lorebook_ids.includes(id) ? draft.lorebook_ids.filter((one) => one !== id) : [...draft.lorebook_ids, id].slice(0, LIMITS.lorebooks_per_chat));
-  const set = <K extends keyof ChatSettingsValue>(key: K, next: ChatSettingsValue[K]) => setDraft({ ...draft, [key]: next });
+  const set = <K extends keyof ChatSettingsValue>(key: K, next: ChatSettingsValue[K]) => setDraft((current) => ({ ...current, [key]: next }));
 
   return (
     <Sheet
@@ -164,6 +170,38 @@ export function ChatSettings({
               aria-describedby={`${ids.note}-hint`}
               onChange={(event) => set('author_note', event.target.value)}
             />
+          </div>
+          <div className='grid gap-1.5'>
+            <Label htmlFor={ids.summary}>Summary</Label>
+            <p id={`${ids.summary}-hint`} className='text-xs text-muted-foreground'>
+              The story so far, as the model reads it, so a long chat keeps what fell out of the window.
+            </p>
+            <Textarea
+              id={ids.summary}
+              rows={5}
+              value={draft.summary}
+              maxLength={LIMITS.chat_summary_characters}
+              aria-describedby={`${ids.summary}-hint`}
+              onChange={(event) => set('summary', event.target.value)}
+            />
+            {onSummarize !== undefined && (
+              <Button
+                type='button'
+                variant='outline'
+                className='h-11 justify-self-start'
+                disabled={summarizing}
+                onClick={() => {
+                  setSummarizing(true);
+                  void onSummarize()
+                    .then((text) => {
+                      if (text !== null && text !== '') set('summary', text);
+                    })
+                    .finally(() => setSummarizing(false));
+                }}
+              >
+                <Sparkles aria-hidden /> {summarizing ? 'Summarising…' : 'Summarise the story so far'}
+              </Button>
+            )}
           </div>
           <fieldset className='grid gap-2'>
             <legend className='text-sm font-medium'>Lorebooks</legend>

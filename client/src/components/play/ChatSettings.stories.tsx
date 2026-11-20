@@ -10,7 +10,7 @@ const meta: Meta<typeof ChatSettings> = {
     open: true,
     onOpenChange: fn(),
     onSave: fn(),
-    value: { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: ['b1'], lore_settings: {}, system_prompt: '' },
+    value: { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: ['b1'], lore_settings: {}, system_prompt: '', summary: '' },
     personas: [{ id: 'p1', name: 'Sam' }],
     presets: [{ id: 's1', name: 'Creative' }],
     endpoints: [{ id: 'e1', name: 'Local Ollama' }],

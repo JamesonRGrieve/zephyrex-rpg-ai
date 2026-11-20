@@ -46,7 +46,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Prompt import assemble_prompt, estimate_tokens  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Prompt import assemble_prompt, estimate_tokens, summary_prompt  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
     ChatLoreStateManager,
@@ -237,6 +237,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     lorebook_ids: list[str] = Field(default_factory=list, description="The lorebooks it reads")
     lore_settings: dict[str, Any] = Field(default_factory=dict, description="World Info settings")
     system_prompt: str = Field("", description="The chat's own system prompt (blank: the card's)")
+    summary: str = Field("", description="The story so far, as the model reads it (A19)")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
@@ -251,6 +252,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         lorebook_ids: list[str] = Field(default_factory=list)
         lore_settings: dict[str, Any] = Field(default_factory=dict)
         system_prompt: str = Field("", max_length=LIMITS["chat_system_prompt_characters"])
+        summary: str = Field("", max_length=LIMITS["chat_summary_characters"])
 
     class Update(BaseModel, ChatChecks):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -263,6 +265,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         lorebook_ids: list[str] | None = None
         lore_settings: dict[str, Any] | None = None
         system_prompt: str | None = Field(None, max_length=LIMITS["chat_system_prompt_characters"])
+        summary: str | None = Field(None, max_length=LIMITS["chat_summary_characters"])
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -300,6 +303,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("lorebook_ids", [])
         kwargs.setdefault("lore_settings", {})
         kwargs.setdefault("system_prompt", "")
+        kwargs.setdefault("summary", "")
         self._check_references(kwargs)
         return super().create(**kwargs)
 
@@ -631,6 +635,16 @@ class InspectEnvelope(PlainModel):
     prompt: InspectedPrompt
 
 
+class Summary(PlainModel):
+    text: str
+    #: Story turns too old to fit the window, left out of what was summarised.
+    dropped: int
+
+
+class SummaryEnvelope(PlainModel):
+    summary: Summary
+
+
 class GenerateEnvelope(PlainModel):
     generate: GenerateRequest
 
@@ -702,7 +716,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     def _manager(self, manager: type[Any]) -> Any:
         return manager(requester_id=str(self.requester.id), model_registry=self.model_registry)
 
-    def _inputs(self, body: GenerateRequest, save_timers: bool = True) -> tuple[Any, dict[str, Any], dict[str, Any], list[str]]:
+    def _inputs(
+        self, body: GenerateRequest, save_timers: bool = True
+    ) -> tuple[Any, dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
         """Everything a reply needs, read as the requester sees it (lib/generate.ts, step for step)."""
         try:
             chat = self._manager(ChatManager).get(id=body.chat_id)
@@ -786,6 +802,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             body.mode,
             sampler["prompt_layout"] or [],
             chat.system_prompt or "",
+            chat.summary or "",
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {
@@ -793,7 +810,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
             "json": upstream_body(endpoint, sampler, assembled.messages, body.mode),
         }
-        return assembled, request, sampler, lore.active
+        context = {"cast": cast, "persona": persona, "history": history, "endpoint": endpoint, "key": key}
+        return assembled, request, sampler, lore.active, context
 
     @custom_route(
         method="POST",
@@ -807,7 +825,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     )
     async def prompt_route(self, body: GenerateEnvelope) -> InspectEnvelope:
         # A preview: the lore timers do not move and no model is asked.
-        assembled, _request, sampler, active = self._inputs(body.generate, save_timers=False)
+        assembled, _request, sampler, active, _context = self._inputs(body.generate, save_timers=False)
         messages = [PromptMessage(**message, tokens=estimate_tokens(message)) for message in assembled.messages]
         return InspectEnvelope(
             prompt=InspectedPrompt(
@@ -822,6 +840,44 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
 
     @custom_route(
         method="POST",
+        path="/summarize",
+        input_model=GenerateEnvelope,
+        output_model=SummaryEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="A summary of the branch so far, written by the chat's model, for the person to keep or edit (A19)",
+    )
+    async def summarize_route(self, body: GenerateEnvelope) -> SummaryEnvelope:
+        # Nothing is written: the person saves the summary to the chat like any other edit.
+        _assembled, _request, sampler, _active, context = self._inputs(body.generate, save_timers=False)
+        asked = summary_prompt(context["cast"], context["persona"], context["history"], int(sampler["context_tokens"]), int(sampler["max_tokens"]))
+        endpoint, key = context["endpoint"], context["key"]
+        request = {
+            "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
+            "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
+            "json": upstream_body(endpoint, sampler, asked.messages, "reply"),
+        }
+        pieces: list[str] = []
+        try:
+            async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client, client.stream("POST", **request) as upstream:
+                if upstream.status_code >= 400:
+                    raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {upstream.status_code}", "code": "model_refused"})
+                async for line in upstream.aiter_lines():
+                    if not line.startswith("data:"):
+                        continue
+                    payload = line[len("data:") :]
+                    if payload.strip() == "[DONE]":
+                        break
+                    delta = delta_of(payload)
+                    if delta is not None:
+                        pieces.append(delta)
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+        return SummaryEnvelope(summary=Summary(text="".join(pieces).strip(), dropped=asked.dropped))
+
+    @custom_route(
+        method="POST",
         path="/generate",
         input_model=GenerateEnvelope,
         authentication_type="jwt",
@@ -831,7 +887,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         summary="A character's next reply, streamed",
     )
     async def generate_route(self, body: GenerateEnvelope) -> StreamingResponse:
-        assembled, request, _sampler, _active = self._inputs(body.generate)
+        assembled, request, _sampler, _active, _context = self._inputs(body.generate)
         client = httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS)
         try:
             upstream = await client.send(client.build_request("POST", **request), stream=True)

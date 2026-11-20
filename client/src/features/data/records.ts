@@ -58,6 +58,7 @@ export const chatSchema = z.object({
   lorebook_ids: z.array(z.string()),
   lore_settings: z.record(z.string(), z.union([z.number(), z.boolean()])),
   system_prompt: z.string(),
+  summary: z.string(),
 });
 export type Chat = z.infer<typeof chatSchema>;
 

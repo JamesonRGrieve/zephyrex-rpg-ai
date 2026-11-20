@@ -70,6 +70,7 @@ model Chat {
   lorebookIds  String   @default("[]")
   loreSettings String   @default("{}")
   systemPrompt String   @default("")
+  summary      String   @default("")
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   updatedById  String?

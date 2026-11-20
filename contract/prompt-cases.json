@@ -500,6 +500,143 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "a summary goes in as its own section, before the author's note",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "speaker_id": "c-ada",
+        "persona": null,
+        "author_note": "",
+        "summary": "The crew reached Vell; the engine is failing.",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "We dock at Vell."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nSummary of the story so far:\nThe crew reached Vell; the engine is failing."
+        },
+        {
+          "role": "user",
+          "content": "We dock at Vell."
+        }
+      ],
+      "dropped": 0
+    }
+  ],
+  "summary_cases": [
+    {
+      "name": "the instruction, then every story turn named, table talk left out",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "We dock at Vell."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Ada checks the coolant."
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Rain falls."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Summarize the story so far in a few short paragraphs: who is in it, where they are, what has happened and what is still unresolved. Write only the summary."
+        },
+        {
+          "role": "user",
+          "content": "Sam: We dock at Vell.\nAda: Ada checks the coolant.\nNarrator: Rain falls."
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "a long branch keeps its newest turns",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "We dock at Vell."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Ada checks the coolant."
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Rain falls."
+          }
+        ],
+        "context_tokens": 460,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Summarize the story so far in a few short paragraphs: who is in it, where they are, what has happened and what is still unresolved. Write only the summary."
+        },
+        {
+          "role": "user",
+          "content": "Narrator: Rain falls."
+        }
+      ],
+      "dropped": 2
     }
   ]
 }

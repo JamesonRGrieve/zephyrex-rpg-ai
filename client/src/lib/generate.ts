@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { type EndpointApi, type InstructTemplateId, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { assemblePrompt, estimateTokens, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import { assemblePrompt, estimateTokens, summaryPrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
@@ -75,6 +75,7 @@ export async function generationInputs(
     lorebook_ids: string[];
     lore_settings: Partial<LoreSettings>;
     system_prompt: string;
+    summary: string;
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -148,6 +149,7 @@ export async function generationInputs(
       mode: body.mode,
       layout: sampler.prompt_layout,
       system_prompt: chatFields.system_prompt,
+      summary: chatFields.summary,
     },
     sampler,
     endpoint: {
@@ -241,6 +243,51 @@ export async function inspectPrompt(nextRequest: NextRequest): Promise<Response>
   }
 }
 
+/** The endpoint's answer to `body`, or the framework's 502 when it cannot be reached or refuses. */
+async function askModel(endpoint: Endpoint, body: Record<string, unknown>, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+  const upstream = await fetch(completionsUrl(endpoint.base_url, endpoint.api), {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(endpoint.api_key === '' ? {} : { Authorization: `Bearer ${endpoint.api_key}` }),
+    },
+    body: JSON.stringify(body),
+    signal,
+  }).catch(() => {
+    throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });
+  });
+  if (!upstream.ok || upstream.body === null) {
+    throw new ApiError(502, { message: `The model endpoint answered ${upstream.status}`, code: 'model_refused' });
+  }
+  return upstream.body;
+}
+
+/** Every delta of a stream, joined. */
+async function collect(deltas: AsyncGenerator<string>): Promise<string> {
+  const next = await deltas.next();
+  return next.done ? '' : next.value + (await collect(deltas));
+}
+
+/**
+ * `POST /v1/ai_chat/summarize` (A19): a summary of the branch so far, written by the chat's model.
+ * Nothing is written: the person keeps or edits it and saves it to the chat like any other change.
+ */
+export async function summarize(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const body = await readRequest(nextRequest);
+    const { prompt, sampler, endpoint } = await generationInputs(owner.id, body);
+    const asked = summaryPrompt(prompt);
+    const stream = await askModel(endpoint, upstreamBody(endpoint, sampler, asked.messages, 'reply'), nextRequest.signal);
+    const text = await collect(completionDeltas(stream)).catch(() => {
+      throw new ApiError(502, { message: 'The model stopped mid-summary', code: 'model_refused' });
+    });
+    return Response.json({ summary: { text: text.trim(), dropped: asked.dropped } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
 export async function generate(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
@@ -250,22 +297,8 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
     // The lore timers move with the reply that read them.
     await saveLoreState(owner.id, body.chat_id, loreState);
 
-    const upstream = await fetch(completionsUrl(endpoint.base_url, endpoint.api), {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(endpoint.api_key === '' ? {} : { Authorization: `Bearer ${endpoint.api_key}` }),
-      },
-      body: JSON.stringify(upstreamBody(endpoint, sampler, assembled.messages, body.mode)),
-      signal: nextRequest.signal,
-    }).catch(() => {
-      throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });
-    });
-    if (!upstream.ok || upstream.body === null) {
-      throw new ApiError(502, { message: `The model endpoint answered ${upstream.status}`, code: 'model_refused' });
-    }
-
-    const deltas = completionDeltas(upstream.body);
+    const upstream = await askModel(endpoint, upstreamBody(endpoint, sampler, assembled.messages, body.mode), nextRequest.signal);
+    const deltas = completionDeltas(upstream);
     const stream = new ReadableStream<Uint8Array>({
       async pull(controller) {
         try {

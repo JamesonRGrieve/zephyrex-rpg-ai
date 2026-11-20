@@ -218,6 +218,7 @@ const CHAT_COLUMNS: Columns = {
   lorebook_ids: jsonList('lorebookIds'),
   lore_settings: jsonObject('loreSettings'),
   system_prompt: plain('systemPrompt'),
+  summary: plain('summary'),
 };
 
 const title = z.string().trim().min(1).max(LIMITS.chat_title_characters);
@@ -252,6 +253,7 @@ const chatFields = {
     .refine((ids) => new Set(ids).size === ids.length, 'A lorebook is in a chat once'),
   lore_settings: loreSettings,
   system_prompt: z.string().max(LIMITS.chat_system_prompt_characters),
+  summary: z.string().max(LIMITS.chat_summary_characters),
 };
 const chatCreate = z.object({
   title,
@@ -264,6 +266,7 @@ const chatCreate = z.object({
   lorebook_ids: chatFields.lorebook_ids.default([]),
   lore_settings: loreSettings.default({}),
   system_prompt: chatFields.system_prompt.default(''),
+  summary: chatFields.summary.default(''),
 });
 const chatUpdate = z.object({ title, ...chatFields }).partial();
 

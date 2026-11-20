@@ -202,8 +202,10 @@ class TestGenerate:
     def test_a_text_api_gets_one_prompt_in_its_instruct_template(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada", system_prompt="You are Ada.").json()["character"]
-        bad = _create(server, user, "model_endpoint", name="Bad", base_url=model_url, model="tiny", api="smoke")
-        assert bad.status_code == 422
+        bad = server.post(
+            "/v1/model_endpoint", json={"model_endpoint": {"name": "Bad", "base_url": model_url, "model": "tiny", "api": "smoke"}}, headers=_headers(user)
+        )
+        assert bad.status_code == 422, bad.text
         _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", api="text", instruct_template="alpaca", is_default=True)
         chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
         line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hello."]).json()["chat_message"]
@@ -216,6 +218,24 @@ class TestGenerate:
         assert sent["body"]["prompt"] == "You are Ada.\n\n### Instruction:\nHello.\n\n### Response:\n"
         assert sent["body"]["stop"] == ["### Instruction:"]
         assert "messages" not in sent["body"]
+
+    def test_summarizes_the_branch_and_reads_the_summary_back_into_the_prompt(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        created = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]])
+        chat = created.json()["chat"]
+        ooc = _create(server, user, "chat_message", chat_id=chat["id"], role="user", channel="ooc", swipes=["brb"]).json()["chat_message"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], parent_id=ooc["id"], role="user", swipes=["We dock."]).json()["chat_message"]
+        RECEIVED.clear()
+        summarized = server.post("/v1/ai_chat/summarize", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert summarized.status_code == 200, summarized.text
+        assert summarized.json()["summary"] == {"text": "“Mind the coolant.”", "dropped": 0}
+        assert RECEIVED[0]["body"]["messages"][1]["content"] == "User: We dock."
+        saved = _put(server, user, "chat", chat["id"], created.headers["ETag"], summary="They docked.")
+        assert saved.status_code == 200, saved.text
+        inspected = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"]}}, headers=_headers(user)).json()["prompt"]
+        assert inspected["messages"][0]["content"].endswith("Summary of the story so far:\nThey docked.")
 
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
@@ -265,10 +285,9 @@ class TestGenerate:
     def test_the_prompt_manager_layout_and_the_chats_system_prompt(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada", description="Ada fixes engines.", example_messages="<START>").json()["character"]
-        bad = _create(server, user, "generation_preset", name="Bad", prompt_layout=[{"id": "nonsense", "enabled": True, "max_tokens": None}])
-        assert bad.status_code == 422
-        twice = [{"id": "main", "enabled": True, "max_tokens": None}] * 2
-        assert _create(server, user, "generation_preset", name="Twice", prompt_layout=twice).status_code == 422
+        for refused in ([{"id": "nonsense", "enabled": True, "max_tokens": None}], [{"id": "main", "enabled": True, "max_tokens": None}] * 2):
+            answer = server.post("/v1/generation_preset", json={"generation_preset": {"name": "Bad", "prompt_layout": refused}}, headers=_headers(user))
+            assert answer.status_code == 422, answer.text
         layout = [{"id": "description", "enabled": True, "max_tokens": None}, {"id": "examples", "enabled": False, "max_tokens": None}]
         preset = _create(server, user, "generation_preset", name="Layout", prompt_layout=layout).json()["generation_preset"]
         assert preset["prompt_layout"] == layout

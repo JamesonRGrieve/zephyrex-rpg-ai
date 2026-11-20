@@ -26,7 +26,8 @@
     "lore_key_characters": 200,
     "lore_content_characters": 50000,
     "lorebooks_per_chat": 16,
-    "chat_system_prompt_characters": 50000
+    "chat_system_prompt_characters": 50000,
+    "chat_summary_characters": 50000
   },
   "message_roles": [
     "user",
@@ -115,13 +116,16 @@
       "lore_before_example",
       "examples",
       "lore_after_example",
+      "summary",
       "author_note",
       "post_history"
     ],
     "section_token_range": [
       1,
       32768
-    ]
+    ],
+    "summary_prefix": "Summary of the story so far:\n",
+    "summarize_prompt": "Summarize the story so far in a few short paragraphs: who is in it, where they are, what has happened and what is still unresolved. Write only the summary."
   },
   "lore": {
     "$comment": "World Info (SillyTavern's lorebooks): how entries activate and where they go. client/src/features/lore/activate.ts and server/extensions/ai_chat/Lore.py implement it; contract/lore-cases.json holds the cases both run.",

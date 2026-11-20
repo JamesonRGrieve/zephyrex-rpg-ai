@@ -37,6 +37,7 @@ export const PROMPT = {
     'lore_before_example',
     'examples',
     'lore_after_example',
+    'summary',
     'author_note',
     'post_history',
   ],

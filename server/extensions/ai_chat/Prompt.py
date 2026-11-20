@@ -113,6 +113,7 @@ def assemble_prompt(
     mode: str = "reply",
     layout: Sequence[Mapping[str, Any]] | None = None,
     system_prompt: str = "",
+    summary: str = "",
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -142,6 +143,7 @@ def assemble_prompt(
         "lore_before_example": sections.get("before_example", ""),
         "examples": f"Example dialogue:\n{speaker['example_messages']}" if speaker["example_messages"].strip() else "",
         "lore_after_example": sections.get("after_example", ""),
+        "summary": PROMPT["summary_prefix"] + summary if summary.strip() else "",
     }
     system = {"role": "system", "content": _system_text(texts, order, names)}
     block = "\n".join(
@@ -181,3 +183,41 @@ def assemble_prompt(
     if mode == "continue" and placed and placed[-1]["role"] == "assistant":
         return Assembled(messages=[system, *placed[:-1], *after, placed[-1]], dropped=kept)
     return Assembled(messages=[system, *placed, *after], dropped=kept)
+
+
+def summary_prompt(
+    characters: Sequence[Mapping[str, Any]],
+    persona: Mapping[str, Any] | None,
+    history: Sequence[Mapping[str, Any]],
+    context_tokens: int,
+    max_tokens: int,
+) -> Assembled:
+    """What a model is asked to summarise a branch (A19): the contract's instruction, then the
+    story so far as one transcript, every turn named. Out-of-character talk stays out; when the
+    transcript outgrows the window, its oldest turns are dropped."""
+    user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
+    names_by_id = {character["id"]: character["name"] for character in characters}
+    lines = []
+    for turn in history:
+        if turn["channel"] not in PROMPT["story_channels"]:
+            continue
+        if turn["role"] == "user":
+            name = user_name
+        elif turn["role"] == "character":
+            name = names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
+        else:
+            name = NARRATOR
+        lines.append(f"{name}: {turn['content']}")
+    instruction = {"role": "system", "content": PROMPT["summarize_prompt"]}
+    budget = context_tokens - max_tokens - estimate_tokens(instruction) - PROMPT["message_overhead_tokens"]
+    kept = len(lines)
+    used = 0
+    for index in range(len(lines) - 1, -1, -1):
+        # A line costs its characters and the newline joining it.
+        cost = used + math.ceil((len(lines[index]) + 1) / PROMPT["characters_per_token"])
+        if cost > budget:
+            break
+        used = cost
+        kept = index
+    return Assembled(messages=[instruction, {"role": "user", "content": "\n".join(lines[kept:])}], dropped=kept)
+

@@ -22,7 +22,7 @@ import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
-import { type InspectedPrompt, inspectPrompt } from '~/features/chat/inspectPrompt';
+import { type InspectedPrompt, inspectPrompt, summarizeBranch } from '~/features/chat/inspectPrompt';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
@@ -147,6 +147,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const impersonate = async (): Promise<string | null> => {
     const result = await reply.write({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch), mode: 'impersonate' });
     return result?.text ?? null;
+  };
+
+  /** A summary of the shown branch, for chat settings to fill in. */
+  const summarize = async (): Promise<string | null> => {
+    try {
+      const summary = await summarizeBranch({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch) });
+      if (summary.dropped > 0) notify('The oldest turns did not fit', `${summary.dropped} were left out of the summary.`);
+      return summary.text;
+    } catch (error) {
+      notify('No summary', error instanceof Error ? error.message : undefined);
+      return null;
+    }
   };
 
   const openInspector = async () => {
@@ -311,7 +323,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           lorebook_ids: chat.lorebook_ids,
           lore_settings: chat.lore_settings as LoreSettingsValue,
           system_prompt: chat.system_prompt,
+          summary: chat.summary,
         }}
+        onSummarize={summarize}
         personas={options(personaList.data)}
         presets={options(presetList.data)}
         endpoints={options(endpointList.data)}

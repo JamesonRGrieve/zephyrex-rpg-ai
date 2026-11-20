@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from zephyrex.extensions.ai_character.Contract import PROMPT_CASES_PATH  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Prompt import assemble_prompt, estimate_tokens, expand_macros  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Prompt import summary_prompt, assemble_prompt, estimate_tokens, expand_macros  # type: ignore[import-not-found]
 
 CASES: dict[str, Any] = json.loads(PROMPT_CASES_PATH.read_text(encoding="utf-8"))
 
@@ -26,6 +26,7 @@ def test_case(case: dict[str, Any]) -> None:
         mode=given.get("mode", "reply"),
         layout=given.get("layout"),
         system_prompt=given.get("system_prompt", ""),
+        summary=given.get("summary", ""),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]
@@ -41,3 +42,14 @@ def test_macros_and_estimate() -> None:
         "Ada greets Sam. Ada waves at Sam."
     )
     assert estimate_tokens({"role": "user", "content": "abcdefgh"}) == 6
+
+
+@pytest.mark.parametrize("case", CASES["summary_cases"], ids=[case["name"] for case in CASES["summary_cases"]])
+def test_summary_case(case: dict[str, Any]) -> None:
+    given = case["input"]
+    result = summary_prompt(
+        [CASES["characters"][key] for key in given["characters"]], given["persona"], given["history"], given["context_tokens"], given["max_tokens"]
+    )
+    assert result.messages == case["messages"]
+    assert result.dropped == case["dropped"]
+

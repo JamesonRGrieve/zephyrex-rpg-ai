@@ -71,6 +71,8 @@ export interface PromptInput {
   layout?: readonly PromptSection[];
   /** The chat's own system prompt; blank keeps the card's. */
   system_prompt?: string;
+  /** The chat's rolling summary of the story so far (A19); blank leaves the section out. */
+  summary?: string;
 }
 
 export type PromptSectionId = (typeof PROMPT.sections)[number];
@@ -212,6 +214,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     lore_before_example: loreSections.before_example ?? '',
     examples: speaker.example_messages.trim() === '' ? '' : `Example dialogue:\n${speaker.example_messages}`,
     lore_after_example: loreSections.after_example ?? '',
+    summary: (input.summary ?? '').trim() === '' ? '' : PROMPT.summary_prefix + (input.summary ?? ''),
   };
   const system: ModelMessage = { role: 'system', content: systemText(texts, layout, names) };
   const note = expandMacros(noteBlock(sectionText('author_note', input.author_note), loreSections), names);
@@ -253,4 +256,35 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     return { messages: [system, ...placed.slice(0, -1), ...after, last], dropped: kept };
   }
   return { messages: [system, ...placed, ...after], dropped: kept };
+}
+
+/**
+ * What a model is asked to summarise a branch (A19): the contract's instruction, then the story so
+ * far as one transcript, every turn named. Out-of-character talk stays out; when the transcript
+ * outgrows the window, its oldest turns are dropped.
+ */
+export function summaryPrompt(
+  input: Pick<PromptInput, 'characters' | 'persona' | 'history' | 'context_tokens' | 'max_tokens'>,
+): AssembledPrompt {
+  const userName = input.persona?.name ?? DEFAULT_USER_NAME;
+  const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
+  const story = new Set<string>(PROMPT.story_channels);
+  const lines = input.history
+    .filter((turn) => story.has(turn.channel))
+    .map((turn) => {
+      const name = turn.role === 'user' ? userName : turn.role === 'character' ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR) : NARRATOR;
+      return `${name}: ${turn.content}`;
+    });
+  const instruction: ModelMessage = { role: 'system', content: PROMPT.summarize_prompt };
+  const budget = input.context_tokens - input.max_tokens - estimateTokens(instruction) - PROMPT.message_overhead_tokens;
+  let kept = lines.length;
+  let used = 0;
+  for (let index = lines.length - 1; index >= 0; index -= 1) {
+    // A line costs its characters and the newline joining it.
+    const cost = used + Math.ceil(((lines[index] as string).length + 1) / PROMPT.characters_per_token);
+    if (cost > budget) break;
+    used = cost;
+    kept = index;
+  }
+  return { messages: [instruction, { role: 'user', content: lines.slice(kept).join('\n') }], dropped: kept };
 }

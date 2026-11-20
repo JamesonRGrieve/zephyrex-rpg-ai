@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { completionsUrl, generate, inspectPrompt, upstreamBody } from './generate';
+import { completionsUrl, generate, inspectPrompt, summarize, upstreamBody } from './generate';
 
 interface Received {
   path: string;
@@ -165,6 +165,26 @@ describe('POST /v1/ai_chat/prompt', () => {
     const body = (await response.json()) as { prompt: { messages: { content: string }[] } };
     expect(body.prompt.messages.at(-1)?.content).toContain("Write User's next reply");
     expect((await inspectPrompt(call({ generate: { chat_id: chat.id, mode: 'sing' } }))).status).toBe(422);
+  });
+});
+
+describe('POST /v1/ai_chat/summarize', () => {
+  it('asks the model to summarise the branch’s story, table talk left out, and writes nothing', async () => {
+    const { chat, line } = await seed();
+    const response = await summarize(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ summary: { text: '“Mind the coolant.”', dropped: 0 } });
+    expect(received[0]?.body.messages[1]?.content).toBe('User: I hand her the spanner.');
+    expect((await prisma.chat.findUniqueOrThrow({ where: { id: chat.id } })).summary).toBe('');
+  });
+
+  it('reads a saved summary into the prompt, and answers 502 when the model refuses', async () => {
+    const { chat, line } = await seed();
+    await prisma.chat.update({ where: { id: chat.id }, data: { summary: 'They met in the engine room.' } });
+    const inspected = (await (await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).json()) as { prompt: { messages: { content: string }[] } };
+    expect(inspected.prompt.messages[0]?.content.endsWith('Summary of the story so far:\nThey met in the engine room.')).toBe(true);
+    answer = 'refuse';
+    expect((await summarize(call({ generate: { chat_id: chat.id } }))).status).toBe(502);
   });
 });
 

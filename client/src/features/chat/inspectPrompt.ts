@@ -2,7 +2,8 @@
 'use client';
 /**
  * The context inspector's data (A18): what the model would be given for a reply now, read from
- * `POST /api/v1/ai_chat/prompt` (which asks no model and moves no lore timer).
+ * `POST /api/v1/ai_chat/prompt` (which asks no model and moves no lore timer). And a summary of
+ * the branch (A19), from `POST /api/v1/ai_chat/summarize`, which writes nothing.
  */
 import { csrfHeaders } from '@zephyrex/auth/lib/session';
 import { z } from 'zod';
@@ -20,8 +21,14 @@ export const inspectedSchema = z.object({
 });
 export type InspectedPrompt = z.infer<typeof inspectedSchema>;
 
-export async function inspectPrompt(request: ReplyRequest): Promise<InspectedPrompt> {
-  const response = await fetch(INSPECT_PATH, {
+export const SUMMARIZE_PATH = '/api/v1/ai_chat/summarize';
+
+const summarySchema = z.object({ text: z.string(), dropped: z.number() });
+export type BranchSummary = z.infer<typeof summarySchema>;
+
+/** One of the chat's model actions: `key` read from the answer, or the server's reason thrown. */
+async function ask<T>(path: string, request: ReplyRequest, key: string, schema: z.ZodType<T>, what: string): Promise<T> {
+  const response = await fetch(path, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
     body: JSON.stringify({ generate: request }),
@@ -30,7 +37,15 @@ export async function inspectPrompt(request: ReplyRequest): Promise<InspectedPro
   if (!response.ok) {
     const detail: unknown = Reflect.get(Object(body), 'detail');
     const message: unknown = typeof detail === 'string' ? detail : Reflect.get(Object(detail), 'message');
-    throw new Error(typeof message === 'string' ? message : `The prompt could not be read (${response.status})`);
+    throw new Error(typeof message === 'string' ? message : `${what} (${response.status})`);
   }
-  return inspectedSchema.parse(Reflect.get(Object(body), 'prompt'));
+  return schema.parse(Reflect.get(Object(body), key));
+}
+
+export function inspectPrompt(request: ReplyRequest): Promise<InspectedPrompt> {
+  return ask(INSPECT_PATH, request, 'prompt', inspectedSchema, 'The prompt could not be read');
+}
+
+export function summarizeBranch(request: ReplyRequest): Promise<BranchSummary> {
+  return ask(SUMMARIZE_PATH, request, 'summary', summarySchema, 'The summary could not be written');
 }

@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LORE } from '~/contract';
 import { ChatSettings } from './ChatSettings';
 
-const VALUE = { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: [], lore_settings: {}, system_prompt: '' };
+const VALUE = { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: [], lore_settings: {}, system_prompt: '', summary: '' };
 
 describe('ChatSettings', () => {
   it('saves the lorebooks picked, World Info settings within range, and leaves blank settings out', async () => {
@@ -32,5 +32,27 @@ describe('ChatSettings', () => {
         lore_settings: { scan_depth: LORE.ranges.scan_depth[1], match_whole_words: true },
       }),
     );
+  });
+
+  it('fills the summary from the model, for the person to edit before saving', async () => {
+    const onSave = vi.fn();
+    render(
+      <ChatSettings
+        open
+        onOpenChange={vi.fn()}
+        value={VALUE}
+        personas={[]}
+        presets={[]}
+        endpoints={[]}
+        lorebooks={[]}
+        onSave={onSave}
+        onSummarize={async () => 'They docked at Vell.'}
+      />,
+    );
+    await userEvent.click(await screen.findByRole('button', { name: 'Summarise the story so far' }));
+    const summary = await screen.findByDisplayValue('They docked at Vell.');
+    await userEvent.type(summary, ' It rained.');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ summary: 'They docked at Vell. It rained.' }));
   });
 });
