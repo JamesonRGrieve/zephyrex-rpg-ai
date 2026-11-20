@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/prompt-cases.json';
-import { assemblePrompt, estimateTokens, type PromptCharacter, type PromptInput, splitReasoning, summaryPrompt, tableGmPrompt, expressionPrompt, pickOption } from './assemble';
+import { assemblePrompt, estimateTokens, type PromptCharacter, type PromptInput, splitReasoning, summaryPrompt, tableGmPrompt, expressionPrompt, pickOption, scenePicturePrompt } from './assemble';
 
 type CaseInput = Omit<PromptInput, 'characters'> & { characters: (keyof typeof cases.characters)[] };
 
@@ -67,6 +67,13 @@ describe('pickOption and expressionPrompt (contract/prompt-cases.json)', () => {
   it('asks for one word from the options', () => {
     const { line, options, messages } = cases.expression_prompt_case;
     expect(expressionPrompt(line, options)).toEqual(messages);
+  });
+});
+
+describe('scenePicturePrompt (contract/prompt-cases.json)', () => {
+  it.each(cases.picture_cases)('$name', ({ input, prompt }) => {
+    const given = input as unknown as CaseInput & { asked: string };
+    expect(scenePicturePrompt({ ...given, characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter) }, given.asked)).toBe(prompt);
   });
 });
 

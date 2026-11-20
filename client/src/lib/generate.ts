@@ -20,10 +20,10 @@
 import type { NextRequest } from 'next/server';
 import { ApiError, apiErrorResponse, localOwner, notFound, readJsonObject, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { type EndpointApi, type EndpointRole, type InstructTemplateId, LIMITS, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
+import { type EndpointApi, type EndpointRole, type InstructTemplateId, LIMITS, LORE, PICTURE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { type AssembledPrompt, assemblePrompt, type CampaignFrame, expressionPrompt, pickOption, type ScenarioView, splitReasoning, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import { type AssembledPrompt, assemblePrompt, type CampaignFrame, expressionPrompt, pickOption, type ScenarioView, scenePicturePrompt, splitReasoning, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
@@ -249,9 +249,10 @@ export async function saveLoreState(ownerId: string, chatId: string, state: Lore
 
 /** The endpoint's chat-completions URL: its base, with `/chat/completions` once. */
 export function completionsUrl(baseUrl: string, api: EndpointApi = 'chat'): string {
-  const base = baseUrl.replace(/\/+$/, '');
+  // Whichever completions path it was given, the one this API takes (a text API's "/completions"
+  // is also the tail of "/chat/completions", so the path is replaced, never just kept).
   const path = api === 'chat' ? '/chat/completions' : '/completions';
-  return base.endsWith(path) ? base : `${base.replace(/\/(chat\/)?completions$/, '')}${path}`;
+  return `${baseUrl.replace(/\/+$/, '').replace(/\/(chat\/)?completions$/, '')}${path}`;
 }
 
 /**
@@ -477,6 +478,63 @@ export async function expression(nextRequest: NextRequest): Promise<Response> {
     const stream = await askModel(endpoint, upstreamBody(endpoint, { ...sampler, max_tokens: 8 }, expressionPrompt(splitReasoning(asked.text).reply, labels), 'reply'), nextRequest.signal);
     const answer = await collect(completionDeltas(stream)).catch(() => '');
     return Response.json({ expression: { label: pickOption(answer, labels) } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+/** The address a server draws pictures at (OpenAI-compatible `POST /images/generations`). */
+export function imagesUrl(baseUrl: string): string {
+  return `${baseUrl.replace(/\/+$/, '').replace(/\/(chat\/)?completions$/, '')}/images/generations`;
+}
+
+/**
+ * The picture in an image model's answer, as a data URL: its `b64_json`, or a `url` that is already
+ * a data URL. A link elsewhere is not fetched (the server never follows a model's links).
+ */
+export function pictureOf(answer: unknown): string | null {
+  const data: unknown = Reflect.get(Object(answer), 'data');
+  const first: unknown = Array.isArray(data) ? data[0] : undefined;
+  const b64: unknown = Reflect.get(Object(first), 'b64_json');
+  if (typeof b64 === 'string' && b64 !== '') return `data:image/png;base64,${b64}`;
+  const url: unknown = Reflect.get(Object(first), 'url');
+  return typeof url === 'string' && url.startsWith('data:image/') ? url : null;
+}
+
+const pictureRequest = z.object({ chat_id: z.string().min(1), leaf_id: z.string().nullable().default(null), prompt: z.string().max(PICTURE.prompt_characters).default('') });
+
+/**
+ * `POST /v1/ai_chat/picture` (A30): a picture of the scene, drawn by a model the person set to draw
+ * (the `image` role; a chat model is never asked). Request `{ "picture": { "chat_id", "leaf_id",
+ * "prompt" } }` (an empty prompt draws the last story turns); answer `{ "picture": { "prompt",
+ * "image" } }`, the image a data URL the chat can keep.
+ */
+export async function picture(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = pictureRequest.safeParse(Reflect.get(envelope, 'picture'));
+    if (!parsed.success) throw validationError('A picture object with a chat_id is required', 'picture');
+    const asked = parsed.data;
+    const { prompt: input } = await generationInputs(owner.id, { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'reply' });
+    const drawing = (await endpoints.list(owner.id, NO_QUERY))
+      .filter((row) => (endpoints.fields(row).roles as string[]).includes('image'))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    const row = drawing.find((one) => one.isDefault) ?? drawing[0];
+    if (row === undefined) throw new ApiError(409, { message: 'Set a model to draw pictures first', code: 'no_image_model' });
+    const prompt = scenePicturePrompt(input, asked.prompt);
+    const answer = await fetch(imagesUrl(row.baseUrl), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` }) },
+      body: JSON.stringify({ model: row.model, prompt, n: 1, size: PICTURE.size, response_format: 'b64_json' }),
+      signal: nextRequest.signal,
+    }).catch(() => {
+      throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });
+    });
+    if (answer.status >= 400) throw new ApiError(502, { message: `The model endpoint answered ${answer.status}`, code: 'model_refused' });
+    const image = pictureOf(await answer.json().catch(() => null));
+    if (image === null || image.length > LIMITS.avatar_bytes) throw new ApiError(502, { message: 'The model sent no picture this app can keep', code: 'model_refused' });
+    return Response.json({ picture: { prompt, image } });
   } catch (error) {
     return apiErrorResponse(error);
   }

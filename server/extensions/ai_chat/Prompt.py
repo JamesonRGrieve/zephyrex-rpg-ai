@@ -492,3 +492,27 @@ def pick_option(answer: str, options: Sequence[str]) -> str | None:
     words = re.findall(r"[^\W_]+", answer.lower())
     by_word = {option.lower(): option for option in options}
     return next((by_word[word] for word in words if word in by_word), None)
+
+
+PICTURE = CONTRACT["picture"]
+
+
+def scene_picture_prompt(characters: Sequence[Mapping[str, Any]], persona: Mapping[str, Any] | None, history: Sequence[Mapping[str, Any]], asked: str = "") -> str:
+    """What an image model is asked to draw (A30): the person's own words, or the last story turns
+    (named; table talk and X-carded turns left out) as a scene, cut to the contract's length."""
+    if asked.strip():
+        return asked.strip()[: PICTURE["prompt_characters"]]
+    user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
+    names_by_id = {character["id"]: character["name"] for character in characters}
+    story = [turn for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn.get("x_carded", False)]
+
+    def named(turn: Mapping[str, Any]) -> str:
+        if turn["role"] == "user":
+            return user_name
+        if turn["role"] == "character":
+            return names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
+        return NARRATOR
+
+    scene = " ".join(f"{named(turn)}: {split_reasoning(turn['content'])[1]}" for turn in story[-PICTURE["scene_turns"] :])
+    return (PICTURE["scene_prefix"] + scene)[: PICTURE["prompt_characters"]]
+

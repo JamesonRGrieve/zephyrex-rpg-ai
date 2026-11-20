@@ -1506,5 +1506,113 @@
         "content": "*grins* We made it!"
       }
     ]
-  }
+  },
+  "picture_cases": [
+    {
+      "name": "the last story turns as a scene, named, without reasoning, table talk or X-carded turns",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "We dock."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "<think>hm</think>Mind the coolant."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Steam fills the bay."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Awful.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I draw my pistol."
+          }
+        ],
+        "asked": ""
+      },
+      "prompt": "An illustration of this scene: Ada: Mind the coolant. Narrator: Steam fills the bay. Sam: I draw my pistol."
+    },
+    {
+      "name": "the person's own words, when given",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "We dock."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "<think>hm</think>Mind the coolant."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Steam fills the bay."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Awful.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I draw my pistol."
+          }
+        ],
+        "asked": "  A red nebula over the Kestrel. "
+      },
+      "prompt": "A red nebula over the Kestrel."
+    }
+  ]
 }

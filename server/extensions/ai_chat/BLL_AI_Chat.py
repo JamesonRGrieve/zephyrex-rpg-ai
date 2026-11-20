@@ -63,6 +63,7 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
     estimate_tokens,
     expression_prompt,
     pick_option,
+    scene_picture_prompt,
     split_reasoning,
     summary_prompt,
     table_gm_prompt,
@@ -1100,6 +1101,25 @@ class ExpressionEnvelope(PlainModel):
     expression: Expression
 
 
+class PictureRequest(PlainModel):
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+    prompt: str = Field("", max_length=CONTRACT["picture"]["prompt_characters"])
+
+
+class PictureRequestEnvelope(PlainModel):
+    picture: PictureRequest
+
+
+class Picture(PlainModel):
+    prompt: str
+    image: str
+
+
+class PictureEnvelope(PlainModel):
+    picture: Picture
+
+
 class PingRequest(PlainModel):
     endpoint_id: str = Field(..., min_length=1)
 
@@ -1123,6 +1143,23 @@ class PingEnvelope(PlainModel):
 PING_TIMEOUT_SECONDS = 8.0
 
 
+def images_url(base_url: str) -> str:
+    """The address a server draws pictures at (OpenAI-compatible ``POST /images/generations``)."""
+    return re.sub(r"/(chat/)?completions$", "", base_url.rstrip("/")) + "/images/generations"
+
+
+def picture_of(answer: Any) -> str | None:
+    """The picture in an image model's answer, as a data URL: its ``b64_json``, or a ``url`` that is
+    already a data URL. A link elsewhere is not fetched (the server never follows a model's links)."""
+    first = answer.get("data", [None])[0] if isinstance(answer, dict) and isinstance(answer.get("data"), list) and answer["data"] else None
+    if not isinstance(first, dict):
+        return None
+    if isinstance(first.get("b64_json"), str) and first["b64_json"]:
+        return "data:image/png;base64," + first["b64_json"]
+    url = first.get("url")
+    return url if isinstance(url, str) and url.startswith("data:image/") else None
+
+
 def models_url(base_url: str) -> str:
     """The address a server lists its models at (OpenAI-compatible ``GET /models``)."""
     return re.sub(r"/(chat/)?completions$", "", base_url.rstrip("/")) + "/models"
@@ -1134,11 +1171,10 @@ class GenerateEnvelope(PlainModel):
 
 def completions_url(base_url: str, api: str = "chat") -> str:
     """The endpoint's completions URL: its base with ``/chat/completions`` (``/completions`` for a text API) once."""
-    base = base_url.rstrip("/")
+    # Whichever completions path it was given, the one this API takes (a text API's "/completions"
+    # is also the tail of "/chat/completions", so the path is replaced, never just kept).
     path = "/chat/completions" if api == "chat" else "/completions"
-    if base.endswith(path):
-        return base
-    return re.sub(r"/(chat/)?completions$", "", base) + path
+    return re.sub(r"/(chat/)?completions$", "", base_url.rstrip("/")) + path
 
 
 def with_images(messages: list[dict[str, str]], images: Sequence[str]) -> list[dict[str, Any]]:
@@ -1483,6 +1519,45 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         except HTTPException:
             answer = ""
         return ExpressionEnvelope(expression=Expression(label=pick_option(answer, labels)))
+
+    @custom_route(
+        method="POST",
+        path="/picture",
+        input_model=PictureRequestEnvelope,
+        output_model=PictureEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="A picture of the scene, drawn by a model serving the image role (A30)",
+    )
+    async def picture_route(self, body: PictureRequestEnvelope) -> PictureEnvelope:
+        asked = body.picture
+        _assembled, _request, _sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id), save_timers=False)
+        # Only a model the person set to draw: a chat model is never asked for a picture.
+        drawing = sorted((row for row in self._manager(ModelEndpointManager).list() if "image" in (row.roles or [])), key=lambda row: row.name)
+        endpoint = next((row for row in drawing if row.is_default), None) or next(iter(drawing), None)
+        if endpoint is None:
+            raise HTTPException(status_code=409, detail={"message": "Set a model to draw pictures first", "code": "no_image_model"})
+        prompt = scene_picture_prompt(context["cast"], context["persona"], context["history"], asked.prompt)
+        key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
+        try:
+            async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
+                answer = await client.post(
+                    images_url(endpoint.base_url),
+                    headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
+                    json={"model": endpoint.model, "prompt": prompt, "n": 1, "size": CONTRACT["picture"]["size"], "response_format": "b64_json"},
+                )
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+        if answer.status_code >= 400:
+            raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {answer.status_code}", "code": "model_refused"})
+        try:
+            image = picture_of(answer.json())
+        except ValueError:
+            image = None
+        if image is None or len(image) > LIMITS["avatar_bytes"]:
+            raise HTTPException(status_code=502, detail={"message": "The model sent no picture this app can keep", "code": "model_refused"})
+        return PictureEnvelope(picture=Picture(prompt=prompt, image=image))
 
     async def _ask(self, context: dict[str, Any], sampler: dict[str, Any], messages: list[dict[str, str]]) -> str:
         """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""

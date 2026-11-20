@@ -46,6 +46,27 @@ export function inspectPrompt(request: ReplyRequest): Promise<InspectedPrompt> {
   return ask(INSPECT_PATH, request, 'prompt', inspectedSchema, 'The prompt could not be read');
 }
 
+export const PICTURE_PATH = '/api/v1/ai_chat/picture';
+
+/** A picture of the scene up to `leafId` (A30), drawn by a model set to draw; nothing is saved. */
+export async function pictureOfScene(chatId: string, leafId: string | null, prompt = ''): Promise<{ prompt: string; image: string }> {
+  const response = await fetch(PICTURE_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ picture: { chat_id: chatId, leaf_id: leafId, prompt } }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  const picture: unknown = Reflect.get(Object(body), 'picture');
+  const image: unknown = Reflect.get(Object(picture), 'image');
+  const asked: unknown = Reflect.get(Object(picture), 'prompt');
+  if (!response.ok || typeof image !== 'string' || typeof asked !== 'string') {
+    const detail: unknown = Reflect.get(Object(body), 'detail');
+    const message: unknown = typeof detail === 'string' ? detail : Reflect.get(Object(detail), 'message');
+    throw new Error(typeof message === 'string' ? message : `The picture could not be drawn (${response.status})`);
+  }
+  return { prompt: asked, image };
+}
+
 export const TRANSLATE_PATH = '/api/v1/ai_chat/translate';
 
 /** `text` translated into `language` by the chat's model (A43); nothing is saved. */

@@ -23,7 +23,7 @@ import { ManagedList } from './ManagedList';
 import { ModelStatus } from './ModelStatus';
 
 /** What a model can be used for (A27), as the form names it. */
-const ROLE_LABELS: Record<EndpointRole, string> = { story: 'Character replies', gm: 'The GM', summary: 'Summaries', translate: 'Translation' };
+const ROLE_LABELS: Record<EndpointRole, string> = { story: 'Character replies', gm: 'The GM', summary: 'Summaries', translate: 'Translation', image: 'Pictures' };
 
 /** Common local servers' addresses, to fill in with one tap. */
 export const KNOWN_ENDPOINTS = [

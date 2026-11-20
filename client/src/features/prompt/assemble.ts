@@ -28,7 +28,7 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { CAMPAIGN, EXPRESSION, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
+import { CAMPAIGN, EXPRESSION, PICTURE, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandMacros, type MacroNames } from './macros';
@@ -582,3 +582,27 @@ export function pickOption(answer: string, options: readonly string[]): string |
   const word = (answer.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).find((one) => byWord.has(one));
   return word === undefined ? null : (byWord.get(word) ?? null);
 }
+
+/**
+ * What an image model is asked to draw (A30): the person's own words, or the last story turns
+ * (named; table talk and X-carded turns left out) as a scene, cut to the contract's length (code points).
+ */
+export function scenePicturePrompt(
+  input: Pick<PromptInput, 'characters' | 'persona' | 'history'>,
+  asked = '',
+): string {
+  const cut = (text: string) => Array.from(text).slice(0, PICTURE.prompt_characters).join('');
+  if (asked.trim() !== '') return cut(asked.trim());
+  const userName = input.persona?.name ?? DEFAULT_USER_NAME;
+  const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
+  const story = new Set<string>(PROMPT.story_channels);
+  const named = (turn: PromptTurn) =>
+    turn.role === 'user' ? userName : turn.role === 'character' ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR) : NARRATOR;
+  const scene = input.history
+    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
+    .slice(-PICTURE.scene_turns)
+    .map((turn) => `${named(turn)}: ${splitReasoning(turn.content).reply}`)
+    .join(' ');
+  return cut(PICTURE.scene_prefix + scene);
+}
+

@@ -503,7 +503,8 @@
     "story",
     "gm",
     "summary",
-    "translate"
+    "translate",
+    "image"
   ],
   "sampler_extras": {
     "logit_bias_range": [
@@ -520,5 +521,12 @@
     "prompt": "Which one of these words best names the feeling in the line below? Answer with one word from the list and nothing else.\nWords: {{options}}",
     "label_characters": 40,
     "per_character": 40
+  },
+  "picture": {
+    "scene_prefix": "An illustration of this scene: ",
+    "scene_turns": 3,
+    "prompt_characters": 1000,
+    "size": "768x768",
+    "caption": "A picture of the scene."
   }
 }

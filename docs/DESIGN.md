@@ -121,6 +121,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A30 | Image generation for scenes and portraits (ComfyUI and others through the framework) | SillyTavern | ✓ | ✓ |
 | A31 | Backgrounds per chat or per wiki location | SillyTavern | ✓ | ✓ |
 | **Automation** |
+| A30 | Pictures of the scene: a model set to draw (the Pictures role; a chat model is never asked) draws the last story turns or the person's words; the picture is kept in the chat as a system line, out of the story | portraits and backgrounds from a prompt; ComfyUI and other non-OpenAI image APIs (framework providers) |
 | A32 | Quick replies and macros (a safe, declarative subset in place of STscript) | SillyTavern | ✓ | ✓ |
 | A33 | Regex transforms on input and output | SillyTavern | ✓ | ✓ |
 | **Accounts** |
@@ -682,7 +683,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 
 | Row | State | Not yet |
 |---|---|---|
-| A1, A2 | Cards V1/V2/V3 in (JSON, PNG); out as PNG with the lorebook inside, or JSON | batch export |
+| A1, A2 | Cards V1/V2/V3 in (JSON, PNG), several at once; out as PNG with the lorebook inside, or JSON, one or every card shown | |
 | A3 | Personas | |
 | A6 | Streaming, stop, regenerate, continue, impersonate | |
 | A7–A9 | Swipes, branches (with a view of every branch), edit, delete, bookmarks | moving a message |

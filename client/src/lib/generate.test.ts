@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { completionsUrl, expression, generate, inspectPrompt, modelsUrl, ping, summarize, translate, upstreamBody, withImages } from './generate';
+import { completionsUrl, expression, generate, imagesUrl, inspectPrompt, modelsUrl, picture, pictureOf, ping, summarize, translate, upstreamBody, withImages } from './generate';
 
 interface Received {
   path: string;
@@ -38,6 +38,11 @@ beforeAll(async () => {
         response.writeHead(401).end('{"error":"bad key"}');
         return;
       }
+      if ((request.url ?? '').endsWith('/images/generations')) {
+        // A drawn picture (A30): a one-pixel PNG.
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ data: [{ b64_json: 'iVBORw0KGgo=' }] }));
+        return;
+      }
       response.writeHead(200, { 'Content-Type': 'text/event-stream' });
       for (const piece of ['“Mind ', 'the coolant.”']) {
         response.write(`data: ${JSON.stringify({ choices: [{ delta: { content: piece } }] })}\n\n`);
@@ -60,6 +65,9 @@ beforeEach(async () => {
   await prisma.chat.deleteMany();
   await prisma.character.deleteMany();
   await prisma.modelEndpoint.deleteMany();
+  // The data bank and sprites read every document and sprite of the owner: none may carry over.
+  await prisma.dataDocument.deleteMany();
+  await prisma.characterExpression.deleteMany();
 });
 
 const stamp = () => ({ createdById: LOCAL_OWNER_ID, updatedAt: new Date() });
@@ -271,6 +279,7 @@ describe('completionsUrl', () => {
     expect(completionsUrl('http://h:1/v1', 'text')).toBe('http://h:1/v1/completions');
     expect(completionsUrl('http://h:1/v1/chat/completions', 'text')).toBe('http://h:1/v1/completions');
     expect(completionsUrl('http://h:1/v1/completions', 'text')).toBe('http://h:1/v1/completions');
+    expect(completionsUrl('http://h:1/v1/completions')).toBe('http://h:1/v1/chat/completions');
   });
 });
 
@@ -305,6 +314,32 @@ describe('POST /v1/ai_chat/expression (A4)', () => {
     // The stub model answers “Mind the coolant.”: no label, so none is invented.
     expect(await response.json()).toEqual({ expression: { label: null } });
     expect(received.at(-1)?.body.messages[0]?.content).toContain('Words: anger, joy');
+  });
+});
+
+describe('POST /v1/ai_chat/picture (A30)', () => {
+  it('finds the drawing address, and keeps only a picture it can store', () => {
+    expect(imagesUrl('http://h:1/v1/chat/completions')).toBe('http://h:1/v1/images/generations');
+    expect(pictureOf({ data: [{ b64_json: 'AAAA' }] })).toBe('data:image/png;base64,AAAA');
+    expect(pictureOf({ data: [{ url: 'data:image/webp;base64,AAAA' }] })).toBe('data:image/webp;base64,AAAA');
+    expect(pictureOf({ data: [{ url: 'https://elsewhere.example/a.png' }] })).toBeNull();
+    expect(pictureOf({ error: 'no' })).toBeNull();
+  });
+
+  it('is drawn only by a model set to draw, from the last story turns', async () => {
+    const { chat, line } = await seed();
+    const asked = { picture: { chat_id: chat.id, leaf_id: line.id } };
+    const refused = await picture(call(asked));
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ detail: { code: 'no_image_model' } });
+    expect(received).toHaveLength(0);
+
+    await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Painter', baseUrl, model: 'paint', roles: '["image"]' } });
+    const drawn = await picture(call(asked));
+    expect(drawn.status).toBe(200);
+    expect(await drawn.json()).toEqual({ picture: { prompt: 'An illustration of this scene: User: I hand her the spanner.', image: 'data:image/png;base64,iVBORw0KGgo=' } });
+    expect(received.at(-1)?.path).toBe('/v1/images/generations');
+    expect(received.at(-1)?.body.model).toBe('paint');
   });
 });
 

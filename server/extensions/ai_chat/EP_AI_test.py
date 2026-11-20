@@ -37,6 +37,15 @@ class FakeModel(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         RECEIVED.append({"path": self.path, "authorization": self.headers.get("Authorization"), "body": json.loads(self.rfile.read(length))})
+        if self.path.endswith("/images/generations"):
+            # A drawn picture (A30): a one-pixel PNG.
+            body = json.dumps({"data": [{"b64_json": "iVBORw0KGgo="}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
@@ -485,6 +494,24 @@ class TestGenerate:
         # The stub model answers with no label, so none is invented.
         assert chosen.json() == {"expression": {"label": None}}
         assert "Words: joy" in RECEIVED[0]["body"]["messages"][0]["content"]
+
+    def test_a_picture_is_drawn_only_by_a_model_set_to_draw(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I draw my pistol."]).json()["chat_message"]
+        asked = {"picture": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+        # No model draws, so the chat's model is never asked.
+        RECEIVED.clear()
+        refused = server.post("/v1/ai_chat/picture", json=asked, headers=_headers(user))
+        assert refused.status_code == 409 and refused.json()["detail"]["code"] == "no_image_model", refused.text
+        assert RECEIVED == []
+        _create(server, user, "model_endpoint", name="Painter", base_url=model_url, model="paint", roles=["image"])
+        drawn = server.post("/v1/ai_chat/picture", json=asked, headers=_headers(user))
+        assert drawn.status_code == 200, drawn.text
+        assert drawn.json() == {"picture": {"prompt": "An illustration of this scene: User: I draw my pistol.", "image": "data:image/png;base64,iVBORw0KGgo="}}
+        assert RECEIVED[-1]["path"].endswith("/images/generations") and RECEIVED[-1]["body"]["model"] == "paint"
 
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

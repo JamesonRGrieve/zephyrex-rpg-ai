@@ -8,7 +8,7 @@
  * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
-import { Clock3, Download, Ellipsis, GitFork, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
+import { Clock3, Download, Ellipsis, GitFork, Image as ImageIcon, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
@@ -24,7 +24,7 @@ import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf, treeRows } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
-import { deviceLanguage, expressionFor, type InspectedPrompt, inspectPrompt, summarizeBranch, translateText } from '~/features/chat/inspectPrompt';
+import { deviceLanguage, expressionFor, pictureOfScene, type InspectedPrompt, inspectPrompt, summarizeBranch, translateText } from '~/features/chat/inspectPrompt';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
@@ -36,7 +36,7 @@ import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
-import { TABLE } from '~/contract';
+import { PICTURE, TABLE } from '~/contract';
 import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts, campaigns, scenarios, characterExpressions } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
@@ -270,6 +270,21 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setLeafId(saved.id);
   };
 
+  /** A picture of the scene so far (A30), kept in the chat as a system line: never in the story. */
+  const [drawing, setDrawing] = useState(false);
+  const drawScene = async () => {
+    setDrawing(true);
+    try {
+      const drawn = await pictureOfScene(chat.id, leaf);
+      const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'system', channel: 'system', swipes: [PICTURE.caption], images: [drawn.image] });
+      setLeafId(saved.id);
+    } catch (error) {
+      notify('No picture', error instanceof Error ? error.message : undefined);
+    } finally {
+      setDrawing(false);
+    }
+  };
+
   /** The table GM's answer to a question on the `gm` channel (A11, A20): out of character, never in the story. */
   const askGm = async (question: ChatMessage) => {
     setWritingAfter({ parentId: question.id, speakerId: '' });
@@ -449,6 +464,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
+              <DropdownMenuItem disabled={drawing || chat.character_ids.length === 0} onSelect={() => void drawScene()}>
+                <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
                 <GitFork aria-hidden /> Every branch
               </DropdownMenuItem>

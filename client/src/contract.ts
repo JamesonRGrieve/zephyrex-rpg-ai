@@ -73,7 +73,7 @@ export const INSTRUCT_TEMPLATES = contract.instruct_templates;
 export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;
 export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text'];
 /** What a model can be used for (A27): replies, the GM's voices, summaries, translation. */
-export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly ['story', 'gm', 'summary', 'translate'];
+export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly ['story', 'gm', 'summary', 'translate', 'image'];
 export type EndpointRole = (typeof ENDPOINT_ROLES)[number];
 export type EndpointApi = (typeof ENDPOINT_APIS)[number];
 
@@ -124,4 +124,7 @@ export const SCENARIO = contract.scenario;
 
 /** Expression sprites (A4): how a line's feeling is asked for, and the labels' limits. */
 export const EXPRESSION = contract.expression;
+
+/** Pictures of the scene (A30): what the image model is asked for, and at what size. */
+export const PICTURE = contract.picture;
 
