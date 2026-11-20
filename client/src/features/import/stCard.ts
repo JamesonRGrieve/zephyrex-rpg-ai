@@ -6,6 +6,7 @@
  * (V2) or `ccv3` (V3) carries the JSON in base64. Pure: bytes in, fields out.
  */
 import { CARD_SPECS } from '~/contract';
+import { type ImportedLorebook, lorebookFromJson } from './stLorebook';
 
 /** The card fields this app keeps (the API's `character` fields, less the app's own). */
 export interface CardFields {
@@ -126,17 +127,31 @@ function decodeBase64Json(encoded: string): unknown {
   return JSON.parse(utf8) as unknown;
 }
 
-/** The card a PNG carries (V3's `ccv3` preferred over V2's `chara`). */
-export function cardFromPng(bytes: Uint8Array): CardFields {
+/** The card JSON a PNG carries (V3's `ccv3` preferred over V2's `chara`). */
+export function cardJsonFromPng(bytes: Uint8Array): unknown {
   const chunks = pngTextChunks(bytes);
   const chunk = CARD_KEYWORDS.map((keyword) => chunks.find((found) => found.keyword === keyword)).find((found) => found !== undefined);
   if (chunk === undefined) throw new CardError('This PNG carries no character card');
   try {
-    return cardFromJson(decodeBase64Json(chunk.text));
-  } catch (error) {
-    if (error instanceof CardError) throw error;
+    return decodeBase64Json(chunk.text);
+  } catch {
     throw new CardError('The card in this PNG could not be read');
   }
+}
+
+/** The card a PNG carries. */
+export function cardFromPng(bytes: Uint8Array): CardFields {
+  return cardFromJson(cardJsonFromPng(bytes));
+}
+
+/** A card's embedded lorebook (`character_book`), or null when it has none. */
+export function cardBookFromJson(json: unknown, characterName: string): ImportedLorebook | null {
+  const root = typeof json === 'object' && json !== null ? (json as Record<string, unknown>) : {};
+  const data = typeof root.data === 'object' && root.data !== null ? (root.data as Record<string, unknown>) : root;
+  const book = data.character_book;
+  if (typeof book !== 'object' || book === null) return null;
+  const imported = lorebookFromJson(book, `${characterName}’s lore`);
+  return imported.entries.length === 0 ? null : imported;
 }
 
 /** A data URL for an image's bytes (the card's picture becomes the character's avatar). */
@@ -146,15 +161,26 @@ export function dataUrl(bytes: Uint8Array, type: string): string {
   return `data:${type};base64,${btoa(binary)}`;
 }
 
-/** A card file's fields and, for a PNG card, its picture. */
-export async function readCardFile(file: Blob & { name?: string }): Promise<{ fields: CardFields; avatar: string | null }> {
+export interface CardFile {
+  fields: CardFields;
+  /** A PNG card's picture, as a data URL. */
+  avatar: string | null;
+  /** The card's embedded lorebook, if it has one with entries. */
+  book: ImportedLorebook | null;
+}
+
+/** A card file's fields, its picture (for a PNG card) and its embedded lorebook. */
+export async function readCardFile(file: Blob & { name?: string }): Promise<CardFile> {
   const bytes = new Uint8Array(await file.arrayBuffer());
-  if (isPng(bytes)) return { fields: cardFromPng(bytes), avatar: dataUrl(bytes, 'image/png') };
   let json: unknown;
-  try {
-    json = JSON.parse(new TextDecoder().decode(bytes));
-  } catch {
-    throw new CardError('A card is a PNG or a JSON file');
+  if (isPng(bytes)) json = cardJsonFromPng(bytes);
+  else {
+    try {
+      json = JSON.parse(new TextDecoder().decode(bytes));
+    } catch {
+      throw new CardError('A card is a PNG or a JSON file');
+    }
   }
-  return { fields: cardFromJson(json), avatar: null };
+  const fields = cardFromJson(json);
+  return { fields, avatar: isPng(bytes) ? dataUrl(bytes, 'image/png') : null, book: cardBookFromJson(json, fields.name) };
 }

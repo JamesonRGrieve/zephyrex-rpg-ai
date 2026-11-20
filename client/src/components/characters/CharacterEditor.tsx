@@ -7,12 +7,12 @@
  */
 import { Download, MessageSquarePlus, Save, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type ReactElement, useEffect, useState } from 'react';
+import { type ReactElement, useEffect, useId, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
-import { type Character, characters, chats } from '~/features/data/records';
+import { type Character, characters, chats, lorebooks } from '~/features/data/records';
 import { cardToJson } from '~/features/import/stCard';
 import { type CharacterDraft, CharacterForm } from './CharacterForm';
 
@@ -40,6 +40,8 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const router = useRouter();
   const [draft, setDraft] = useState<CharacterDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const books = lorebooks.useList();
+  const bookPicker = useId();
 
   useEffect(() => {
     if (record.data !== undefined && draft === null) setDraft(draftOf(record.data));
@@ -85,6 +87,28 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
         <Button type='button' variant='ghost' className='h-11 text-destructive' onClick={deleteCharacter}>
           <Trash2 aria-hidden /> Delete
         </Button>
+      </div>
+      <div className='mb-6 grid gap-1.5'>
+        <label htmlFor={bookPicker} className='text-sm font-medium'>
+          Lorebook
+        </label>
+        <p id={`${bookPicker}-hint`} className='text-xs text-muted-foreground'>
+          The character’s own World Info, read whenever they speak.
+        </p>
+        <select
+          id={bookPicker}
+          aria-describedby={`${bookPicker}-hint`}
+          value={saved.lorebook_id ?? ''}
+          className='h-11 rounded-md border bg-background px-3 text-sm'
+          onChange={(event) => void update(saved, { lorebook_id: event.target.value === '' ? null : event.target.value }).then(() => notify('Saved'))}
+        >
+          <option value=''>None</option>
+          {(books.data ?? []).map((book) => (
+            <option key={book.id} value={book.id}>
+              {book.name}
+            </option>
+          ))}
+        </select>
       </div>
       <CharacterForm key={saved.id} value={draft} onChange={setDraft} onAvatarRefused={(reason) => notify('Picture not used', reason)} />
       <div className='fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 pb-safe backdrop-blur-sm md:sticky md:mt-8 md:border md:rounded-xl'>

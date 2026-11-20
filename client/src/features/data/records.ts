@@ -11,7 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CHAT_MODES, MESSAGE_CHANNELS, MESSAGE_ROLES } from '~/contract';
+import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, SELECTIVE_LOGIC } from '~/contract';
 
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
@@ -33,6 +33,7 @@ export const characterSchema = z.object({
   avatar: z.string().nullable(),
   favourite: z.boolean(),
   extensions: z.record(z.string(), z.unknown()),
+  lorebook_id: z.string().nullable(),
 });
 export type Character = z.infer<typeof characterSchema>;
 
@@ -54,6 +55,8 @@ export const chatSchema = z.object({
   preset_id: z.string().nullable(),
   endpoint_id: z.string().nullable(),
   author_note: z.string(),
+  lorebook_ids: z.array(z.string()),
+  lore_settings: z.record(z.string(), z.union([z.number(), z.boolean()])),
 });
 export type Chat = z.infer<typeof chatSchema>;
 
@@ -173,3 +176,44 @@ export const endpoints = resource<
   Fields<ModelEndpoint, { api_key?: string }> & { name: string; base_url: string; model: string },
   { api_key?: string }
 >('model_endpoint', 'model_endpoints', endpointSchema);
+
+export const lorebookSchema = z.object({ ...versioned, name: z.string(), description: z.string() });
+export type Lorebook = z.infer<typeof lorebookSchema>;
+
+export const lorebookEntrySchema = z.object({
+  ...versioned,
+  lorebook_id: z.string(),
+  comment: z.string(),
+  keys: z.array(z.string()),
+  secondary_keys: z.array(z.string()),
+  selective_logic: z.enum(SELECTIVE_LOGIC),
+  content: z.string(),
+  enabled: z.boolean(),
+  constant: z.boolean(),
+  position: z.enum(LORE_POSITIONS),
+  depth: z.number(),
+  role: z.enum(DEPTH_ROLES),
+  order: z.number(),
+  probability: z.number(),
+  group: z.string(),
+  group_weight: z.number(),
+  prioritize: z.boolean(),
+  sticky: z.number(),
+  cooldown: z.number(),
+  delay: z.number(),
+  exclude_recursion: z.boolean(),
+  prevent_recursion: z.boolean(),
+  delay_until_recursion: z.boolean(),
+  case_sensitive: z.boolean().nullable(),
+  match_whole_words: z.boolean().nullable(),
+  character_names: z.array(z.string()),
+  character_exclude: z.boolean(),
+});
+export type LorebookEntry = z.infer<typeof lorebookEntrySchema>;
+
+export const lorebooks = resource<Lorebook, Fields<Lorebook> & { name: string }>('lorebook', 'lorebooks', lorebookSchema);
+export const lorebookEntries = resource<LorebookEntry, Fields<LorebookEntry> & { lorebook_id: string }>(
+  'lorebook_entry',
+  'lorebook_entries',
+  lorebookEntrySchema,
+);

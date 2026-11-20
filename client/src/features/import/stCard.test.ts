@@ -75,6 +75,15 @@ describe('SillyTavern cards', () => {
     expect(() => pngTextChunks(latin1('GIF89a'))).toThrow('Not a PNG');
   });
 
+  it('hands back a card’s embedded lorebook, and none when it has no entries', async () => {
+    const withBook = { ...V2, data: { ...V2.data, character_book: { name: 'Ada’s past', entries: [{ keys: ['forge'], content: 'She grew up at a forge.' }] } } };
+    const read = await readCardFile(new Blob([JSON.stringify(withBook)]));
+    expect(read.book).toMatchObject({ name: 'Ada’s past', entries: [{ keys: ['forge'], content: 'She grew up at a forge.' }] });
+    const empty = { ...V2, data: { ...V2.data, character_book: { entries: [] } } };
+    expect((await readCardFile(new Blob([JSON.stringify(empty)]))).book).toBeNull();
+    expect((await readCardFile(new Blob([JSON.stringify(V2)]))).book).toBeNull();
+  });
+
   it('reads a card file, keeping a PNG as the avatar', async () => {
     const fromPng = await readCardFile(new Blob([png(textChunk('chara', base64Json(V2)))]));
     expect(fromPng.fields.name).toBe('Ada');

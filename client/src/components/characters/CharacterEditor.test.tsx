@@ -11,6 +11,7 @@ const SAVED: Character = {
   updated_at: '2026-11-20T00:00:00.000000',
   favourite: false,
   extensions: {},
+  lorebook_id: null,
 };
 
 describe('CharacterEditor helpers', () => {

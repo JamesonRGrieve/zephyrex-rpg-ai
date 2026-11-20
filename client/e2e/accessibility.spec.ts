@@ -12,7 +12,7 @@ import { seedChat } from './support/seed';
 
 const STANDARDS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const VISITOR_PAGES = ['/', '/user', '/docs/privacy'];
-const APP_PAGES = ['/play', '/characters', '/personas', '/presets', '/models', '/settings'];
+const APP_PAGES = ['/play', '/characters', '/lorebooks', '/personas', '/presets', '/models', '/settings'];
 /** One load, network idle and an axe pass per page; a flat limit runs out on a loaded runner. */
 const PER_PAGE_MS = 20_000;
 const SIGN_IN_MS = 30_000;
@@ -42,12 +42,12 @@ for (const theme of ['light', 'dark'] as const) {
   });
 
   test(`the app's pages meet WCAG 2.1 AA in ${theme}`, async ({ page, context }, testInfo) => {
-    test.setTimeout(SIGN_IN_MS + (APP_PAGES.length + 3) * PER_PAGE_MS);
+    test.setTimeout(SIGN_IN_MS + (APP_PAGES.length + 4) * PER_PAGE_MS);
     await context.addCookies([{ name: 'theme', value: theme, url: String(testInfo.project.use.baseURL) }]);
     if (isHosted(testInfo)) await signIn(page);
     // The pages with something in them too: a character and a chat.
-    const { characterId, chatId } = await seedChat(page);
-    for (const path of [...APP_PAGES, `/characters/${characterId}`, `/play/${chatId}`]) {
+    const { characterId, chatId, lorebookId } = await seedChat(page);
+    for (const path of [...APP_PAGES, `/characters/${characterId}`, `/play/${chatId}`, `/lorebooks/${lorebookId}`]) {
       await page.goto(path);
       await page.waitForLoadState('networkidle');
       await expect(page.getByRole('heading', { level: 1 })).toBeVisible();

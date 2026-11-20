@@ -27,7 +27,7 @@ const VIEWPORTS = {
 } as const;
 const THEMES = ['dark', 'light'] as const;
 const VISITOR_PAGES = ['/', '/user', '/docs/privacy'];
-const APP_PAGES = ['/play', '/characters', '/personas', '/presets', '/models', '/settings'];
+const APP_PAGES = ['/play', '/characters', '/lorebooks', '/personas', '/presets', '/models', '/settings'];
 /** The dev server's own badge is not part of the app: leave it out of the shots. */
 const HIDE_DEV_TOOLS = 'nextjs-portal { display: none !important; }';
 const PER_SHOT_MS = 15_000;
@@ -160,7 +160,7 @@ async function audit(browser: Browser, testInfo: TestInfo, signedIn: boolean): P
         if (signedIn && isHosted(testInfo)) await signIn(page);
         // Signed in, the pages with something in them too: a character and a chat.
         const seeded = signedIn ? await seedChat(page) : null;
-        const targets = seeded === null ? pages : [...pages, `/characters/${seeded.characterId}`, `/play/${seeded.chatId}`];
+        const targets = seeded === null ? pages : [...pages, `/characters/${seeded.characterId}`, `/play/${seeded.chatId}`, `/lorebooks/${seeded.lorebookId}`];
         for (const target of targets) {
           const slug = target === '/' ? 'home' : target.slice(1).replaceAll('/', '-').replace(/[0-9a-f-]{36}$/, 'record');
           const name = `${testInfo.project.name}-${signedIn ? 'in' : 'out'}-${size}-${theme}-${slug}`;
@@ -181,7 +181,7 @@ test.describe('visual audit', () => {
   });
 
   test("the app's pages", async ({ browser }, testInfo) => {
-    test.setTimeout((APP_PAGES.length + 2) * 4 * PER_SHOT_MS + 4 * 30_000);
+    test.setTimeout((APP_PAGES.length + 3) * 4 * PER_SHOT_MS + 4 * 30_000);
     await audit(browser, testInfo, true);
   });
 });

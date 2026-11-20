@@ -21,9 +21,9 @@ import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
-import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, messages, type Persona, personas, presets } from '~/features/data/records';
+import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
-import { ChatSettings } from './ChatSettings';
+import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
 import { MessageItem, type MessageView } from './MessageItem';
 
@@ -62,6 +62,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const personaList = personas.useList();
   const presetList = presets.useList();
   const endpointList = endpoints.useList();
+  const lorebookList = lorebooks.useList();
   const { create, update, remove } = messages.useActions();
   const { update: updateChat } = chats.useActions();
   const reply = useReply();
@@ -216,10 +217,19 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       <ChatSettings
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
-        value={{ title: chat.title, persona_id: chat.persona_id, preset_id: chat.preset_id, endpoint_id: chat.endpoint_id, author_note: chat.author_note }}
+        value={{
+          title: chat.title,
+          persona_id: chat.persona_id,
+          preset_id: chat.preset_id,
+          endpoint_id: chat.endpoint_id,
+          author_note: chat.author_note,
+          lorebook_ids: chat.lorebook_ids,
+          lore_settings: chat.lore_settings as LoreSettingsValue,
+        }}
         personas={options(personaList.data)}
         presets={options(presetList.data)}
         endpoints={options(endpointList.data)}
+        lorebooks={options(lorebookList.data)}
         onSave={(next) => void updateChat(chat, next)}
       />
     </div>

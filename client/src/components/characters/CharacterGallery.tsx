@@ -2,7 +2,7 @@
 'use client';
 /**
  * Every character: search, favourites first, a new blank card, and SillyTavern card import (PNG or
- * JSON, several at once). On a phone the grid is two columns and the actions sit in reach.
+ * JSON, several at once; a card's embedded lorebook becomes the character's own). On a phone the grid is two columns and the actions sit in reach.
  */
 import { FileUp, Plus, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
@@ -12,8 +12,9 @@ import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
-import { type Character, characters } from '~/features/data/records';
+import { type Character, characters, lorebookEntries, lorebooks } from '~/features/data/records';
 import { CardError, readCardFile } from '~/features/import/stCard';
+import { writeImportedBook } from '../lore/importBook';
 import { CharacterTile } from './CharacterTile';
 
 /** Whether `character` matches the search (name, tags, description), ignoring case. */
@@ -26,6 +27,8 @@ export function matchesSearch(character: Pick<Character, 'name' | 'tags' | 'desc
 export function CharacterGallery(): ReactElement {
   const list = characters.useList();
   const { create, update } = characters.useActions();
+  const { create: createBook } = lorebooks.useActions();
+  const { create: createEntry } = lorebookEntries.useActions();
   const router = useRouter();
   const [query, setQuery] = useState('');
   const fileInput = useRef<HTMLInputElement>(null);
@@ -38,8 +41,10 @@ export function CharacterGallery(): ReactElement {
     event.target.value = '';
     const results = await Promise.allSettled(
       files.map(async (file) => {
-        const { fields, avatar } = await readCardFile(file);
-        return create({ ...fields, avatar });
+        const { fields, avatar, book } = await readCardFile(file);
+        // A card's own lorebook comes with it, as the character's lorebook.
+        const own = book === null ? null : await writeImportedBook(book, { createBook, createEntry });
+        return create({ ...fields, avatar, lorebook_id: own?.id ?? null });
       }),
     );
     const imported = results.filter((result) => result.status === 'fulfilled').length;
