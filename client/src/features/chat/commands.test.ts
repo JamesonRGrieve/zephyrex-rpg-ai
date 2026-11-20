@@ -33,5 +33,7 @@ describe('parseCommand', () => {
     expect(parseCommand('/sys')).toEqual({ unknown: '/sys needs the line to add' });
     expect(parseCommand('/sendas Bram')).toEqual({ unknown: '/sendas needs a name and a line' });
     expect(parseCommand('/dance')).toEqual({ unknown: '/dance is not a command (try /help)' });
+    expect(parseCommand('/search tidal locking')).toEqual({ name: 'search', query: 'tidal locking' });
+    expect(parseCommand('/search')).toEqual({ unknown: '/search needs what to search for' });
   });
 });

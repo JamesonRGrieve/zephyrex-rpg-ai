@@ -14,7 +14,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
-from zephyrex.extensions.ai_character.Contract import LIMITS  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_character.Contract import CONTRACT, LIMITS  # type: ignore[import-not-found]
 from zephyrex.testing.factories import create_user
 
 from rpg_ai_app import create
@@ -50,6 +50,14 @@ class FakeModel(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+        if self.path.endswith("/audio/speech"):
+            # A line spoken (A29): three bytes of "MP3".
+            self.send_response(200)
+            self.send_header("Content-Type", "audio/mpeg")
+            self.send_header("Content-Length", "3")
+            self.end_headers()
+            self.wfile.write(b"ID3")
             return
         if self.path.endswith("/images/generations"):
             # A drawn picture (A30): a one-pixel PNG.
@@ -622,6 +630,66 @@ class TestGenerate:
         assert drawn.status_code == 200, drawn.text
         assert drawn.json() == {"picture": {"prompt": "An illustration of this scene: User: I draw my pistol.", "image": "data:image/png;base64,iVBORw0KGgo="}}
         assert RECEIVED[-1]["path"].endswith("/images/generations") and RECEIVED[-1]["body"]["model"] == "paint"
+
+    def test_a_portrait_needs_no_chat_and_a_background_draws_the_place(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada", description="A ship's engineer.", scenario="A rusted orbital dock.").json()["character"]
+        odd = server.post("/v1/model_endpoint", json={"model_endpoint": {"name": "Odd", "base_url": model_url, "model": "p", "image_size": "999x1"}}, headers=_headers(user))
+        assert odd.status_code == 422, odd.text
+        _create(server, user, "model_endpoint", name="Painter", base_url=model_url, model="paint", roles=["image"], image_size="1024x1024")
+        RECEIVED.clear()
+        portrait = server.post("/v1/ai_chat/picture", json={"picture": {"kind": "portrait", "character_id": ada["id"]}}, headers=_headers(user))
+        assert portrait.status_code == 200, portrait.text
+        assert RECEIVED[-1]["body"]["size"] == "1024x1024"
+        assert portrait.json()["picture"]["prompt"] == CONTRACT["picture"]["portrait_prefix"] + "Ada. A ship's engineer."
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        background = server.post("/v1/ai_chat/picture", json={"picture": {"kind": "background", "chat_id": chat["id"]}}, headers=_headers(user))
+        assert background.status_code == 200, background.text
+        assert background.json()["picture"]["prompt"] == CONTRACT["picture"]["background_prefix"] + "A rusted orbital dock."
+        for bad in ({"kind": "portrait"}, {"kind": "background"}, {"kind": "mural", "chat_id": chat["id"]}):
+            answer = server.post("/v1/ai_chat/picture", json={"picture": bad}, headers=_headers(user))
+            assert answer.status_code == 422, (bad, answer.text)
+
+    def test_a_search_source_serves_search_alone_and_is_never_a_model(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        asked = {"search": {"query": "tidal locking"}}
+        refused = server.post("/v1/ai_chat/search", json=asked, headers=_headers(user))
+        assert refused.status_code == 409 and refused.json()["detail"]["code"] == "no_search_source", refused.text
+        for bad in ({"api": "searxng", "roles": ["story"]}, {"api": "chat", "roles": ["search"]}, {"api": "searxng", "roles": ["search", "story"]}):
+            answer = server.post("/v1/model_endpoint", json={"model_endpoint": {"name": "Bad", "base_url": model_url, "model": "m", **bad}}, headers=_headers(user))
+            assert answer.status_code == 422, (bad, answer.text)
+        _create(server, user, "model_endpoint", name="Searx", base_url="http://127.0.0.1:9", model="searxng", api="searxng", roles=["search"], is_default=True)
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny")
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hello."]).json()["chat_message"]
+        RECEIVED.clear()
+        reply = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert reply.status_code == 200, reply.text
+        # The default endpoint is the search source, but the reply was asked of the model.
+        assert RECEIVED and RECEIVED[-1]["body"]["model"] == "tiny"
+        unreachable = server.post("/v1/ai_chat/search", json=asked, headers=_headers(user))
+        assert unreachable.status_code == 200 and unreachable.json()["search"]["results"] == [], unreachable.text
+        assert server.post("/v1/ai_chat/search", json={"search": {"query": "  "}}, headers=_headers(user)).status_code == 422
+
+    def test_a_line_is_read_aloud_only_by_a_model_set_to_speak(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        asked = {"speech": {"text": "Mind the coolant.", "voice": "af_bella", "speed": 1.5}}
+        # No model speaks, so the chat's model is never asked.
+        RECEIVED.clear()
+        refused = server.post("/v1/ai_chat/speech", json=asked, headers=_headers(user))
+        assert refused.status_code == 409 and refused.json()["detail"]["code"] == "no_voice_model", refused.text
+        assert RECEIVED == []
+        _create(server, user, "model_endpoint", name="Voices", base_url=model_url, model="kokoro", api_key="k-9", roles=["voice"])
+        spoken = server.post("/v1/ai_chat/speech", json=asked, headers=_headers(user))
+        assert spoken.status_code == 200, spoken.text
+        assert spoken.json() == {"speech": {"audio": "data:audio/mpeg;base64,SUQz"}}
+        assert RECEIVED[-1]["path"].endswith("/audio/speech") and RECEIVED[-1]["authorization"] == "Bearer k-9"
+        assert RECEIVED[-1]["body"] == {"model": "kokoro", "input": "Mind the coolant.", "voice": "af_bella", "speed": 1.5, "response_format": "mp3"}
+        for bad in ({"text": "   "}, {"text": "x" * (CONTRACT["speech"]["text_characters"] + 1)}, {"text": "Hi.", "speed": 9}, {"text": "Hi.", "voice": ""}):
+            answer = server.post("/v1/ai_chat/speech", json={"speech": bad}, headers=_headers(user))
+            assert answer.status_code == 422, (bad, answer.text)
 
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

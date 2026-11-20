@@ -11,6 +11,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
+import { PICTURE } from '~/contract';
 import {
   completionsUrl,
   expression,
@@ -32,7 +33,7 @@ interface Received {
   authorization: string | undefined;
   apikey?: string | undefined;
   agent?: string | undefined;
-  body: { model: string; stream: boolean; messages: { role: string; content: string }[] };
+  body: { model: string; stream: boolean; messages: { role: string; content: string }[]; size?: string };
 }
 
 let server: Server;
@@ -484,6 +485,30 @@ describe('POST /v1/ai_chat/picture (A30)', () => {
     });
     expect(received.at(-1)?.path).toBe('/v1/images/generations');
     expect(received.at(-1)?.body.model).toBe('paint');
+  });
+});
+
+describe('POST /v1/ai_chat/picture: portraits and backgrounds', () => {
+  it('draws a portrait with no chat, and a background from the place the chat is set', async () => {
+    const { ada, chat } = await seed();
+    await prisma.character.update({ where: { id: ada.id }, data: { scenario: 'A rusted orbital dock.' } });
+    await prisma.modelEndpoint.create({
+      data: { ...stamp(), name: 'Painter', baseUrl, model: 'paint', roles: '["image"]', imageSize: '1024x1024' },
+    });
+    const portrait = await picture(call({ picture: { kind: 'portrait', character_id: ada.id } }));
+    expect(portrait.status).toBe(200);
+    expect(received.at(-1)?.body.size).toBe('1024x1024');
+    expect(((await portrait.json()) as { picture: { prompt: string } }).picture.prompt).toBe(
+      `${PICTURE.portrait_prefix}Ada. Ada is an engineer.`,
+    );
+    const background = await picture(call({ picture: { kind: 'background', chat_id: chat.id } }));
+    expect(background.status).toBe(200);
+    expect(((await background.json()) as { picture: { prompt: string } }).picture.prompt).toBe(
+      `${PICTURE.background_prefix}A rusted orbital dock.`,
+    );
+    for (const bad of [{ kind: 'portrait' }, { kind: 'background' }, { kind: 'mural', chat_id: chat.id }]) {
+      expect((await picture(call({ picture: bad }))).status).toBe(422);
+    }
   });
 });
 

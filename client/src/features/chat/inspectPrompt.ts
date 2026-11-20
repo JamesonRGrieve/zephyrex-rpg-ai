@@ -67,16 +67,27 @@ export async function moveMessageUp(messageId: string): Promise<string> {
 
 export const PICTURE_PATH = '/api/v1/ai_chat/picture';
 
+/** What to draw (A30): a scene or background of a chat, or a character's portrait. */
+export type PictureAsk =
+  | { kind: 'scene'; chat_id: string; leaf_id: string | null; prompt?: string }
+  | { kind: 'background'; chat_id: string; leaf_id?: string | null; prompt?: string }
+  | { kind: 'portrait'; character_id: string; prompt?: string };
+
 /** A picture of the scene up to `leafId` (A30), drawn by a model set to draw; nothing is saved. */
 export async function pictureOfScene(
   chatId: string,
   leafId: string | null,
   prompt = '',
 ): Promise<{ prompt: string; image: string }> {
+  return drawPicture({ kind: 'scene', chat_id: chatId, leaf_id: leafId, prompt });
+}
+
+/** A picture drawn by a model set to draw; nothing is saved: the caller keeps it where it belongs. */
+export async function drawPicture(ask: PictureAsk): Promise<{ prompt: string; image: string }> {
   const response = await fetch(PICTURE_PATH, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
-    body: JSON.stringify({ picture: { chat_id: chatId, leaf_id: leafId, prompt } }),
+    body: JSON.stringify({ picture: ask }),
   });
   const body: unknown = await response.json().catch(() => null);
   const picture: unknown = Reflect.get(Object(body), 'picture');
@@ -132,4 +143,25 @@ export function deviceLanguage(locale: string = typeof navigator === 'undefined'
 
 export function summarizeBranch(request: ReplyRequest): Promise<BranchSummary> {
   return ask(SUMMARIZE_PATH, request, 'summary', summarySchema, 'The summary could not be written');
+}
+
+export const SEARCH_PATH = '/api/v1/ai_chat/search';
+
+/** The install's search source asked `query` (A42): the block a chat keeps for the model to read. */
+export async function searchWeb(query: string): Promise<{ context: string; results: number }> {
+  const response = await fetch(SEARCH_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ search: { query } }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  const answer: unknown = Reflect.get(Object(body), 'search');
+  const context: unknown = Reflect.get(Object(answer), 'context');
+  const results: unknown = Reflect.get(Object(answer), 'results');
+  if (!response.ok || typeof context !== 'string') {
+    const detail: unknown = Reflect.get(Object(body), 'detail');
+    const message: unknown = typeof detail === 'string' ? detail : Reflect.get(Object(detail), 'message');
+    throw new Error(typeof message === 'string' ? message : `The search failed (${response.status})`);
+  }
+  return { context, results: Array.isArray(results) ? results.length : 0 };
 }

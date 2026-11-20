@@ -135,7 +135,9 @@ export function DeviceSettingsForm({
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <div>
           <Label htmlFor={`${tableTalkId}-read`}>Read replies aloud</Label>
-          <p className='text-xs text-muted-foreground'>Each character in their own voice, on this device.</p>
+          <p className='text-xs text-muted-foreground'>
+            Each character in their own voice, by your speech model if one is set, otherwise by this device.
+          </p>
         </div>
         <Switch
           id={`${tableTalkId}-read`}

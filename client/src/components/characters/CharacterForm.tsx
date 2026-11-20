@@ -8,6 +8,7 @@ import { ImageUp, Plus, Trash2 } from 'lucide-react';
 import { type ReactElement, useId } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
+import { DrawPictureButton } from '~/components/common/DrawPictureButton';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Textarea } from 'zephyrex/ui/textarea';
@@ -82,11 +83,14 @@ export function CharacterForm({
   value,
   onChange,
   onAvatarRefused,
+  drawPortrait,
 }: {
   value: CharacterDraft;
   onChange: (next: CharacterDraft) => void;
-  /** Why a picture was not taken (too big, not an image). */
+  /** Why a picture was not taken (too big, not an image), or could not be drawn. */
   onAvatarRefused?: (reason: string) => void;
+  /** Asks the model set to draw for a portrait (A30); only a saved character can be drawn. */
+  drawPortrait?: () => Promise<{ image: string }>;
 }): ReactElement {
   const ids = { name: useId(), tags: useId(), creator: useId(), version: useId(), avatar: useId() };
   const set = <K extends keyof CharacterDraft>(key: K, next: CharacterDraft[K]) => onChange({ ...value, [key]: next });
@@ -122,6 +126,16 @@ export function CharacterForm({
               className='sr-only'
               onChange={(event) => void takeAvatar(event.target.files?.[0])}
             />
+            {drawPortrait !== undefined && (
+              <DrawPictureButton
+                label='Draw a portrait'
+                draw={drawPortrait}
+                onDrawn={(image) => set('avatar', image)}
+                onProblem={(reason) => {
+                  if (reason !== null) onAvatarRefused?.(reason);
+                }}
+              />
+            )}
             {value.avatar !== null && (
               <Button type='button' variant='ghost' className='h-11' onClick={() => set('avatar', null)}>
                 Remove picture

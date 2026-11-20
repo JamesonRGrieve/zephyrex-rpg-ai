@@ -25,6 +25,7 @@ import {
   type EndpointRole,
   type InstructTemplateId,
   HORDE,
+  isSearchApi,
   LIMITS,
   LORE,
   PICTURE,
@@ -40,6 +41,8 @@ import {
   expressionPrompt,
   pickOption,
   type ScenarioView,
+  backgroundPicturePrompt,
+  portraitPicturePrompt,
   scenePicturePrompt,
   splitReasoning,
   estimateTokens,
@@ -227,12 +230,15 @@ export async function generationInputs(
   // The model for this request's role (A27): a model serving the role; for replies the chat's own
   // choice comes first. Otherwise the chat's model, then the default, then any.
   const role = roleOf(body.mode, purpose);
-  const all = await endpoints.list(ownerId, NO_QUERY);
+  // Search sources (A42) are endpoints too, but never a model.
+  const all = (await endpoints.list(ownerId, NO_QUERY)).filter((row) => !isSearchApi(row.api));
   const serving = all.filter((row) => (endpoints.fields(row).roles as string[]).includes(role));
-  const chosen = chatFields.endpoint_id === null ? null : await endpoints.find(chatFields.endpoint_id, ownerId);
+  const chosenRow = chatFields.endpoint_id === null ? null : await endpoints.find(chatFields.endpoint_id, ownerId);
+  const chosen = chosenRow !== null && isSearchApi(chosenRow.api) ? null : chosenRow;
   // AP4: one of the person's own models, asked for this turn; another person's is not found.
   const asked = body.endpoint_id === null ? null : await endpoints.find(body.endpoint_id, ownerId);
   if (body.endpoint_id !== null && asked === null) throw notFound(endpoints.modelName);
+  if (asked !== null && isSearchApi(asked.api)) throw validationError('A search source is not a model', 'endpoint_id');
   const endpointRow =
     asked ??
     (role === 'story' ? chosen : null) ??
@@ -727,46 +733,76 @@ export function pictureOf(answer: unknown): string | null {
   return typeof url === 'string' && url.startsWith('data:image/') ? url : null;
 }
 
-const pictureRequest = z.object({
-  chat_id: z.string().min(1),
-  leaf_id: z.string().nullable().default(null),
-  prompt: z.string().max(PICTURE.prompt_characters).default(''),
-});
+const pictureRequest = z
+  .object({
+    kind: z.enum(PICTURE.kinds as [string, ...string[]]).default('scene'),
+    chat_id: z.string().min(1).nullable().default(null),
+    character_id: z.string().min(1).nullable().default(null),
+    leaf_id: z.string().nullable().default(null),
+    prompt: z.string().max(PICTURE.prompt_characters).default(''),
+  })
+  .refine((asked) => (asked.kind === 'portrait' ? asked.character_id !== null : asked.chat_id !== null), {
+    message: 'A portrait names a character_id; a scene or background a chat_id',
+  });
 
 /**
- * `POST /v1/ai_chat/picture` (A30): a picture of the scene, drawn by a model the person set to draw
- * (the `image` role; a chat model is never asked). Request `{ "picture": { "chat_id", "leaf_id",
- * "prompt" } }` (an empty prompt draws the last story turns); answer `{ "picture": { "prompt",
- * "image" } }`, the image a data URL the chat can keep.
+ * `POST /v1/ai_chat/picture` (A30): a picture drawn by a model the person set to draw (the `image`
+ * role; a chat model is never asked). Request `{ "picture": { "kind", "chat_id", "character_id",
+ * "leaf_id", "prompt" } }`, `kind` one of:
+ * - `scene` (the default): the last story turns of `chat_id`, or the prompt;
+ * - `portrait`: the character `character_id`, from its name and description, or the prompt;
+ * - `background`: the place `chat_id` is set in (its first character's scenario, else the last
+ *   story turns), or the prompt.
+ * Answer `{ "picture": { "prompt", "image" } }`, the image a data URL; the caller keeps it (a
+ * chat line, an avatar, a background) with the record's own update.
  */
+/** What the picture route asks the image model to draw, for each kind. */
+async function picturePrompt(ownerId: string, asked: z.infer<typeof pictureRequest>): Promise<string> {
+  if (asked.kind === 'portrait') {
+    const row = await characters.find(asked.character_id ?? '', ownerId);
+    if (row === null) throw notFound(characters.modelName);
+    const fields = characters.fields(row) as { name: string; description: string };
+    return portraitPicturePrompt(fields, asked.prompt);
+  }
+  const { prompt: input } = await generationInputs(ownerId, {
+    chat_id: asked.chat_id ?? '',
+    leaf_id: asked.leaf_id,
+    speaker_id: null,
+    mode: 'reply',
+    endpoint_id: null,
+  });
+  return asked.kind === 'background'
+    ? backgroundPicturePrompt(input, input.characters[0]?.scenario ?? '', asked.prompt)
+    : scenePicturePrompt(input, asked.prompt);
+}
+
 export async function picture(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const envelope = await readJsonObject(nextRequest);
     const parsed = pictureRequest.safeParse(Reflect.get(envelope, 'picture'));
-    if (!parsed.success) throw validationError('A picture object with a chat_id is required', 'picture');
+    if (!parsed.success) throw validationError(parsed.error.issues[0]?.message ?? 'A picture object is required', 'picture');
     const asked = parsed.data;
-    const { prompt: input } = await generationInputs(owner.id, {
-      chat_id: asked.chat_id,
-      leaf_id: asked.leaf_id,
-      speaker_id: null,
-      mode: 'reply',
-      endpoint_id: null,
-    });
     const drawing = (await endpoints.list(owner.id, NO_QUERY))
       .filter((row) => (endpoints.fields(row).roles as string[]).includes('image'))
       .sort((a, b) => a.name.localeCompare(b.name));
     const row = drawing.find((one) => one.isDefault) ?? drawing[0];
     if (row === undefined)
       throw new ApiError(409, { message: 'Set a model to draw pictures first', code: 'no_image_model' });
-    const prompt = scenePicturePrompt(input, asked.prompt);
+    const prompt = await picturePrompt(owner.id, asked);
     const answer = await fetch(imagesUrl(row.baseUrl), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` }),
       },
-      body: JSON.stringify({ model: row.model, prompt, n: 1, size: PICTURE.size, response_format: 'b64_json' }),
+      body: JSON.stringify({
+        model: row.model,
+        prompt,
+        n: 1,
+        size: row.imageSize === '' ? PICTURE.size : row.imageSize,
+        response_format: 'b64_json',
+      }),
       signal: nextRequest.signal,
     }).catch(() => {
       throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });

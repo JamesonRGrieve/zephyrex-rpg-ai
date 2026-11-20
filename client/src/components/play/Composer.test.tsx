@@ -74,6 +74,21 @@ describe('Composer', () => {
     expect(onSend).not.toHaveBeenCalled();
   });
 
+  it('runs a script whole, and a lone chat command as a command', async () => {
+    const onSend = vi.fn();
+    const onCommand = vi.fn();
+    const onScript = vi.fn();
+    render(<Composer writing={false} onSend={onSend} onStop={vi.fn()} onCommand={onCommand} onScript={onScript} />);
+    const box = screen.getByLabelText('Your next line');
+    await userEvent.type(box, '/setvar key=hp 10 | /sys Ready.{Enter}');
+    expect(onScript).toHaveBeenCalledWith('/setvar key=hp 10 | /sys Ready.');
+    expect(box).toHaveValue('');
+    await userEvent.type(box, '/sys Alone.{Enter}');
+    expect(onCommand).toHaveBeenCalledWith({ name: 'sys', text: 'Alone.' });
+    expect(onScript).toHaveBeenCalledTimes(1);
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it('offers to stop a reply being written', async () => {
     const onStop = vi.fn();
     render(<Composer writing onSend={vi.fn()} onStop={onStop} />);

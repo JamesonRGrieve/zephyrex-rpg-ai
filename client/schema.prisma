@@ -150,6 +150,8 @@ model ModelEndpoint {
   instructTemplate String @default("chatml")
   /// The person's own instruct template (A17), used in place of instructTemplate.
   customTemplateId String?
+  /// The size it is asked to draw at (A30), one of the contract's picture sizes; "" is the contract's default.
+  imageSize   String   @default("")
   roles       String   @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime

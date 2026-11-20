@@ -27,13 +27,15 @@ import {
   LORE,
   MESSAGE_CHANNELS,
   MESSAGE_ROLES,
+  PICTURE,
   PRESET_DEFAULTS,
   PROMPT,
   SAFETY,
   SAMPLER_EXTRAS,
   SAMPLER_RANGES,
   TABLE,
-  ENDPOINT_APIS,
+  ENDPOINT_KINDS,
+  isSearchApi,
   ENDPOINT_ROLES,
   INSTRUCT_TEMPLATES,
   type InstructTemplateId,
@@ -656,6 +658,7 @@ const ENDPOINT_COLUMNS: Columns = {
   api: plain('api'),
   instruct_template: plain('instructTemplate'),
   custom_template_id: plain('customTemplateId'),
+  image_size: plain('imageSize'),
   roles: jsonList('roles'),
 };
 
@@ -670,11 +673,16 @@ const endpointFields = {
   /** Write-only; an empty string clears it. */
   api_key: z.string().max(LIMITS.api_key_characters),
   is_default: z.boolean(),
-  /** `chat` (chat completions) or `text` (one prompt string, in the instruct template's markup). */
-  api: z.enum(ENDPOINT_APIS),
+  /**
+   * `chat` (chat completions), `text` (one prompt string, in the instruct template's markup),
+   * `horde`, or a web search source (A42: `searxng`, `brave`) serving only the search role.
+   */
+  api: z.enum(ENDPOINT_KINDS),
   instruct_template: z.enum(Object.keys(INSTRUCT_TEMPLATES) as [InstructTemplateId, ...InstructTemplateId[]]),
   /** The person's own template (A17), used in place of instruct_template; theirs only. */
   custom_template_id: z.string().min(1).nullable(),
+  /** The size it is asked to draw at (A30); empty for the contract's default. */
+  image_size: z.union([z.literal(''), z.enum(PICTURE.sizes as [string, ...string[]])]),
   /** What it is used for (A27); none means only where a chat names it or it is the default. */
   roles: z.array(z.enum(ENDPOINT_ROLES)).refine((roles) => new Set(roles).size === roles.length, 'Each role once'),
 };
@@ -687,9 +695,17 @@ const endpointCreate = z.object({
   api: endpointFields.api.default('chat'),
   instruct_template: endpointFields.instruct_template.default('chatml'),
   custom_template_id: endpointFields.custom_template_id.default(null),
+  image_size: endpointFields.image_size.default(''),
   roles: endpointFields.roles.default([]),
 });
 const endpointUpdate = z.object({ name, ...endpointFields }).partial();
+
+/** A search source serves search alone, and only a search source serves search (A42). */
+export function searchRoleProblem(api: string, roles: readonly string[]): string | null {
+  if (isSearchApi(api))
+    return roles.length === 1 && roles[0] === 'search' ? null : 'A search source serves only the search role';
+  return roles.includes('search') ? 'Only a search source (searxng, brave) serves the search role' : null;
+}
 
 type EndpointRow = Prisma.ModelEndpointGetPayload<object>;
 
@@ -725,14 +741,24 @@ export const endpoints: ResourceSpec<EndpointRow, z.infer<typeof endpointCreate>
   find: (id, ownerId) => prisma.modelEndpoint.findFirst({ where: { id, createdById: ownerId } }),
   async insert(ownerId, input, stamp) {
     await checkOwnTemplate(ownerId, input.custom_template_id);
+    const searchProblem = searchRoleProblem(input.api, input.roles);
+    if (searchProblem !== null) throw validationError(searchProblem, 'roles');
     if (input.is_default) await clearOtherDefaultEndpoints(ownerId, null, stamp);
     return prisma.modelEndpoint.create({
       data: { createdById: ownerId, ...endpointData(input, stamp) } as Prisma.ModelEndpointUncheckedCreateInput,
     });
   },
   async updateIfCurrent(id, version, input, stamp, userId) {
-    const owner = await prisma.modelEndpoint.findUnique({ where: { id }, select: { createdById: true } });
+    const owner = await prisma.modelEndpoint.findUnique({
+      where: { id },
+      select: { createdById: true, api: true, roles: true },
+    });
     if (owner !== null) await checkOwnTemplate(owner.createdById, input.custom_template_id);
+    if (owner !== null) {
+      const roles = input.roles ?? (JSON.parse(owner.roles) as string[]);
+      const searchProblem = searchRoleProblem(input.api ?? owner.api, roles);
+      if (searchProblem !== null) throw validationError(searchProblem, 'roles');
+    }
     const { count } = await prisma.modelEndpoint.updateMany({
       where: { id, updatedAt: version },
       data: endpointData(input, stamp, userId) as Prisma.ModelEndpointUncheckedUpdateManyInput,

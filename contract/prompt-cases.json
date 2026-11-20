@@ -1874,5 +1874,210 @@
       ],
       "text": "Hi"
     }
+  ],
+  "portrait_cases": [
+    {
+      "name": "the name and the description, spaces collapsed",
+      "character": {
+        "name": "Ada",
+        "description": "A ship's engineer,\n  grease on her cheek."
+      },
+      "asked": "",
+      "prompt": "A portrait of Ada. A ship's engineer, grease on her cheek."
+    },
+    {
+      "name": "macros filled: the character by name, the person as User (no chat, so no persona)",
+      "character": {
+        "name": "Ada",
+        "description": "{{char}} owes {{user}} a favour."
+      },
+      "asked": "",
+      "prompt": "A portrait of Ada. Ada owes User a favour."
+    },
+    {
+      "name": "no description: the name alone",
+      "character": {
+        "name": "Ada",
+        "description": ""
+      },
+      "asked": "",
+      "prompt": "A portrait of Ada"
+    },
+    {
+      "name": "the person's own words instead",
+      "character": {
+        "name": "Ada",
+        "description": "x"
+      },
+      "asked": "  Ada in a red coat, oil painting ",
+      "prompt": "Ada in a red coat, oil painting"
+    }
+  ],
+  "background_cases": [
+    {
+      "name": "the chat's scenario is the place",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "We dock."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "<think>hm</think>Mind the coolant."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Steam fills the bay."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Awful.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I draw my pistol."
+          }
+        ],
+        "asked": ""
+      },
+      "scenario": "A rusted orbital dock,\n lit by sodium lamps.",
+      "asked": "",
+      "prompt": "A wide background illustration of this place, with no people in it: A rusted orbital dock, lit by sodium lamps."
+    },
+    {
+      "name": "no scenario: the last story turns",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "We dock."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "<think>hm</think>Mind the coolant."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Steam fills the bay."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Awful.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I draw my pistol."
+          }
+        ],
+        "asked": ""
+      },
+      "scenario": "",
+      "asked": "",
+      "prompt": "A wide background illustration of this place, with no people in it: Ada: Mind the coolant. Narrator: Steam fills the bay. Sam: I draw my pistol."
+    },
+    {
+      "name": "the person's own words instead",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "We dock."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "<think>hm</think>Mind the coolant."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Steam fills the bay."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Awful.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I draw my pistol."
+          }
+        ],
+        "asked": ""
+      },
+      "scenario": "A dock",
+      "asked": "A misty forest at dawn",
+      "prompt": "A misty forest at dawn"
+    }
   ]
 }

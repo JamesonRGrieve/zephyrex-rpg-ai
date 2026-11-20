@@ -14,7 +14,8 @@ export type Command =
   | { name: 'xcard' }
   | { name: 'pause' }
   | { name: 'resume' }
-  | { name: 'help' };
+  | { name: 'help' }
+  | { name: 'search'; query: string };
 
 /** What `/help` lists, in order. */
 export const COMMAND_HELP: readonly [string, string][] = [
@@ -25,7 +26,9 @@ export const COMMAND_HELP: readonly [string, string][] = [
   ['/impersonate', 'your next line, written for you to edit'],
   ['/xcard', 'the latest reply leaves the story'],
   ['/pause, /resume', 'stop or restart story turns'],
+  ['/search <query>', 'search the web; the results are kept for the next reply to read'],
   ['/ic, /ooc, /gm <text>', 'send to the story, the table or the GM'],
+  ['/setvar, /if, /while, /times … | …', 'a script: pipes ({{pipe}}), variables, conditions, loops'],
 ];
 
 const CHANNEL_SWITCHES = new Set(['ic', 'ooc', 'gm']);
@@ -54,6 +57,8 @@ export function parseCommand(raw: string, castNames: readonly string[] = []): Co
         ? { unknown: '/sendas needs a name and a line' }
         : { name: 'sendas', character, text: line.trim() };
     }
+    case 'search':
+      return rest === '' ? { unknown: '/search needs what to search for' } : { name: 'search', query: rest };
     case 'narrate':
     case 'continue':
     case 'impersonate':

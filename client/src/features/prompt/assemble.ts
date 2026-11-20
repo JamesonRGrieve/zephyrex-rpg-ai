@@ -690,3 +690,33 @@ export function scenePicturePrompt(input: Pick<PromptInput, 'characters' | 'pers
     .join(' ');
   return cut(PICTURE.scene_prefix + scene);
 }
+
+const cutPicturePrompt = (text: string): string => Array.from(text).slice(0, PICTURE.prompt_characters).join('');
+
+/**
+ * What an image model is asked for a character's portrait: the person's own words, or the
+ * character's name and description (its macros filled: there is no chat, so no persona, and the
+ * person is the default name), cut to the contract's length.
+ */
+export function portraitPicturePrompt(character: { name: string; description: string }, asked = ''): string {
+  if (asked.trim() !== '') return cutPicturePrompt(asked.trim());
+  const description = expandMacros(character.description, { char: character.name, user: DEFAULT_USER_NAME })
+    .replace(/\s+/g, ' ')
+    .trim();
+  return cutPicturePrompt(`${PICTURE.portrait_prefix}${character.name}${description === '' ? '' : `. ${description}`}`);
+}
+
+/**
+ * What an image model is asked for a chat's background: the person's own words, else the chat's
+ * scenario (where the story is set), else the last story turns, as a place with no one in it.
+ */
+export function backgroundPicturePrompt(
+  input: Pick<PromptInput, 'characters' | 'persona' | 'history'>,
+  scenario: string,
+  asked = '',
+): string {
+  if (asked.trim() !== '') return cutPicturePrompt(asked.trim());
+  const setting = scenario.replace(/\s+/g, ' ').trim();
+  const place = setting !== '' ? setting : scenePicturePrompt(input).slice(PICTURE.scene_prefix.length);
+  return cutPicturePrompt(PICTURE.background_prefix + place);
+}

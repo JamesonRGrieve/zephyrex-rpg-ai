@@ -41,24 +41,29 @@ import {
   deviceLanguage,
   expressionFor,
   moveMessageUp,
+  drawPicture,
   pictureOfScene,
+  searchWeb,
   type InspectedPrompt,
   inspectPrompt,
   summarizeBranch,
   translateText,
 } from '~/features/chat/inspectPrompt';
+import { storyEpub, storyLines } from '~/features/export/epub';
+import { runScript } from '~/features/chat/stscript';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
-import { type Command, COMMAND_HELP } from '~/features/chat/commands';
+import { type Command, COMMAND_HELP, parseCommand } from '~/features/chat/commands';
 import { speak, speechSupport, voiceOf } from '~/features/speech/voice';
+import { hasVoiceModel, speakOnServer } from '~/features/speech/serverVoice';
 import { DEFAULT_USER_NAME, splitReasoning } from '~/features/prompt/assemble';
 import { expandMacros } from '~/features/prompt/macros';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
-import { LIMITS, PICTURE, TABLE } from '~/contract';
+import { isSearchApi, LIMITS, PICTURE, TABLE } from '~/contract';
 import { hasNote, type ProposedNote, proposedNote } from '~/features/chat/proposedNote';
 import { type ReplyStats, replyStats, timed } from '~/features/chat/replyStats';
 import {
@@ -112,6 +117,26 @@ const NARRATOR = 'Narrator';
 /** The pending turn is the narrator's (A20), not a character's. */
 const NARRATOR_TURN = 'narrator';
 const YOU = 'You';
+/** The chat commands a script may run (the rest are STscript's own). */
+const SCRIPT_ACTIONS: ReadonlySet<string> = new Set([
+  'sys',
+  'sendas',
+  'narrate',
+  'continue',
+  'xcard',
+  'pause',
+  'resume',
+  'search',
+]);
+/** Global script variables: shared by every chat while the page is open. */
+const SCRIPT_GLOBALS = new Map<string, string>();
+
+/** Each export's file type and ending. */
+const EXPORT_FILES = {
+  jsonl: { type: 'application/jsonl', ending: 'jsonl' },
+  text: { type: 'text/plain', ending: 'txt' },
+  epub: { type: 'application/epub+zip', ending: 'epub' },
+} as const;
 
 /** What each turn of the branch shows: who said it, which alternative, and where it forks. */
 export function messageViews(
@@ -155,6 +180,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const personaList = personas.useList();
   const presetList = presets.useList();
   const endpointList = endpoints.useList();
+  // Models only: search sources (A42) are endpoints too, but never asked for a reply.
+  const modelList = (endpointList.data ?? []).filter((one) => !isSearchApi(one.api));
   const lorebookList = lorebooks.useList();
   const chatList = chats.useList();
   const campaignList = campaigns.useList();
@@ -189,6 +216,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const mobile = useIsMobile();
   const hidden = useHidden(list.data ?? [], idOf);
   const end = useRef<HTMLDivElement>(null);
+  // This chat's script variables (A37), while it is open.
+  const scriptLocals = useRef(new Map<string, string>());
 
   // Oldest first, whatever order the back end answers in: the tree's latest leaf is the last child.
   const all = useMemo(() => [...hidden.shown].sort((a, b) => a.created_at.localeCompare(b.created_at)), [hidden.shown]);
@@ -205,7 +234,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     return found.find((one) => one.id === chat.persona_id) ?? found.find((one) => one.is_default) ?? null;
   }, [personaList.data, chat.persona_id]);
   const { settings } = useDeviceSettings();
-  const [canSpeak] = useState(() => speechSupport().speak);
+  const [browserSpeaks] = useState(() => speechSupport().speak);
+  // Read aloud by this device, or by a model set to speak (A29).
+  const canSpeak = browserSpeaks || hasVoiceModel(endpointList.data);
   const [recapHidden, setRecapHidden] = useState(false);
   const views = messageViews(branch, all, castById, persona).filter(
     (view) => settings.showTableTalk || (view.channel !== 'ooc' && view.channel !== 'gm'),
@@ -298,9 +329,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     return found?.status === 'done' ? { ...found, onHide: () => setTranslation(id, null) } : found;
   };
 
-  /** Reads a character's line aloud in their voice (A29). */
+  /**
+   * Reads a character's line aloud in their voice (A29): by the model set to speak when the person has
+   * one (server voices), else by this device; a server failure says why and falls back to the device.
+   */
   const readAloud = (characterId: string | null, text: string) => {
-    speak(text, voiceOf(castById.get(characterId ?? '')?.extensions ?? {}));
+    const voice = voiceOf(castById.get(characterId ?? '')?.extensions ?? {});
+    if (!hasVoiceModel(endpointList.data)) {
+      speak(text, voice);
+      return;
+    }
+    speakOnServer(text, voice).catch((error: unknown) => {
+      notify('Not read aloud', error instanceof Error ? error.message : undefined);
+      speak(text, voice);
+    });
   };
 
   /** Text as saved, after the regex scripts that change what is stored (A33). */
@@ -318,6 +360,60 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   };
 
   /** A slash command from the composer (A37): each one something the chat already does. */
+  /**
+   * An STscript line (A37), run by the interpreter: its lines go on one after another from the
+   * branch's end (each new line the parent of the next), and the other commands run as typed.
+   * Variables last while the chat is open; global ones while the page is.
+   */
+  const runUserScript = async (script: string) => {
+    let parent = leaf;
+    const addLine = async (fields: Omit<Parameters<typeof create>[0], 'chat_id' | 'parent_id'>) => {
+      const saved = await create({ ...fields, chat_id: chat.id, parent_id: parent });
+      parent = saved.id;
+      setLeafId(saved.id);
+    };
+    const names = {
+      char: castById.get(chat.character_ids[0] ?? '')?.name ?? NARRATOR,
+      user: persona?.name ?? DEFAULT_USER_NAME,
+    };
+    const result = await runScript(script, {
+      actions: SCRIPT_ACTIONS,
+      locals: scriptLocals.current,
+      globals: SCRIPT_GLOBALS,
+      macros: (text) => expandMacros(text, names),
+      echo: (text) => notify(text),
+      act: async ({ name, text, args }) => {
+        if (name === 'sys') {
+          await addLine({ role: 'narrator', channel: 'ic', swipes: [text] });
+          return undefined;
+        }
+        if (name === 'sendas') {
+          const parsed = parseCommand(`/sendas ${args.name === undefined ? text : `"${args.name}" ${text}`}`, [
+            ...castNames.values(),
+          ]);
+          const character = parsed !== null && !('unknown' in parsed) && parsed.name === 'sendas' ? parsed : null;
+          const id = chat.character_ids.find(
+            (one) => castById.get(one)?.name.toLowerCase() === character?.character.toLowerCase(),
+          );
+          if (character === null || id === undefined) throw new Error(`/sendas: no one by that name in this chat`);
+          await addLine({
+            role: 'character',
+            channel: 'ic',
+            speaker_character_id: id,
+            swipes: [stored(character.text, 'ai_output')],
+          });
+          return undefined;
+        }
+        // In a script, /search hands its block on as the pipe, as SillyTavern's /websearch does.
+        if (name === 'search') return (await searchWeb(text)).context;
+        const command = parseCommand(`/${name}`);
+        if (command !== null && !('unknown' in command)) await runCommand(command);
+        return undefined;
+      },
+    }).catch((error: unknown) => ({ pipe: '', stopped: error instanceof Error ? error.message : 'The script failed' }));
+    if (result.stopped !== null) notify('The script stopped', result.stopped);
+  };
+
   const runCommand = async (command: Command) => {
     switch (command.name) {
       case 'sys': {
@@ -370,6 +466,27 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         if (chat.paused !== (command.name === 'pause')) await updateChat(chat, { paused: command.name === 'pause' });
         notify(command.name === 'pause' ? 'Paused' : 'Resumed');
         return;
+      case 'search': {
+        // A42: the results are kept as a system line in the story, read by the next reply.
+        const found = await searchWeb(command.query).catch((error: unknown) => {
+          notify('No search', error instanceof Error ? error.message : undefined);
+          return null;
+        });
+        if (found === null) return;
+        if (found.context === '') {
+          notify('Nothing found', `No results for “${command.query}”.`);
+          return;
+        }
+        const saved = await create({
+          chat_id: chat.id,
+          parent_id: leaf,
+          role: 'system',
+          channel: 'ic',
+          swipes: [found.context],
+        });
+        setLeafId(saved.id);
+        return;
+      }
       case 'help':
         notify('Commands', COMMAND_HELP.map(([usage, what]) => `${usage}: ${what}`).join('\n'));
         return;
@@ -563,11 +680,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
   };
 
-  /** The shown branch as a file: SillyTavern's JSONL, or plain text. */
-  const exportBranch = (format: 'jsonl' | 'text') => {
-    // Every turn of the branch, table talk included, whatever this device shows.
+  /**
+   * The shown branch as a file: SillyTavern's JSONL or plain text (every turn, table talk
+   * included), or an illustrated EPUB of the story alone (AP10).
+   */
+  const exportBranch = (format: 'jsonl' | 'text' | 'epub') => {
     const speakers = messageViews(branch, all, castById, persona);
     const named = branch.map((message, index) => ({ ...message, name: speakers[index]?.speaker ?? NARRATOR }));
+    const nameOf = new Map(named.map((message) => [message.id, message.name]));
     const content =
       format === 'jsonl'
         ? chatToJsonl(
@@ -578,11 +698,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             },
             named,
           )
-        : chatToText(named);
-    const url = URL.createObjectURL(new Blob([content], { type: format === 'jsonl' ? 'application/jsonl' : 'text/plain' }));
+        : format === 'text'
+          ? chatToText(named)
+          : storyEpub({
+              title: chat.title,
+              identifier: `urn:rpg-ai:chat:${chat.id}:${leaf ?? 'start'}`,
+              language: navigator.language,
+              modified: new Date().toISOString(),
+              lines: storyLines(branch, (message) => nameOf.get(message.id) ?? NARRATOR),
+            });
+    const file = EXPORT_FILES[format];
+    const url = URL.createObjectURL(new Blob([content], { type: file.type }));
     const link = Object.assign(document.createElement('a'), {
       href: url,
-      download: `${chat.title.replace(/[^\w.-]+/g, '_')}.${format === 'jsonl' ? 'jsonl' : 'txt'}`,
+      download: `${chat.title.replace(/[^\w.-]+/g, '_')}.${file.ending}`,
     });
     link.click();
     URL.revokeObjectURL(url);
@@ -719,6 +848,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <DropdownMenuItem onSelect={() => exportBranch('text')}>
                 <Download aria-hidden /> Export as text
               </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => exportBranch('epub')}>
+                <BookOpen aria-hidden /> Export as a book (EPUB)
+              </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
@@ -778,9 +910,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
                 onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
                 onRegenerateWith={
-                  message.role === 'character' && !writing && (endpointList.data ?? []).length > 1
+                  message.role === 'character' && !writing && modelList.length > 1
                     ? {
-                        models: (endpointList.data ?? []).map((one) => ({ id: one.id, name: one.name })),
+                        models: modelList.map((one) => ({ id: one.id, name: one.name })),
                         run: (endpointId) => void regenerate(message, endpointId),
                       }
                     : undefined
@@ -874,6 +1006,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
         onNarrate={chat.character_ids.length > 0 ? () => void narrate() : undefined}
         onCommand={(command) => void runCommand(command)}
+        onScript={(script) => void runUserScript(script)}
         castNames={chat.character_ids.flatMap((id) => castById.get(id)?.name ?? [])}
         repliesWritten={repliesWritten}
         quickReplies={(quickList.data ?? [])
@@ -1024,9 +1157,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         })}
         folders={foldersOf(chatList.data ?? [])}
         onSummarize={summarize}
+        drawBackground={() => drawPicture({ kind: 'background', chat_id: chat.id, leaf_id: leaf })}
         personas={options(personaList.data)}
         presets={options(presetList.data)}
-        endpoints={options(endpointList.data)}
+        endpoints={options(modelList)}
         lorebooks={options(lorebookList.data)}
         onSave={(next) => void updateChat(chat, next)}
       />

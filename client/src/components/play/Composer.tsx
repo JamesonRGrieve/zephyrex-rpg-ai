@@ -11,6 +11,7 @@ import { type KeyboardEvent, type ReactElement, useEffect, useId, useRef, useSta
 import { Button } from 'zephyrex/ui/button';
 import { useDictation } from '~/features/speech/useDictation';
 import { type Command, parseCommand } from '~/features/chat/commands';
+import { isScript } from '~/features/chat/stscript';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
@@ -58,6 +59,7 @@ export function Composer({
   onImpersonate,
   onNarrate,
   onCommand,
+  onScript,
   castNames = [],
   quickReplies = [],
   repliesWritten = 0,
@@ -73,6 +75,8 @@ export function Composer({
   onNarrate?: () => void;
   /** Runs a slash command (A37); without it, a slash line is sent as text. */
   onCommand?: (command: Command) => void;
+  /** Runs an STscript line (A37): pipes, variables, conditions, loops. */
+  onScript?: (script: string) => void;
   /** The cast's names, so `/sendas` finds a name with spaces. */
   castNames?: readonly string[];
   /** Buttons that send or fill in a saved line (A32), their macros already filled. */
@@ -119,6 +123,13 @@ export function Composer({
   const [commandProblem, setCommandProblem] = useState<string | null>(null);
 
   const send = () => {
+    // A script (A37) runs whole: it pipes, or uses STscript's own commands.
+    if (onScript !== undefined && isScript(text)) {
+      setCommandProblem(null);
+      onScript(text);
+      setText('');
+      return;
+    }
     // A slash command (A37) runs instead of being sent; one that is not a command says why.
     const command = onCommand === undefined ? null : parseCommand(text, castNames);
     if (command !== null && onCommand !== undefined) {

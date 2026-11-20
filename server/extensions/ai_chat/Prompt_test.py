@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from zephyrex.extensions.ai_character.Contract import PROMPT_CASES_PATH  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Prompt import expression_prompt, pick_option, scene_picture_prompt, split_reasoning, summary_prompt, table_gm_prompt, assemble_prompt, estimate_tokens, expand_macros  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Prompt import background_picture_prompt, expression_prompt, pick_option, portrait_picture_prompt, scene_picture_prompt, split_reasoning, summary_prompt, table_gm_prompt, assemble_prompt, estimate_tokens, expand_macros  # type: ignore[import-not-found]
 
 CASES: dict[str, Any] = json.loads(PROMPT_CASES_PATH.read_text(encoding="utf-8"))
 
@@ -92,6 +92,18 @@ def test_pick_case(case: dict[str, Any]) -> None:
 def test_expression_prompt_case() -> None:
     case = CASES["expression_prompt_case"]
     assert expression_prompt(case["line"], case["options"]) == case["messages"]
+
+
+@pytest.mark.parametrize("case", CASES["portrait_cases"], ids=[case["name"] for case in CASES["portrait_cases"]])
+def test_portrait_case(case: dict[str, Any]) -> None:
+    assert portrait_picture_prompt(case["character"], case["asked"]) == case["prompt"]
+
+
+@pytest.mark.parametrize("case", CASES["background_cases"], ids=[case["name"] for case in CASES["background_cases"]])
+def test_background_case(case: dict[str, Any]) -> None:
+    given = case["input"]
+    characters = [CASES["characters"][key] for key in given["characters"]]
+    assert background_picture_prompt(characters, given["persona"], given["history"], case["scenario"], case["asked"]) == case["prompt"]
 
 
 @pytest.mark.parametrize("case", CASES["picture_cases"], ids=[case["name"] for case in CASES["picture_cases"]])

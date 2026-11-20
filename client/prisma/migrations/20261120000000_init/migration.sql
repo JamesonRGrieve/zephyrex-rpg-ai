@@ -122,6 +122,7 @@ CREATE TABLE "ModelEndpoint" (
     "api" TEXT NOT NULL DEFAULT 'chat',
     "instructTemplate" TEXT NOT NULL DEFAULT 'chatml',
     "customTemplateId" TEXT,
+    "imageSize" TEXT NOT NULL DEFAULT '',
     "roles" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,

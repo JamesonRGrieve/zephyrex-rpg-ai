@@ -25,7 +25,7 @@ import {
   SAFETY,
   TABLE,
   SELECTIVE_LOGIC,
-  ENDPOINT_APIS,
+  ENDPOINT_KINDS,
   ENDPOINT_ROLES,
   INSTRUCT_TEMPLATES,
   type InstructTemplateId,
@@ -151,9 +151,10 @@ export const endpointSchema = z.object({
   model: z.string(),
   is_default: z.boolean(),
   has_api_key: z.boolean(),
-  api: z.enum(ENDPOINT_APIS),
+  api: z.enum(ENDPOINT_KINDS),
   instruct_template: z.enum(Object.keys(INSTRUCT_TEMPLATES) as [InstructTemplateId, ...InstructTemplateId[]]),
   custom_template_id: z.string().nullable(),
+  image_size: z.string(),
   roles: z.array(z.enum(ENDPOINT_ROLES)),
 });
 export type ModelEndpoint = z.infer<typeof endpointSchema>;

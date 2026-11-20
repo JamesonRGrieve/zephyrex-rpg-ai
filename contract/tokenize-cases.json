@@ -1,0 +1,31 @@
+{
+  "note": "Counting tokens with the model server's own tokenizer (A47; the operator, 2026-11-20). Both twins run these: client/src/lib/tokenize.ts and server/extensions/ai_chat/Tokenize.py. Requests are tried in order; the first answer a count can be read from wins, else the estimate stands.",
+  "roots": [
+    { "name": "an OpenAI-style /v1 base", "base_url": "http://gpu:8080/v1", "root": "http://gpu:8080" },
+    { "name": "a trailing slash", "base_url": "http://gpu:8080/v1/", "root": "http://gpu:8080" },
+    { "name": "no /v1", "base_url": "http://gpu:5001", "root": "http://gpu:5001" },
+    { "name": "a path before /v1", "base_url": "https://host/llm/v1", "root": "https://host/llm" },
+    { "name": "a full completions URL", "base_url": "http://gpu:8080/v1/chat/completions", "root": "http://gpu:8080" }
+  ],
+  "requests": [
+    {
+      "name": "llama.cpp, then vLLM, then KoboldCpp",
+      "base_url": "http://gpu:8080/v1",
+      "model": "qwen",
+      "text": "Hello there",
+      "tries": [
+        { "url": "http://gpu:8080/tokenize", "body": { "content": "Hello there" } },
+        { "url": "http://gpu:8080/tokenize", "body": { "model": "qwen", "prompt": "Hello there" } },
+        { "url": "http://gpu:8080/api/extra/tokencount", "body": { "prompt": "Hello there" } }
+      ]
+    }
+  ],
+  "answers": [
+    { "name": "llama.cpp: the tokens", "answer": { "tokens": [1, 2, 3] }, "count": 3 },
+    { "name": "vLLM: the count", "answer": { "count": 7, "max_model_len": 4096, "tokens": [1] }, "count": 7 },
+    { "name": "KoboldCpp: the value", "answer": { "value": 5, "ids": [1, 2, 3, 4, 5] }, "count": 5 },
+    { "name": "an error body", "answer": { "error": "not found" }, "count": null },
+    { "name": "not an object", "answer": [1, 2], "count": null },
+    { "name": "a negative count", "answer": { "count": -1 }, "count": null }
+  ]
+}

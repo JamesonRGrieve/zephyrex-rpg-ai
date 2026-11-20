@@ -81,16 +81,31 @@ export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['cha
 export const INSTRUCT_CUSTOM = contract.instruct_custom;
 /** AI Horde (A48): where a text job is submitted and polled, and how long to wait. */
 export const HORDE = contract.horde;
-/** What a model can be used for (A27): replies, the GM's voices, summaries, translation. */
+/** What a model can be used for (A27): replies, the GM's voices, summaries, translation, pictures, speech. */
 export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly [
   'story',
   'gm',
   'summary',
   'translate',
   'image',
+  'voice',
+  'search',
 ];
+/** Web search sources (A42), kept as endpoints serving only the search role (cases in contract/search-cases.json). */
+export const SEARCH_APIS = contract.search_apis as unknown as readonly ['searxng', 'brave'];
+export type SearchApi = (typeof SEARCH_APIS)[number];
+/** Whether an endpoint is a search source rather than a model. */
+export const isSearchApi = (api: string): api is SearchApi => (SEARCH_APIS as readonly string[]).includes(api);
+/** Server voices (A29): a line read aloud by a model set to speak (cases in contract/speech-cases.json). */
+export const SPEECH = {
+  ...contract.speech,
+  speed_range: contract.speech.speed_range as unknown as readonly [number, number],
+};
 export type EndpointRole = (typeof ENDPOINT_ROLES)[number];
 export type EndpointApi = (typeof ENDPOINT_APIS)[number];
+/** What an endpoint record's api can be: a model API, or a search source (A42). */
+export type EndpointKind = EndpointApi | SearchApi;
+export const ENDPOINT_KINDS = [...ENDPOINT_APIS, ...SEARCH_APIS] as const;
 
 /** Regex scripts (features/chat/regex.ts; cases in contract/regex-cases.json). */
 export const REGEX = {

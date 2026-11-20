@@ -519,7 +519,9 @@
     "gm",
     "summary",
     "translate",
-    "image"
+    "image",
+    "voice",
+    "search"
   ],
   "sampler_extras": {
     "logit_bias_range": [
@@ -542,7 +544,37 @@
     "scene_turns": 3,
     "prompt_characters": 1000,
     "size": "768x768",
-    "caption": "A picture of the scene."
+    "caption": "A picture of the scene.",
+    "portrait_prefix": "A portrait of ",
+    "background_prefix": "A wide background illustration of this place, with no people in it: ",
+    "kinds": [
+      "scene",
+      "portrait",
+      "background"
+    ],
+    "sizes": [
+      "256x256",
+      "512x512",
+      "768x768",
+      "1024x1024",
+      "1024x1536",
+      "1536x1024",
+      "1024x1792",
+      "1792x1024"
+    ]
+  },
+  "speech": {
+    "$comment": "Server voices (A29): a line read aloud by a model set to speak (the voice role), at its OpenAI-compatible POST /audio/speech. The audio comes back as a data URL; nothing is kept. Cases in contract/speech-cases.json.",
+    "path": "/audio/speech",
+    "text_characters": 4096,
+    "voice_characters": 64,
+    "default_voice": "alloy",
+    "speed_range": [
+      0.25,
+      4
+    ],
+    "format": "mp3",
+    "audio_bytes": 6000000
   },
   "horde": {
     "$comment": "AI Horde (A48): a text job submitted, then polled, never streamed. Its answer reaches the rest of the app as a text completion's stream would.",
@@ -567,5 +599,9 @@
     "field_characters": 200,
     "stops": 8,
     "stop_characters": 64
-  }
+  },
+  "search_apis": [
+    "searxng",
+    "brave"
+  ]
 }

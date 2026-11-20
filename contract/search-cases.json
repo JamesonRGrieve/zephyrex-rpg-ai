@@ -1,0 +1,116 @@
+{
+  "note": "Web search injected into context (A42): the search source is set per install, as model endpoints are (the operator, 2026-11-20). Both twins run these: client/src/lib/search.ts and server/extensions/ai_chat/Search.py.",
+  "heading": "From a web search for \"{query}\" (cite what you use; it may be wrong):",
+  "max_results": 5,
+  "snippet_characters": 300,
+  "requests": [
+    {
+      "name": "SearXNG: its JSON search route",
+      "source": {
+        "kind": "searxng",
+        "base_url": "http://searx.lan:8080/",
+        "api_key": ""
+      },
+      "query": "tidal locking & moons",
+      "url": "http://searx.lan:8080/search?q=tidal+locking+%26+moons&format=json",
+      "headers": {
+        "Accept": "application/json"
+      }
+    },
+    {
+      "name": "Brave: the web search API with its key",
+      "source": {
+        "kind": "brave",
+        "base_url": "https://api.search.brave.com",
+        "api_key": "k-123"
+      },
+      "query": "tidal locking",
+      "url": "https://api.search.brave.com/res/v1/web/search?q=tidal+locking&count=5",
+      "headers": {
+        "Accept": "application/json",
+        "X-Subscription-Token": "k-123"
+      }
+    }
+  ],
+  "answers": [
+    {
+      "name": "SearXNG results",
+      "kind": "searxng",
+      "answer": {
+        "results": [
+          {
+            "title": "Tidal locking",
+            "url": "https://en.wikipedia.org/wiki/Tidal_locking",
+            "content": "A tidally locked body always shows the same face."
+          },
+          {
+            "title": "No url"
+          }
+        ]
+      },
+      "results": [
+        {
+          "title": "Tidal locking",
+          "url": "https://en.wikipedia.org/wiki/Tidal_locking",
+          "snippet": "A tidally locked body always shows the same face."
+        }
+      ]
+    },
+    {
+      "name": "Brave results",
+      "kind": "brave",
+      "answer": {
+        "web": {
+          "results": [
+            {
+              "title": "Moons",
+              "url": "https://example.org/moons",
+              "description": "Most large moons are <strong>tidally locked</strong>."
+            }
+          ]
+        }
+      },
+      "results": [
+        {
+          "title": "Moons",
+          "url": "https://example.org/moons",
+          "snippet": "Most large moons are tidally locked."
+        }
+      ]
+    },
+    {
+      "name": "an error body",
+      "kind": "searxng",
+      "answer": {
+        "error": "rate limited"
+      },
+      "results": []
+    }
+  ],
+  "contexts": [
+    {
+      "name": "results become one block the model reads",
+      "query": "tidal locking",
+      "results": [
+        {
+          "title": "Tidal locking",
+          "url": "https://en.wikipedia.org/wiki/Tidal_locking",
+          "snippet": "A tidally locked body always shows the same face."
+        },
+        {
+          "title": "Moons",
+          "url": "https://example.org/moons",
+          "snippet": "Most large moons are tidally locked."
+        }
+      ],
+      "text": "From a web search for \"tidal locking\" (cite what you use; it may be wrong):\n1. Tidal locking (https://en.wikipedia.org/wiki/Tidal_locking): A tidally locked body always shows the same face.\n2. Moons (https://example.org/moons): Most large moons are tidally locked."
+    },
+    {
+      "name": "no results, no block",
+      "query": "x",
+      "results": [],
+      "text": ""
+    }
+  ],
+  "query_characters": 300
+}

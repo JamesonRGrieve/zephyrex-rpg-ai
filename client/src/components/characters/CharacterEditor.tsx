@@ -23,6 +23,7 @@ import { foldersOf } from '~/features/chat/library';
 import { LIMITS } from '~/contract';
 import { WriteProblem } from '../common/WriteProblem';
 import { type CharacterVoice, voiceOf, withVoice } from '~/features/speech/voice';
+import { drawPicture } from '~/features/chat/inspectPrompt';
 import { ExpressionEditor } from './ExpressionEditor';
 import { VoicePicker } from './VoicePicker';
 import { type CharacterDraft, CharacterForm } from './CharacterForm';
@@ -220,6 +221,7 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
         value={draft}
         onChange={setDraft}
         onAvatarRefused={(reason) => notify('Picture not used', reason)}
+        drawPortrait={() => drawPicture({ kind: 'portrait', character_id: saved.id })}
       />
       <div className='fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 pb-safe backdrop-blur-sm md:sticky md:mt-8 md:border md:rounded-xl'>
         <div className='mx-auto max-w-3xl px-4 pt-3'>

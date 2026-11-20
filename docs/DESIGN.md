@@ -121,7 +121,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A30 | Image generation for scenes and portraits (ComfyUI and others through the framework) | SillyTavern | ✓ | ✓ |
 | A31 | Backgrounds per chat or per wiki location | SillyTavern | ✓ | ✓ |
 | **Automation** |
-| A30 | Pictures of the scene: a model set to draw (the Pictures role; a chat model is never asked) draws the last story turns or the person's words; the picture is kept in the chat as a system line, out of the story | portraits and backgrounds from a prompt; ComfyUI and other non-OpenAI image APIs (framework providers) |
+| A30 | Pictures of the scene: a model set to draw (the Pictures role; a chat model is never asked) draws the last story turns or the person's words; the picture is kept in the chat as a system line, out of the story; a character's portrait (Draw a portrait, no chat needed) and a chat's background (Draw a background: the scenario's place, else the last story turns), each from the person's words if given; the size each model draws at, chosen per endpoint | ComfyUI and other non-OpenAI image APIs (framework providers) |
 | A32 | Quick replies and macros (a safe, declarative subset in place of STscript) | SillyTavern | ✓ | ✓ |
 | A33 | Regex transforms on input and output | SillyTavern | ✓ | ✓ |
 | **Accounts** |
@@ -133,9 +133,9 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A38 | Quick Replies sets bound to buttons, with auto-run triggers | SillyTavern | ✓ | ✓ |
 | A39 | Extensions: built-ins that can be enabled or disabled, plus third-party extensions installed from a URL into a sandbox with declared permissions | SillyTavern | ✓ | ✓ |
 | A40 | Extensions and assets browser (characters, backgrounds, themes, ambient audio) | SillyTavern | ✓ | ✓ |
-| A37 (part) | Slash commands, the safe subset: /sys, /sendas, /narrate, /continue, /impersonate, /xcard, /pause, /resume, /help (beside /ic, /ooc, /gm) | variables, conditionals, closures and the rest of STscript |
+| A37 (part) | Slash commands, the safe subset: /sys, /sendas, /narrate, /continue, /impersonate, /xcard, /pause, /resume, /help (beside /ic, /ooc, /gm); STscript run by an interpreter (never eval) with a step limit: pipes and {{pipe}}, chat and global variables, /if (with else), /while, /times, closures kept and /run, /echo, /abort | /gen and the rest of STscript's commands; variables kept with the chat across visits |
 | A41 | Data Bank: documents attached to a chat, a character or globally, retrieved by meaning (built-in RAG) | SillyTavern | ✓ | ✓ |
-| A42 | Web search injected into context | SillyTavern (extension) | ✓ | ✓ |
+| A42 | Web search injected into context; the search source is set per install, as model endpoints are (SearXNG or a search API) (the operator, 2026-11-20) | SillyTavern (extension) | ✓ | ✓ |
 | A41 | Data bank: documents for every chat, one chat or one character, found by the words the story uses | recall by meaning (embeddings, SaaS) |
 | A43 | Chat translation: auto-translate input and output | SillyTavern (extension) | ✓ | ✓ |
 | A44 | Image captioning and multimodal input (send an image; a vision model describes or reads it) | SillyTavern | ✓ | ✓ |
@@ -148,12 +148,12 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A50 | Multi-user accounts on one install, with per-user data and an admin | SillyTavern | ✓ | ✓ |
 | A53 | Objectives: the first not done is the character's current task | the model ticking tasks off itself |
 | A63–A66 | The campaign's resolution mode in every prompt and in view in the chat's header | rules-as-written resolution through the VTT |
-| A57, A58 | Campaign frames (premise, genre, tone dials, themes, pillars, structure, truths, characters, resolution) read every turn by a chat in the campaign; the brief for players | session zero as a guided flow; linking a wiki campaign |
+| A57, A58 | Campaign frames (premise, genre, tone dials, themes, pillars, structure, truths, characters, resolution) read every turn by a chat in the campaign; the brief for players; session zero, one question a screen, ending on the frame as the players' brief (AP1) | lines and veils pooled anonymously in session zero; the GM proposing the frame; linking a wiki campaign |
 | A59–A61 | Scenarios as moving parts (cast, places, clocks, secrets with clues, beats, endings); a chat runs one and the model reads the GM's view every turn; play state at the table; files in and out | the GM's abilities moving the state itself (decide); drafting a scenario by model or from the wiki; rehearsal (A62, SaaS) |
 | A51 | Character tags, folders and favourites; welcome screen with recents | SillyTavern | ✓ | ✓ |
 | A52 | Group greetings; `/sendas` a group member; group member muting and join modes | SillyTavern | ✓ | ✓ |
 | A53 | Objectives and tasks for a character, tracked across a chat | SillyTavern (extension) | ✓ | ✓ |
-| A54 | Animated avatars: Live2D and talking-head extensions | SillyTavern (extension) *(verify)* | ✓ | ✓ |
+| A54 | Animated avatars: Live2D and talking-head extensions. Live2D only as an optional add-on: the person installing supplies the Cubism SDK, kept outside rpg-ai's own code, after a licence review (the operator, 2026-11-20) | SillyTavern (extension) *(verify)* | ✓ | ✓ |
 | A55 | Code blocks that run JavaScript or STscript (Code Runner), sandboxed | SillyTavern (extension) | ✓ | ✓ |
 | A56 | Backups and chat exports (JSONL, text) | SillyTavern | ✓ | ✓ |
 | **Campaigns, scenarios and modes** |
@@ -702,16 +702,18 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A17 | Instruct templates for text-completion endpoints (ChatML, Llama 3, Alpaca, Mistral), and a person's own (on the Models page), picked per endpoint | |
 | A18 | Context inspector with token estimates | |
 | A19 | Rolling summaries (asked of the chat's model, kept or edited) | recall by meaning (`ai_memories`, SaaS) |
-| A29 | Read aloud per character voice; dictation (both by the browser) | server voices |
+| A29 | Read aloud per character voice, by a model set to speak (the Voices role: any OpenAI-compatible `/audio/speech`, each character naming its voice there) or else by the browser; dictation by the browser | dictation by a speech-to-text model |
 | A31 | A picture behind each chat | per wiki location |
 | A32, A38 | Quick replies (send or fill, story or table talk); SillyTavern Quick Reply sets read in; running by themselves when a chat opens, after a send or after each reply (only on opening may one send: either twin refuses a loop) | |
 | A33 | Regex scripts: stored, display-only, prompt-only, by depth; SillyTavern scripts read in | |
 | A36 | Installable; every screen works on a phone | |
 | A43 | Translate a message by the translation model (else the chat's), for display; every new reply translated into the device's language when the device asks (Translate replies) | translating what the person writes before it is sent |
 | A45 | Reasoning folded under Thinking, never read back to the model; reasoning a model streams apart (`reasoning_content`, `reasoning`) folded in as `<think>` | |
-| A47 | Chat- and text-completion endpoints; logit bias and classifier-free guidance on presets | tokenizer choice |
-| A49 | Layouts (flat, bubbles, document) and text size, per device; themes (the framework's light, dark and colour-blind pair) in Settings | custom CSS |
+| A47 | Chat- and text-completion endpoints; logit bias and classifier-free guidance on presets | tokenizer choice: the model server's own `/tokenize` where it has one, else the estimate (the operator, 2026-11-20) |
+| A49 | Layouts (flat, bubbles, document) and text size, per device; themes (the framework's light, dark and colour-blind pair) in Settings; the person's own CSS over the theme, per device | |
 | A51 | Character tags, folders (filter chips shared with the chat library), favourites, search | |
+| A55 | Code Runner: fenced JavaScript in a message runs when asked, sandboxed (an opaque-origin frame with no network, in a worker ended after 3 s) | STscript blocks (with A37) |
+| AP10 | A branch as a book: an EPUB of its in-character lines, with the pictures they carry | generated scene images for lines without one |
 
 ## Phases
 
@@ -779,7 +781,7 @@ operator's review.
 | AP3 | Character consistency check | A decision model flags a reply that contradicts the card or the lore, with a one-tap regenerate | M | A22, A14 |
 | AP4 | Side-by-side replies | The same turn sent to two models or presets at once, the better kept as the swipe; good for choosing a model | M | A27 |
 | AP5 | Cost and latency per reply | Tokens, seconds and (for hosted APIs) cost on each reply and per chat, so users see what a model costs them | S | A18, A28 |
-| AP6 | In-browser models on strong devices | Small decision and summary models run on the device (WebGPU) when the tier probe says it can, so lite works with no server | L | Device tier probe; library choice is the operator's call |
+| AP6 | In-browser models on strong devices | Small decision and summary models run on the device (WebGPU) when the tier probe says it can, so lite works with no server | L | Device tier probe; WebLLM (MLC), as one more endpoint type (the operator, 2026-11-20) |
 | AP7 | Spotlight balance | The GM agent tracks who has had the spotlight and draws quieter players in | M | A20, A34 |
 | AP8 | A character's memory across chats | What a character learns in one chat can be recalled in another, per character and opt-in | M | A19 (`ai_memories`) |
 | AP9 | Lore gap finder | Names that come up in play with no lorebook entry or wiki page are listed, with a stub drafted for each | M | A14, A15, the wiki |

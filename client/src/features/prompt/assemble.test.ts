@@ -11,6 +11,8 @@ import {
   tableGmPrompt,
   expressionPrompt,
   pickOption,
+  backgroundPicturePrompt,
+  portraitPicturePrompt,
   scenePicturePrompt,
 } from './assemble';
 
@@ -84,6 +86,23 @@ describe('pickOption and expressionPrompt (contract/prompt-cases.json)', () => {
   it('asks for one word from the options', () => {
     const { line, options, messages } = cases.expression_prompt_case;
     expect(expressionPrompt(line, options)).toEqual(messages);
+  });
+});
+
+describe('portraitPicturePrompt and backgroundPicturePrompt (contract/prompt-cases.json)', () => {
+  it.each(cases.portrait_cases)('portrait: $name', ({ character, asked, prompt }) => {
+    expect(portraitPicturePrompt(character, asked)).toBe(prompt);
+  });
+
+  it.each(cases.background_cases)('background: $name', ({ input, scenario, asked, prompt }) => {
+    const given = input as unknown as CaseInput;
+    expect(
+      backgroundPicturePrompt(
+        { ...given, characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter) },
+        scenario,
+        asked,
+      ),
+    ).toBe(prompt);
   });
 });
 

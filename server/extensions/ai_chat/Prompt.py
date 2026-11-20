@@ -526,3 +526,30 @@ def scene_picture_prompt(characters: Sequence[Mapping[str, Any]], persona: Mappi
     scene = " ".join(f"{named(turn)}: {split_reasoning(turn['content'])[1]}" for turn in story[-PICTURE["scene_turns"] :])
     return (PICTURE["scene_prefix"] + scene)[: PICTURE["prompt_characters"]]
 
+
+def portrait_picture_prompt(character: Mapping[str, Any], asked: str = "") -> str:
+    """What an image model is asked for a character's portrait: the person's own words, or the
+    character's name and description, cut to the contract's length."""
+    if asked.strip():
+        return asked.strip()[: PICTURE["prompt_characters"]]
+    filled = expand_macros(str(character.get("description") or ""), {"char": character["name"], "user": DEFAULT_USER_NAME})
+    description = " ".join(filled.split())
+    text = PICTURE["portrait_prefix"] + character["name"] + (f". {description}" if description else "")
+    return text[: PICTURE["prompt_characters"]]
+
+
+def background_picture_prompt(
+    characters: Sequence[Mapping[str, Any]],
+    persona: Mapping[str, Any] | None,
+    history: Sequence[Mapping[str, Any]],
+    scenario: str,
+    asked: str = "",
+) -> str:
+    """What an image model is asked for a chat's background: the person's own words, else the
+    chat's scenario, else the last story turns, as a place with no one in it."""
+    if asked.strip():
+        return asked.strip()[: PICTURE["prompt_characters"]]
+    setting = " ".join(scenario.split())
+    place = setting if setting else scene_picture_prompt(characters, persona, history)[len(PICTURE["scene_prefix"]) :]
+    return (PICTURE["background_prefix"] + place)[: PICTURE["prompt_characters"]]
+

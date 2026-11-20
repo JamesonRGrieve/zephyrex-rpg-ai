@@ -59,11 +59,15 @@ from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[im
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Search import QUERY_CHARACTERS as SEARCH_QUERY_CHARACTERS, search_context, web_search  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Speech import SPEECH, audio_data_url, audio_type, speech_body, speech_url  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     assemble_prompt,
+    background_picture_prompt,
     estimate_tokens,
     expression_prompt,
     pick_option,
+    portrait_picture_prompt,
     scene_picture_prompt,
     split_reasoning,
     summary_prompt,
@@ -711,7 +715,19 @@ class EndpointChecks(PlainModel):
     @field_validator("api", check_fields=False)
     @classmethod
     def _checked_api(cls, value: Any) -> Any:
-        return _one_of(value, CONTRACT["endpoint_apis"], "api")
+        return _one_of(value, [*CONTRACT["endpoint_apis"], *CONTRACT["search_apis"]], "api")
+
+    @model_validator(mode="after")
+    def _search_serves_search_alone(self) -> Any:
+        """A search source (A42) serves search alone, and only a search source serves search."""
+        api, roles = getattr(self, "api", None), getattr(self, "roles", None)
+        if api is None or roles is None:
+            return self
+        if api in CONTRACT["search_apis"] and list(roles) != ["search"]:
+            raise ValueError("A search source serves only the search role")
+        if api not in CONTRACT["search_apis"] and "search" in roles:
+            raise ValueError("Only a search source (searxng, brave) serves the search role")
+        return self
 
     @field_validator("roles", check_fields=False)
     @classmethod
@@ -719,6 +735,13 @@ class EndpointChecks(PlainModel):
         if value is not None and (len(set(value)) != len(value) or any(role not in CONTRACT["endpoint_roles"] for role in value)):
             raise ValueError(f"roles are {', '.join(CONTRACT['endpoint_roles'])}, each once")
         return value
+
+    @field_validator("image_size", check_fields=False)
+    @classmethod
+    def _checked_image_size(cls, value: Any) -> Any:
+        if value in (None, ""):
+            return value
+        return _one_of(value, CONTRACT["picture"]["sizes"], "image_size")
 
     @field_validator("instruct_template", check_fields=False)
     @classmethod
@@ -805,6 +828,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
     roles: list[str] = Field(default_factory=list, description="What it is used for: story, gm, summary, translate")
     instruct_template: str = Field("chatml", description="A text API's prompt markup")
     custom_template_id: str | None = Field(None, description="The person's own template (A17), used in place of instruct_template")
+    image_size: str = Field("", description="The size it is asked to draw at (A30); empty for the contract's default")
     has_api_key: bool = Field(False, description="Set by the server: whether a key is stored")
     # Write-only: excluded from every serialization, kept encrypted.
     api_key: str | None = Field(None, exclude=True, description="Set by the server: the encrypted API key")
@@ -822,6 +846,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         api: str = "chat"
         instruct_template: str = "chatml"
         custom_template_id: str | None = None
+        image_size: str = ""
         roles: list[str] = Field(default_factory=list)
 
     class Update(EndpointChecks, BaseModel):
@@ -834,6 +859,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         api: str | None = None
         instruct_template: str | None = None
         custom_template_id: str | None = None
+        image_size: str | None = None
         roles: list[str] | None = None
 
     class Search(ApplicationModel.Search):
@@ -1243,9 +1269,26 @@ MOVED_FIELDS = ("role", "channel", "speaker_character_id", "swipes", "swipe_inde
 
 
 class PictureRequest(PlainModel):
-    chat_id: str = Field(..., min_length=1)
+    """What to draw (A30): a scene or a background for ``chat_id``, or a portrait of ``character_id``."""
+
+    kind: str = "scene"
+    chat_id: str | None = Field(None, min_length=1)
+    character_id: str | None = Field(None, min_length=1)
     leaf_id: str | None = None
     prompt: str = Field("", max_length=CONTRACT["picture"]["prompt_characters"])
+
+    @field_validator("kind")
+    @classmethod
+    def _known_kind(cls, kind: str) -> str:
+        if kind not in CONTRACT["picture"]["kinds"]:
+            raise ValueError(f"kind is one of {', '.join(CONTRACT['picture']['kinds'])}")
+        return kind
+
+    @model_validator(mode="after")
+    def _names_its_subject(self) -> "PictureRequest":
+        if (self.kind == "portrait" and self.character_id is None) or (self.kind != "portrait" and self.chat_id is None):
+            raise ValueError("A portrait names a character_id; a scene or background a chat_id")
+        return self
 
 
 class PictureRequestEnvelope(PlainModel):
@@ -1259,6 +1302,62 @@ class Picture(PlainModel):
 
 class PictureEnvelope(PlainModel):
     picture: Picture
+
+
+class SearchRequest(PlainModel):
+    query: str = Field(..., min_length=1, max_length=SEARCH_QUERY_CHARACTERS)
+
+    @field_validator("query")
+    @classmethod
+    def _not_blank(cls, query: str) -> str:
+        if not query.strip():
+            raise ValueError("A query is required")
+        return query.strip()
+
+
+class SearchRequestEnvelope(PlainModel):
+    search: SearchRequest
+
+
+class SearchResultItem(PlainModel):
+    title: str
+    url: str
+    snippet: str
+
+
+class SearchAnswer(PlainModel):
+    query: str
+    results: list[SearchResultItem]
+    context: str
+
+
+class SearchEnvelope(PlainModel):
+    search: SearchAnswer
+
+
+class SpeechRequest(PlainModel):
+    text: str = Field(..., min_length=1, max_length=SPEECH["text_characters"])
+    voice: str | None = Field(None, min_length=1, max_length=SPEECH["voice_characters"])
+    speed: float = Field(1.0, ge=SPEECH["speed_range"][0], le=SPEECH["speed_range"][1])
+
+    @field_validator("text")
+    @classmethod
+    def _something_to_say(cls, value: str) -> str:
+        if value.strip() == "":
+            raise ValueError("There is nothing to read aloud")
+        return value
+
+
+class SpeechRequestEnvelope(PlainModel):
+    speech: SpeechRequest
+
+
+class Speech(PlainModel):
+    audio: str
+
+
+class SpeechEnvelope(PlainModel):
+    speech: Speech
 
 
 class PingRequest(PlainModel):
@@ -1584,9 +1683,12 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # own choice comes first. Otherwise the chat's model, then the default, then any.
         role = purpose if purpose != "reply" else "gm" if body.mode in ("table", "narrate") else "story"
         endpoints = self._manager(ModelEndpointManager)
-        every = sorted(endpoints.list(), key=lambda row: row.name)
+        # Search sources (A42) are endpoints too, but never a model.
+        every = sorted((row for row in endpoints.list() if row.api not in CONTRACT["search_apis"]), key=lambda row: row.name)
         serving = [row for row in every if role in (row.roles or [])]
         chosen = endpoints.get(id=chat.endpoint_id) if chat.endpoint_id else None
+        if chosen is not None and chosen.api in CONTRACT["search_apis"]:
+            chosen = None
         asked = None
         if body.endpoint_id:
             # AP4: one of the person's own models, asked for this turn; another person's is not found.
@@ -1594,6 +1696,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 asked = endpoints.get(id=body.endpoint_id)
             except HTTPException as error:
                 raise HTTPException(status_code=404, detail={"message": "Request searched ModelEndpointModel and could not find the required record."}) from error
+            if asked.api in CONTRACT["search_apis"]:
+                raise HTTPException(status_code=422, detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": ["endpoint_id"], "msg": "A search source is not a model"}]})
         endpoint = (
             asked
             or (chosen if role == "story" else None)
@@ -1780,6 +1884,17 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             answer = ""
         return ExpressionEnvelope(expression=Expression(label=pick_option(answer, labels)))
 
+    def _picture_prompt(self, asked: PictureRequest) -> str:
+        """What the picture route asks the image model to draw, for each kind (the lite twin's picturePrompt)."""
+        if asked.kind == "portrait":
+            row = self._manager(CharacterManager).get(id=asked.character_id)
+            return portrait_picture_prompt({"name": row.name, "description": row.description or ""}, asked.prompt)
+        _assembled, _request, _sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id or "", leaf_id=asked.leaf_id), save_timers=False)
+        if asked.kind == "background":
+            scenario = context["cast"][0]["scenario"] if context["cast"] else ""
+            return background_picture_prompt(context["cast"], context["persona"], context["history"], scenario or "", asked.prompt)
+        return scene_picture_prompt(context["cast"], context["persona"], context["history"], asked.prompt)
+
     @custom_route(
         method="POST",
         path="/picture",
@@ -1788,24 +1903,23 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         authentication_type="jwt",
         expose_in=(ExposeIn.REST,),
         openapi_tags=("AI Chat",),
-        summary="A picture of the scene, drawn by a model serving the image role (A30)",
+        summary="A picture of a scene, a portrait or a background, drawn by a model serving the image role (A30)",
     )
     async def picture_route(self, body: PictureRequestEnvelope) -> PictureEnvelope:
         asked = body.picture
-        _assembled, _request, _sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id), save_timers=False)
         # Only a model the person set to draw: a chat model is never asked for a picture.
         drawing = sorted((row for row in self._manager(ModelEndpointManager).list() if "image" in (row.roles or [])), key=lambda row: row.name)
         endpoint = next((row for row in drawing if row.is_default), None) or next(iter(drawing), None)
         if endpoint is None:
             raise HTTPException(status_code=409, detail={"message": "Set a model to draw pictures first", "code": "no_image_model"})
-        prompt = scene_picture_prompt(context["cast"], context["persona"], context["history"], asked.prompt)
+        prompt = self._picture_prompt(asked)
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         try:
             async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
                 answer = await client.post(
                     images_url(endpoint.base_url),
                     headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-                    json={"model": endpoint.model, "prompt": prompt, "n": 1, "size": CONTRACT["picture"]["size"], "response_format": "b64_json"},
+                    json={"model": endpoint.model, "prompt": prompt, "n": 1, "size": getattr(endpoint, "image_size", "") or CONTRACT["picture"]["size"], "response_format": "b64_json"},
                 )
         except httpx.HTTPError as error:
             raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
@@ -1818,6 +1932,61 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         if image is None or len(image) > LIMITS["avatar_bytes"]:
             raise HTTPException(status_code=502, detail={"message": "The model sent no picture this app can keep", "code": "model_refused"})
         return PictureEnvelope(picture=Picture(prompt=prompt, image=image))
+
+    @custom_route(
+        method="POST",
+        path="/search",
+        input_model=SearchRequestEnvelope,
+        output_model=SearchEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="The install's search source asked a query, as a block a chat keeps for the model (A42)",
+    )
+    async def search_route(self, body: SearchRequestEnvelope) -> SearchEnvelope:
+        query = body.search.query
+        sources = sorted((row for row in self._manager(ModelEndpointManager).list() if row.api in CONTRACT["search_apis"]), key=lambda row: row.name)
+        source = next((row for row in sources if row.is_default), None) or next(iter(sources), None)
+        if source is None:
+            raise HTTPException(status_code=409, detail={"message": "Set a search source first", "code": "no_search_source"})
+        key = decrypt_secret(source.api_key) if source.api_key else ""
+        async with httpx.AsyncClient() as client:
+            results = await web_search(client, {"kind": source.api, "base_url": source.base_url, "api_key": key}, query)
+        return SearchEnvelope(search=SearchAnswer(query=query, results=[SearchResultItem(**result) for result in results], context=search_context(query, results)))
+
+    @custom_route(
+        method="POST",
+        path="/speech",
+        input_model=SpeechRequestEnvelope,
+        output_model=SpeechEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="A line read aloud by a model serving the voice role (A29)",
+    )
+    async def speech_route(self, body: SpeechRequestEnvelope) -> SpeechEnvelope:
+        asked = body.speech
+        # Only a model the person set to speak: a chat model is never asked to.
+        speaking = sorted((row for row in self._manager(ModelEndpointManager).list() if "voice" in (row.roles or [])), key=lambda row: row.name)
+        endpoint = next((row for row in speaking if row.is_default), None) or next(iter(speaking), None)
+        if endpoint is None:
+            raise HTTPException(status_code=409, detail={"message": "Set a model to speak first", "code": "no_voice_model"})
+        key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
+        try:
+            async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
+                answer = await client.post(
+                    speech_url(endpoint.base_url),
+                    headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
+                    json=speech_body(endpoint.model, asked.text, asked.voice, asked.speed),
+                )
+        except httpx.HTTPError as error:
+            raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+        if answer.status_code >= 400:
+            raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {answer.status_code}", "code": "model_refused"})
+        media_type = audio_type(answer.headers.get("content-type"))
+        if media_type is None or not answer.content or len(answer.content) > SPEECH["audio_bytes"]:
+            raise HTTPException(status_code=502, detail={"message": "The model sent no speech this app can play", "code": "model_refused"})
+        return SpeechEnvelope(speech=Speech(audio=audio_data_url(media_type, answer.content)))
 
     @custom_route(
         method="POST",

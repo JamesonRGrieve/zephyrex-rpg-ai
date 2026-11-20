@@ -16,12 +16,14 @@ import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import {
-  type EndpointApi,
+  type EndpointKind,
   type EndpointRole,
   ENDPOINT_ROLES,
+  isSearchApi,
   INSTRUCT_TEMPLATES,
   type InstructTemplateId,
   LIMITS,
+  PICTURE,
 } from '~/contract';
 import { type ModelEndpoint, endpoints, refreshedByRecords, instructTemplates } from '~/features/data/records';
 import { pingEndpoint } from '~/features/models/ping';
@@ -38,6 +40,8 @@ const ROLE_LABELS: Record<EndpointRole, string> = {
   summary: 'Summaries',
   translate: 'Translation',
   image: 'Pictures',
+  voice: 'Voices',
+  search: 'Web search',
 };
 
 /** Common local servers' addresses, to fill in with one tap. */
@@ -54,12 +58,16 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
   const [model, setModel] = useState(endpoint?.model ?? '');
   const [apiKey, setApiKey] = useState('');
   const [isDefault, setIsDefault] = useState(endpoint?.is_default ?? false);
-  const [api, setApi] = useState<EndpointApi>(endpoint?.api ?? 'chat');
+  const [api, setApi] = useState<EndpointKind>(endpoint?.api ?? 'chat');
+  // A search source (A42) serves search alone and names no model.
+  const searching = isSearchApi(api);
   const [template, setTemplate] = useState<InstructTemplateId>(endpoint?.instruct_template ?? 'chatml');
   // The person's own template (A17), when chosen; it is used in place of the built-in one.
   const [customId, setCustomId] = useState<string | null>(endpoint?.custom_template_id ?? null);
   const ownTemplates = instructTemplates.useList();
   const [roles, setRoles] = useState<EndpointRole[]>(endpoint?.roles ?? []);
+  // The size it draws at (A30), asked only of a model set to draw; empty is the contract's default.
+  const [imageSize, setImageSize] = useState(endpoint?.image_size ?? '');
   const writes = useWrites(refreshedByRecords);
   const ids = {
     name: useId(),
@@ -75,12 +83,13 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
     const fields = {
       name: name.trim(),
       base_url: baseUrl.trim(),
-      model: model.trim(),
+      model: searching ? api : model.trim(),
       is_default: isDefault,
       api,
       instruct_template: template,
       custom_template_id: customId,
-      roles,
+      image_size: roles.includes('image') && !searching ? imageSize : '',
+      roles: searching ? (['search'] as EndpointRole[]) : roles.filter((role) => role !== 'search'),
       ...(apiKey === '' ? {} : { api_key: apiKey }),
     };
     if (await writes.run(endpoint === null ? create(fields) : update(endpoint, fields), 'Not saved', 'Saved')) done();
@@ -134,20 +143,22 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           ))}
         </div>
       </div>
-      <div className='grid gap-1.5'>
-        <Label htmlFor={ids.model}>Model</Label>
-        <Input
-          id={ids.model}
-          required
-          value={model}
-          maxLength={LIMITS.model_name_characters}
-          placeholder='llama3.1:8b'
-          className='h-11'
-          autoCapitalize='off'
-          autoCorrect='off'
-          onChange={(event) => setModel(event.target.value)}
-        />
-      </div>
+      {!searching && (
+        <div className='grid gap-1.5'>
+          <Label htmlFor={ids.model}>Model</Label>
+          <Input
+            id={ids.model}
+            required
+            value={model}
+            maxLength={LIMITS.model_name_characters}
+            placeholder='llama3.1:8b'
+            className='h-11'
+            autoCapitalize='off'
+            autoCorrect='off'
+            onChange={(event) => setModel(event.target.value)}
+          />
+        </div>
+      )}
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.key}>API key</Label>
         <Input
@@ -173,6 +184,8 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
               ['chat', 'Chat completions'],
               ['text', 'Text completion'],
               ['horde', 'AI Horde'],
+              ['searxng', 'Web search: SearXNG'],
+              ['brave', 'Web search: Brave'],
             ] as const
           ).map(([value, label]) => (
             <ChoiceChip key={value} checked={api === value} className='h-11 px-4' onClick={() => setApi(value)}>
@@ -181,6 +194,14 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           ))}
         </div>
       </div>
+      {searching && (
+        <p className='text-xs text-muted-foreground'>
+          A web search source (A42): /search in a chat asks it, and the results are kept for the next reply to read.
+          {api === 'searxng'
+            ? ' Point it at your SearXNG instance; its JSON format must be enabled.'
+            : ' Brave needs its API key.'}
+        </p>
+      )}
       {api === 'horde' && (
         <p className='text-xs text-muted-foreground'>
           AI Horde (aihorde.net/api) shares volunteers’ models: a reply is queued, so it can take a while. Without a key it
@@ -227,31 +248,49 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           </select>
         </div>
       )}
-      <fieldset className='grid gap-2'>
-        <legend className='text-sm font-medium'>Used for</legend>
-        <p className='text-xs text-muted-foreground'>
-          Run each job on the model that suits it: a big model for replies, a small fast one for summaries.
-        </p>
-        <div className='flex flex-wrap gap-2'>
-          {ENDPOINT_ROLES.map((role) => (
-            <label key={role} className='flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm'>
-              <input
-                type='checkbox'
-                className='size-5'
-                checked={roles.includes(role)}
-                onChange={() => setRoles(roles.includes(role) ? roles.filter((one) => one !== role) : [...roles, role])}
-              />
-              {ROLE_LABELS[role]}
-            </label>
-          ))}
-        </div>
-      </fieldset>
+      {!searching && (
+        <fieldset className='grid gap-2'>
+          <legend className='text-sm font-medium'>Used for</legend>
+          <p className='text-xs text-muted-foreground'>
+            Run each job on the model that suits it: a big model for replies, a small fast one for summaries.
+          </p>
+          <div className='flex flex-wrap gap-2'>
+            {ENDPOINT_ROLES.filter((role) => role !== 'search').map((role) => (
+              <label key={role} className='flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm'>
+                <input
+                  type='checkbox'
+                  className='size-5'
+                  checked={roles.includes(role)}
+                  onChange={() => setRoles(roles.includes(role) ? roles.filter((one) => one !== role) : [...roles, role])}
+                />
+                {ROLE_LABELS[role]}
+              </label>
+            ))}
+          </div>
+        </fieldset>
+      )}
+      {roles.includes('image') && (
+        <fieldset className='grid gap-2'>
+          <legend className='text-sm font-medium'>Picture size</legend>
+          <div ref={chipGroup} role='radiogroup' aria-label='Picture size' className='flex flex-wrap gap-2'>
+            {['', ...PICTURE.sizes].map((size) => (
+              <ChoiceChip key={size} checked={imageSize === size} className='h-11 px-3' onClick={() => setImageSize(size)}>
+                {size === '' ? `Default (${PICTURE.size})` : size.replace('x', ' × ')}
+              </ChoiceChip>
+            ))}
+          </div>
+        </fieldset>
+      )}
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <Label htmlFor={ids.isDefault}>Use for new chats</Label>
         <Switch id={ids.isDefault} checked={isDefault} onCheckedChange={setIsDefault} />
       </div>
       <WriteProblem problem={writes.problem} />
-      <Button type='submit' className='h-11' disabled={name.trim() === '' || baseUrl.trim() === '' || model.trim() === ''}>
+      <Button
+        type='submit'
+        className='h-11'
+        disabled={name.trim() === '' || baseUrl.trim() === '' || (!searching && model.trim() === '')}
+      >
         Save
       </Button>
     </form>

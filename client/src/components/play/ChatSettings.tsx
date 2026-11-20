@@ -8,6 +8,7 @@
 import { type ReactElement, useId, useState } from 'react';
 import { ImageUp, Sparkles } from 'lucide-react';
 import { Button } from 'zephyrex/ui/button';
+import { DrawPictureButton } from '~/components/common/DrawPictureButton';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
@@ -110,6 +111,7 @@ export function ChatSettings({
   scenarios = [],
   onSave,
   onSummarize,
+  drawBackground,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -129,6 +131,8 @@ export function ChatSettings({
   onSave: (value: ChatSettingsValue) => void;
   /** Asks the model for a summary of the branch so far (null when it could not). */
   onSummarize?: () => Promise<string | null>;
+  /** Asks the model set to draw for a background of the place the chat is set (A30, A31). */
+  drawBackground?: () => Promise<{ image: string }>;
 }): ReactElement {
   const mobile = useIsMobile();
   const [draft, setDraft] = useState(value);
@@ -369,6 +373,14 @@ export function ChatSettings({
                   });
                 }}
               />
+              {drawBackground !== undefined && (
+                <DrawPictureButton
+                  label='Draw a background'
+                  draw={drawBackground}
+                  onDrawn={(image) => set('background', image)}
+                  onProblem={setPictureProblem}
+                />
+              )}
               {draft.background !== null && (
                 <Button type='button' variant='ghost' className='h-11' onClick={() => set('background', null)}>
                   Remove
