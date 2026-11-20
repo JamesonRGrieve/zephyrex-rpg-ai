@@ -8,7 +8,7 @@
  * A reply's alternatives (swipes) and a fork's branches are paged with arrows; every action is a
  * button in reach of a thumb, and the menu holds the rest.
  */
-import { Bookmark, ChevronLeft, ChevronRight, Ellipsis, FastForward, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
+import { Bookmark, Brain, ChevronLeft, ChevronRight, Ellipsis, FastForward, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -16,6 +16,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
 import { roleplayPieces } from '~/features/chat/roleplayText';
+import { splitReasoning } from '~/features/prompt/assemble';
 import { initials } from '../characters/CharacterTile';
 
 export interface MessageView {
@@ -67,7 +68,29 @@ function Pager({ label, index, count, onStep }: { label: string; index: number; 
   );
 }
 
-function StoryText({ text }: { text: string }): ReactElement {
+/** A reply's reasoning (A45), folded: shown only when asked for, never read back to the model. */
+function Reasoning({ text, writing }: { text: string; writing: boolean }): ReactElement {
+  return (
+    <details className='group mb-2 rounded-md border bg-muted/40 text-sm'>
+      <summary className='flex min-h-11 cursor-pointer items-center gap-2 px-3 text-muted-foreground'>
+        <Brain className='size-4' aria-hidden /> {writing ? 'Thinking…' : 'Thinking'}
+      </summary>
+      <p className='whitespace-pre-wrap px-3 pb-3 text-muted-foreground [overflow-wrap:anywhere]'>{text}</p>
+    </details>
+  );
+}
+
+function StoryText({ text, writing = false }: { text: string; writing?: boolean }): ReactElement {
+  const { reasoning, reply } = splitReasoning(text);
+  return (
+    <>
+      {reasoning !== '' && <Reasoning text={reasoning} writing={writing && reply === ''} />}
+      <StoryPieces text={reply} />
+    </>
+  );
+}
+
+function StoryPieces({ text }: { text: string }): ReactElement {
   return (
     <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>
       {roleplayPieces(text).map((piece, index) =>
@@ -119,7 +142,7 @@ export function MessageItem({ message, writing = false, ...actions }: { message:
           {message.bookmarked && <Bookmark className='size-3.5 fill-primary text-primary' aria-label='Bookmarked' />}
         </header>
         {editing === null ? (
-          tableTalk ? <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{message.text}</p> : <StoryText text={message.text} />
+          tableTalk ? <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{message.text}</p> : <StoryText text={message.text} writing={writing} />
         ) : (
           <form
             className='mt-1 grid gap-2'

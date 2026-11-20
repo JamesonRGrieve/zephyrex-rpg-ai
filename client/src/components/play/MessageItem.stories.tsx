@@ -44,3 +44,15 @@ export const TableTalk: Story = {
 };
 
 export const Writing: Story = { args: { message: { ...ADA_REPLY, text: '' }, writing: true } };
+
+/** A reasoning model's thinking, folded under the reply's name until asked for. */
+export const WithReasoning: Story = {
+  args: { message: { ...ADA_REPLY, text: '<think>Sam looks lost; keep it short.</think>Mind the coolant, friend.' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Sam looks lost; keep it short.')).not.toBeVisible();
+    await userEvent.click(canvas.getByText('Thinking'));
+    await expect(canvas.getByText('Sam looks lost; keep it short.')).toBeVisible();
+  },
+};
+

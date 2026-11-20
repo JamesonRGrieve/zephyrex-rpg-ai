@@ -72,3 +72,7 @@ export const REGEX = {
   placements: contract.regex.placements as unknown as readonly ['user_input', 'ai_output'],
   targets: contract.regex.targets as unknown as readonly ['stored', 'display', 'prompt'],
 };
+
+/** Reasoning (thinking) tag pairs, shown folded and never read back to the model (A45). */
+export const REASONING = contract.reasoning;
+

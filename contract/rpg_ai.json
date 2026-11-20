@@ -271,5 +271,21 @@
       0,
       10000
     ]
+  },
+  "reasoning": {
+    "pairs": [
+      [
+        "<think>",
+        "</think>"
+      ],
+      [
+        "<thinking>",
+        "</thinking>"
+      ],
+      [
+        "<reasoning>",
+        "</reasoning>"
+      ]
+    ]
   }
 }

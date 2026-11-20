@@ -27,7 +27,7 @@ from dataclasses import dataclass
 from typing import Any
 
 # Resolves only at runtime, through the extensions namespace path.
-from zephyrex.extensions.ai_character.Contract import PROMPT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import apply_regex  # type: ignore[import-not-found]
 
 DEFAULT_USER_NAME = "User"
@@ -85,9 +85,27 @@ def _system_text(texts: Mapping[str, str], layout: Sequence[Mapping[str, Any]], 
     return "\n\n".join(part for part in parts if part)
 
 
+REASONING_PAIRS: list[list[str]] = CONTRACT["reasoning"]["pairs"]
+
+
+def split_reasoning(text: str) -> tuple[str, str]:
+    """A reply's reasoning blocks (A45; the contract's tag pairs) and the reply without them.
+    A block still open at the end (the model was cut off thinking) is reasoning to the end."""
+    reasoning: list[str] = []
+    reply = text
+    for opening, closing in REASONING_PAIRS:
+        pattern = re.compile(re.escape(opening) + r"([\s\S]*?)(?:" + re.escape(closing) + r"|$)\s*")
+        reasoning += [found.strip() for found in pattern.findall(reply) if found.strip()]
+        reply = pattern.sub("", reply)
+    return "\n\n".join(reasoning), reply.strip()
+
+
 def _history_message(
     turn: Mapping[str, Any], speaker_id: str, names_by_id: Mapping[str, str], group: bool, user_name: str
 ) -> dict[str, str]:
+    if turn["role"] == "character" and any(opening in turn["content"] for opening, _closing in REASONING_PAIRS):
+        # A model's reasoning is never read back to it (A45).
+        turn = {**turn, "content": split_reasoning(turn["content"])[1]}
     if turn["role"] == "character" and turn["speaker_character_id"] == speaker_id:
         return {"role": "assistant", "content": turn["content"]}
     if turn["role"] == "system" or turn["channel"] == "roll":

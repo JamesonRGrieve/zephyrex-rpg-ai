@@ -28,7 +28,7 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { PROMPT } from '~/contract';
+import { PROMPT, REASONING } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandMacros, type MacroNames } from './macros';
@@ -143,6 +143,26 @@ function systemText(texts: Partial<Record<PromptSectionId, string>>, layout: rea
     .join('\n\n');
 }
 
+const escaped = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A reply's reasoning blocks (A45; the contract's tag pairs) and the reply without them. A block
+ * still open at the end (the model was cut off thinking) is reasoning to the end.
+ */
+export function splitReasoning(text: string): { reasoning: string; reply: string } {
+  const reasoning: string[] = [];
+  let reply = text;
+  for (const [opening, closing] of REASONING.pairs) {
+    const pattern = new RegExp(`${escaped(opening as string)}([\\s\\S]*?)(?:${escaped(closing as string)}|$)\\s*`, 'g');
+    for (const found of reply.matchAll(pattern)) {
+      const block = (found[1] ?? '').trim();
+      if (block !== '') reasoning.push(block);
+    }
+    reply = reply.replace(pattern, '');
+  }
+  return { reasoning: reasoning.join('\n\n'), reply: reply.trim() };
+}
+
 function historyMessage(
   turn: PromptTurn,
   speakerId: string,
@@ -150,8 +170,11 @@ function historyMessage(
   group: boolean,
   userName: string,
 ): ModelMessage {
+  // A model's reasoning is never read back to it (A45).
+  const thinks = turn.role === 'character' && REASONING.pairs.some(([opening]) => turn.content.includes(opening as string));
+  const content = thinks ? splitReasoning(turn.content).reply : turn.content;
   if (turn.role === 'character' && turn.speaker_character_id === speakerId) {
-    return { role: 'assistant', content: turn.content };
+    return { role: 'assistant', content };
   }
   if (turn.role === 'system' || turn.channel === 'roll') return { role: 'system', content: turn.content };
   const name =
@@ -161,7 +184,7 @@ function historyMessage(
         ? userName
         : (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR);
   const named = group || turn.role !== 'user';
-  return { role: 'user', content: named ? `${name}: ${turn.content}` : turn.content };
+  return { role: 'user', content: named ? `${name}: ${content}` : content };
 }
 
 interface Insert {

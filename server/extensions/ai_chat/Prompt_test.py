@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from zephyrex.extensions.ai_character.Contract import PROMPT_CASES_PATH  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Prompt import summary_prompt, assemble_prompt, estimate_tokens, expand_macros  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Prompt import split_reasoning, summary_prompt, assemble_prompt, estimate_tokens, expand_macros  # type: ignore[import-not-found]
 
 CASES: dict[str, Any] = json.loads(PROMPT_CASES_PATH.read_text(encoding="utf-8"))
 
@@ -53,4 +53,9 @@ def test_summary_case(case: dict[str, Any]) -> None:
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]
+
+
+@pytest.mark.parametrize("case", CASES["reasoning_cases"], ids=[case["name"] for case in CASES["reasoning_cases"]])
+def test_reasoning_case(case: dict[str, Any]) -> None:
+    assert split_reasoning(case["text"]) == (case["reasoning"], case["reply"])
 

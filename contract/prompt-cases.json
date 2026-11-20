@@ -615,6 +615,49 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "reasoning blocks are never read back to the model, the speaker's or another's",
+      "input": {
+        "characters": [
+          "ada",
+          "bram"
+        ],
+        "speaker_id": "c-ada",
+        "persona": null,
+        "author_note": "",
+        "history": [
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "<think>She is tired.</think>\nMind the coolant."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-bram",
+            "content": "<thinking>Stew first.</thinking> Soup's on."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        {
+          "role": "assistant",
+          "content": "Mind the coolant."
+        },
+        {
+          "role": "user",
+          "content": "Bram: Soup's on."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [
@@ -719,6 +762,32 @@
         }
       ],
       "dropped": 2
+    }
+  ],
+  "reasoning_cases": [
+    {
+      "name": "one block before the reply",
+      "text": "<think>\nCheck the gauge.\n</think>\n\nThe gauge reads red.",
+      "reasoning": "Check the gauge.",
+      "reply": "The gauge reads red."
+    },
+    {
+      "name": "blocks of each kind, joined",
+      "text": "<think>a</think>b<reasoning>c</reasoning>d",
+      "reasoning": "a\n\nc",
+      "reply": "bd"
+    },
+    {
+      "name": "a block cut off mid-thought is reasoning to the end",
+      "text": "Sure. <think>Still thinking about",
+      "reasoning": "Still thinking about",
+      "reply": "Sure."
+    },
+    {
+      "name": "no reasoning",
+      "text": "Just a reply.",
+      "reasoning": "",
+      "reply": "Just a reply."
     }
   ]
 }

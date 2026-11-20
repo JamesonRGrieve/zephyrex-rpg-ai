@@ -18,6 +18,15 @@ describe('MessageItem', () => {
     expect(onFork).toHaveBeenCalledWith(-1);
   });
 
+  it('folds a reply’s reasoning away under Thinking', async () => {
+    render(<MessageItem message={{ ...ADA_REPLY, text: '<think>She is tired.</think>Mind the coolant.' }} />);
+    expect(screen.getByText('Mind the coolant.')).toBeVisible();
+    const reasoning = screen.getByText('She is tired.');
+    expect(reasoning).not.toBeVisible();
+    await userEvent.click(screen.getByText('Thinking'));
+    expect(reasoning).toBeVisible();
+  });
+
   it('names table talk as such and leaves out the portrait', () => {
     render(<MessageItem message={TABLE_TALK} />);
     expect(screen.getByRole('article', { name: 'Sam, table talk' })).toBeInTheDocument();
