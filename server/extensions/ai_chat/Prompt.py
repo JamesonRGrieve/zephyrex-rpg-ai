@@ -10,8 +10,10 @@ assemblePrompt (client/src/features/prompt/assemble.ts), held to the same cases
    named when the chat has several voices.
 3. The author's note at ``author_note_depth`` messages from the end, then the speaker's
    post-history instructions last.
-4. Budget: the context window less the reply's room. Oldest history goes first; the system text,
-   the note and the instructions always stay.
+4. Lore (World Info, Lore.py): its sections sit around the card (``before_char``, ``after_char``),
+   the examples and the author's note; its depth entries go into the history at their depth.
+5. Budget: the context window less the reply's room. Oldest history goes first; the system text,
+   the note, the lore and the instructions always stay.
 """
 
 import math
@@ -49,14 +51,20 @@ class Assembled:
     dropped: int
 
 
-def _system_text(speaker: Mapping[str, Any], persona: Mapping[str, Any] | None, names: Mapping[str, str]) -> str:
+def _system_text(
+    speaker: Mapping[str, Any], persona: Mapping[str, Any] | None, names: Mapping[str, str], lore: Mapping[str, str]
+) -> str:
     sections = [
         PROMPT["default_system_prompt"] if not speaker["system_prompt"].strip() else speaker["system_prompt"],
+        lore.get("before_char", ""),
         speaker["description"],
         f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",
         f"Scenario: {speaker['scenario']}" if speaker["scenario"].strip() else "",
+        lore.get("after_char", ""),
         f"{{{{user}}}}: {persona['description']}" if persona is not None and persona["description"].strip() else "",
+        lore.get("before_example", ""),
         f"Example dialogue:\n{speaker['example_messages']}" if speaker["example_messages"].strip() else "",
+        lore.get("after_example", ""),
     ]
     return expand_macros("\n\n".join(section.strip() for section in sections if section.strip()), names)
 
@@ -86,6 +94,7 @@ def assemble_prompt(
     history: Sequence[Mapping[str, Any]],
     context_tokens: int,
     max_tokens: int,
+    lore: Mapping[str, Any] | None = None,
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -95,8 +104,19 @@ def assemble_prompt(
     group = len(characters) > 1
     story = set(PROMPT["story_channels"])
 
-    system = {"role": "system", "content": _system_text(speaker, persona, names)}
-    note = expand_macros(author_note, names)
+    sections: Mapping[str, str] = (lore or {}).get("sections", {})
+    system = {"role": "system", "content": _system_text(speaker, persona, names, sections)}
+    block = "\n".join(
+        part.strip()
+        for part in (sections.get("before_an", ""), author_note, sections.get("after_an", ""))
+        if part.strip()
+    )
+    note = expand_macros(block, names)
+    inserts: list[tuple[int, dict[str, str]]] = [(PROMPT["author_note_depth"], {"role": "system", "content": note})] if note else []
+    inserts += [
+        (insert["depth"], {"role": insert["role"], "content": expand_macros(insert["content"], names)})
+        for insert in (lore or {}).get("at_depth", [])
+    ]
     after = (
         [{"role": "system", "content": expand_macros(speaker["post_history_instructions"], names)}]
         if speaker["post_history_instructions"].strip()
@@ -107,9 +127,7 @@ def assemble_prompt(
     ]
 
     budget = context_tokens - max_tokens
-    used = sum(estimate_tokens(message) for message in [system, *after])
-    if note.strip():
-        used += estimate_tokens({"role": "system", "content": note})
+    used = sum(estimate_tokens(message) for message in [system, *after, *(message for _depth, message in inserts)])
     kept = len(turns)
     for index in range(len(turns) - 1, -1, -1):
         cost = used + estimate_tokens(turns[index])
@@ -118,7 +136,9 @@ def assemble_prompt(
         used = cost
         kept = index
     window = turns[kept:]
-    if note.strip():
-        at = max(0, len(window) - PROMPT["author_note_depth"])
-        window = [*window[:at], {"role": "system", "content": note}, *window[at:]]
-    return Assembled(messages=[system, *window, *after], dropped=kept)
+    placed: list[dict[str, str]] = []
+    for index in range(len(window) + 1):
+        placed += [message for depth, message in inserts if max(0, len(window) - depth) == index]
+        if index < len(window):
+            placed.append(window[index])
+    return Assembled(messages=[system, *placed, *after], dropped=kept)

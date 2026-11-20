@@ -25,3 +25,20 @@ export type SamplerSetting = keyof typeof SAMPLER_RANGES;
 
 /** How a prompt is assembled (features/prompt/assemble.ts; cases in contract/prompt-cases.json). */
 export const PROMPT = contract.prompt;
+
+/** World Info: positions, logic, defaults and ranges (features/lore/activate.ts; cases in contract/lore-cases.json). */
+export const LORE = contract.lore;
+export const LORE_POSITIONS = contract.lore.positions as unknown as readonly [
+  'before_char',
+  'after_char',
+  'before_example',
+  'after_example',
+  'before_an',
+  'after_an',
+  'at_depth',
+];
+export const SELECTIVE_LOGIC = contract.lore.selective_logic as unknown as readonly ['and_any', 'not_all', 'not_any', 'and_all'];
+export const DEPTH_ROLES = contract.lore.depth_roles as unknown as readonly ['system', 'user', 'assistant'];
+export type LorePosition = (typeof LORE_POSITIONS)[number];
+export type SelectiveLogic = (typeof SELECTIVE_LOGIC)[number];
+export type DepthRole = (typeof DEPTH_ROLES)[number];

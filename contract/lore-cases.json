@@ -1,0 +1,210 @@
+{
+  "$comment": "How lorebook (World Info) entries activate and where they go (client/src/features/lore/activate.ts and server/extensions/ai_chat/Lore.py run every case). `rolls` are the random draws in [0,1) the case supplies, consumed in a fixed order: first one per probability check (entries in order, then id), then one per inclusion group that has no prioritized member (groups by name). Tokens are estimated as ceil(characters / 4).",
+  "defaults": {
+    "keys": [],
+    "secondary_keys": [],
+    "selective_logic": "and_any",
+    "content": "",
+    "enabled": true,
+    "constant": false,
+    "position": "after_char",
+    "depth": 4,
+    "role": "system",
+    "order": 100,
+    "probability": 100,
+    "group": "",
+    "group_weight": 100,
+    "prioritize": false,
+    "sticky": 0,
+    "cooldown": 0,
+    "delay": 0,
+    "exclude_recursion": false,
+    "prevent_recursion": false,
+    "delay_until_recursion": false,
+    "case_sensitive": null,
+    "match_whole_words": null,
+    "character_names": [],
+    "character_exclude": false
+  },
+  "settings": { "scan_depth": 4, "token_budget": 1024, "recursion_steps": 3, "case_sensitive": false, "match_whole_words": false },
+  "cases": [
+    {
+      "name": "a key in recent messages activates its entry; a constant is always in; a disabled one never is",
+      "entries": [
+        { "id": "dragon", "keys": ["dragon"], "content": "Dragons hoard memories, not gold." },
+        { "id": "world", "constant": true, "position": "before_char", "content": "The world is a ring of islands." },
+        { "id": "off", "keys": ["dragon"], "enabled": false, "content": "never" },
+        { "id": "silent", "keys": ["kraken"], "content": "never" }
+      ],
+      "history": ["We sail at dawn.", "Is that a DRAGON on the horizon?"],
+      "message_count": 2,
+      "speaker": "Ada",
+      "state": {},
+      "rolls": [],
+      "expect": {
+        "active": ["dragon", "world"],
+        "sections": { "before_char": "The world is a ring of islands.", "after_char": "Dragons hoard memories, not gold." },
+        "at_depth": [],
+        "state": {}
+      }
+    },
+    {
+      "name": "only the last scan_depth messages are read; whole words and case sensitivity apply per entry; a /regex/ key matches",
+      "settings": { "scan_depth": 1 },
+      "entries": [
+        { "id": "old", "keys": ["castle"], "content": "too far back" },
+        { "id": "word", "keys": ["cat"], "match_whole_words": true, "content": "not in catalogue" },
+        { "id": "case", "keys": ["Ada"], "case_sensitive": true, "content": "case kept" },
+        { "id": "regex", "keys": ["/sh(ip|ore)s?/i"], "content": "regex hit" }
+      ],
+      "history": ["The castle burns.", "Ada reads the catalogue on the SHORE."],
+      "message_count": 2,
+      "speaker": "Ada",
+      "state": {},
+      "rolls": [],
+      "expect": {
+        "active": ["case", "regex"],
+        "sections": { "after_char": "case kept\nregex hit" },
+        "at_depth": [],
+        "state": {}
+      }
+    },
+    {
+      "name": "secondary keys: and_any, and_all, not_any and not_all",
+      "entries": [
+        { "id": "any", "keys": ["king"], "secondary_keys": ["crown", "throne"], "selective_logic": "and_any", "content": "any" },
+        { "id": "all", "keys": ["king"], "secondary_keys": ["crown", "throne"], "selective_logic": "and_all", "content": "all" },
+        { "id": "none", "keys": ["king"], "secondary_keys": ["sword"], "selective_logic": "not_any", "content": "none" },
+        { "id": "notall", "keys": ["king"], "secondary_keys": ["crown", "throne"], "selective_logic": "not_all", "content": "notall" }
+      ],
+      "history": ["The king lifts his crown."],
+      "message_count": 1,
+      "speaker": "Ada",
+      "state": {},
+      "rolls": [],
+      "expect": {
+        "active": ["any", "none", "notall"],
+        "sections": { "after_char": "any\nnone\nnotall" },
+        "at_depth": [],
+        "state": {}
+      }
+    },
+    {
+      "name": "recursion: an activated entry's content activates others, but not one that prevents or excludes recursion",
+      "entries": [
+        { "id": "a", "keys": ["harbour"], "content": "The harbour is run by the Guild.", "order": 1 },
+        { "id": "b", "keys": ["guild"], "content": "The Guild answers to the Duke.", "order": 2 },
+        { "id": "c", "keys": ["duke"], "content": "The Duke is ill.", "order": 3, "exclude_recursion": true },
+        { "id": "d", "keys": ["storm"], "content": "Storms mention the harbour.", "prevent_recursion": true, "order": 4 },
+        { "id": "e", "keys": ["guild"], "delay_until_recursion": true, "content": "Only from recursion.", "order": 5 }
+      ],
+      "history": ["We reach the harbour in a storm."],
+      "message_count": 1,
+      "speaker": "Ada",
+      "state": {},
+      "rolls": [],
+      "expect": {
+        "active": ["a", "b", "d", "e"],
+        "sections": { "after_char": "The harbour is run by the Guild.\nThe Guild answers to the Duke.\nStorms mention the harbour.\nOnly from recursion." },
+        "at_depth": [],
+        "state": {}
+      }
+    },
+    {
+      "name": "probability and an inclusion group: rolls decide, a prioritized member wins its group outright",
+      "entries": [
+        { "id": "maybe", "keys": ["inn"], "probability": 50, "content": "maybe", "order": 1 },
+        { "id": "unlikely", "keys": ["inn"], "probability": 10, "content": "unlikely", "order": 2 },
+        { "id": "rumour-a", "keys": ["inn"], "group": "rumour", "group_weight": 100, "content": "rumour a", "order": 3 },
+        { "id": "rumour-b", "keys": ["inn"], "group": "rumour", "group_weight": 300, "content": "rumour b", "order": 4 },
+        { "id": "weather-a", "keys": ["inn"], "group": "weather", "content": "rain", "order": 5 },
+        { "id": "weather-b", "keys": ["inn"], "group": "weather", "prioritize": true, "content": "fog", "order": 6 }
+      ],
+      "history": ["We stop at the inn."],
+      "message_count": 1,
+      "speaker": "Ada",
+      "state": {},
+      "rolls": [0.3, 0.5, 0.4],
+      "expect": {
+        "active": ["maybe", "rumour-b", "weather-b"],
+        "sections": { "after_char": "maybe\nrumour b\nfog" },
+        "at_depth": [],
+        "state": {}
+      }
+    },
+    {
+      "name": "the token budget keeps the highest-order entries that fit",
+      "settings": { "token_budget": 10 },
+      "entries": [
+        { "id": "low", "keys": ["map"], "order": 1, "content": "aaaaaaaaaaaaaaaaaaaa" },
+        { "id": "high", "keys": ["map"], "order": 9, "content": "bbbbbbbbbbbbbbbbbbbb" },
+        { "id": "mid", "keys": ["map"], "order": 5, "content": "cccccccccccccccccccccccc" },
+        { "id": "tiny", "keys": ["map"], "order": 2, "content": "dddddddddddddddddddd" }
+      ],
+      "history": ["Unroll the map."],
+      "message_count": 1,
+      "speaker": "Ada",
+      "state": {},
+      "rolls": [],
+      "expect": {
+        "active": ["high", "tiny"],
+        "sections": { "after_char": "dddddddddddddddddddd\nbbbbbbbbbbbbbbbbbbbb" },
+        "at_depth": [],
+        "state": {}
+      }
+    },
+    {
+      "name": "positions: around the examples, around the author's note, and at a depth with a role",
+      "entries": [
+        { "id": "bx", "constant": true, "position": "before_example", "content": "before examples" },
+        { "id": "ax", "constant": true, "position": "after_example", "content": "after examples" },
+        { "id": "ban", "constant": true, "position": "before_an", "content": "before note" },
+        { "id": "aan", "constant": true, "position": "after_an", "content": "after note" },
+        { "id": "d2", "constant": true, "position": "at_depth", "depth": 2, "role": "user", "content": "depth two", "order": 1 },
+        { "id": "d0", "constant": true, "position": "at_depth", "depth": 0, "role": "system", "content": "depth zero" }
+      ],
+      "history": [],
+      "message_count": 0,
+      "speaker": "Ada",
+      "state": {},
+      "rolls": [],
+      "expect": {
+        "active": ["aan", "ax", "ban", "bx", "d0", "d2"],
+        "sections": { "before_example": "before examples", "after_example": "after examples", "before_an": "before note", "after_an": "after note" },
+        "at_depth": [
+          { "depth": 2, "role": "user", "content": "depth two" },
+          { "depth": 0, "role": "system", "content": "depth zero" }
+        ],
+        "state": {}
+      }
+    },
+    {
+      "name": "character filters, delay, and the timed effects sticky and cooldown",
+      "entries": [
+        { "id": "ada-only", "keys": ["forge"], "character_names": ["Ada"], "content": "Ada's forge" },
+        { "id": "not-ada", "keys": ["forge"], "character_names": ["Ada"], "character_exclude": true, "content": "not for Ada" },
+        { "id": "later", "keys": ["forge"], "delay": 5, "content": "after five messages" },
+        { "id": "stays", "keys": ["forge"], "sticky": 3, "content": "stays three" },
+        { "id": "held", "keys": ["nothing matches this"], "content": "held by sticky" },
+        { "id": "resting", "keys": ["forge"], "content": "on cooldown" },
+        { "id": "tired", "keys": ["forge"], "cooldown": 2, "content": "then rests" }
+      ],
+      "history": ["To the forge."],
+      "message_count": 4,
+      "speaker": "Ada",
+      "state": { "held": { "sticky_until": 6, "cooldown_until": 0 }, "resting": { "sticky_until": 0, "cooldown_until": 5 } },
+      "rolls": [],
+      "expect": {
+        "active": ["ada-only", "held", "stays", "tired"],
+        "sections": { "after_char": "Ada's forge\nheld by sticky\nstays three\nthen rests" },
+        "at_depth": [],
+        "state": {
+          "held": { "sticky_until": 6, "cooldown_until": 0 },
+          "resting": { "sticky_until": 0, "cooldown_until": 5 },
+          "stays": { "sticky_until": 7, "cooldown_until": 0 },
+          "tired": { "sticky_until": 0, "cooldown_until": 6 }
+        }
+      }
+    }
+  ]
+}

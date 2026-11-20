@@ -20,7 +20,12 @@
     "endpoint_url_characters": 2048,
     "model_name_characters": 200,
     "api_key_characters": 512,
-    "import_bytes": 8388608
+    "import_bytes": 8388608,
+    "lorebook_entries": 2000,
+    "lore_keys_per_entry": 64,
+    "lore_key_characters": 200,
+    "lore_content_characters": 50000,
+    "lorebooks_per_chat": 16
   },
   "message_roles": [
     "user",
@@ -92,6 +97,72 @@
       "ic",
       "roll"
     ]
+  },
+  "lore": {
+    "$comment": "World Info (SillyTavern's lorebooks): how entries activate and where they go. client/src/features/lore/activate.ts and server/extensions/ai_chat/Lore.py implement it; contract/lore-cases.json holds the cases both run.",
+    "positions": [
+      "before_char",
+      "after_char",
+      "before_example",
+      "after_example",
+      "before_an",
+      "after_an",
+      "at_depth"
+    ],
+    "selective_logic": [
+      "and_any",
+      "not_all",
+      "not_any",
+      "and_all"
+    ],
+    "depth_roles": [
+      "system",
+      "user",
+      "assistant"
+    ],
+    "defaults": {
+      "scan_depth": 4,
+      "token_budget": 1024,
+      "recursion_steps": 3,
+      "depth": 4,
+      "order": 100,
+      "probability": 100,
+      "group_weight": 100
+    },
+    "ranges": {
+      "scan_depth": [
+        0,
+        1000
+      ],
+      "token_budget": [
+        0,
+        1048576
+      ],
+      "recursion_steps": [
+        0,
+        10
+      ],
+      "depth": [
+        0,
+        1000
+      ],
+      "order": [
+        -100000,
+        100000
+      ],
+      "probability": [
+        0,
+        100
+      ],
+      "group_weight": [
+        1,
+        10000
+      ],
+      "timed": [
+        0,
+        1000
+      ]
+    }
   },
   "paid_features": {}
 }

@@ -11,12 +11,16 @@
  *    the assistant's; everyone else's are the user's, named when the chat has several voices.
  * 3. **Author's note** at `author_note_depth` messages from the end, then the speaker's
  *    post-history instructions last.
- * 4. **Budget:** the context window less the reply's room. Oldest history is dropped first; the
- *    system text, the note and the instructions always stay.
+ * 4. **Lore** (World Info, features/lore/activate.ts): its sections sit around the card
+ *    (`before_char`, `after_char`), the examples and the author's note; its depth entries go into
+ *    the history at their depth, with their role.
+ * 5. **Budget:** the context window less the reply's room. Oldest history is dropped first; the
+ *    system text, the note, the lore and the instructions always stay.
  *
  * Every card text is macro-expanded (`{{char}}`, `{{user}}`).
  */
 import { PROMPT } from '~/contract';
+import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { expandMacros, type MacroNames } from './macros';
 
 export interface PromptCharacter {
@@ -50,6 +54,8 @@ export interface PromptInput {
   history: readonly PromptTurn[];
   context_tokens: number;
   max_tokens: number;
+  /** The active lore, from activateLore (none when the chat has no lorebooks). */
+  lore?: Pick<LoreResult, 'sections' | 'at_depth'>;
 }
 
 export interface ModelMessage {
@@ -72,14 +78,20 @@ export function estimateTokens(message: ModelMessage): number {
   return Math.ceil(message.content.length / PROMPT.characters_per_token) + PROMPT.message_overhead_tokens;
 }
 
-function systemText(speaker: PromptCharacter, persona: PromptPersona | null, names: MacroNames): string {
+type LoreSections = LoreResult['sections'];
+
+function systemText(speaker: PromptCharacter, persona: PromptPersona | null, names: MacroNames, lore: LoreSections): string {
   const sections = [
     speaker.system_prompt.trim() === '' ? PROMPT.default_system_prompt : speaker.system_prompt,
+    lore.before_char ?? '',
     speaker.description,
     speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
     speaker.scenario.trim() === '' ? '' : `Scenario: ${speaker.scenario}`,
+    lore.after_char ?? '',
     persona === null || persona.description.trim() === '' ? '' : `{{user}}: ${persona.description}`,
+    lore.before_example ?? '',
     speaker.example_messages.trim() === '' ? '' : `Example dialogue:\n${speaker.example_messages}`,
+    lore.after_example ?? '',
   ];
   return expandMacros(
     sections
@@ -111,11 +123,30 @@ function historyMessage(
   return { role: 'user', content: named ? `${name}: ${turn.content}` : turn.content };
 }
 
-/** Inserts `note` `depth` messages from the end of `history` (at the start when it is shorter). */
-function withAuthorNote(history: ModelMessage[], note: string): ModelMessage[] {
-  if (note.trim() === '') return history;
-  const at = Math.max(0, history.length - PROMPT.author_note_depth);
-  return [...history.slice(0, at), { role: 'system', content: note }, ...history.slice(at)];
+interface Insert {
+  /** Messages from the end of the history it goes before (at the start when the history is shorter). */
+  depth: number;
+  message: ModelMessage;
+}
+
+/** The history with each insert placed at its depth; at one place, inserts keep their given order. */
+function withInserts(history: readonly ModelMessage[], inserts: readonly Insert[]): ModelMessage[] {
+  const at = (insert: Insert) => Math.max(0, history.length - insert.depth);
+  const placed: ModelMessage[] = [];
+  for (let index = 0; index <= history.length; index += 1) {
+    for (const insert of inserts) if (at(insert) === index) placed.push(insert.message);
+    const turn = history[index];
+    if (turn !== undefined) placed.push(turn);
+  }
+  return placed;
+}
+
+/** The author's note with the lore placed around it, as one block (empty when there is none). */
+function noteBlock(note: string, lore: LoreSections): string {
+  return [lore.before_an ?? '', note, lore.after_an ?? '']
+    .map((part) => part.trim())
+    .filter((part) => part !== '')
+    .join('\n');
 }
 
 export function assemblePrompt(input: PromptInput): AssembledPrompt {
@@ -126,8 +157,16 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const group = input.characters.length > 1;
   const story = new Set<string>(PROMPT.story_channels);
 
-  const system: ModelMessage = { role: 'system', content: systemText(speaker, input.persona, names) };
-  const note = expandMacros(input.author_note, names);
+  const loreSections: LoreSections = input.lore?.sections ?? {};
+  const system: ModelMessage = { role: 'system', content: systemText(speaker, input.persona, names, loreSections) };
+  const note = expandMacros(noteBlock(input.author_note, loreSections), names);
+  const inserts: Insert[] = [
+    ...(note === '' ? [] : [{ depth: PROMPT.author_note_depth, message: { role: 'system' as const, content: note } }]),
+    ...(input.lore?.at_depth ?? []).map((insert: DepthInsert) => ({
+      depth: insert.depth,
+      message: { role: insert.role, content: expandMacros(insert.content, names) },
+    })),
+  ];
   const after = speaker.post_history_instructions.trim() === '' ? [] : [{ role: 'system' as const, content: expandMacros(speaker.post_history_instructions, names) }];
   const history = input.history
     .filter((turn) => story.has(turn.channel))
@@ -135,7 +174,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
 
   const budget = input.context_tokens - input.max_tokens;
   const cost = (messages: readonly ModelMessage[]) => messages.reduce((total, message) => total + estimateTokens(message), 0);
-  const fixed = cost([system, ...after]) + (note.trim() === '' ? 0 : estimateTokens({ role: 'system', content: note }));
+  const fixed = cost([system, ...after, ...inserts.map((insert) => insert.message)]);
 
   // Keep the newest turns that fit; everything older is dropped.
   let kept = history.length;
@@ -147,5 +186,5 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     kept = index;
   }
   const window = history.slice(kept);
-  return { messages: [system, ...withAuthorNote(window, note), ...after], dropped: kept };
+  return { messages: [system, ...withInserts(window, inserts), ...after], dropped: kept };
 }
