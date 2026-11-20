@@ -20,7 +20,7 @@
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAFETY, SAMPLER_RANGES, TABLE, ENDPOINT_APIS, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAFETY, SAMPLER_EXTRAS, SAMPLER_RANGES, TABLE, ENDPOINT_APIS, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -513,6 +513,9 @@ const PRESET_COLUMNS: Columns = {
   context_tokens: plain('contextTokens'),
   stop: jsonList('stop'),
   prompt_layout: jsonList('promptLayout'),
+  logit_bias: jsonObject('logitBias'),
+  negative_prompt: plain('negativePrompt'),
+  guidance_scale: plain('guidanceScale'),
 };
 
 const ranged = (setting: keyof typeof SAMPLER_RANGES) => z.number().min(SAMPLER_RANGES[setting][0]).max(SAMPLER_RANGES[setting][1]);
@@ -540,6 +543,13 @@ const presetFields = {
   context_tokens: wholeRanged('context_tokens'),
   stop,
   prompt_layout: promptLayout,
+  /** Token id → bias (A47), sent to a chat API that takes it. */
+  logit_bias: z
+    .record(z.string().regex(/^\d+$/, 'A token id is a whole number'), z.number().min(SAMPLER_EXTRAS.logit_bias_range[0] as number).max(SAMPLER_EXTRAS.logit_bias_range[1] as number))
+    .refine((bias) => Object.keys(bias).length <= SAMPLER_EXTRAS.logit_bias_entries, `At most ${SAMPLER_EXTRAS.logit_bias_entries} biased tokens`),
+  /** Classifier-free guidance (A47): what to steer away from, and how hard, for servers that take it. */
+  negative_prompt: z.string().max(LIMITS.card_field_characters),
+  guidance_scale: z.number().min(SAMPLER_EXTRAS.guidance_scale_range[0] as number).max(SAMPLER_EXTRAS.guidance_scale_range[1] as number).nullable(),
 };
 const presetCreate = z.object({
   name,
@@ -551,6 +561,9 @@ const presetCreate = z.object({
   context_tokens: presetFields.context_tokens.default(PRESET_DEFAULTS.context_tokens),
   stop: stop.default([]),
   prompt_layout: promptLayout.default([]),
+  logit_bias: presetFields.logit_bias.default({}),
+  negative_prompt: presetFields.negative_prompt.default(''),
+  guidance_scale: presetFields.guidance_scale.default(null),
 });
 const presetUpdate = z.object({ name, ...presetFields }).partial();
 

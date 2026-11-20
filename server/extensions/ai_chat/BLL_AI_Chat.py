@@ -608,6 +608,25 @@ class PresetChecks(PlainModel):
     def _checked_layout(cls, value: Any) -> Any:
         return _prompt_layout(value)
 
+    @field_validator("logit_bias", check_fields=False)
+    @classmethod
+    def _checked_bias(cls, value: Any) -> Any:
+        extras = CONTRACT["sampler_extras"]
+        low, high = extras["logit_bias_range"]
+        if value is not None and (
+            len(value) > extras["logit_bias_entries"] or any(not key.isdigit() or isinstance(bias, bool) or not low <= bias <= high for key, bias in value.items())
+        ):
+            raise ValueError(f"At most {extras['logit_bias_entries']} token ids (whole numbers), each biased {low} to {high}")
+        return value
+
+    @field_validator("guidance_scale", check_fields=False)
+    @classmethod
+    def _checked_guidance(cls, value: Any) -> Any:
+        low, high = CONTRACT["sampler_extras"]["guidance_scale_range"]
+        if value is not None and not low <= value <= high:
+            raise ValueError(f"guidance_scale is {low} to {high}")
+        return value
+
 
 class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["GenerationPresetManager"]]
@@ -620,6 +639,9 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
     context_tokens: int = Field(int(PRESET_DEFAULTS["context_tokens"]))
     stop: list[str] = Field(default_factory=list)
     prompt_layout: list[dict[str, Any]] = Field(default_factory=list, description="The prompt manager's sections, in order")
+    logit_bias: dict[str, float] = Field(default_factory=dict, description="Token id to bias, for chat APIs that take it")
+    negative_prompt: str = Field("", description="What classifier-free guidance steers away from")
+    guidance_scale: float | None = Field(None, description="How hard guidance steers (null: none)")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI sampler presets"
 
@@ -633,6 +655,9 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         context_tokens: int = int(PRESET_DEFAULTS["context_tokens"])
         stop: list[str] = Field(default_factory=list)
         prompt_layout: list[dict[str, Any]] = Field(default_factory=list)
+        logit_bias: dict[str, float] = Field(default_factory=dict)
+        negative_prompt: str = Field("", max_length=LIMITS["card_field_characters"])
+        guidance_scale: float | None = None
 
     class Update(PresetChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -644,6 +669,9 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         context_tokens: int | None = None
         stop: list[str] | None = None
         prompt_layout: list[dict[str, Any]] | None = None
+        logit_bias: dict[str, float] | None = None
+        negative_prompt: str | None = Field(None, max_length=LIMITS["card_field_characters"])
+        guidance_scale: float | None = None
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -656,6 +684,8 @@ class GenerationPresetManager(AbstractBLLManager[GenerationPresetModel], RouterM
         # Scalar defaults are written; the list's must be explicit.
         kwargs.setdefault("stop", [])
         kwargs.setdefault("prompt_layout", [])
+        kwargs.setdefault("logit_bias", {})
+        kwargs.setdefault("negative_prompt", "")
         for setting, value in PRESET_DEFAULTS.items():
             kwargs.setdefault(setting, value)
         return super().create(**kwargs)
@@ -1119,6 +1149,10 @@ def upstream_body(
         "repetition_penalty": sampler["repetition_penalty"],
         "max_tokens": sampler["max_tokens"],
         **({"stop": stop} if stop else {}),
+        # Sent only when set (A47): servers that do not take them never see them.
+        **({"logit_bias": sampler["logit_bias"]} if sampler.get("logit_bias") else {}),
+        **({"negative_prompt": sampler["negative_prompt"]} if (sampler.get("negative_prompt") or "").strip() else {}),
+        **({"guidance_scale": sampler["guidance_scale"]} if sampler.get("guidance_scale") is not None else {}),
     }
 
 
@@ -1233,7 +1267,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         sampler: dict[str, Any] = {**PRESET_DEFAULTS, "stop": [], "prompt_layout": []}
         if chat.preset_id:
             preset = self._manager(GenerationPresetManager).get(id=chat.preset_id)
-            sampler = {key: getattr(preset, key) for key in (*PRESET_DEFAULTS.keys(), "stop", "prompt_layout")}
+            sampler = {key: getattr(preset, key) for key in (*PRESET_DEFAULTS.keys(), "stop", "prompt_layout", "logit_bias", "negative_prompt", "guidance_scale")}
 
         # The model for this request's role (A27): a model serving the role; for replies the chat's
         # own choice comes first. Otherwise the chat's model, then the default, then any.

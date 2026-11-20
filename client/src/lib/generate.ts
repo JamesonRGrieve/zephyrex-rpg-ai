@@ -52,6 +52,9 @@ export interface Sampler {
   context_tokens: number;
   stop: string[];
   prompt_layout: PromptSection[];
+  logit_bias?: Record<string, number>;
+  negative_prompt?: string;
+  guidance_scale?: number | null;
 }
 
 export interface Endpoint {
@@ -282,6 +285,10 @@ export function upstreamBody(endpoint: Endpoint, sampler: Sampler, messages: rea
     repetition_penalty: sampler.repetition_penalty,
     max_tokens: sampler.max_tokens,
     ...(stop.length === 0 ? {} : { stop }),
+    // Sent only when set (A47): servers that do not take them never see them.
+    ...(Object.keys(sampler.logit_bias ?? {}).length === 0 ? {} : { logit_bias: sampler.logit_bias }),
+    ...((sampler.negative_prompt ?? '').trim() === '' ? {} : { negative_prompt: sampler.negative_prompt }),
+    ...(sampler.guidance_scale == null ? {} : { guidance_scale: sampler.guidance_scale }),
   };
 }
 

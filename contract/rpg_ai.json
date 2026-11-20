@@ -504,5 +504,16 @@
     "gm",
     "summary",
     "translate"
-  ]
+  ],
+  "sampler_extras": {
+    "logit_bias_range": [
+      -100,
+      100
+    ],
+    "logit_bias_entries": 50,
+    "guidance_scale_range": [
+      1,
+      5
+    ]
+  }
 }

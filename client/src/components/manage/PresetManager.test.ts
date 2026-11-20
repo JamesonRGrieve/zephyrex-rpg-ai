@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import { LIMITS } from '~/contract';
-import { parseStops, samplersOf } from './PresetManager';
+import { parseStops, samplersOf, parseLogitBias } from './PresetManager';
 
 describe('parseStops', () => {
   it('takes one stop string per line, without blanks, up to the limit', () => {
@@ -14,3 +14,10 @@ describe('parseStops', () => {
     expect(Object.keys(samplersOf(saved)).sort()).toEqual(['context_tokens', 'max_tokens', 'repetition_penalty', 'temperature', 'top_k', 'top_p']);
   });
 });
+
+describe('parseLogitBias', () => {
+  it('reads token id: bias lines, keeps biases in range, and leaves out what it cannot read', () => {
+    expect(parseLogitBias('50256: -100\n 13 = 5.5\nnonsense\n7: 400')).toEqual({ '50256': -100, '13': 5.5, '7': 100 });
+  });
+});
+

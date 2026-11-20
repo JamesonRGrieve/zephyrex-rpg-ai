@@ -312,6 +312,13 @@ describe('upstreamBody', () => {
     { role: 'assistant' as const, content: 'Hel' },
   ];
 
+  it('sends logit bias and guidance only when the preset sets them', () => {
+    const endpoint = { base_url: 'http://h', model: 'm', api_key: '', api: 'chat' as const, instruct_template: 'chatml' as const };
+    expect(upstreamBody(endpoint, sampler, messages, 'reply')).not.toHaveProperty('logit_bias');
+    const extras = upstreamBody(endpoint, { ...sampler, logit_bias: { '50256': -100 }, negative_prompt: 'purple prose', guidance_scale: 1.5 }, messages, 'reply');
+    expect(extras).toMatchObject({ logit_bias: { '50256': -100 }, negative_prompt: 'purple prose', guidance_scale: 1.5 });
+  });
+
   it('sends a chat API the messages and the preset’s stops', () => {
     const body = upstreamBody({ base_url: 'http://h', model: 'm', api_key: '', api: 'chat', instruct_template: 'chatml' }, sampler, messages, 'reply');
     expect(body).toMatchObject({ messages, stop: ['END'] });

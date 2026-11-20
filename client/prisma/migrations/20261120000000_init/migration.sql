@@ -101,6 +101,9 @@ CREATE TABLE "GenerationPreset" (
     "contextTokens" INTEGER NOT NULL,
     "stop" TEXT NOT NULL DEFAULT '[]',
     "promptLayout" TEXT NOT NULL DEFAULT '[]',
+    "logitBias" TEXT NOT NULL DEFAULT '{}',
+    "negativePrompt" TEXT NOT NULL DEFAULT '',
+    "guidanceScale" REAL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

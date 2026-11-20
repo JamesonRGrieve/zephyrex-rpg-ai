@@ -124,6 +124,9 @@ model GenerationPreset {
   contextTokens     Int
   stop              String   @default("[]")
   promptLayout      String   @default("[]")
+  logitBias         String   @default("{}")
+  negativePrompt    String   @default("")
+  guidanceScale     Float?
   createdAt         DateTime @default(now())
   updatedAt         DateTime
   updatedById       String?

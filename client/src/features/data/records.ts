@@ -100,6 +100,9 @@ export const presetSchema = z.object({
   context_tokens: z.number(),
   stop: z.array(z.string()),
   prompt_layout: z.array(z.object({ id: z.enum(PROMPT.sections), enabled: z.boolean(), max_tokens: z.number().nullable() })),
+  logit_bias: z.record(z.string(), z.number()),
+  negative_prompt: z.string(),
+  guidance_scale: z.number().nullable(),
 });
 export type Preset = z.infer<typeof presetSchema>;
 

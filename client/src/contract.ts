@@ -65,6 +65,9 @@ export type LorePosition = (typeof LORE_POSITIONS)[number];
 export type SelectiveLogic = (typeof SELECTIVE_LOGIC)[number];
 export type DepthRole = (typeof DEPTH_ROLES)[number];
 
+/** Logit bias and CFG (A47): passed to the model only when set. */
+export const SAMPLER_EXTRAS = contract.sampler_extras;
+
 /** Text-completion prompt markup (features/prompt/instruct.ts; cases in contract/instruct-cases.json). */
 export const INSTRUCT_TEMPLATES = contract.instruct_templates;
 export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;

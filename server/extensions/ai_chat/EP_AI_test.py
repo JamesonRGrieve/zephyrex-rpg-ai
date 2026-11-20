@@ -456,6 +456,19 @@ class TestGenerate:
         gone = server.post("/v1/ai_chat/ping", json={"ping": {"endpoint_id": down["id"]}}, headers=_headers(user)).json()["ping"]
         assert (gone["ok"], gone["status"], gone["detail"]) == (False, None, "The server could not be reached")
 
+    def test_a_presets_logit_bias_and_guidance_reach_the_model(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        bad = server.post("/v1/generation_preset", json={"generation_preset": {"name": "x", "logit_bias": {"abc": 1}}}, headers=_headers(user))
+        assert bad.status_code == 422, bad.text
+        preset = _create(server, user, "generation_preset", name="Steered", logit_bias={"50256": -100}, negative_prompt="purple prose", guidance_scale=1.5).json()["generation_preset"]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], preset_id=preset["id"]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        RECEIVED.clear()
+        server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert {key: RECEIVED[0]["body"][key] for key in ("logit_bias", "negative_prompt", "guidance_scale")} == {"logit_bias": {"50256": -100}, "negative_prompt": "purple prose", "guidance_scale": 1.5}
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]
