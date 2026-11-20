@@ -8,6 +8,7 @@
  *   `maxDepth`. A pattern this app cannot run alike in both editions is refused per script.
  * - A Quick Reply set: `qrList` of `{ label, message }` (ST v2 also `title`, `isHidden`).
  */
+import type { QuickReplyAutoRun } from '~/contract';
 import { compileFind, type RegexPlacement } from '~/features/chat/regex';
 
 const object = (value: unknown): Record<string, unknown> =>
@@ -67,29 +68,46 @@ export function regexScriptsFromJson(json: unknown): { scripts: ImportedRegexScr
 export interface ImportedQuickReply {
   label: string;
   message: string;
-  action: 'send';
+  action: 'send' | 'fill';
   channel: 'ic';
   enabled: boolean;
   position: number;
+  auto_run: QuickReplyAutoRun;
 }
 
-/** A Quick Reply set's buttons (each sends its line to the story). */
+/**
+ * When a SillyTavern quick reply ran by itself (A38): on startup or a chat change is a chat
+ * opening; on the user's or the AI's message is after a send or a reply.
+ */
+function autoRunOf(reply: Record<string, unknown>): QuickReplyAutoRun {
+  if (reply.executeOnStartup === true || reply.executeOnChatChange === true) return 'chat_open';
+  if (reply.executeOnAi === true) return 'after_reply';
+  if (reply.executeOnUser === true) return 'after_send';
+  return 'none';
+}
+
+/**
+ * A Quick Reply set's buttons (each sends its line to the story). One SillyTavern ran after a
+ * message comes in as filling the composer: here a send then would run without end.
+ */
 export function quickRepliesFromJson(json: unknown): ImportedQuickReply[] {
   const set = object(json);
   const list = Array.isArray(set.qrList) ? set.qrList : [];
   return list.map(object).flatMap((reply, index) => {
     const label = (text(reply.label) || text(reply.title)).trim();
     const message = text(reply.message).trim();
+    const autoRun = autoRunOf(reply);
     return label === '' || message === ''
       ? []
       : [
           {
             label,
             message,
-            action: 'send' as const,
+            action: autoRun === 'after_send' || autoRun === 'after_reply' ? ('fill' as const) : ('send' as const),
             channel: 'ic' as const,
             enabled: reply.isHidden !== true,
             position: index,
+            auto_run: autoRun,
           },
         ];
   });

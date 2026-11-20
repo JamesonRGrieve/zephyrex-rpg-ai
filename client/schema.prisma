@@ -248,6 +248,8 @@ model QuickReply {
   channel     String   @default("ic")
   enabled     Boolean  @default(true)
   position    Int      @default(0)
+  /// When it runs by itself (A38): none, chat_open, after_send or after_reply.
+  autoRun     String   @default("none")
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   updatedById String?

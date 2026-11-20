@@ -57,11 +57,32 @@ describe('SillyTavern Quick Reply sets', () => {
           { label: 'Look', message: 'I look around.' },
           { title: 'Hidden', message: 'x', isHidden: true },
           { label: 'Empty', message: ' ' },
+          { label: 'Hello', message: 'Hi!', executeOnStartup: true },
+          { label: 'Next', message: 'I look.', executeOnAi: true },
         ],
       }),
     ).toEqual([
-      { label: 'Look', message: 'I look around.', action: 'send', channel: 'ic', enabled: true, position: 0 },
-      { label: 'Hidden', message: 'x', action: 'send', channel: 'ic', enabled: false, position: 1 },
+      {
+        label: 'Look',
+        message: 'I look around.',
+        action: 'send',
+        channel: 'ic',
+        enabled: true,
+        position: 0,
+        auto_run: 'none',
+      },
+      { label: 'Hidden', message: 'x', action: 'send', channel: 'ic', enabled: false, position: 1, auto_run: 'none' },
+      { label: 'Hello', message: 'Hi!', action: 'send', channel: 'ic', enabled: true, position: 3, auto_run: 'chat_open' },
+      // After the AI's message it can only fill: a send would run without end.
+      {
+        label: 'Next',
+        message: 'I look.',
+        action: 'fill',
+        channel: 'ic',
+        enabled: true,
+        position: 4,
+        auto_run: 'after_reply',
+      },
     ]);
   });
 });

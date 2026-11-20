@@ -292,6 +292,20 @@ class TestGenerate:
         listed = server.get("/v1/quick_reply", headers=_headers(user)).json()["quick_replies"]
         assert [(row["label"], row["action"], row["channel"]) for row in listed] == [("Pause", "fill", "ooc"), ("Look", "send", "ic")]
 
+    def test_a_quick_reply_runs_by_itself_but_never_without_end(self, server: TestClient) -> None:
+        user = create_user(server)
+        opener = _create(server, user, "quick_reply", label="Recap", message="Where were we?", channel="ooc", auto_run="chat_open").json()["quick_reply"]
+        assert (opener["action"], opener["auto_run"]) == ("send", "chat_open")
+        filler = _create(server, user, "quick_reply", label="Next", message="I ", action="fill", auto_run="after_reply")
+        assert filler.status_code == 201, filler.text
+        # Sending after a reply would ask the model again, and run again: refused.
+        looping = server.post("/v1/quick_reply", json={"quick_reply": {"label": "Loop", "message": "Go on.", "auto_run": "after_reply"}}, headers=_headers(user))
+        assert looping.status_code == 422, looping.text
+        assert server.post("/v1/quick_reply", json={"quick_reply": {"label": "Bad", "message": "x", "auto_run": "hourly"}}, headers=_headers(user)).status_code == 422
+        # Nor can an update make one loop.
+        made_loop = _put(server, user, "quick_reply", filler.json()["quick_reply"]["id"], filler.headers["ETag"], action="send")
+        assert made_loop.status_code == 422, made_loop.text
+
     def test_a_chat_keeps_its_tags_and_folder(self, server: TestClient) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

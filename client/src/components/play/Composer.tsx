@@ -7,14 +7,14 @@
  * keyboard and the home indicator.
  */
 import { BookOpen, ImagePlus, Mic, MicOff, Send, Square, WandSparkles, X } from 'lucide-react';
-import { type KeyboardEvent, type ReactElement, useId, useState } from 'react';
+import { type KeyboardEvent, type ReactElement, useEffect, useId, useRef, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
 import { useDictation } from '~/features/speech/useDictation';
 import { type Command, parseCommand } from '~/features/chat/commands';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
-import { LIMITS } from '~/contract';
+import { LIMITS, type QuickReplyAutoRun } from '~/contract';
 import { type ComposerChannel, outgoing } from '~/features/chat/outgoing';
 
 const CHANNELS: { value: ComposerChannel; label: string }[] = [
@@ -41,6 +41,13 @@ export interface ComposerQuickReply {
   text: string;
   action: 'send' | 'fill';
   channel: 'ic' | 'ooc';
+  /** When it runs by itself (A38); only on chat_open may it send. */
+  autoRun?: QuickReplyAutoRun;
+}
+
+/** The first quick reply that fills on `trigger`, if any (the list is in button order). */
+function fillOn(replies: readonly ComposerQuickReply[], trigger: QuickReplyAutoRun): ComposerQuickReply | undefined {
+  return replies.find((reply) => reply.autoRun === trigger && reply.action === 'fill');
 }
 
 export function Composer({
@@ -53,6 +60,7 @@ export function Composer({
   onCommand,
   castNames = [],
   quickReplies = [],
+  repliesWritten = 0,
 }: {
   writing: boolean;
   disabled?: boolean;
@@ -69,9 +77,35 @@ export function Composer({
   castNames?: readonly string[];
   /** Buttons that send or fill in a saved line (A32), their macros already filled. */
   quickReplies?: readonly ComposerQuickReply[];
+  /** How many replies have been written while this chat was open: each one runs the after-reply quick reply (A38). */
+  repliesWritten?: number;
 }): ReactElement {
-  const [text, setText] = useState('');
-  const [channel, setChannel] = useState<ComposerChannel>('ic');
+  // A quick reply that fills on opening the chat (A38) is the box's first text.
+  const [text, setText] = useState(() => fillOn(quickReplies, 'chat_open')?.text ?? '');
+  const [channel, setChannel] = useState<ComposerChannel>(() => fillOn(quickReplies, 'chat_open')?.channel ?? 'ic');
+
+  // After each reply (A38): adjusted during render when the count moves, React's pattern for state
+  // that follows a prop. An after-reply quick reply only ever fills (the contract refuses a send).
+  const [repliesSeen, setRepliesSeen] = useState(repliesWritten);
+  if (repliesWritten !== repliesSeen) {
+    setRepliesSeen(repliesWritten);
+    const next = fillOn(quickReplies, 'after_reply');
+    if (next !== undefined && text.trim() === '') {
+      setText(next.text);
+      setChannel(next.channel);
+    }
+  }
+
+  // Sends on opening the chat (A38): once, as soon as the quick replies have loaded, even where
+  // React runs effects twice in development.
+  const opened = useRef(false);
+  useEffect(() => {
+    if (opened.current || quickReplies.length === 0) return;
+    opened.current = true;
+    for (const reply of quickReplies) {
+      if (reply.autoRun === 'chat_open' && reply.action === 'send') onSend(reply.text, reply.channel);
+    }
+  }, [quickReplies, onSend]);
   const boxId = useId();
   // Dictation (A29): each finished phrase is added to what is typed.
   const dictation = useDictation((phrase) =>
@@ -109,7 +143,10 @@ export function Composer({
     if (message === null || disabled) return;
     if (images.length > 0 && message.channel === 'ic') onSend(message.text, message.channel, images);
     else onSend(message.text, message.channel);
-    setText('');
+    // After a send (A38): the after-send quick reply fills the box for the next line.
+    const next = fillOn(quickReplies, 'after_send');
+    setText(next?.text ?? '');
+    if (next !== undefined) setChannel(next.channel);
     setImages([]);
   };
 

@@ -24,6 +24,14 @@ import { ManagedList } from './ManagedList';
 
 const ACTION_LABELS = { send: 'Send at once', fill: 'Fill in to edit' } as const;
 const CHANNEL_LABELS = { ic: 'In the story', ooc: 'Table talk' } as const;
+const AUTO_RUN_LABELS = {
+  none: 'Only when pressed',
+  chat_open: 'When a chat opens',
+  after_send: 'After I send',
+  after_reply: 'After each reply',
+} as const;
+/** Whether a quick reply with this trigger may send (A38): only on opening, else it would run without end. */
+const maySend = (autoRun: QuickReply['auto_run']) => (QUICK_REPLY.sending_auto_runs as readonly string[]).includes(autoRun);
 const CHIP =
   'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
 
@@ -57,12 +65,26 @@ function Chips<T extends string>({
   );
 }
 
-export function QuickReplyForm({ reply, done }: { reply: QuickReply | null; done: () => void }): ReactElement {
-  const { create, update } = quickReplies.useActions();
+export type QuickReplyFields = Pick<
+  QuickReply,
+  'label' | 'message' | 'action' | 'channel' | 'enabled' | 'auto_run' | 'position'
+>;
+
+/** A quick reply's form; `onSave` answers the problem that kept it from being saved, or null. */
+export function QuickReplyFormView({
+  reply,
+  onSave,
+  done,
+}: {
+  reply: QuickReply | null;
+  onSave: (fields: QuickReplyFields) => Promise<string | null>;
+  done: () => void;
+}): ReactElement {
   const [label, setLabel] = useState(reply?.label ?? '');
   const [message, setMessage] = useState(reply?.message ?? '');
   const [action, setAction] = useState<QuickReply['action']>(reply?.action ?? 'send');
   const [channel, setChannel] = useState<QuickReply['channel']>(reply?.channel ?? 'ic');
+  const [autoRun, setAutoRun] = useState<QuickReply['auto_run']>(reply?.auto_run ?? 'none');
   const [enabled, setEnabled] = useState(reply?.enabled ?? true);
   const [position, setPosition] = useState(String(reply?.position ?? 0));
   const [problem, setProblem] = useState<string | null>(null);
@@ -75,9 +97,10 @@ export function QuickReplyForm({ reply, done }: { reply: QuickReply | null; done
       action,
       channel,
       enabled,
+      auto_run: autoRun,
       position: Math.max(0, Number.parseInt(position, 10) || 0),
     };
-    const failed = await writeProblem(reply === null ? create(fields) : update(reply, fields), 'Not saved');
+    const failed = await onSave(fields);
     setProblem(failed);
     if (failed === null) {
       notify('Saved');
@@ -120,8 +143,29 @@ export function QuickReplyForm({ reply, done }: { reply: QuickReply | null; done
           onChange={(event) => setMessage(event.target.value)}
         />
       </div>
-      <Chips label='When pressed' options={QUICK_REPLY.actions} labels={ACTION_LABELS} value={action} onChange={setAction} />
+      <Chips
+        label='When pressed'
+        options={QUICK_REPLY.actions}
+        labels={ACTION_LABELS}
+        value={action}
+        onChange={(next) => {
+          setAction(next);
+          // Sending is only for a quick reply that runs when pressed or when a chat opens.
+          if (next === 'send' && !maySend(autoRun)) setAutoRun('none');
+        }}
+      />
       <Chips label='Goes to' options={QUICK_REPLY.channels} labels={CHANNEL_LABELS} value={channel} onChange={setChannel} />
+      <Chips
+        label='Runs by itself'
+        options={QUICK_REPLY.auto_runs}
+        labels={AUTO_RUN_LABELS}
+        value={autoRun}
+        onChange={(next) => {
+          setAutoRun(next);
+          // After a send or a reply it only fills: a send would ask the model again, and run again.
+          if (!maySend(next)) setAction('fill');
+        }}
+      />
       <div className='grid grid-cols-2 gap-3'>
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.position}>Order</Label>
@@ -145,6 +189,18 @@ export function QuickReplyForm({ reply, done }: { reply: QuickReply | null; done
         Save
       </Button>
     </form>
+  );
+}
+
+/** The form, saved as a quick reply record. */
+export function QuickReplyForm({ reply, done }: { reply: QuickReply | null; done: () => void }): ReactElement {
+  const { create, update } = quickReplies.useActions();
+  return (
+    <QuickReplyFormView
+      reply={reply}
+      done={done}
+      onSave={(fields) => writeProblem(reply === null ? create(fields) : update(reply, fields), 'Not saved')}
+    />
   );
 }
 

@@ -80,4 +80,51 @@ describe('Composer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Stop the reply' }));
     expect(onStop).toHaveBeenCalledOnce();
   });
+
+  describe('quick replies that run by themselves (A38)', () => {
+    const reply = (
+      id: string,
+      autoRun: 'chat_open' | 'after_send' | 'after_reply',
+      action: 'send' | 'fill',
+      text: string,
+    ) => ({
+      id,
+      label: id,
+      text,
+      action,
+      channel: 'ooc' as const,
+      autoRun,
+    });
+
+    it('sends once when the chat opens, and fills the box when one fills', () => {
+      const onSend = vi.fn();
+      const replies = [
+        reply('hello', 'chat_open', 'send', 'Hi, all.'),
+        reply('start', 'chat_open', 'fill', 'Where were we?'),
+      ];
+      const { rerender } = render(<Composer writing={false} onSend={onSend} onStop={vi.fn()} quickReplies={replies} />);
+      rerender(<Composer writing={false} onSend={onSend} onStop={vi.fn()} quickReplies={[...replies]} />);
+      expect(onSend).toHaveBeenCalledTimes(1);
+      expect(onSend).toHaveBeenCalledWith('Hi, all.', 'ooc');
+      // The fill is table talk, so the box is too.
+      expect(screen.getByLabelText('Table talk')).toHaveValue('Where were we?');
+    });
+
+    it('fills the box after a send, and after each reply while it is empty', async () => {
+      const onSend = vi.fn();
+      const replies = [
+        reply('again', 'after_send', 'fill', 'And then'),
+        reply('next', 'after_reply', 'fill', 'I look around.'),
+      ];
+      const { rerender } = render(
+        <Composer writing={false} onSend={onSend} onStop={vi.fn()} quickReplies={replies} repliesWritten={0} />,
+      );
+      const box = screen.getByLabelText('Your next line');
+      await userEvent.type(box, 'I wave.{Enter}');
+      expect(box).toHaveValue('And then');
+      await userEvent.clear(box);
+      rerender(<Composer writing={false} onSend={onSend} onStop={vi.fn()} quickReplies={replies} repliesWritten={1} />);
+      expect(box).toHaveValue('I look around.');
+    });
+  });
 });

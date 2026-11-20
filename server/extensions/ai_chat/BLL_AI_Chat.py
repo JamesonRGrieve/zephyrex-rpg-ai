@@ -924,6 +924,19 @@ class QuickReplyChecks(PlainModel):
     def _checked_channel(cls, value: Any) -> Any:
         return _one_of(value, QUICK["channels"], "channel")
 
+    @field_validator("auto_run", check_fields=False)
+    @classmethod
+    def _checked_auto_run(cls, value: Any) -> Any:
+        return _one_of(value, QUICK["auto_runs"], "auto_run")
+
+
+def quick_reply_loops(action: str, auto_run: str) -> bool:
+    """Whether a quick reply would run without end (A38): one that sends, run after a send or a reply."""
+    return action == "send" and auto_run not in QUICK["sending_auto_runs"]
+
+
+QUICK_LOOP_MESSAGE = "A quick reply that runs after a send or a reply can only fill the composer"
+
 
 class QuickReplyModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["QuickReplyManager"]]
@@ -933,6 +946,7 @@ class QuickReplyModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     channel: str = Field("ic", description="ic (the story) or ooc (table talk)")
     enabled: bool = Field(True, description="Whether it shows")
     position: int = Field(0, description="Buttons show in this order")
+    auto_run: str = Field("none", description="When it runs by itself: none, chat_open, after_send or after_reply")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI quick replies"
 
@@ -943,6 +957,7 @@ class QuickReplyModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         channel: str = "ic"
         enabled: bool = True
         position: int = Field(0, ge=0, le=LIMITS["quick_replies"])
+        auto_run: str = "none"
 
     class Update(QuickReplyChecks, BaseModel):
         label: str | None = Field(None, min_length=1, max_length=LIMITS["quick_reply_label_characters"])
@@ -951,6 +966,7 @@ class QuickReplyModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         channel: str | None = None
         enabled: bool | None = None
         position: int | None = Field(None, ge=0, le=LIMITS["quick_replies"])
+        auto_run: str | None = None
 
     class Search(ApplicationModel.Search):
         label: StringSearchModel | None = None
@@ -959,10 +975,26 @@ class QuickReplyModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
 class QuickReplyManager(AbstractBLLManager[QuickReplyModel], RouterMixin):
     _model = QuickReplyModel
 
+    def _invalid(self, field: str, message: str) -> HTTPException:
+        return HTTPException(
+            status_code=422,
+            detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": [field], "msg": message}]},
+        )
+
     def create(self, **kwargs: Any) -> Any:
-        for key, value in (("action", "send"), ("channel", "ic"), ("enabled", True), ("position", 0)):
+        for key, value in (("action", "send"), ("channel", "ic"), ("enabled", True), ("position", 0), ("auto_run", "none")):
             kwargs.setdefault(key, value)
+        if quick_reply_loops(kwargs["action"], kwargs["auto_run"]):
+            raise self._invalid("auto_run", QUICK_LOOP_MESSAGE)
         return super().create(**kwargs)
+
+    def update(self, id: str, **kwargs: Any) -> Any:
+        current = self.get(id=id)
+        action = kwargs.get("action") if kwargs.get("action") is not None else current.action
+        auto_run = kwargs.get("auto_run") if kwargs.get("auto_run") is not None else current.auto_run or "none"
+        if quick_reply_loops(action, auto_run):
+            raise self._invalid("auto_run", QUICK_LOOP_MESSAGE)
+        return super().update(id, **kwargs)
 
     def list(self, *args: Any, **kwargs: Any) -> Any:
         rows = super().list(*args, **kwargs)

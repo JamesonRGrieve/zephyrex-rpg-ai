@@ -699,7 +699,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A19 | Rolling summaries (asked of the chat's model, kept or edited) | recall by meaning (`ai_memories`, SaaS) |
 | A29 | Read aloud per character voice; dictation (both by the browser) | server voices |
 | A31 | A picture behind each chat | per wiki location |
-| A32, A38 | Quick replies (send or fill, story or table talk); SillyTavern Quick Reply sets read in | auto-run triggers |
+| A32, A38 | Quick replies (send or fill, story or table talk); SillyTavern Quick Reply sets read in; running by themselves when a chat opens, after a send or after each reply (only on opening may one send: either twin refuses a loop) | |
 | A33 | Regex scripts: stored, display-only, prompt-only, by depth; SillyTavern scripts read in | |
 | A36 | Installable; every screen works on a phone | |
 | A43 | Translate a message by the translation model (else the chat's), for display; every new reply translated into the device's language when the device asks (Translate replies) | translating what the person writes before it is sent |

@@ -243,6 +243,7 @@ CREATE TABLE "QuickReply" (
     "channel" TEXT NOT NULL DEFAULT 'ic',
     "enabled" BOOLEAN NOT NULL DEFAULT true,
     "position" INTEGER NOT NULL DEFAULT 0,
+    "autoRun" TEXT NOT NULL DEFAULT 'none',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

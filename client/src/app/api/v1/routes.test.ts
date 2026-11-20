@@ -18,6 +18,8 @@ import { GET as getEndpoint } from './model_endpoint/[id]/route.lite';
 import { POST as postEndpoint } from './model_endpoint/route.lite';
 import { PUT as putPersona } from './persona/[id]/route.lite';
 import { GET as listPersonas, POST as postPersona } from './persona/route.lite';
+import { PUT as putQuickReply } from './quick_reply/[id]/route.lite';
+import { POST as postQuickReply } from './quick_reply/route.lite';
 
 beforeEach(async () => {
   await prisma.chatMessage.deleteMany();
@@ -25,6 +27,7 @@ beforeEach(async () => {
   await prisma.character.deleteMany();
   await prisma.persona.deleteMany();
   await prisma.modelEndpoint.deleteMany();
+  await prisma.quickReply.deleteMany();
 });
 
 function call(path: string, init: { method?: string; headers?: Record<string, string>; body?: unknown } = {}) {
@@ -240,5 +243,34 @@ describe('the local owner', () => {
       none,
     );
     expect(response.status).toBe(403);
+  });
+});
+
+describe('quick replies that run by themselves (A38)', () => {
+  const post = (fields: Record<string, unknown>) =>
+    postQuickReply(
+      call('/v1/quick_reply', { method: 'POST', body: { quick_reply: { label: 'Q', message: 'Hi.', ...fields } } }),
+      none,
+    );
+
+  it('may send on opening, fill after a reply, and never send after one (it would run without end)', async () => {
+    expect(await (await post({ auto_run: 'chat_open' })).json()).toMatchObject({
+      quick_reply: { action: 'send', auto_run: 'chat_open' },
+    });
+    expect((await post({ auto_run: 'after_reply' })).status).toBe(422);
+    expect((await post({ auto_run: 'hourly' })).status).toBe(422);
+    const filler = await post({ action: 'fill', auto_run: 'after_reply' });
+    expect(filler.status).toBe(201);
+    const { quick_reply: row } = (await filler.json()) as { quick_reply: { id: string } };
+    // Nor can an update make one loop.
+    const made = await putQuickReply(
+      call(`/v1/quick_reply/${row.id}`, {
+        method: 'PUT',
+        headers: { 'If-Match': filler.headers.get('etag') ?? '' },
+        body: { quick_reply: { action: 'send' } },
+      }),
+      params(row.id),
+    );
+    expect(made.status).toBe(422);
   });
 });

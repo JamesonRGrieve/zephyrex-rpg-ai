@@ -102,7 +102,11 @@ export const REASONING = contract.reasoning;
 export const QUICK_REPLY = {
   actions: contract.quick_reply.actions as unknown as readonly ['send', 'fill'],
   channels: contract.quick_reply.channels as unknown as readonly ['ic', 'ooc'],
+  /** When a quick reply runs by itself (A38); only `sending_auto_runs` may send. */
+  auto_runs: contract.quick_reply.auto_runs as unknown as readonly ['none', 'chat_open', 'after_send', 'after_reply'],
+  sending_auto_runs: contract.quick_reply.sending_auto_runs as unknown as readonly ['none', 'chat_open'],
 };
+export type QuickReplyAutoRun = (typeof QUICK_REPLY.auto_runs)[number];
 
 /** The data bank: chunking, retrieval and its place in the prompt (features/chat/dataBank.ts). */
 export const DATA_BANK = {

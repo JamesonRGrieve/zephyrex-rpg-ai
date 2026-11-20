@@ -4,7 +4,7 @@
  * saved line. The same resource, fields and rules as the SaaS server's, listed in their order.
  */
 import type { Prisma } from '@prisma/client';
-import type { ResourceSpec } from '@zephyrex/lite';
+import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
 import { LIMITS, QUICK_REPLY } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, plain } from '~/lib/columns';
@@ -17,7 +17,18 @@ const COLUMNS: Columns = {
   channel: plain('channel'),
   enabled: plain('enabled'),
   position: plain('position'),
+  auto_run: plain('autoRun'),
 };
+
+/**
+ * Whether a quick reply would run without end (A38): one that sends, run after a send or a reply
+ * (the send asks the model again, and the reply runs it again). BLL_AI_Chat's quick_reply_loops.
+ */
+export function quickReplyLoops(action: string, autoRun: string): boolean {
+  return action === 'send' && !(QUICK_REPLY.sending_auto_runs as readonly string[]).includes(autoRun);
+}
+
+const LOOP_MESSAGE = 'A quick reply that runs after a send or a reply can only fill the composer';
 
 const fields = {
   label: z.string().trim().min(1).max(LIMITS.quick_reply_label_characters),
@@ -26,15 +37,19 @@ const fields = {
   channel: z.enum(QUICK_REPLY.channels),
   enabled: z.boolean(),
   position: z.number().int().min(0).max(LIMITS.quick_replies),
+  auto_run: z.enum(QUICK_REPLY.auto_runs),
 };
-const create = z.object({
-  label: fields.label,
-  message: fields.message,
-  action: fields.action.default('send'),
-  channel: fields.channel.default('ic'),
-  enabled: fields.enabled.default(true),
-  position: fields.position.default(0),
-});
+const create = z
+  .object({
+    label: fields.label,
+    message: fields.message,
+    action: fields.action.default('send'),
+    channel: fields.channel.default('ic'),
+    enabled: fields.enabled.default(true),
+    position: fields.position.default(0),
+    auto_run: fields.auto_run.default('none'),
+  })
+  .refine((value) => !quickReplyLoops(value.action, value.auto_run), { message: LOOP_MESSAGE, path: ['auto_run'] });
 const update = z.object(fields).partial();
 
 type Row = Prisma.QuickReplyGetPayload<object>;
@@ -57,6 +72,11 @@ export const quickReplies: ResourceSpec<Row, z.infer<typeof create>, z.infer<typ
       data: { createdById: ownerId, ...written(input, stamp) } as Prisma.QuickReplyUncheckedCreateInput,
     }),
   async updateIfCurrent(id, version, input, stamp, userId) {
+    // The change and what is stored, together, must not loop.
+    const current = await prisma.quickReply.findUnique({ where: { id } });
+    if (current !== null && quickReplyLoops(input.action ?? current.action, input.auto_run ?? current.autoRun)) {
+      throw validationError(LOOP_MESSAGE, 'auto_run');
+    }
     const { count } = await prisma.quickReply.updateMany({
       where: { id, updatedAt: version },
       data: written(input, stamp, userId) as Prisma.QuickReplyUncheckedUpdateManyInput,

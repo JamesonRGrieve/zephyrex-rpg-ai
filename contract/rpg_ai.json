@@ -320,6 +320,17 @@
     "channels": [
       "ic",
       "ooc"
+    ],
+    "auto_runs": [
+      "none",
+      "chat_open",
+      "after_send",
+      "after_reply"
+    ],
+    "$auto_run_comment": "A quick reply may run by itself (A38): when a chat opens, after the person sends, or after each reply. Only none and chat_open may send: a send after a send or a reply would ask the model again and run again, without end. The others fill the composer.",
+    "sending_auto_runs": [
+      "none",
+      "chat_open"
     ]
   },
   "data_bank": {

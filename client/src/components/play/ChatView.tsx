@@ -263,7 +263,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
   };
   /** Every new reply translated as it is written, when this device asks for it (A43): the reply, not its reasoning. */
+  const [repliesWritten, setRepliesWritten] = useState(0);
   const autoTranslate = (id: string, text: string) => {
+    // Each reply written also runs the after-reply quick reply (A38).
+    setRepliesWritten((count) => count + 1);
     const reply = splitReasoning(text).reply;
     if (settings.autoTranslate && reply.trim() !== '') void translateMessage(id, reply);
   };
@@ -764,6 +767,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         onNarrate={chat.character_ids.length > 0 ? () => void narrate() : undefined}
         onCommand={(command) => void runCommand(command)}
         castNames={chat.character_ids.flatMap((id) => castById.get(id)?.name ?? [])}
+        repliesWritten={repliesWritten}
         quickReplies={(quickList.data ?? [])
           .filter((reply) => reply.enabled)
           .map((reply) => ({
@@ -771,6 +775,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             label: reply.label,
             action: reply.action,
             channel: reply.channel,
+            autoRun: reply.auto_run,
             text: expandMacros(reply.message, {
               char: castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids) ?? '')?.name ?? NARRATOR,
               user: persona?.name ?? DEFAULT_USER_NAME,

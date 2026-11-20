@@ -315,6 +315,7 @@ export const quickReplySchema = z.object({
   channel: z.enum(QUICK_REPLY.channels),
   enabled: z.boolean(),
   position: z.number(),
+  auto_run: z.enum(QUICK_REPLY.auto_runs),
 });
 export type QuickReply = z.infer<typeof quickReplySchema>;
 export const quickReplies = resource<QuickReply, Fields<QuickReply> & { label: string; message: string }>(
