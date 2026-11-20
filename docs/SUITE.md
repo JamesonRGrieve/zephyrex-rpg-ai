@@ -3,8 +3,9 @@
 `zephyrex-rpg` splits into three products (operator, 2026-11-20). Each one is a full
 app on its own, and the three compose into one table when they run together.
 `zephyrex-vtt` and `zephyrex-rpg-wiki` are carved out of this repo with their history.
-This repo then becomes `zephyrex-rpg-ai`. Each repo is private on the Zephyrex Forgejo,
-push-mirrored to GitHub and deployed by Forgejo Actions, as 16 Worldviews and Chronos are.
+This repo then becomes `zephyrex-rpg-ai`. All three live under GitHub `JamesonRGrieve`, private,
+for now (operator, 2026-11-20: "Under JamesonRGrieve for now"). Hosting and deployment come later,
+on the shared framework-app stack (SOP *Zephyrex Framework SaaS Launch*), where to is the operator's call.
 
 | Product | Competes with | What it is |
 |---|---|---|
@@ -44,6 +45,26 @@ is a person). The AI product reads and writes both.
 The framework already serves the generic Tier-0 concerns, so this repo does not build
 them again. Before an OBJECT_PLAN `[NEW]` Tier-0 model is built, its framework namesake is
 checked field by field (Outstanding on card 256).
+
+## Anything common goes to the framework
+
+The operator, 2026-11-20: "Anything common goes to the framework itself." A capability two apps
+would both use is built in the frameworks (server-framework, client-framework and their sibling
+packages), never copied into an app. App code is only what is unique to the product.
+
+- **In client-framework (approved by the operator, 2026-11-20):**
+  - `@zephyrex/lite`: the lite edition's local API, which Chronos and Zephyreader each carried a
+    copy of;
+  - `@zephyrex/marketing`: the landing-page components lifted from 16 Worldviews, with each app's
+    copy passed in.
+- **In server-framework, filed on card 253:** pool dispatch across model servers, a typed `decide`
+  call for decision models, and multi-user room sync. Built when the AI phases that need them
+  arrive.
+- **Candidates to lift next:** the app page frame (`AppPage`) and the screen wake lock, both copied
+  from Chronos for now.
+
+Framework edits follow the framework repos' own rules: the shared checkouts on `main`, pathspec
+commits made on the build runner, and pushes only on the operator's word.
 
 ## How the three compose
 
@@ -174,5 +195,4 @@ deploy/    the Cule/Zephyreader deploy shape (SOP: Zephyrex Framework SaaS Launc
 docs/      FEATURES.md (parity matrix), DESIGN.md, research/competitors.md
 ```
 
-Repo creation (each repo's `forgejo_repository` in its own `svc_<app>.tf`), the GitHub
-mirrors, the carve-out and this repo's rename are tracked on card 256.
+Where each repo is hosted and deployed is tracked on card 256.
