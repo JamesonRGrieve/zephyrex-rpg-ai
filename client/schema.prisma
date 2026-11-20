@@ -76,6 +76,9 @@ model Chat {
   mutedIds     String   @default("[]")
   background   String?
   objectives   String   @default("[]")
+  contentRating String?
+  lines        String   @default("[]")
+  veils        String   @default("[]")
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   updatedById  String?
@@ -96,6 +99,7 @@ model ChatMessage {
   swipeIndex         Int      @default(0)
   bookmarked         Boolean  @default(false)
   images             String   @default("[]")
+  xCarded            Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime
   updatedById        String?

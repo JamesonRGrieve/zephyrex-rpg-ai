@@ -20,7 +20,7 @@
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAMPLER_RANGES, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAFETY, SAMPLER_RANGES, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -224,6 +224,9 @@ const CHAT_COLUMNS: Columns = {
   muted_ids: jsonList('mutedIds'),
   background: plain('background'),
   objectives: jsonList('objectives'),
+  content_rating: plain('contentRating'),
+  lines: jsonList('lines'),
+  veils: jsonList('veils'),
 };
 
 const title = z.string().trim().min(1).max(LIMITS.chat_title_characters);
@@ -267,6 +270,10 @@ const chatFields = {
   background: avatar,
   /** The chat's tasks, in order (A53); the first not done is put to the model. */
   objectives: z.array(z.object({ text: z.string().trim().min(1).max(LIMITS.short_text_characters), done: z.boolean() }).strict()).max(LIMITS.objectives_per_chat),
+  /** The table's safety tools (A25): a content rating, lines (never) and veils (off-screen only). */
+  content_rating: z.enum(SAFETY.ratings).nullable(),
+  lines: z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.safety_items),
+  veils: z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.safety_items),
 };
 const chatCreate = z.object({
   title,
@@ -285,6 +292,9 @@ const chatCreate = z.object({
   muted_ids: chatFields.muted_ids.default([]),
   background: avatar.default(null),
   objectives: chatFields.objectives.default([]),
+  content_rating: chatFields.content_rating.default(null),
+  lines: chatFields.lines.default([]),
+  veils: chatFields.veils.default([]),
 });
 const chatUpdate = z.object({ title, ...chatFields }).partial();
 
@@ -361,6 +371,7 @@ const MESSAGE_COLUMNS: Columns = {
   swipe_index: plain('swipeIndex'),
   bookmarked: plain('bookmarked'),
   images: jsonList('images'),
+  x_carded: plain('xCarded'),
 };
 
 /** Pictures sent with a line (A44), data URLs as avatars are. */
@@ -390,6 +401,8 @@ const messageUpdate = z
     swipes,
     swipe_index: z.number().int().min(0),
     bookmarked: z.boolean(),
+    /** The X-card (A25): kept in the chat, never read by the model. */
+    x_carded: z.boolean(),
   })
   .partial();
 

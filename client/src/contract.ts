@@ -28,6 +28,7 @@ export const PROMPT = {
   ...contract.prompt,
   sections: contract.prompt.sections as unknown as readonly [
     'main',
+    'safety',
     'lore_before_char',
     'description',
     'personality',
@@ -87,5 +88,11 @@ export const QUICK_REPLY = {
 export const DATA_BANK = {
   ...contract.data_bank,
   scopes: contract.data_bank.scopes as unknown as readonly ['global', 'chat', 'character'],
+};
+
+/** Table safety: content ratings, lines and veils (A25). */
+export const SAFETY = {
+  ...contract.safety,
+  ratings: contract.safety.ratings as unknown as readonly ['general', 'teen', 'mature'],
 };
 

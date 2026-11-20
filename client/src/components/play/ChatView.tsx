@@ -8,7 +8,7 @@
  * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
-import { Download, Ellipsis, ScanText, Settings2 } from 'lucide-react';
+import { Download, Ellipsis, ScanText, Settings2, X } from 'lucide-react';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -66,6 +66,7 @@ export function messageViews(
       avatar,
       text: message.swipes[message.swipe_index] ?? '',
       images: message.images,
+      xCarded: message.x_carded,
       swipe: { index: message.swipe_index, count: message.swipes.length },
       fork: { index, count: siblings.length },
       bookmarked: message.bookmarked,
@@ -214,6 +215,25 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
   };
 
+  /**
+   * The X-card (A25): the newest reply on the branch leaves the story at once, no questions asked.
+   * Undo puts it back.
+   */
+  const xCardLatest = async () => {
+    const latest = [...branch].reverse().find((message) => message.role === 'character' && !message.x_carded);
+    if (latest === undefined) {
+      notify('Nothing to X-card yet');
+      return;
+    }
+    // At once, before anything else: the undo only offers the way back.
+    const carded = await update(latest, { x_carded: true });
+    deferWithUndo(
+      'Reply X-carded',
+      () => undefined,
+      () => void update(carded, { x_carded: false }),
+    );
+  };
+
   const openInspector = async () => {
     setInspected('loading');
     try {
@@ -283,6 +303,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           })}
         </ul>
         <div className='flex gap-1'>
+          <Button type='button' variant='outline' className='h-11' onClick={() => void xCardLatest()} aria-label='X-card the latest reply'>
+            <X aria-hidden /> X-card
+          </Button>
           <Button type='button' variant='ghost' className='h-11' onClick={() => void openInspector()}>
             <ScanText aria-hidden /> Context
           </Button>
@@ -342,6 +365,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   notify('Branching from here', 'Your next message starts a new branch.');
                 }}
                 onDelete={() => deleteMessage(message)}
+                onXCard={() => void update(message, { x_carded: !message.x_carded })}
                 onContinue={message.role === 'character' && message.id === leaf && !writing ? () => void continueMessage(message) : undefined}
                 onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
                 onTranslate={chat.character_ids.length > 0 ? { label: `Translate into ${language}`, run: () => void translateMessage(message.id, shown.text) } : undefined}

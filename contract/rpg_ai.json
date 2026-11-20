@@ -38,7 +38,8 @@
     "images_per_message": 4,
     "objectives_per_chat": 50,
     "data_document_characters": 200000,
-    "data_documents": 200
+    "data_documents": 200,
+    "safety_items": 50
   },
   "message_roles": [
     "user",
@@ -118,6 +119,7 @@
     ],
     "sections": [
       "main",
+      "safety",
       "lore_before_char",
       "description",
       "personality",
@@ -373,5 +375,20 @@
       "chat",
       "character"
     ]
+  },
+  "safety": {
+    "ratings": [
+      "general",
+      "teen",
+      "mature"
+    ],
+    "rating_text": {
+      "general": "Keep everything suitable for all ages.",
+      "teen": "Keep violence and peril mild, with no sexual content.",
+      "mature": "Mature themes are allowed, within the lines below."
+    },
+    "lines_prefix": "Never include, even off-screen: ",
+    "veils_prefix": "Only ever off-screen, never described: ",
+    "heading": "Table safety (always follow):"
   }
 }

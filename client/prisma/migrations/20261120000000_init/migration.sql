@@ -57,6 +57,9 @@ CREATE TABLE "Chat" (
     "mutedIds" TEXT NOT NULL DEFAULT '[]',
     "background" TEXT,
     "objectives" TEXT NOT NULL DEFAULT '[]',
+    "contentRating" TEXT,
+    "lines" TEXT NOT NULL DEFAULT '[]',
+    "veils" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
@@ -75,6 +78,7 @@ CREATE TABLE "ChatMessage" (
     "swipeIndex" INTEGER NOT NULL DEFAULT 0,
     "bookmarked" BOOLEAN NOT NULL DEFAULT false,
     "images" TEXT NOT NULL DEFAULT '[]',
+    "xCarded" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

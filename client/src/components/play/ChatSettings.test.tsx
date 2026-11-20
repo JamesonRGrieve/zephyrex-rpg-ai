@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LORE } from '~/contract';
 import { ChatSettings } from './ChatSettings';
 
-const VALUE = { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: [], lore_settings: {}, system_prompt: '', summary: '', tags: [], folder: '', muted_ids: [], background: null, objectives: [] };
+const VALUE = { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: [], lore_settings: {}, system_prompt: '', summary: '', tags: [], folder: '', muted_ids: [], background: null, objectives: [], content_rating: null, lines: [], veils: [] };
 
 describe('ChatSettings', () => {
   it('saves the lorebooks picked, World Info settings within range, and leaves blank settings out', async () => {
@@ -86,6 +86,16 @@ describe('ChatSettings', () => {
     await userEvent.click(await screen.findByRole('checkbox', { name: 'Bram' }));
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ muted_ids: ['b'] }));
+  });
+
+  it('sets the table’s safety tools', async () => {
+    const onSave = vi.fn();
+    render(<ChatSettings open onOpenChange={vi.fn()} value={VALUE} personas={[]} presets={[]} endpoints={[]} lorebooks={[]} onSave={onSave} />);
+    await userEvent.click(await screen.findByRole('radio', { name: 'Teen' }));
+    await userEvent.type(screen.getByLabelText('Lines (never, even off-screen)'), 'spiders, ');
+    await userEvent.type(screen.getByLabelText('Veils (off-screen only)'), 'gore');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ content_rating: 'teen', lines: ['spiders'], veils: ['gore'] }));
   });
 });
 

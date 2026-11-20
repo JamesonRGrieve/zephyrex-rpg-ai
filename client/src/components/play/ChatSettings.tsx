@@ -13,10 +13,14 @@ import { Label } from 'zephyrex/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
-import { LIMITS, LORE } from '~/contract';
+import { LIMITS, LORE, SAFETY } from '~/contract';
+import { chipGroup } from 'zephyrex/hooks/chipKeys';
+import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { parseTags } from '~/features/chat/library';
 import { type Objective, ObjectivesEditor } from './ObjectivesEditor';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
+
+const RATING_LABELS = { general: 'General', teen: 'Teen', mature: 'Mature' } as const;
 
 export interface ChatSettingsValue {
   title: string;
@@ -33,6 +37,9 @@ export interface ChatSettingsValue {
   muted_ids: string[];
   background: string | null;
   objectives: Objective[];
+  content_rating: 'general' | 'teen' | 'mature' | null;
+  lines: string[];
+  veils: string[];
 }
 
 /** What a chat sets of World Info's settings; the rest take the contract's defaults. */
@@ -117,8 +124,10 @@ export function ChatSettings({
   const [draft, setDraft] = useState(value);
   const [summarizing, setSummarizing] = useState(false);
   const [tagText, setTagText] = useState(value.tags.join(', '));
+  const [linesText, setLinesText] = useState(value.lines.join(', '));
+  const [veilsText, setVeilsText] = useState(value.veils.join(', '));
   const [pictureProblem, setPictureProblem] = useState<string | null>(null);
-  const ids = { background: useId(), folder: useId(), folderList: useId(), tags: useId(), title: useId(), summary: useId(), system: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
+  const ids = { rating: useId(), lines: useId(), veils: useId(), background: useId(), folder: useId(), folderList: useId(), tags: useId(), title: useId(), summary: useId(), system: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
   const setLore = <K extends keyof LoreSettingsValue>(key: K, next: LoreSettingsValue[K]) => set('lore_settings', { ...draft.lore_settings, [key]: next });
   const loreNumber = (key: 'scan_depth' | 'token_budget' | 'recursion_steps', text: string) => {
     const [low, high] = LORE.ranges[key];
@@ -136,6 +145,8 @@ export function ChatSettings({
         if (next) {
           setDraft(value);
           setTagText(value.tags.join(', '));
+          setLinesText(value.lines.join(', '));
+          setVeilsText(value.veils.join(', '));
         }
         onOpenChange(next);
       }}
@@ -151,7 +162,15 @@ export function ChatSettings({
             event.preventDefault();
             // Settings left empty take the contract's defaults: they are not sent.
             const loreSettings = Object.fromEntries(Object.entries(draft.lore_settings).filter(([, setting]) => setting !== undefined));
-            onSave({ ...draft, title: draft.title.trim() || value.title, lore_settings: loreSettings, tags: parseTags(tagText).slice(0, LIMITS.tags_per_record), folder: draft.folder.trim() });
+            onSave({
+              ...draft,
+              title: draft.title.trim() || value.title,
+              lore_settings: loreSettings,
+              tags: parseTags(tagText).slice(0, LIMITS.tags_per_record),
+              folder: draft.folder.trim(),
+              lines: parseTags(linesText).slice(0, LIMITS.safety_items),
+              veils: parseTags(veilsText).slice(0, LIMITS.safety_items),
+            });
             onOpenChange(false);
           }}
         >
@@ -290,6 +309,34 @@ export function ChatSettings({
               ))}
             </fieldset>
           )}
+          <fieldset className='grid gap-3 rounded-lg border p-3'>
+            <legend className='px-1 text-sm font-medium'>Table safety</legend>
+            <div className='grid gap-2'>
+              <span id={ids.rating} className='text-sm'>
+                Content rating
+              </span>
+              <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.rating} className='flex flex-wrap gap-2'>
+                {([null, ...SAFETY.ratings] as const).map((rating) => (
+                  <ChoiceChip
+                    key={rating ?? 'none'}
+                    checked={draft.content_rating === rating}
+                    className='h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground'
+                    onClick={() => set('content_rating', rating)}
+                  >
+                    {rating === null ? 'Not set' : RATING_LABELS[rating]}
+                  </ChoiceChip>
+                ))}
+              </div>
+            </div>
+            <div className='grid gap-1.5'>
+              <Label htmlFor={ids.lines}>Lines (never, even off-screen)</Label>
+              <Input id={ids.lines} value={linesText} placeholder='spiders, harm to children' className='h-11' onChange={(event) => setLinesText(event.target.value)} />
+            </div>
+            <div className='grid gap-1.5'>
+              <Label htmlFor={ids.veils}>Veils (off-screen only)</Label>
+              <Input id={ids.veils} value={veilsText} placeholder='torture, romance' className='h-11' onChange={(event) => setVeilsText(event.target.value)} />
+            </div>
+          </fieldset>
           <ObjectivesEditor value={draft.objectives} onChange={(next) => set('objectives', next)} />
           <fieldset className='grid gap-2'>
             <legend className='text-sm font-medium'>Lorebooks</legend>

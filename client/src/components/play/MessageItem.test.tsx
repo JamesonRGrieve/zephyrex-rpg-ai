@@ -38,6 +38,19 @@ describe('MessageItem', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Add a model endpoint first');
   });
 
+  it('X-cards from the menu, and shows an X-carded message as out of the story with a way back', async () => {
+    const onXCard = vi.fn();
+    const { rerender } = render(<MessageItem message={ADA_REPLY} onXCard={onXCard} />);
+    await userEvent.click(screen.getByRole('button', { name: "More for Ada Vance's message" }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'X-card' }));
+    expect(onXCard).toHaveBeenCalledOnce();
+    rerender(<MessageItem message={{ ...ADA_REPLY, xCarded: true }} onXCard={onXCard} />);
+    expect(screen.getByRole('article', { name: 'Ada Vance, X-carded' })).toBeInTheDocument();
+    expect(screen.queryByText('wipes her hands on a rag')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Put it back' }));
+    expect(onXCard).toHaveBeenCalledTimes(2);
+  });
+
   it('folds a reply’s reasoning away under Thinking', async () => {
     render(<MessageItem message={{ ...ADA_REPLY, text: '<think>She is tired.</think>Mind the coolant.' }} />);
     expect(screen.getByText('Mind the coolant.')).toBeVisible();

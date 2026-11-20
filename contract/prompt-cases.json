@@ -756,6 +756,70 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "the table's safety tools follow the system prompt, and an X-carded turn is never read",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "safety": {
+          "content_rating": "teen",
+          "lines": [
+            "harm to children",
+            " "
+          ],
+          "veils": [
+            "torture",
+            "romance"
+          ]
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I open the crate."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-bram",
+            "content": "Inside is something awful.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Let's move on."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nTable safety (always follow):\nKeep violence and peril mild, with no sexual content.\nNever include, even off-screen: harm to children.\nOnly ever off-screen, never described: torture; romance.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "I open the crate."
+        },
+        {
+          "role": "user",
+          "content": "Let's move on."
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

@@ -8,7 +8,7 @@
  * A reply's alternatives (swipes) and a fork's branches are paged with arrows; every action is a
  * button in reach of a thumb, and the menu holds the rest.
  */
-import { Bookmark, Brain, Languages, Volume2, ChevronLeft, ChevronRight, Ellipsis, FastForward, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
+import { Bookmark, Brain, Languages, Volume2, X, ChevronLeft, ChevronRight, Ellipsis, FastForward, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -28,6 +28,8 @@ export interface MessageView {
   text: string;
   /** Pictures sent with it (A44). */
   images?: readonly string[];
+  /** X-carded by the table (A25): shown as such, never read by the model. */
+  xCarded?: boolean;
   swipe: { index: number; count: number };
   fork: { index: number; count: number };
   bookmarked: boolean;
@@ -42,6 +44,8 @@ export interface MessageActions {
   onBookmark?: () => void;
   onBranch?: () => void;
   onDelete?: () => void;
+  /** The X-card (A25): takes the message out of the story, or puts it back. */
+  onXCard?: () => void;
   /** Carries on the shown alternative where it stopped (offered on a character's last message). */
   onContinue?: () => void;
   /** Reads the message aloud (A29), where the browser can speak. */
@@ -138,6 +142,21 @@ export function MessageItem({
   const label = CHANNEL_LABEL[message.channel];
   const tableTalk = message.channel === 'ooc' || message.channel === 'gm';
   const lastSwipe = message.swipe.index === message.swipe.count - 1;
+  if (message.xCarded === true) {
+    return (
+      <article aria-label={`${message.speaker}, X-carded`} className='flex items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground'>
+        <span>
+          <X className='mr-1 inline size-4' aria-hidden />
+          {message.speaker}’s message was X-carded: it is out of the story.
+        </span>
+        {actions.onXCard !== undefined && (
+          <Button type='button' variant='ghost' className='h-11 shrink-0' onClick={actions.onXCard}>
+            Put it back
+          </Button>
+        )}
+      </article>
+    );
+  }
   const story = !tableTalk && message.channel !== 'roll';
   const mine = message.role === 'user';
 
@@ -260,6 +279,11 @@ export function MessageItem({
                 {actions.onContinue !== undefined && (
                   <DropdownMenuItem onSelect={actions.onContinue}>
                     <FastForward aria-hidden /> Continue
+                  </DropdownMenuItem>
+                )}
+                {actions.onXCard !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onXCard}>
+                    <X aria-hidden /> X-card
                   </DropdownMenuItem>
                 )}
                 {actions.onBookmark !== undefined && (

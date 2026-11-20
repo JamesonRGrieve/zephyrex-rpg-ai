@@ -80,6 +80,9 @@ export async function generationInputs(
     system_prompt: string;
     summary: string;
     objectives: { text: string; done: boolean }[];
+    content_rating: string | null;
+    lines: string[];
+    veils: string[];
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -98,7 +101,7 @@ export async function generationInputs(
 
   const messages = (await chatMessages.list(ownerId, new URLSearchParams({ chat_id: chat.id }))).map((row) => ({
     id: row.id,
-    ...(chatMessages.fields(row) as { parent_id: string | null; role: PromptTurn['role']; channel: string; speaker_character_id: string | null; swipes: string[]; swipe_index: number; images: string[] }),
+    ...(chatMessages.fields(row) as { parent_id: string | null; role: PromptTurn['role']; channel: string; speaker_character_id: string | null; swipes: string[]; swipe_index: number; images: string[]; x_carded: boolean }),
   }));
   if (body.leaf_id !== null && !messages.some((message) => message.id === body.leaf_id)) {
     throw validationError('The leaf must be a message in the chat', 'leaf_id');
@@ -112,11 +115,13 @@ export async function generationInputs(
     channel: message.channel,
     speaker_character_id: message.speaker_character_id,
     content: message.swipes[message.swipe_index] ?? '',
+    x_carded: message.x_carded,
   }));
 
   // World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
   const story = new Set<string>(PROMPT.story_channels);
-  const storyTexts = history.filter((turn) => story.has(turn.channel)).map((turn) => turn.content);
+  // What lore and the data bank scan: the story, less what the table X-carded (A25).
+  const storyTexts = history.filter((turn) => story.has(turn.channel) && turn.x_carded !== true).map((turn) => turn.content);
   const bookIds = [...new Set([...chatFields.lorebook_ids, ...ordered.flatMap((row) => (row.lorebookId === null ? [] : [row.lorebookId]))])];
   const entryRows = bookIds.length === 0 ? [] : await prisma.lorebookEntry.findMany({ where: { createdById: ownerId, lorebookId: { in: bookIds } } });
   const entries = entryRows.map((row) => ({ id: row.id, ...(lorebookEntries.fields(row) as Omit<LoreEntry, 'id'>) }));
@@ -159,6 +164,7 @@ export async function generationInputs(
       system_prompt: chatFields.system_prompt,
       summary: chatFields.summary,
       objective: chatFields.objectives.find((one) => !one.done)?.text ?? '',
+      safety: { content_rating: chatFields.content_rating, lines: chatFields.lines, veils: chatFields.veils },
       data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
     },

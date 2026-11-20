@@ -28,7 +28,7 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { PROMPT, REASONING } from '~/contract';
+import { PROMPT, REASONING, SAFETY } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandMacros, type MacroNames } from './macros';
@@ -54,6 +54,8 @@ export interface PromptTurn {
   channel: string;
   speaker_character_id: string | null;
   content: string;
+  /** Set when the table X-carded it (A25): kept in the chat, never read by the model. */
+  x_carded?: boolean;
 }
 
 export interface PromptInput {
@@ -80,6 +82,31 @@ export interface PromptInput {
   objective?: string;
   /** The data bank's retrieved notes (A41, features/chat/dataBank.ts); blank for none. */
   data_bank?: string;
+  /** The table's safety tools (A25). */
+  safety?: SafetySettings;
+}
+
+export interface SafetySettings {
+  content_rating: string | null;
+  lines: readonly string[];
+  veils: readonly string[];
+}
+
+/**
+ * The table's safety tools as the model reads them (A25): the content rating, the lines (never in
+ * the story) and the veils (only off-screen). Nothing when none is set.
+ */
+export function safetyText(safety: SafetySettings | undefined): string {
+  if (safety === undefined) return '';
+  const ratings: Record<string, string> = SAFETY.rating_text;
+  const lines = safety.lines.filter((line) => line.trim() !== '');
+  const veils = safety.veils.filter((veil) => veil.trim() !== '');
+  const kept = [
+    safety.content_rating !== null && safety.content_rating in ratings ? (ratings[safety.content_rating] as string) : '',
+    lines.length > 0 ? `${SAFETY.lines_prefix}${lines.join('; ')}.` : '',
+    veils.length > 0 ? `${SAFETY.veils_prefix}${veils.join('; ')}.` : '',
+  ].filter((part) => part !== '');
+  return kept.length === 0 ? '' : [SAFETY.heading, ...kept].join('\n');
 }
 
 export type PromptSectionId = (typeof PROMPT.sections)[number];
@@ -235,6 +262,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const persona = input.persona;
   const texts: Partial<Record<PromptSectionId, string>> = {
     main: override.trim() !== '' ? override : speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
+    safety: safetyText(input.safety),
     lore_before_char: loreSections.before_char ?? '',
     description: speaker.description,
     personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
@@ -266,7 +294,8 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     ...(instructions === '' ? [] : [{ role: 'system' as const, content: instructions }]),
     ...(mode === 'impersonate' ? [{ role: 'system' as const, content: expandMacros(PROMPT.impersonate_prompt, names) }] : []),
   ];
-  const storyTurns = input.history.filter((turn) => story.has(turn.channel));
+  // An X-carded turn (A25) stays in the chat but out of what the model reads.
+  const storyTurns = input.history.filter((turn) => story.has(turn.channel) && turn.x_carded !== true);
   // Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
   const history = storyTurns
     .map((turn, index) => {
@@ -310,7 +339,7 @@ export function summaryPrompt(
   const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
   const story = new Set<string>(PROMPT.story_channels);
   const lines = input.history
-    .filter((turn) => story.has(turn.channel))
+    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
     .map((turn) => {
       const name = turn.role === 'user' ? userName : turn.role === 'character' ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR) : NARRATOR;
       return `${name}: ${turn.content}`;

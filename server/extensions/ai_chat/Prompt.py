@@ -100,6 +100,26 @@ def split_reasoning(text: str) -> tuple[str, str]:
     return "\n\n".join(reasoning), reply.strip()
 
 
+SAFETY = CONTRACT["safety"]
+
+
+def safety_text(safety: Mapping[str, Any] | None) -> str:
+    """The table's safety tools as the model reads them (A25): the content rating, the lines (never
+    in the story) and the veils (only off-screen). Nothing when none is set."""
+    if not safety:
+        return ""
+    rating = safety.get("content_rating")
+    lines = [line for line in safety.get("lines", []) if line.strip()]
+    veils = [veil for veil in safety.get("veils", []) if veil.strip()]
+    parts = [
+        SAFETY["rating_text"][rating] if rating in SAFETY["rating_text"] else "",
+        SAFETY["lines_prefix"] + "; ".join(lines) + "." if lines else "",
+        SAFETY["veils_prefix"] + "; ".join(veils) + "." if veils else "",
+    ]
+    kept = [part for part in parts if part]
+    return "\n".join([SAFETY["heading"], *kept]) if kept else ""
+
+
 def _history_message(
     turn: Mapping[str, Any], speaker_id: str, names_by_id: Mapping[str, str], group: bool, user_name: str
 ) -> dict[str, str]:
@@ -136,6 +156,7 @@ def assemble_prompt(
     regex: Sequence[Mapping[str, Any]] = (),
     objective: str = "",
     data_bank: str = "",
+    safety: Mapping[str, Any] | None = None,
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -156,6 +177,7 @@ def assemble_prompt(
     main = system_prompt if system_prompt.strip() else speaker["system_prompt"] if speaker["system_prompt"].strip() else PROMPT["default_system_prompt"]
     texts = {
         "main": main,
+        "safety": safety_text(safety),
         "lore_before_char": sections.get("before_char", ""),
         "description": speaker["description"],
         "personality": f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",
@@ -189,7 +211,8 @@ def assemble_prompt(
     after = [{"role": "system", "content": expand_macros(instructions, names)}] if instructions else []
     if mode == "impersonate":
         after.append({"role": "system", "content": expand_macros(PROMPT["impersonate_prompt"], names)})
-    story_turns = [turn for turn in history if turn["channel"] in story]
+    # An X-carded turn (A25) stays in the chat but out of what the model reads.
+    story_turns = [turn for turn in history if turn["channel"] in story and not turn.get("x_carded", False)]
     # Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
     placements = {"user": "user_input", "character": "ai_output"}
     story_turns = [
@@ -234,7 +257,7 @@ def summary_prompt(
     names_by_id = {character["id"]: character["name"] for character in characters}
     lines = []
     for turn in history:
-        if turn["channel"] not in PROMPT["story_channels"]:
+        if turn["channel"] not in PROMPT["story_channels"] or turn.get("x_carded", False):
             continue
         if turn["role"] == "user":
             name = user_name

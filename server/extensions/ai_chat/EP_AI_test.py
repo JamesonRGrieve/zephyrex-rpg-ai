@@ -338,6 +338,23 @@ class TestGenerate:
         assert "Notes that may be relevant:\nThe coolant spare is in bay two.\n\nAda once rebuilt a coolant pump." in system
         assert "stew" not in system
 
+    def test_safety_tools_reach_the_model_and_an_x_carded_line_does_not(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        bad = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "content_rating": "spicy"}}, headers=_headers(user))
+        assert bad.status_code == 422, bad.text
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], content_rating="teen", lines=["spiders"], veils=[" gore "]).json()["chat"]
+        assert (chat["lines"], chat["veils"]) == (["spiders"], ["gore"])
+        first = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I open the crate."])
+        carded = _create(server, user, "chat_message", chat_id=chat["id"], parent_id=first.json()["chat_message"]["id"], role="character", speaker_character_id=ada["id"], swipes=["Something awful."])
+        marked = _put(server, user, "chat_message", carded.json()["chat_message"]["id"], carded.headers["ETag"], x_carded=True)
+        assert marked.status_code == 200, marked.text
+        prompt = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": carded.json()["chat_message"]["id"]}}, headers=_headers(user)).json()["prompt"]
+        contents = [message["content"] for message in prompt["messages"]]
+        assert "Never include, even off-screen: spiders." in contents[0] and "Only ever off-screen, never described: gore." in contents[0]
+        assert "Something awful." not in "\n".join(contents)
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

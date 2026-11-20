@@ -222,6 +222,21 @@ class ChatChecks(PlainModel):
         # The same tag rules as a character's.
         return _tags(value)
 
+    @field_validator("content_rating", check_fields=False)
+    @classmethod
+    def _checked_rating(cls, value: Any) -> Any:
+        return _one_of(value, CONTRACT["safety"]["ratings"], "content_rating")
+
+    @field_validator("lines", "veils", check_fields=False)
+    @classmethod
+    def _checked_safety_items(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        cleaned = [item.strip() for item in value if isinstance(item, str)]
+        if len(cleaned) != len(value) or len(cleaned) > LIMITS["safety_items"] or any(not item or len(item) > LIMITS["short_text_characters"] for item in cleaned):
+            raise ValueError(f"At most {LIMITS['safety_items']} items of 1 to {LIMITS['short_text_characters']} characters")
+        return cleaned
+
     @field_validator("objectives", check_fields=False)
     @classmethod
     def _checked_objectives(cls, value: Any) -> Any:
@@ -289,6 +304,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     muted_ids: list[str] = Field(default_factory=list, description="Group members left out of the turn order")
     background: str | None = Field(None, description="A picture behind the chat (a data URL)")
     objectives: list[dict[str, Any]] = Field(default_factory=list, description="Its tasks in order; the first not done is put to the model")
+    content_rating: str | None = Field(None, description="general, teen or mature (null: none set)")
+    lines: list[str] = Field(default_factory=list, description="Never in the story, even off-screen")
+    veils: list[str] = Field(default_factory=list, description="Only ever off-screen")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
@@ -309,6 +327,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         muted_ids: list[str] = Field(default_factory=list)
         background: str | None = None
         objectives: list[dict[str, Any]] = Field(default_factory=list)
+        content_rating: str | None = None
+        lines: list[str] = Field(default_factory=list)
+        veils: list[str] = Field(default_factory=list)
 
     class Update(ChatChecks, BaseModel):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -327,6 +348,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         muted_ids: list[str] | None = None
         background: str | None = None
         objectives: list[dict[str, Any]] | None = None
+        content_rating: str | None = None
+        lines: list[str] | None = None
+        veils: list[str] | None = None
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -371,6 +395,8 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("folder", "")
         kwargs.setdefault("muted_ids", [])
         kwargs.setdefault("objectives", [])
+        kwargs.setdefault("lines", [])
+        kwargs.setdefault("veils", [])
         self._check_references(kwargs)
         return super().create(**kwargs)
 
@@ -420,6 +446,7 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     swipe_index: int = Field(0, description="The alternative shown")
     bookmarked: bool = Field(False, description="Bookmarked")
     images: list[str] = Field(default_factory=list, description="Pictures sent with it (data URLs)")
+    x_carded: bool = Field(False, description="X-carded by the table: kept, never read by the model")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chat messages"
 
@@ -456,6 +483,7 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         swipes: list[str] | None = None
         swipe_index: int | None = Field(None, ge=0)
         bookmarked: bool | None = None
+        x_carded: bool | None = None
 
     class Search(ApplicationModel.Search):
         chat_id: StringSearchModel | None = None
@@ -1093,12 +1121,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 "channel": message.channel,
                 "speaker_character_id": message.speaker_character_id,
                 "content": message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else "",
+                "x_carded": bool(getattr(message, "x_carded", False)),
             }
             for message in path
         ]
 
         # World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
-        story_texts = [turn["content"] for turn in history if turn["channel"] in PROMPT["story_channels"]]
+        # What lore and the data bank scan: the story, less what the table X-carded (A25).
+        story_texts = [turn["content"] for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"]]
         book_ids = list(dict.fromkeys([*(chat.lorebook_ids or []), *own_books]))
         entries_manager = self._manager(LorebookEntryManager)
         entries = [
@@ -1152,6 +1182,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             ],
             next((objective["text"] for objective in (chat.objectives or []) if not objective["done"]), ""),
             self._data_bank(chat, story_texts),
+            {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {
