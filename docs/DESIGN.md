@@ -715,3 +715,22 @@ through the Session 0 Manager:
    AI, card 182).
 3. Lite scope: whether lite includes the GM campaign mode with the VTT and wiki in one local
    install, or stays chat-and-lore only.
+
+## Proposed, not confirmed
+
+Ideas this product proposes beyond the operator's confirmed scope above. **None is built until the
+operator confirms it.** Size: S (days), M (one to two weeks), L (more). Requested 2026-11-20 for the
+operator's review.
+
+| # | Idea | Why it helps | Size | Depends on |
+|---|---|---|---|---|
+| AP1 | Session zero wizard | A guided questionnaire turns a group's answers into the campaign frame, lines and veils, and character hooks, so a table starts aligned | M | A57, A25 |
+| AP2 | "Previously on…" recap | A short recap at the start of a session, written from the rolling summary and the last session report, optionally read aloud | S | A19, A24, A29 |
+| AP3 | Character consistency check | A decision model flags a reply that contradicts the card or the lore, with a one-tap regenerate | M | A22, A14 |
+| AP4 | Side-by-side replies | The same turn sent to two models or presets at once, the better kept as the swipe; good for choosing a model | M | A27 |
+| AP5 | Cost and latency per reply | Tokens, seconds and (for hosted APIs) cost on each reply and per chat, so users see what a model costs them | S | A18, A28 |
+| AP6 | In-browser models on strong devices | Small decision and summary models run on the device (WebGPU) when the tier probe says it can, so lite works with no server | L | Device tier probe; library choice is the operator's call |
+| AP7 | Spotlight balance | The GM agent tracks who has had the spotlight and draws quieter players in | M | A20, A34 |
+| AP8 | A character's memory across chats | What a character learns in one chat can be recalled in another, per character and opt-in | M | A19 (`ai_memories`) |
+| AP9 | Lore gap finder | Names that come up in play with no lorebook entry or wiki page are listed, with a stub drafted for each | M | A14, A15, the wiki |
+| AP10 | A branch as an illustrated story | Export a chat branch as an EPUB, with generated scene images | M | A56, A30 |
