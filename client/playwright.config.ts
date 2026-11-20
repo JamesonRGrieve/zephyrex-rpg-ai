@@ -1,11 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /**
- * The end-to-end suite runs every spec on desktop and on a phone, against the lite edition: this
- * app's own API routes (RPG_AI_VARIANT=lite) on a throwaway SQLite file, with one local person, and
- * a local model server (e2e/support/model-server.mjs) that answers as an OpenAI-compatible endpoint.
+ * The end-to-end suite runs every spec against both editions, on desktop and on a phone, with a
+ * local model server (e2e/support/model-server.mjs) that answers as an OpenAI-compatible endpoint:
  *
- * The SaaS projects (the same UI over ../server) join once the server's ai_character and ai_chat
- * extensions exist (docs/DESIGN.md, Phases); until then there is no SaaS back end to run against.
+ * - `lite`: this app's own API routes (RPG_AI_VARIANT=lite) on a throwaway SQLite file, with one
+ *   local person.
+ * - `saas`: the same UI over the SaaS server (../server, e2e_server.py) on a throwaway database.
+ *   People sign up and in by magic link through the pages; the server writes each link to the
+ *   suite's outbox (e2e/support/outbox.ts) in place of email.
  *
  * Each server has its own port and build directory, so the suite runs beside a dev server.
  */
@@ -13,8 +15,9 @@ import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
+import { OUTBOX } from './e2e/support/outbox';
 
-export const PORTS = { model: 47211, lite: 47212 } as const;
+export const PORTS = { model: 47211, lite: 47212, server: 47213, saas: 47214 } as const;
 const host = (port: number) => `http://127.0.0.1:${port}`;
 const scratch = mkdtempSync(path.join(process.env.E2E_SCRATCH ?? tmpdir(), 'rpg-ai-e2e-'));
 const NEXT_DEV = './node_modules/.bin/next dev';
@@ -30,6 +33,15 @@ const lite = {
   PORT: String(PORTS.lite),
   APP_URI: host(PORTS.lite),
   DATABASE_URL: `file:${path.join(scratch, 'lite.db')}`,
+};
+
+const saas = {
+  NEXT_TELEMETRY_DISABLED: '1',
+  RPG_AI_VARIANT: 'saas',
+  NEXT_DIST_DIR: '.next-e2e-saas',
+  PORT: String(PORTS.saas),
+  APP_URI: host(PORTS.saas),
+  RPG_AI_SERVER_URI: host(PORTS.server),
 };
 
 const desktop = devices['Desktop Chrome'];
@@ -49,7 +61,9 @@ export default defineConfig({
   use: { trace: 'retain-on-failure', navigationTimeout: 60_000 },
   projects: [
     { name: 'lite', use: { ...desktop, baseURL: host(PORTS.lite) }, grepInvert: /@phone-only/ },
+    { name: 'saas', use: { ...desktop, baseURL: host(PORTS.saas) }, grepInvert: /@phone-only/ },
     { name: 'lite-phone', use: { ...phone, baseURL: host(PORTS.lite) }, grep: /@phone/ },
+    { name: 'saas-phone', use: { ...phone, baseURL: host(PORTS.saas) }, grep: /@phone/ },
   ],
   webServer: [
     {
@@ -57,6 +71,23 @@ export default defineConfig({
       url: `${host(PORTS.model)}/health`,
       reuseExistingServer: false,
       timeout: STARTUP_MS,
+    },
+    {
+      command: `.venv/bin/python e2e_server.py --port ${PORTS.server} --client ${host(PORTS.saas)} --outbox ${OUTBOX}`,
+      cwd: '../server',
+      url: `${host(PORTS.server)}/health`,
+      reuseExistingServer: false,
+      timeout: STARTUP_MS,
+      env: { E2E_SCRATCH: scratch },
+      stdout: 'pipe',
+      stderr: 'pipe',
+    },
+    {
+      command: `${NEXT_DEV} -p ${PORTS.saas} -H 127.0.0.1`,
+      url: `${host(PORTS.saas)}/healthz`,
+      reuseExistingServer: false,
+      timeout: STARTUP_MS,
+      env: saas,
     },
     {
       command: `./node_modules/.bin/prisma migrate deploy && ${NEXT_DEV} -p ${PORTS.lite} -H 127.0.0.1`,

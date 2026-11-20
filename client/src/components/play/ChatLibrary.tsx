@@ -37,7 +37,8 @@ export function ChatLibrary(): ReactElement {
   const [picking, setPicking] = useState(params.get('new') === '1');
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
-  const shown = (list.data ?? []).filter((chat) => !hidden.has(chat.id));
+  // Newest first, whatever order the back end answers in.
+  const shown = [...(list.data ?? [])].filter((chat) => !hidden.has(chat.id)).sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
 
   return (
     <div className='space-y-4'>

@@ -71,7 +71,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const end = useRef<HTMLDivElement>(null);
 
-  const all = useMemo(() => (list.data ?? []).filter((message) => !hidden.has(message.id)), [list.data, hidden]);
+  // Oldest first, whatever order the back end answers in: the tree's latest leaf is the last child.
+  const all = useMemo(
+    () => [...(list.data ?? [])].filter((message) => !hidden.has(message.id)).sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    [list.data, hidden],
+  );
   const leaf = leafId !== null && all.some((message) => message.id === leafId) ? leafId : (latestLeaf(all)?.id ?? null);
   const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);

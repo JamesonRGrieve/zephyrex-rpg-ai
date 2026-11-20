@@ -3,19 +3,58 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "zephyrex-rpg-ai"
+name = "zephyrex-rpg-ai-server"
 version = "0.1.0"
-description = "Zephyrex RPG AI: AI characters and a GM that play inside the wiki's world and at the VTT's table"
+description = "Zephyrex RPG AI SaaS backend: a consumer of the Zephyrex server framework"
+license = "AGPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = [
-    # AI characters are genealogy persons (ai_character.person_id). The
-    # framework's public 0.0.x releases on PyPI.
-    "zephyrex[genealogy]~=0.0.1",
+    "zephyrex[ai,auth-magic-link,auth-session,email,genealogy]",
+    # zephyrex passes FastAPI(openapi_version=...), which FastAPI 0.162 rejects;
+    # hold the version the framework's own requirements.lock vets.
+    "fastapi~=0.142.2",
+    "httpx>=0.27.0",
 ]
 
-[project.optional-dependencies]
+# The framework from the sibling checkout at the workspace root (Source/server-framework), as
+# the other Zephyrex apps use it; back to the PyPI release once one ships what they need.
+[tool.uv.sources]
+zephyrex = { path = "../../server-framework", editable = true }
+
+[dependency-groups]
 dev = [
+    "mypy",
     "pytest",
     "pytest-asyncio",
     "pytest-xdist",
+    "ruff",
 ]
+
+[tool.setuptools]
+py-modules = ["rpg_ai_app"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+# The framework discovers extension modules by its EXT_/BLL_ naming convention.
+"extensions/**" = ["N999"]
+
+[tool.mypy]
+strict = true
+python_version = "3.11"
+# The framework's plugin teaches mypy the Reference classes ModelMeta builds at runtime.
+plugins = ["zephyrex.mypy_plugin", "pydantic.mypy"]
+mypy_path = "extensions"
+
+[[tool.mypy.overrides]]
+# zephyrex ships no py.typed marker; analyse it anyway so its types reach this code.
+module = ["zephyrex", "zephyrex.*"]
+follow_untyped_imports = true
+
+[tool.pytest.ini_options]
+testpaths = ["extensions"]

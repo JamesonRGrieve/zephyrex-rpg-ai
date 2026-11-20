@@ -5,6 +5,12 @@
  */
 import { expect, type Page, test } from '@playwright/test';
 import { MODEL_URL } from '../playwright.config';
+import { isHosted, signIn } from './support/people';
+
+// A hosted person signs up and in through the pages first; lite has one local person.
+test.beforeEach(async ({ page }, testInfo) => {
+  if (isHosted(testInfo)) await signIn(page);
+});
 
 async function addModel(page: Page): Promise<void> {
   await page.goto('/models');
@@ -49,8 +55,9 @@ test('a first chat: a model, a character, a reply, another reply, and table talk
   await expect(page.getByText('Writing…')).toHaveCount(0);
 });
 
-test('the landing page is skipped in lite, and the app installs: a manifest and an icon @phone', async ({ page, request }) => {
+test('the landing page leads to the chats, and the app installs: a manifest and an icon @phone', async ({ page, request }) => {
   await page.goto('/');
+  // Lite has no accounts, and a signed-in hosted person goes straight to their chats too.
   await expect(page).toHaveURL(/\/play$/);
   const manifest = await (await request.get('/manifest.webmanifest')).json();
   expect(manifest).toMatchObject({ display: 'standalone', start_url: '/play' });

@@ -1,0 +1,12 @@
+# SPDX-License-Identifier: AGPL-3.0-or-later
+name = "ai_chat"
+version = "0.1.0"
+description = "Chats, messages, presets, model endpoints and streamed generation for Zephyrex RPG AI"
+entry_module = "EXT_AI_Chat"
+minimum_framework_version = "0.0.1"
+# Where this extension's source is offered (AGPL-3.0 section 13).
+repository = "https://github.com/JamesonRGrieve/zephyrex-rpg-ai"
+
+[[extension_dependencies]]
+name = "ai_character"
+optional = false

@@ -106,7 +106,7 @@ type CharacterRow = Prisma.CharacterGetPayload<object>;
 export const characters: ResourceSpec<CharacterRow, z.infer<typeof characterCreate>, z.infer<typeof characterUpdate>> = {
   resource: 'character',
   plural: 'characters',
-  modelName: 'CharacterCardModel',
+  modelName: 'CharacterModel',
   createSchema: characterCreate,
   updateSchema: characterUpdate,
   list: (ownerId) =>
