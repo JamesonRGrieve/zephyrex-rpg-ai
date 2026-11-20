@@ -706,6 +706,67 @@ class RegexScriptManager(AbstractBLLManager[RegexScriptModel], RouterMixin):
         return sorted(rows, key=lambda row: (row.position, row.name)) if isinstance(rows, list) else rows
 
 
+# ---- quick_reply -----------------------------------------------------------------------
+
+QUICK = CONTRACT["quick_reply"]
+
+
+class QuickReplyChecks(PlainModel):
+    @field_validator("action", check_fields=False)
+    @classmethod
+    def _checked_action(cls, value: Any) -> Any:
+        return _one_of(value, QUICK["actions"], "action")
+
+    @field_validator("channel", check_fields=False)
+    @classmethod
+    def _checked_channel(cls, value: Any) -> Any:
+        return _one_of(value, QUICK["channels"], "channel")
+
+
+class QuickReplyModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
+    Manager: ClassVar[type["QuickReplyManager"]]
+    label: str = Field(..., description="The button's label")
+    message: str = Field(..., description="The line it sends or fills in ({{char}} and {{user}} filled)")
+    action: str = Field("send", description="send, or fill in the composer")
+    channel: str = Field("ic", description="ic (the story) or ooc (table talk)")
+    enabled: bool = Field(True, description="Whether it shows")
+    position: int = Field(0, description="Buttons show in this order")
+
+    table_comment: ClassVar[str] = "Zephyrex RPG AI quick replies"
+
+    class Create(BaseModel, QuickReplyChecks):
+        label: str = Field(..., min_length=1, max_length=LIMITS["quick_reply_label_characters"])
+        message: str = Field(..., min_length=1, max_length=LIMITS["message_characters"])
+        action: str = "send"
+        channel: str = "ic"
+        enabled: bool = True
+        position: int = Field(0, ge=0, le=LIMITS["quick_replies"])
+
+    class Update(BaseModel, QuickReplyChecks):
+        label: str | None = Field(None, min_length=1, max_length=LIMITS["quick_reply_label_characters"])
+        message: str | None = Field(None, min_length=1, max_length=LIMITS["message_characters"])
+        action: str | None = None
+        channel: str | None = None
+        enabled: bool | None = None
+        position: int | None = Field(None, ge=0, le=LIMITS["quick_replies"])
+
+    class Search(ApplicationModel.Search):
+        label: StringSearchModel | None = None
+
+
+class QuickReplyManager(AbstractBLLManager[QuickReplyModel], RouterMixin):
+    _model = QuickReplyModel
+
+    def create(self, **kwargs: Any) -> Any:
+        for key, value in (("action", "send"), ("channel", "ic"), ("enabled", True), ("position", 0)):
+            kwargs.setdefault(key, value)
+        return super().create(**kwargs)
+
+    def list(self, *args: Any, **kwargs: Any) -> Any:
+        rows = super().list(*args, **kwargs)
+        return sorted(rows, key=lambda row: (row.position, row.label)) if isinstance(rows, list) else rows
+
+
 # ---- generation ------------------------------------------------------------------------
 
 

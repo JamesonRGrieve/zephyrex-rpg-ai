@@ -25,9 +25,11 @@ import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
 import { type InspectedPrompt, inspectPrompt, summarizeBranch } from '~/features/chat/inspectPrompt';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
+import { DEFAULT_USER_NAME } from '~/features/prompt/assemble';
+import { expandMacros } from '~/features/prompt/macros';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
-import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, regexScripts } from '~/features/data/records';
+import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
@@ -72,6 +74,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const lorebookList = lorebooks.useList();
   const scriptList = regexScripts.useList();
   const scripts = scriptList.data ?? [];
+  const quickList = quickReplies.useList();
   const { create, update, remove } = messages.useActions();
   const { update: updateChat } = chats.useActions();
   const reply = useReply();
@@ -311,6 +314,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         onSend={(text, channel) => void send(text, channel)}
         onStop={reply.stop}
         onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
+        quickReplies={(quickList.data ?? [])
+          .filter((reply) => reply.enabled)
+          .map((reply) => ({
+            id: reply.id,
+            label: reply.label,
+            action: reply.action,
+            channel: reply.channel,
+            text: expandMacros(reply.message, {
+              char: castById.get(nextSpeaker(chat.character_ids, branch) ?? '')?.name ?? NARRATOR,
+              user: persona?.name ?? DEFAULT_USER_NAME,
+            }),
+          }))}
       />
       <Sheet open={inspected !== null} onOpenChange={(open) => !open && setInspected(null)}>
         <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>

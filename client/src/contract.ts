@@ -76,3 +76,9 @@ export const REGEX = {
 /** Reasoning (thinking) tag pairs, shown folded and never read back to the model (A45). */
 export const REASONING = contract.reasoning;
 
+/** Quick replies: what a button does and where its line goes. */
+export const QUICK_REPLY = {
+  actions: contract.quick_reply.actions as unknown as readonly ['send', 'fill'],
+  channels: contract.quick_reply.channels as unknown as readonly ['ic', 'ooc'],
+};
+

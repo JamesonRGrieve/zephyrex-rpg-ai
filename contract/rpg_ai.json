@@ -30,7 +30,9 @@
     "chat_summary_characters": 50000,
     "regex_pattern_characters": 1000,
     "regex_replacement_characters": 50000,
-    "regex_scripts": 200
+    "regex_scripts": 200,
+    "quick_replies": 100,
+    "quick_reply_label_characters": 40
   },
   "message_roles": [
     "user",
@@ -286,6 +288,16 @@
         "<reasoning>",
         "</reasoning>"
       ]
+    ]
+  },
+  "quick_reply": {
+    "actions": [
+      "send",
+      "fill"
+    ],
+    "channels": [
+      "ic",
+      "ooc"
     ]
   }
 }

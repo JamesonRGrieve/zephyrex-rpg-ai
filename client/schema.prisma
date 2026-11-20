@@ -217,3 +217,21 @@ model RegexScript {
 
   @@index([createdById])
 }
+
+/// A button above the composer that sends or fills in a saved line (SillyTavern's Quick Replies).
+model QuickReply {
+  id          String   @id @default(uuid())
+  createdById String
+  label       String
+  message     String
+  action      String   @default("send")
+  channel     String   @default("ic")
+  enabled     Boolean  @default(true)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@index([createdById])
+}
+

@@ -11,7 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, REGEX, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
@@ -238,4 +238,16 @@ export const regexScriptSchema = z.object({
 });
 export type RegexScriptRecord = z.infer<typeof regexScriptSchema>;
 export const regexScripts = resource<RegexScriptRecord, Fields<RegexScriptRecord> & { name: string; find: string }>('regex_script', 'regex_scripts', regexScriptSchema);
+
+export const quickReplySchema = z.object({
+  ...versioned,
+  label: z.string(),
+  message: z.string(),
+  action: z.enum(QUICK_REPLY.actions),
+  channel: z.enum(QUICK_REPLY.channels),
+  enabled: z.boolean(),
+  position: z.number(),
+});
+export type QuickReply = z.infer<typeof quickReplySchema>;
+export const quickReplies = resource<QuickReply, Fields<QuickReply> & { label: string; message: string }>('quick_reply', 'quick_replies', quickReplySchema);
 

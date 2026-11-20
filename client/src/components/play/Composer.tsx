@@ -24,12 +24,21 @@ function touchFirst(): boolean {
   return typeof window !== 'undefined' && window.matchMedia('(pointer: coarse)').matches;
 }
 
+export interface ComposerQuickReply {
+  id: string;
+  label: string;
+  text: string;
+  action: 'send' | 'fill';
+  channel: 'ic' | 'ooc';
+}
+
 export function Composer({
   writing,
   disabled = false,
   onSend,
   onStop,
   onImpersonate,
+  quickReplies = [],
 }: {
   writing: boolean;
   disabled?: boolean;
@@ -37,6 +46,8 @@ export function Composer({
   onStop: () => void;
   /** Writes the person's own next line for them to edit and send (Impersonate). */
   onImpersonate?: () => Promise<string | null>;
+  /** Buttons that send or fill in a saved line (A32), their macros already filled. */
+  quickReplies?: readonly ComposerQuickReply[];
 }): ReactElement {
   const [text, setText] = useState('');
   const [channel, setChannel] = useState<ComposerChannel>('ic');
@@ -65,6 +76,31 @@ export function Composer({
       }}
     >
       <div className='mx-auto grid max-w-3xl gap-2 px-3 pt-2'>
+        {quickReplies.length > 0 && (
+          <div role='group' aria-label='Quick replies' className='-mx-3 flex gap-2 overflow-x-auto px-3 pb-1'>
+            {quickReplies.map((reply) => (
+              <Button
+                key={reply.id}
+                type='button'
+                variant='outline'
+                size='sm'
+                className='h-9 shrink-0 rounded-full'
+                disabled={disabled || (reply.action === 'send' && writing)}
+                title={reply.text}
+                onClick={() => {
+                  if (reply.action === 'fill') {
+                    setText(reply.text);
+                    setChannel(reply.channel);
+                  } else {
+                    onSend(reply.text, reply.channel);
+                  }
+                }}
+              >
+                {reply.label}
+              </Button>
+            ))}
+          </div>
+        )}
         <div role='radiogroup' aria-label='Send as' className='flex gap-1'>
           {CHANNELS.map((option) => (
             <button

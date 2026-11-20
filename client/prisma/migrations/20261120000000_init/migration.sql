@@ -213,3 +213,22 @@ CREATE TABLE "RegexScript" (
 
 -- CreateIndex
 CREATE INDEX "RegexScript_createdById_idx" ON "RegexScript"("createdById");
+
+-- CreateTable
+CREATE TABLE "QuickReply" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "message" TEXT NOT NULL,
+    "action" TEXT NOT NULL DEFAULT 'send',
+    "channel" TEXT NOT NULL DEFAULT 'ic',
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "position" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "QuickReply_createdById_idx" ON "QuickReply"("createdById");
+

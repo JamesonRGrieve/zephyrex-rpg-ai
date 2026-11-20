@@ -254,6 +254,15 @@ class TestGenerate:
         inspected = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)).json()["prompt"]
         assert inspected["messages"][-1]["content"] == "I pass her the wrench."
 
+    def test_quick_replies_are_checked_and_listed_in_order(self, server: TestClient) -> None:
+        user = create_user(server)
+        refused = server.post("/v1/quick_reply", json={"quick_reply": {"label": "Bad", "message": "x", "action": "shout"}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+        _create(server, user, "quick_reply", label="Look", message="I look around.", position=2)
+        _create(server, user, "quick_reply", label="Pause", message="Can we pause?", channel="ooc", action="fill", position=1)
+        listed = server.get("/v1/quick_reply", headers=_headers(user)).json()["quick_replies"]
+        assert [(row["label"], row["action"], row["channel"]) for row in listed] == [("Pause", "fill", "ooc"), ("Look", "send", "ic")]
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]
