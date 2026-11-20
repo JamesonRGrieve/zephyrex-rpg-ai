@@ -5,6 +5,7 @@
  * models pages share. The sheet opens from the bottom on a phone and from the side on a wide screen;
  * deleting offers an undo.
  */
+import { useHidden } from 'zephyrex/hooks/useWrites';
 import { Plus, Trash2 } from 'lucide-react';
 import { type ReactElement, type ReactNode, useState } from 'react';
 import { deferWithUndo } from 'zephyrex/hooks/useToast';
@@ -47,8 +48,8 @@ export function ManagedList<T extends ManagedRow>({
 }): ReactElement {
   const mobile = useIsMobile();
   const [editing, setEditing] = useState<T | 'new' | null>(null);
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
-  const shown = (rows ?? []).filter((row) => !hidden.has(row.id));
+  const hidden = useHidden(rows ?? [], (row) => row.id);
+  const shown = hidden.shown;
   const close = () => setEditing(null);
 
   return (
@@ -58,7 +59,7 @@ export function ManagedList<T extends ManagedRow>({
       </Button>
       {error !== undefined && <LoadProblem what={`your ${what}s`} error={error} onRetry={onRetry} />}
       {rows === undefined && error === undefined && <SkeletonRows rows={3} />}
-      {rows !== undefined && shown.length === 0 && (
+      {rows !== undefined && shown.length === 0 && !hidden.pending && (
         <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>{emptyText}</p>
       )}
       <ul className='divide-y rounded-xl border'>
@@ -82,11 +83,11 @@ export function ManagedList<T extends ManagedRow>({
               className='size-11'
               aria-label={`Delete ${row.name}`}
               onClick={() => {
-                setHidden(new Set([...hidden, row.id]));
+                hidden.hide([row.id]);
                 deferWithUndo(
                   `${row.name} deleted`,
                   () => onDelete(row),
-                  () => setHidden(new Set([...hidden].filter((id) => id !== row.id))),
+                  () => hidden.show([row.id]),
                 );
               }}
             >

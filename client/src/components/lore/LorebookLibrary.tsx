@@ -4,6 +4,7 @@
  * Every lorebook: open one to edit its entries, start a new one, or import SillyTavern World Info
  * files (several at once; a character card's embedded book is imported with the card itself).
  */
+import { useHidden } from 'zephyrex/hooks/useWrites';
 import { BookPlus, FileUp, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
@@ -22,8 +23,8 @@ export function LorebookLibrary(): ReactElement {
   const { create: createEntry } = lorebookEntries.useActions();
   const router = useRouter();
   const fileInput = useRef<HTMLInputElement>(null);
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
-  const shown = (list.data ?? []).filter((book) => !hidden.has(book.id));
+  const hidden = useHidden(list.data ?? [], (book) => book.id);
+  const shown = hidden.shown;
 
   const importFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = [...(event.target.files ?? [])];
@@ -70,7 +71,7 @@ export function LorebookLibrary(): ReactElement {
       </div>
       {list.error !== undefined && <LoadProblem what='your lorebooks' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={3} />}
-      {list.data !== undefined && shown.length === 0 && (
+      {list.data !== undefined && shown.length === 0 && !hidden.pending && (
         <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>
           No lorebooks yet. Start one, or import a SillyTavern World Info file.
         </p>
@@ -89,11 +90,11 @@ export function LorebookLibrary(): ReactElement {
               className='relative z-10 size-11'
               aria-label={`Delete ${book.name}`}
               onClick={() => {
-                setHidden(new Set([...hidden, book.id]));
+                hidden.hide([book.id]);
                 deferWithUndo(
                   `${book.name} deleted`,
                   () => void remove(book),
-                  () => setHidden(new Set([...hidden].filter((id) => id !== book.id))),
+                  () => hidden.show([book.id]),
                 );
               }}
             >

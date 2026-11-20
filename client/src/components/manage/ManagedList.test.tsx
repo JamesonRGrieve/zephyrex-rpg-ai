@@ -25,7 +25,8 @@ describe('ManagedList', () => {
     await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'Delete Sam' }));
     expect(screen.queryByRole('button', { name: /^Sam/ })).not.toBeInTheDocument();
-    expect(screen.getByText('None yet.')).toBeInTheDocument();
+    // While the delete can still be undone, the first-run state never flashes (useHidden's pending).
+    expect(screen.queryByText('None yet.')).not.toBeInTheDocument();
   });
 });
 

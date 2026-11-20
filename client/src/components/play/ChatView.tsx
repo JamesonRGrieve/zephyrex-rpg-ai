@@ -8,6 +8,7 @@
  * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
+import { useHidden } from 'zephyrex/hooks/useWrites';
 import { Clock3, Download, Ellipsis, GitFork, Image as ImageIcon, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
 import { useSearchParams } from 'next/navigation';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
@@ -71,6 +72,7 @@ import { ScenarioPlay } from '~/components/campaign/ScenarioPlay';
 import { BranchTree } from './BranchTree';
 import { ContextInspector } from './ContextInspector';
 import { NextSpeaker } from './NextSpeaker';
+import { Recap } from './Recap';
 import { MessageItem, type MessageView } from './MessageItem';
 
 /** The chat's text size on this device (A49). */
@@ -163,17 +165,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [treeOpen, setTreeOpen] = useState(false);
   const [inspected, setInspected] = useState<InspectedPrompt | 'loading' | null>(null);
   const mobile = useIsMobile();
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const hidden = useHidden(list.data ?? [], (message) => message.id);
   const end = useRef<HTMLDivElement>(null);
 
   // Oldest first, whatever order the back end answers in: the tree's latest leaf is the last child.
-  const all = useMemo(
-    () =>
-      [...(list.data ?? [])]
-        .filter((message) => !hidden.has(message.id))
-        .sort((a, b) => a.created_at.localeCompare(b.created_at)),
-    [list.data, hidden],
-  );
+  const all = useMemo(() => [...hidden.shown].sort((a, b) => a.created_at.localeCompare(b.created_at)), [hidden.shown]);
   const leaf =
     leafId !== null && all.some((message) => message.id === leafId)
       ? (latestLeaf(all, leafId)?.id ?? leafId)
@@ -188,6 +184,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   }, [personaList.data, chat.persona_id]);
   const { settings } = useDeviceSettings();
   const [canSpeak] = useState(() => speechSupport().speak);
+  const [recapHidden, setRecapHidden] = useState(false);
   const views = messageViews(branch, all, castById, persona).filter(
     (view) => settings.showTableTalk || (view.channel !== 'ooc' && view.channel !== 'gm'),
   );
@@ -560,12 +557,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   };
 
   const deleteMessage = (message: ChatMessage) => {
-    setHidden(new Set([...hidden, message.id]));
+    hidden.hide([message.id]);
     setLeafId(message.parent_id);
     deferWithUndo(
       'Message deleted',
       () => void remove(message),
-      () => setHidden(new Set([...hidden].filter((id) => id !== message.id))),
+      () => hidden.show([message.id]),
     );
   };
 
@@ -670,6 +667,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           </DropdownMenu>
         </div>
       </div>
+      {!recapHidden && (
+        // "Previously…" (AP2): the rolling summary at the top when the session starts.
+        <div className='mx-auto w-full max-w-3xl px-3 pb-3'>
+          <Recap
+            summary={chat.summary}
+            onRead={canSpeak ? () => readAloud(null, chat.summary) : undefined}
+            onHide={() => setRecapHidden(true)}
+          />
+        </div>
+      )}
       <ol
         className={cn(
           'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
@@ -681,7 +688,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         aria-live='polite'
       >
         {list.data === undefined && <SkeletonRows rows={4} avatar />}
-        {list.data !== undefined && views.length === 0 && writingAfter === null && (
+        {list.data !== undefined && views.length === 0 && writingAfter === null && !hidden.pending && (
           <li className='rounded-xl border border-dashed p-6 text-center text-muted-foreground'>Say something to begin.</li>
         )}
         {views.map((view) => {

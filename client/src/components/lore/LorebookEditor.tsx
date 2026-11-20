@@ -5,6 +5,7 @@
  * place, open one to edit every field, add one, or export the book as a SillyTavern World Info
  * file. The entry editor opens from the side on a wide screen and from the bottom on a phone.
  */
+import { useHidden } from 'zephyrex/hooks/useWrites';
 import { Download, Plus, Search, Trash2 } from 'lucide-react';
 import { type ReactElement, useId, useMemo, useState } from 'react';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
@@ -100,14 +101,11 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
   const mobile = useIsMobile();
   const [query, setQuery] = useState('');
   const [editing, setEditing] = useState<{ entry: LorebookEntry | null; draft: EntryFields } | null>(null);
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const hidden = useHidden(entries.data ?? [], (entry) => entry.id);
   const searchId = useId();
   const [problem, setProblem] = useState<string | null>(null);
 
-  const shown = useMemo(
-    () => (entries.data ?? []).filter((entry) => !hidden.has(entry.id) && entryMatches(entry, query)),
-    [entries.data, hidden, query],
-  );
+  const shown = useMemo(() => hidden.shown.filter((entry) => entryMatches(entry, query)), [hidden.shown, query]);
 
   if (book.error !== undefined) return <LoadProblem what='this lorebook' error={book.error} onRetry={() => book.mutate()} />;
   if (book.data === undefined) return <SkeletonRows rows={5} />;
@@ -196,11 +194,11 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
               className='size-11'
               aria-label={`Delete ${entryTitle(entry)}`}
               onClick={() => {
-                setHidden(new Set([...hidden, entry.id]));
+                hidden.hide([entry.id]);
                 deferWithUndo(
                   'Entry deleted',
                   () => void remove(entry),
-                  () => setHidden(new Set([...hidden].filter((one) => one !== entry.id))),
+                  () => hidden.show([entry.id]),
                 );
               }}
             >

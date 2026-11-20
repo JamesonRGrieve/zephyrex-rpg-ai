@@ -5,6 +5,7 @@
  * tag, and filter by folder (A12). The install shortcut "New chat" (`/play?new=1`) opens the picker
  * straight away.
  */
+import { useHidden } from 'zephyrex/hooks/useWrites';
 import { FileUp, MessageSquarePlus, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
@@ -63,7 +64,7 @@ export function ChatLibrary(): ReactElement {
   };
   const params = useSearchParams();
   const [picking, setPicking] = useState(params.get('new') === '1');
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const hidden = useHidden(list.data ?? [], (chat) => chat.id);
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
   const [query, setQuery] = useState('');
   const [folder, setFolder] = useState<FolderFilter>({ kind: 'all' });
@@ -73,7 +74,7 @@ export function ChatLibrary(): ReactElement {
     [cast.data],
   );
   const folders = foldersOf(list.data ?? []);
-  const all = (list.data ?? []).filter((chat) => !hidden.has(chat.id));
+  const all = hidden.shown;
   // Newest first, whatever order the back end answers in.
   // Inside messages too, once three characters are typed (A12): every message is read for it.
   const allMessages = messages.useList(undefined, query.trim().length >= 3);
@@ -124,7 +125,7 @@ export function ChatLibrary(): ReactElement {
       )}
       {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} avatar />}
-      {list.data !== undefined && all.length === 0 && (
+      {list.data !== undefined && all.length === 0 && !hidden.pending && (
         <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>
           No chats yet. Start one with a character.
         </p>
@@ -187,11 +188,11 @@ export function ChatLibrary(): ReactElement {
               className='relative z-10 size-11'
               aria-label={`Delete ${chat.title}`}
               onClick={() => {
-                setHidden(new Set([...hidden, chat.id]));
+                hidden.hide([chat.id]);
                 deferWithUndo(
                   `${chat.title} deleted`,
                   () => void remove(chat),
-                  () => setHidden(new Set([...hidden].filter((id) => id !== chat.id))),
+                  () => hidden.show([chat.id]),
                 );
               }}
             >

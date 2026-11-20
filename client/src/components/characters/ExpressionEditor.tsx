@@ -4,6 +4,7 @@
  * A character's expression sprites (A4): one picture per feeling (joy, anger, …). In a chat, the
  * model picks which fits each line, from these labels only.
  */
+import { useHidden } from 'zephyrex/hooks/useWrites';
 import { ImagePlus, Trash2 } from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
@@ -38,9 +39,9 @@ export function ExpressionSprites({
 }): ReactElement {
   const [label, setLabel] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const hidden = useHidden(sprites, (sprite) => sprite.id);
   const ids = { label: useId(), file: useId() };
-  const shown = sprites.filter((sprite) => !hidden.has(sprite.id));
+  const shown = hidden.shown;
 
   const add = async (file: File | undefined) => {
     if (file === undefined) return;
@@ -73,11 +74,11 @@ export function ExpressionSprites({
                 className='size-11'
                 aria-label={`Remove the ${sprite.label} sprite`}
                 onClick={() => {
-                  setHidden(new Set([...hidden, sprite.id]));
+                  hidden.hide([sprite.id]);
                   deferWithUndo(
                     `${sprite.label} sprite removed`,
                     () => onRemove(sprite),
-                    () => setHidden((now) => new Set([...now].filter((id) => id !== sprite.id))),
+                    () => hidden.show([sprite.id]),
                   );
                 }}
               >
