@@ -3,9 +3,17 @@
 `zephyrex-rpg` splits into three products (operator, 2026-11-20). Each one is a full
 app on its own, and the three compose into one table when they run together.
 `zephyrex-vtt` and `zephyrex-rpg-wiki` are carved out of this repo with their history.
-This repo then becomes `zephyrex-rpg-ai`. All three live under GitHub `JamesonRGrieve`, private,
-for now (operator, 2026-11-20: "Under JamesonRGrieve for now"). Hosting and deployment come later,
-on the shared framework-app stack (SOP *Zephyrex Framework SaaS Launch*), where to is the operator's call.
+This repo then becomes `zephyrex-rpg-ai`.
+
+**Where the repos live.**
+- **Target:** each repo is primary on the Zephyrex Forgejo (`Zephyrex/<repo>`), push-mirrors to
+  its GitHub copy under `JamesonRGrieve`, and deploys by Forgejo Actions, as 16 Worldviews and
+  Chronos do.
+- **For now** (operator, 2026-11-20: "Under JamesonRGrieve for now"), they live on GitHub under
+  `JamesonRGrieve`, private, until the Forgejo repos exist.
+- Under the pipeline's rules a Forgejo repository is app data, created in the Forgejo app (SOP
+  *Zephyrex Framework SaaS Launch*, step 4), not declared in tofu.
+- Deployment is on the shared framework-app stack, and where it runs is the operator's call.
 
 | Product | Competes with | What it is |
 |---|---|---|
@@ -195,4 +203,4 @@ deploy/    the Cule/Zephyreader deploy shape (SOP: Zephyrex Framework SaaS Launc
 docs/      FEATURES.md (parity matrix), DESIGN.md, research/competitors.md
 ```
 
-Where each repo is hosted and deployed is tracked on card 256.
+Creating the Forgejo repos, switching pushes to Forgejo with GitHub as the mirror, and deployment are tracked on card 256.
