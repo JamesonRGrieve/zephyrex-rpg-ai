@@ -169,6 +169,7 @@ export function MessageItem({
   writing = false,
   layout = 'flat',
   translation,
+  proposal,
   ...actions
 }: {
   message: MessageView;
@@ -177,6 +178,8 @@ export function MessageItem({
   /** A translation to show under the text (A43): written, being written, or failed. */
   translation?:
     { status: 'writing' } | { status: 'done'; text: string; onHide: () => void } | { status: 'failed'; reason: string };
+  /** A table note the GM proposes (A11): kept only when a player adds it. */
+  proposal?: { label: string; text: string; added: boolean; onAdd: () => void };
 } & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   const editId = useId();
@@ -256,6 +259,21 @@ export function MessageItem({
                   </li>
                 ))}
               </ul>
+            )}
+            {proposal !== undefined && (
+              <div className='mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm'>
+                <p>
+                  <span className='font-medium'>The GM proposes a note ({proposal.label.toLowerCase()}):</span>{' '}
+                  {proposal.text}
+                </p>
+                {proposal.added ? (
+                  <span className='text-muted-foreground'>In the table notes</span>
+                ) : (
+                  <Button type='button' variant='outline' className='h-11 shrink-0' onClick={proposal.onAdd}>
+                    Add to table notes
+                  </Button>
+                )}
+              </div>
             )}
             {translation !== undefined && (
               <div className='mt-2 rounded-md border-l-2 border-primary bg-muted px-3 py-2 text-sm' aria-live='polite'>

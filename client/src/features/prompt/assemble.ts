@@ -616,6 +616,7 @@ export function tableGmPrompt(
   const summary = input.summary ?? '';
   const parts = [
     TABLE.gm_prompt,
+    TABLE.note_prompt,
     gmStyleText(input.frame),
     safetyText(input.safety),
     tableNotesText(input.table_notes),

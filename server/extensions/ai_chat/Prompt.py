@@ -457,6 +457,7 @@ def table_gm_prompt(
     recent = [f"{named(turn)}: {turn['content']}" for turn in story[-TABLE["recent_story_turns"] :]]
     parts = [
         TABLE["gm_prompt"],
+        TABLE["note_prompt"],
         gm_style_text(frame),
         safety_text(safety),
         table_notes_text(table_notes),

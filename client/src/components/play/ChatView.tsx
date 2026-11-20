@@ -44,7 +44,8 @@ import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
-import { PICTURE, TABLE } from '~/contract';
+import { LIMITS, PICTURE, TABLE } from '~/contract';
+import { hasNote, type ProposedNote, proposedNote } from '~/features/chat/proposedNote';
 import {
   type Character,
   type Chat,
@@ -282,6 +283,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   /** Text as saved, after the regex scripts that change what is stored (A33). */
   const stored = (text: string, placement: RegexPlacement) => applyRegex(text, scripts, placement, 'stored');
+
+  /** A note the GM proposed (A11), kept once a player adds it; never added by the GM itself. */
+  const addNote = async (note: ProposedNote) => {
+    if (hasNote(chat.table_notes, note)) return;
+    if (chat.table_notes.length >= LIMITS.table_notes) {
+      notify('Table notes are full', 'Remove one in Chat settings first.');
+      return;
+    }
+    await updateChat(chat, { table_notes: [...chat.table_notes, note] });
+    notify('Added to the table notes');
+  };
 
   /** A slash command from the composer (A37): each one something the chat already does. */
   const runCommand = async (command: Command) => {
@@ -677,13 +689,26 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           const placement: RegexPlacement | null =
             message.role === 'user' ? 'user_input' : message.role === 'character' ? 'ai_output' : null;
           const depth = branch.length - 1 - branch.findIndex((one) => one.id === message.id);
-          const shown =
+          const regexed =
             placement === null ? view : { ...view, text: applyRegex(view.text, scripts, placement, 'display', depth) };
+          // A note the table GM proposes (A11) is shown apart, for a player to add; the answer without it.
+          const proposal = message.channel === 'gm' && message.role === 'narrator' ? proposedNote(regexed.text) : null;
+          const shown = proposal === null ? regexed : { ...regexed, text: proposal.rest };
           return (
             <li key={view.id}>
               <MessageItem
                 layout={settings.chatLayout}
                 message={shown}
+                proposal={
+                  proposal === null
+                    ? undefined
+                    : {
+                        label: TABLE.note_labels[proposal.note.kind],
+                        text: proposal.note.text,
+                        added: hasNote(chat.table_notes, proposal.note),
+                        onAdd: () => void addNote(proposal.note),
+                      }
+                }
                 onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
                 onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
                 onFork={(step) => fork(message, step)}

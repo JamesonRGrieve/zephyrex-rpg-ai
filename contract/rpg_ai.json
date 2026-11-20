@@ -429,7 +429,9 @@
     "gm_prompt": "You are the game master, talking with the players out of character, as the person running the game. Answer plainly and helpfully, in a few sentences. Never reveal what the story has not revealed, and never invent rules: say when a rule has to be checked. Never continue the story here.",
     "recent_story_turns": 6,
     "recent_story_heading": "The story so far, most recent last:",
-    "gm_name": "GM"
+    "gm_name": "GM",
+    "note_prompt": "When the players settle a house rule, a pacing or tone choice, or something to remember, end your answer with it on a line of its own: Note (house_rule, pacing, tone or reminder): the note. The players decide whether to keep it.",
+    "note_line": "Note ({{kind}}): "
   },
   "campaign": {
     "dials": [

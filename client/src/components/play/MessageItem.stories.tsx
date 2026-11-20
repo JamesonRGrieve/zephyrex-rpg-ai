@@ -91,3 +91,17 @@ export const Translated: Story = {
     await expect(hideTranslation).toHaveBeenCalled();
   },
 };
+
+/** A GM answer that proposes a table note (A11): a player adds it, or leaves it. */
+export const GmProposesANote: Story = {
+  args: {
+    message: { ...TABLE_TALK, channel: 'gm', speaker: 'GM', text: 'Sure, we can skip the travel scenes.' },
+    proposal: { label: 'Pacing', text: 'Skip travel between ports.', added: false, onAdd: fn() },
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText(/The GM proposes a note \(pacing\):/)).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Add to table notes' }));
+    await expect(args.proposal?.onAdd).toHaveBeenCalled();
+  },
+};

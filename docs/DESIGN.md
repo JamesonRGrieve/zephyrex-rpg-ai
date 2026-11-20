@@ -688,7 +688,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A6 | Streaming, stop, regenerate, continue, impersonate | |
 | A7–A9 | Swipes, branches (with a view of every branch), edit, delete, bookmarks | moving a message |
 | A10, A52 | Group chats: turn order, pick who speaks next, members left out of turns | natural order by a decision model; group greetings |
-| A11 | OOC channels kept out of the story; table notes (house rules, pacing, tone, reminders) in every prompt | notes proposed by the GM, confirmed by a player |
+| A11 | OOC channels kept out of the story; table notes (house rules, pacing, tone, reminders) in every prompt; the table GM proposes a note as its answer's last line, which a player adds or leaves | |
 | A20 | The GM's two voices: the narrator tells what happens next in the story (every character in brief, its own narration as its voice); the table GM answers `gm` questions out of character; pause; the campaign's GM style, read by the GM's voices only | the GM taking turns on its own |
 | A12 | Chat library: search by title, cast, tag or the words of any message (opening the chat there); folders and tags | |
 | A13, A56 | SillyTavern chat import; branch export as JSONL or text; a backup of everything as one file, restored beside what is there | |

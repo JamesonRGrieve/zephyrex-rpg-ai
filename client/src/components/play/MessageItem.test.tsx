@@ -85,4 +85,17 @@ describe('MessageItem', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onEdit).toHaveBeenCalledWith('I hand her the wrench.');
   });
+
+  it('offers to add a note the GM proposes, and says when the table keeps it already', async () => {
+    const onAdd = vi.fn();
+    const gm = { ...TABLE_TALK, channel: 'gm' as const, speaker: 'GM', text: 'Sure.' };
+    const { rerender } = render(
+      <MessageItem message={gm} proposal={{ label: 'Pacing', text: 'Skip travel.', added: false, onAdd }} />,
+    );
+    await userEvent.click(screen.getByRole('button', { name: 'Add to table notes' }));
+    expect(onAdd).toHaveBeenCalledTimes(1);
+    rerender(<MessageItem message={gm} proposal={{ label: 'Pacing', text: 'Skip travel.', added: true, onAdd }} />);
+    expect(screen.queryByRole('button', { name: 'Add to table notes' })).not.toBeInTheDocument();
+    expect(screen.getByText('In the table notes')).toBeInTheDocument();
+  });
 });
