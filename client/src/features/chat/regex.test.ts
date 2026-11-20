@@ -5,9 +5,15 @@ import { applyRegex, compileFind, type RegexPlacement, type RegexScript, type Re
 
 describe('applyRegex (contract/regex-cases.json, shared with the server)', () => {
   it.each(cases.cases)('$name', (testCase) => {
-    expect(applyRegex(testCase.text, testCase.scripts as RegexScript[], testCase.placement as RegexPlacement, testCase.target as RegexTarget, testCase.depth)).toBe(
-      testCase.result,
-    );
+    expect(
+      applyRegex(
+        testCase.text,
+        testCase.scripts as RegexScript[],
+        testCase.placement as RegexPlacement,
+        testCase.target as RegexTarget,
+        testCase.depth,
+      ),
+    ).toBe(testCase.result);
   });
 
   it('refuses an empty pattern, a repeated flag and a flag JavaScript and Python read differently', () => {

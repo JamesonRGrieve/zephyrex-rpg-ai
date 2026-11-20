@@ -28,5 +28,7 @@ export const Filled: Story = {
 };
 
 export const Blank: Story = {
-  args: { initial: { ...ADA_DRAFT, name: 'New character', description: '', first_message: '', alternate_greetings: [], tags: [] } },
+  args: {
+    initial: { ...ADA_DRAFT, name: 'New character', description: '', first_message: '', alternate_greetings: [], tags: [] },
+  },
 };

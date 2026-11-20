@@ -13,7 +13,8 @@ import { compileFind, type RegexPlacement } from '~/features/chat/regex';
 const object = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
-const depth = (value: unknown): number | null => (typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null);
+const depth = (value: unknown): number | null =>
+  typeof value === 'number' && Number.isInteger(value) && value >= 0 ? value : null;
 
 const PLACEMENTS: Record<number, RegexPlacement> = { 1: 'user_input', 2: 'ai_output' };
 
@@ -38,7 +39,9 @@ export function regexScriptsFromJson(json: unknown): { scripts: ImportedRegexScr
   raw.map(object).forEach((script, index) => {
     const name = text(script.scriptName).trim() || `Script ${index + 1}`;
     const find = text(script.findRegex);
-    const placements = (Array.isArray(script.placement) ? script.placement : []).flatMap((code) => (typeof code === 'number' && code in PLACEMENTS ? [PLACEMENTS[code] as RegexPlacement] : []));
+    const placements = (Array.isArray(script.placement) ? script.placement : []).flatMap((code) =>
+      typeof code === 'number' && code in PLACEMENTS ? [PLACEMENTS[code] as RegexPlacement] : [],
+    );
     const markdownOnly = script.markdownOnly === true;
     const promptOnly = script.promptOnly === true;
     if (find === '' || compileFind(find) === null || placements.length === 0 || (markdownOnly && promptOnly)) {
@@ -77,6 +80,17 @@ export function quickRepliesFromJson(json: unknown): ImportedQuickReply[] {
   return list.map(object).flatMap((reply, index) => {
     const label = (text(reply.label) || text(reply.title)).trim();
     const message = text(reply.message).trim();
-    return label === '' || message === '' ? [] : [{ label, message, action: 'send' as const, channel: 'ic' as const, enabled: reply.isHidden !== true, position: index }];
+    return label === '' || message === ''
+      ? []
+      : [
+          {
+            label,
+            message,
+            action: 'send' as const,
+            channel: 'ic' as const,
+            enabled: reply.isHidden !== true,
+            position: index,
+          },
+        ];
   });
 }

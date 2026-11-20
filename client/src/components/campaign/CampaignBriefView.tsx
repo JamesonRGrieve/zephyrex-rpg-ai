@@ -9,7 +9,8 @@ import { CampaignBrief } from './CampaignBrief';
 
 export function CampaignBriefView({ id }: { id: string }): ReactElement {
   const record = campaigns.useOne(id);
-  if (record.error !== undefined) return <LoadProblem what='this campaign' error={record.error} onRetry={() => record.mutate()} />;
+  if (record.error !== undefined)
+    return <LoadProblem what='this campaign' error={record.error} onRetry={() => record.mutate()} />;
   if (record.data === undefined) return <SkeletonRows rows={6} />;
   return <CampaignBrief campaign={record.data} />;
 }

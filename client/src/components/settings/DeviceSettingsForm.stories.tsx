@@ -7,7 +7,11 @@ import { DeviceSettingsForm } from './DeviceSettingsForm';
 const meta: Meta<typeof DeviceSettingsForm> = {
   title: 'Settings/Device settings',
   component: DeviceSettingsForm,
-  args: { settings: { ...DEFAULT_DEVICE_SETTINGS, tier: 'auto', showTableTalk: true }, measured: 'standard', onChange: fn() },
+  args: {
+    settings: { ...DEFAULT_DEVICE_SETTINGS, tier: 'auto', showTableTalk: true },
+    measured: 'standard',
+    onChange: fn(),
+  },
 };
 export default meta;
 type Story = StoryObj<typeof DeviceSettingsForm>;

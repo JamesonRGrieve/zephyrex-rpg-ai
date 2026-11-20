@@ -58,7 +58,10 @@ const scriptCreate = z
     enabled: fields.enabled.default(true),
     position: fields.position.default(0),
   })
-  .refine((script) => !(script.display_only && script.prompt_only), { message: 'A script is display-only or prompt-only, not both', path: ['prompt_only'] });
+  .refine((script) => !(script.display_only && script.prompt_only), {
+    message: 'A script is display-only or prompt-only, not both',
+    path: ['prompt_only'],
+  });
 const scriptUpdate = z.object(fields).partial();
 
 type Row = Prisma.RegexScriptGetPayload<object>;
@@ -73,10 +76,13 @@ export const regexScripts: ResourceSpec<Row, z.infer<typeof scriptCreate>, z.inf
   modelName: 'RegexScriptModel',
   createSchema: scriptCreate,
   updateSchema: scriptUpdate,
-  list: (ownerId) => prisma.regexScript.findMany({ where: { createdById: ownerId }, orderBy: [{ position: 'asc' }, { name: 'asc' }] }),
+  list: (ownerId) =>
+    prisma.regexScript.findMany({ where: { createdById: ownerId }, orderBy: [{ position: 'asc' }, { name: 'asc' }] }),
   find: (id, ownerId) => prisma.regexScript.findFirst({ where: { id, createdById: ownerId } }),
   insert: (ownerId, input, stamp) =>
-    prisma.regexScript.create({ data: { createdById: ownerId, ...written(input, stamp) } as Prisma.RegexScriptUncheckedCreateInput }),
+    prisma.regexScript.create({
+      data: { createdById: ownerId, ...written(input, stamp) } as Prisma.RegexScriptUncheckedCreateInput,
+    }),
   async updateIfCurrent(id, version, input, stamp, userId) {
     const { count } = await prisma.regexScript.updateMany({
       where: { id, updatedAt: version },

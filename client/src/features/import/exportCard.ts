@@ -22,7 +22,10 @@ async function asPng(url: string): Promise<Uint8Array | null> {
 
 function save(name: string, extension: string, part: BlobPart, type: string): void {
   const url = URL.createObjectURL(new Blob([part], { type }));
-  const link = Object.assign(document.createElement('a'), { href: url, download: `${name.replace(/[^\w.-]+/g, '_') || 'character'}.${extension}` });
+  const link = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `${name.replace(/[^\w.-]+/g, '_') || 'character'}.${extension}`,
+  });
   link.click();
   URL.revokeObjectURL(url);
 }

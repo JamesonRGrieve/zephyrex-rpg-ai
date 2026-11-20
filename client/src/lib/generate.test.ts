@@ -11,7 +11,21 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { completionsUrl, expression, generate, imagesUrl, inspectPrompt, modelsUrl, picture, pictureOf, ping, summarize, translate, upstreamBody, withImages } from './generate';
+import {
+  completionsUrl,
+  expression,
+  generate,
+  imagesUrl,
+  inspectPrompt,
+  modelsUrl,
+  picture,
+  pictureOf,
+  ping,
+  summarize,
+  translate,
+  upstreamBody,
+  withImages,
+} from './generate';
 
 interface Received {
   path: string;
@@ -33,14 +47,20 @@ async function readBody(request: IncomingMessage): Promise<string> {
 beforeAll(async () => {
   server = createServer((request, response) => {
     void readBody(request).then((text) => {
-      received.push({ path: request.url ?? '', authorization: request.headers.authorization, body: JSON.parse(text) as Received['body'] });
+      received.push({
+        path: request.url ?? '',
+        authorization: request.headers.authorization,
+        body: JSON.parse(text) as Received['body'],
+      });
       if (answer === 'refuse') {
         response.writeHead(401).end('{"error":"bad key"}');
         return;
       }
       if ((request.url ?? '').endsWith('/images/generations')) {
         // A drawn picture (A30): a one-pixel PNG.
-        response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ data: [{ b64_json: 'iVBORw0KGgo=' }] }));
+        response
+          .writeHead(200, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ data: [{ b64_json: 'iVBORw0KGgo=' }] }));
         return;
       }
       response.writeHead(200, { 'Content-Type': 'text/event-stream' });
@@ -74,10 +94,17 @@ const stamp = () => ({ createdById: LOCAL_OWNER_ID, updatedAt: new Date() });
 
 async function seed(withEndpoint = true) {
   const ada = await prisma.character.create({ data: { ...stamp(), name: 'Ada', description: '{{char}} is an engineer.' } });
-  if (withEndpoint) await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Local', baseUrl, model: 'tiny', apiKey: 'k-1', isDefault: true } });
+  if (withEndpoint)
+    await prisma.modelEndpoint.create({
+      data: { ...stamp(), name: 'Local', baseUrl, model: 'tiny', apiKey: 'k-1', isDefault: true },
+    });
   const chat = await prisma.chat.create({ data: { ...stamp(), title: 'Chat', characterIds: JSON.stringify([ada.id]) } });
-  const ooc = await prisma.chatMessage.create({ data: { ...stamp(), chatId: chat.id, role: 'user', channel: 'ooc', swipes: '["brb, coffee"]' } });
-  const line = await prisma.chatMessage.create({ data: { ...stamp(), chatId: chat.id, parentId: ooc.id, role: 'user', swipes: '["I hand her the spanner."]' } });
+  const ooc = await prisma.chatMessage.create({
+    data: { ...stamp(), chatId: chat.id, role: 'user', channel: 'ooc', swipes: '["brb, coffee"]' },
+  });
+  const line = await prisma.chatMessage.create({
+    data: { ...stamp(), chatId: chat.id, parentId: ooc.id, role: 'user', swipes: '["I hand her the spanner."]' },
+  });
   return { ada, chat, line };
 }
 
@@ -138,9 +165,17 @@ describe('World Info in a reply', () => {
     const { chat, line } = await seed();
     const book = await prisma.lorebook.create({ data: { ...stamp(), name: 'Kestrel' } });
     await prisma.lorebookEntry.create({
-      data: { ...stamp(), lorebookId: book.id, keys: '["spanner"]', content: 'The Kestrel’s spanners are cursed.', sticky: 2 },
+      data: {
+        ...stamp(),
+        lorebookId: book.id,
+        keys: '["spanner"]',
+        content: 'The Kestrel’s spanners are cursed.',
+        sticky: 2,
+      },
     });
-    await prisma.lorebookEntry.create({ data: { ...stamp(), lorebookId: book.id, keys: '["coffee"]', content: 'never: only table talk says coffee' } });
+    await prisma.lorebookEntry.create({
+      data: { ...stamp(), lorebookId: book.id, keys: '["coffee"]', content: 'never: only table talk says coffee' },
+    });
     await prisma.chat.update({ where: { id: chat.id }, data: { lorebookIds: JSON.stringify([book.id]) } });
 
     const response = await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
@@ -150,7 +185,9 @@ describe('World Info in a reply', () => {
     expect(system).not.toContain('never: only table talk says coffee');
 
     const saved = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
-    expect(Object.values(JSON.parse(saved?.state ?? '{}') as Record<string, { sticky_until: number }>)).toEqual([{ sticky_until: 3, cooldown_until: 0 }]);
+    expect(Object.values(JSON.parse(saved?.state ?? '{}') as Record<string, { sticky_until: number }>)).toEqual([
+      { sticky_until: 3, cooldown_until: 0 },
+    ]);
   });
 });
 
@@ -160,7 +197,9 @@ describe('POST /v1/ai_chat/prompt', () => {
     const { chat, line } = await seed();
     const response = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { prompt: { messages: { role: string; content: string; tokens: number }[]; tokens: number; dropped: number } };
+    const body = (await response.json()) as {
+      prompt: { messages: { role: string; content: string; tokens: number }[]; tokens: number; dropped: number };
+    };
     expect(body.prompt.messages.at(-1)).toMatchObject({ role: 'user', content: 'I hand her the spanner.' });
     expect(body.prompt.tokens).toBe(body.prompt.messages.reduce((total, message) => total + message.tokens, 0));
     expect(received).toHaveLength(0);
@@ -189,8 +228,12 @@ describe('POST /v1/ai_chat/summarize', () => {
   it('reads a saved summary into the prompt, and answers 502 when the model refuses', async () => {
     const { chat, line } = await seed();
     await prisma.chat.update({ where: { id: chat.id }, data: { summary: 'They met in the engine room.' } });
-    const inspected = (await (await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).json()) as { prompt: { messages: { content: string }[] } };
-    expect(inspected.prompt.messages[0]?.content.endsWith('Summary of the story so far:\nThey met in the engine room.')).toBe(true);
+    const inspected = (await (await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).json()) as {
+      prompt: { messages: { content: string }[] };
+    };
+    expect(
+      inspected.prompt.messages[0]?.content.endsWith('Summary of the story so far:\nThey met in the engine room.'),
+    ).toBe(true);
     answer = 'refuse';
     expect((await summarize(call({ generate: { chat_id: chat.id } }))).status).toBe(502);
   });
@@ -201,9 +244,15 @@ describe('POST /v1/ai_chat/translate', () => {
     const { chat } = await seed();
     const response = await translate(call({ translate: { chat_id: chat.id, text: 'Bonjour.', language: 'English' } }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ translate: { chat_id: chat.id, text: '“Mind the coolant.”', language: 'English' } });
+    expect(await response.json()).toEqual({
+      translate: { chat_id: chat.id, text: '“Mind the coolant.”', language: 'English' },
+    });
     expect(received[0]?.body.messages).toEqual([
-      { role: 'system', content: "Translate the user's text into English. Keep its meaning, tone, names and any *action* markup. Write only the translation." },
+      {
+        role: 'system',
+        content:
+          "Translate the user's text into English. Keep its meaning, tone, names and any *action* markup. Write only the translation.",
+      },
       { role: 'user', content: 'Bonjour.' },
     ]);
     expect((await translate(call({ translate: { chat_id: chat.id, text: '' } }))).status).toBe(422);
@@ -215,9 +264,13 @@ describe('the data bank', () => {
     await prisma.dataDocument.deleteMany();
     const { ada, chat, line } = await seed();
     await prisma.dataDocument.create({ data: { ...stamp(), name: 'Tools', text: 'The spanner rack is by the hatch.' } });
-    await prisma.dataDocument.create({ data: { ...stamp(), name: 'Ada', text: 'Ada keeps her own spanner.', scope: 'character', scopeId: ada.id } });
+    await prisma.dataDocument.create({
+      data: { ...stamp(), name: 'Ada', text: 'Ada keeps her own spanner.', scope: 'character', scopeId: ada.id },
+    });
     await prisma.dataDocument.create({ data: { ...stamp(), name: 'Food', text: 'Bram cooks stew.' } });
-    const body = (await (await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).json()) as { prompt: { messages: { content: string }[] } };
+    const body = (await (await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).json()) as {
+      prompt: { messages: { content: string }[] };
+    };
     const system = body.prompt.messages[0]?.content ?? '';
     expect(system).toContain('Notes that may be relevant:\nThe spanner rack is by the hatch.\n\nAda keeps her own spanner.');
     expect(system).not.toContain('stew');
@@ -227,15 +280,24 @@ describe('the data bank', () => {
 describe('the table GM and the pause', () => {
   it('answers table talk as the GM, and a paused table gets no story turn but still its GM', async () => {
     const { chat, line } = await seed();
-    const question = await prisma.chatMessage.create({ data: { ...stamp(), chatId: chat.id, parentId: line.id, role: 'user', channel: 'gm', swipes: '["Can I search it?"]' } });
-    await prisma.chat.update({ where: { id: chat.id }, data: { paused: true, tableNotes: JSON.stringify([{ kind: 'house_rule', text: 'Crits explode.' }]) } });
+    const question = await prisma.chatMessage.create({
+      data: { ...stamp(), chatId: chat.id, parentId: line.id, role: 'user', channel: 'gm', swipes: '["Can I search it?"]' },
+    });
+    await prisma.chat.update({
+      where: { id: chat.id },
+      data: { paused: true, tableNotes: JSON.stringify([{ kind: 'house_rule', text: 'Crits explode.' }]) },
+    });
     const refused = await generate(call({ generate: { chat_id: chat.id, leaf_id: question.id } }));
     expect(refused.status).toBe(409);
     expect(await refused.json()).toMatchObject({ detail: { code: 'paused' } });
     const table = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: question.id, mode: 'table' } }));
     const body = (await table.json()) as { prompt: { messages: { role: string; content: string }[] } };
     expect(body.prompt.messages[0]?.content).toContain('House rule: Crits explode.');
-    expect(body.prompt.messages.at(-1)).toEqual({ role: 'user', content: 'User: Can I search it?', tokens: expect.any(Number) });
+    expect(body.prompt.messages.at(-1)).toEqual({
+      role: 'user',
+      content: 'User: Can I search it?',
+      tokens: expect.any(Number),
+    });
     expect((await generate(call({ generate: { chat_id: chat.id, leaf_id: question.id, mode: 'table' } }))).status).toBe(200);
   });
 });
@@ -243,7 +305,9 @@ describe('the table GM and the pause', () => {
 describe('models by role (A27)', () => {
   it('sends a summary to the model that serves summaries, and replies to the default', async () => {
     const { chat, line } = await seed();
-    await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Summaries', baseUrl, model: 'small', roles: JSON.stringify(['summary']) } });
+    await prisma.modelEndpoint.create({
+      data: { ...stamp(), name: 'Summaries', baseUrl, model: 'small', roles: JSON.stringify(['summary']) },
+    });
     await summarize(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
     expect(received.at(-1)?.body.model).toBe('small');
     await (await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).text();
@@ -259,9 +323,22 @@ describe('the prompt manager', () => {
       { id: 'main', enabled: true, max_tokens: 2 },
     ];
     const preset = await prisma.generationPreset.create({
-      data: { ...stamp(), name: 'Layout', temperature: 0.7, topP: 1, topK: 0, repetitionPenalty: 1, maxTokens: 200, contextTokens: 4096, promptLayout: JSON.stringify(layout) },
+      data: {
+        ...stamp(),
+        name: 'Layout',
+        temperature: 0.7,
+        topP: 1,
+        topK: 0,
+        repetitionPenalty: 1,
+        maxTokens: 200,
+        contextTokens: 4096,
+        promptLayout: JSON.stringify(layout),
+      },
     });
-    await prisma.chat.update({ where: { id: chat.id }, data: { presetId: preset.id, systemPrompt: 'Narrate {{char}} closely.' } });
+    await prisma.chat.update({
+      where: { id: chat.id },
+      data: { presetId: preset.id, systemPrompt: 'Narrate {{char}} closely.' },
+    });
     const response = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
     const body = (await response.json()) as { prompt: { messages: { content: string }[] } };
     expect(body.prompt.messages[0]?.content).toBe('Ada is an engineer.\n\nNarrate');
@@ -294,7 +371,13 @@ describe('withImages', () => {
     expect(withImages(messages, [])).toEqual(messages);
     expect(withImages(messages, ['data:image/png;base64,AAAA'])).toEqual([
       ...messages.slice(0, 3),
-      { role: 'user', content: [{ type: 'text', text: 'What is this?' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'What is this?' },
+          { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } },
+        ],
+      },
     ]);
   });
 });
@@ -309,8 +392,13 @@ describe('POST /v1/ai_chat/expression (A4)', () => {
 
   it('asks the model to choose among the character’s own labels, and keeps to them', async () => {
     const { ada, chat } = await seed();
-    for (const label of ['joy', 'anger']) await prisma.characterExpression.create({ data: { ...stamp(), characterId: ada.id, label, image: 'data:image/png;base64,AAAA' } });
-    const response = await expression(call({ expression: { chat_id: chat.id, character_id: ada.id, text: '*grins* We made it!' } }));
+    for (const label of ['joy', 'anger'])
+      await prisma.characterExpression.create({
+        data: { ...stamp(), characterId: ada.id, label, image: 'data:image/png;base64,AAAA' },
+      });
+    const response = await expression(
+      call({ expression: { chat_id: chat.id, character_id: ada.id, text: '*grins* We made it!' } }),
+    );
     // The stub model answers “Mind the coolant.”: no label, so none is invented.
     expect(await response.json()).toEqual({ expression: { label: null } });
     expect(received.at(-1)?.body.messages[0]?.content).toContain('Words: anger, joy');
@@ -334,10 +422,17 @@ describe('POST /v1/ai_chat/picture (A30)', () => {
     expect(await refused.json()).toMatchObject({ detail: { code: 'no_image_model' } });
     expect(received).toHaveLength(0);
 
-    await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Painter', baseUrl, model: 'paint', roles: '["image"]' } });
+    await prisma.modelEndpoint.create({
+      data: { ...stamp(), name: 'Painter', baseUrl, model: 'paint', roles: '["image"]' },
+    });
     const drawn = await picture(call(asked));
     expect(drawn.status).toBe(200);
-    expect(await drawn.json()).toEqual({ picture: { prompt: 'An illustration of this scene: User: I hand her the spanner.', image: 'data:image/png;base64,iVBORw0KGgo=' } });
+    expect(await drawn.json()).toEqual({
+      picture: {
+        prompt: 'An illustration of this scene: User: I hand her the spanner.',
+        image: 'data:image/png;base64,iVBORw0KGgo=',
+      },
+    });
     expect(received.at(-1)?.path).toBe('/v1/images/generations');
     expect(received.at(-1)?.body.model).toBe('paint');
   });
@@ -350,36 +445,70 @@ describe('the model check (A28)', () => {
   });
 
   it('says a server that cannot be reached is down, as an answer and not an error', async () => {
-    const endpoint = await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Gone', baseUrl: 'http://127.0.0.1:9/v1', model: 'x' } });
+    const endpoint = await prisma.modelEndpoint.create({
+      data: { ...stamp(), name: 'Gone', baseUrl: 'http://127.0.0.1:9/v1', model: 'x' },
+    });
     const response = await ping(call({ ping: { endpoint_id: endpoint.id } }));
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ ping: { ok: false, status: null, detail: 'The server could not be reached' } });
+    expect(await response.json()).toMatchObject({
+      ping: { ok: false, status: null, detail: 'The server could not be reached' },
+    });
     expect((await ping(call({ ping: { endpoint_id: 'nope' } }))).status).toBe(404);
   });
 });
 
 describe('upstreamBody', () => {
-  const sampler = { temperature: 0.7, top_p: 1, top_k: 0, repetition_penalty: 1, max_tokens: 100, context_tokens: 2048, stop: ['END'], prompt_layout: [] };
+  const sampler = {
+    temperature: 0.7,
+    top_p: 1,
+    top_k: 0,
+    repetition_penalty: 1,
+    max_tokens: 100,
+    context_tokens: 2048,
+    stop: ['END'],
+    prompt_layout: [],
+  };
   const messages = [
     { role: 'user' as const, content: 'Hi.' },
     { role: 'assistant' as const, content: 'Hel' },
   ];
 
   it('sends logit bias and guidance only when the preset sets them', () => {
-    const endpoint = { base_url: 'http://h', model: 'm', api_key: '', api: 'chat' as const, instruct_template: 'chatml' as const };
+    const endpoint = {
+      base_url: 'http://h',
+      model: 'm',
+      api_key: '',
+      api: 'chat' as const,
+      instruct_template: 'chatml' as const,
+    };
     expect(upstreamBody(endpoint, sampler, messages, 'reply')).not.toHaveProperty('logit_bias');
-    const extras = upstreamBody(endpoint, { ...sampler, logit_bias: { '50256': -100 }, negative_prompt: 'purple prose', guidance_scale: 1.5 }, messages, 'reply');
+    const extras = upstreamBody(
+      endpoint,
+      { ...sampler, logit_bias: { '50256': -100 }, negative_prompt: 'purple prose', guidance_scale: 1.5 },
+      messages,
+      'reply',
+    );
     expect(extras).toMatchObject({ logit_bias: { '50256': -100 }, negative_prompt: 'purple prose', guidance_scale: 1.5 });
   });
 
   it('sends a chat API the messages and the preset’s stops', () => {
-    const body = upstreamBody({ base_url: 'http://h', model: 'm', api_key: '', api: 'chat', instruct_template: 'chatml' }, sampler, messages, 'reply');
+    const body = upstreamBody(
+      { base_url: 'http://h', model: 'm', api_key: '', api: 'chat', instruct_template: 'chatml' },
+      sampler,
+      messages,
+      'reply',
+    );
     expect(body).toMatchObject({ messages, stop: ['END'] });
     expect(body).not.toHaveProperty('prompt');
   });
 
   it('sends a text API one prompt in its template, the continued reply left open, with the template’s stops too', () => {
-    const body = upstreamBody({ base_url: 'http://h', model: 'm', api_key: '', api: 'text', instruct_template: 'chatml' }, sampler, messages, 'continue');
+    const body = upstreamBody(
+      { base_url: 'http://h', model: 'm', api_key: '', api: 'text', instruct_template: 'chatml' },
+      sampler,
+      messages,
+      'continue',
+    );
     expect(body.prompt).toBe('<|im_start|>user\nHi.<|im_end|>\n<|im_start|>assistant\nHel');
     expect(body.stop).toEqual(['END', '<|im_end|>']);
     expect(body).not.toHaveProperty('messages');

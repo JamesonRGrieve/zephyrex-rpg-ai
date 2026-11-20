@@ -14,7 +14,13 @@ import { cn } from '~/lib/utils';
 
 type State = Pick<Scenario, 'clocks' | 'secrets' | 'beats'>;
 
-export function ScenarioPlay({ scenario, onChange }: { scenario: Scenario; onChange: (next: Partial<State>) => void }): ReactElement {
+export function ScenarioPlay({
+  scenario,
+  onChange,
+}: {
+  scenario: Scenario;
+  onChange: (next: Partial<State>) => void;
+}): ReactElement {
   return (
     <div className='grid gap-6'>
       {scenario.premise !== '' && <p className='text-sm text-muted-foreground'>{scenario.premise}</p>}
@@ -35,16 +41,40 @@ export function ScenarioPlay({ scenario, onChange }: { scenario: Scenario; onCha
                 </div>
                 <div className='flex gap-1' aria-hidden>
                   {Array.from({ length: clock.segments }, (_segment, at) => (
-                    <span key={at} className={cn('h-3 flex-1 rounded-sm border', at < clock.filled ? 'border-primary bg-primary' : 'bg-muted')} />
+                    <span
+                      key={at}
+                      className={cn(
+                        'h-3 flex-1 rounded-sm border',
+                        at < clock.filled ? 'border-primary bg-primary' : 'bg-muted',
+                      )}
+                    />
                   ))}
                 </div>
                 {clock.advances !== '' && <p className='text-xs text-muted-foreground'>Advances when {clock.advances}.</p>}
-                {clock.filled >= clock.segments && clock.when_full !== '' && <p className='text-sm font-medium'>Full: {clock.when_full}</p>}
+                {clock.filled >= clock.segments && clock.when_full !== '' && (
+                  <p className='text-sm font-medium'>Full: {clock.when_full}</p>
+                )}
                 <div className='flex gap-2'>
-                  <Button type='button' variant='outline' size='icon' className='size-11' aria-label={`Take a segment off ${clock.name}`} disabled={clock.filled === 0} onClick={() => onChange({ clocks: advanceClock(scenario.clocks, index, -1) })}>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='icon'
+                    className='size-11'
+                    aria-label={`Take a segment off ${clock.name}`}
+                    disabled={clock.filled === 0}
+                    onClick={() => onChange({ clocks: advanceClock(scenario.clocks, index, -1) })}
+                  >
                     <Minus aria-hidden />
                   </Button>
-                  <Button type='button' variant='outline' size='icon' className='size-11' aria-label={`Fill a segment of ${clock.name}`} disabled={clock.filled >= clock.segments} onClick={() => onChange({ clocks: advanceClock(scenario.clocks, index, 1) })}>
+                  <Button
+                    type='button'
+                    variant='outline'
+                    size='icon'
+                    className='size-11'
+                    aria-label={`Fill a segment of ${clock.name}`}
+                    disabled={clock.filled >= clock.segments}
+                    onClick={() => onChange({ clocks: advanceClock(scenario.clocks, index, 1) })}
+                  >
                     <Plus aria-hidden />
                   </Button>
                 </div>
@@ -68,7 +98,12 @@ export function ScenarioPlay({ scenario, onChange }: { scenario: Scenario; onCha
                 </p>
                 {secret.clues.map((clue, at) => (
                   <label key={at} className='flex min-h-11 items-center gap-3 text-sm'>
-                    <input type='checkbox' className='size-5' checked={clue.found} onChange={() => onChange({ secrets: toggleClue(scenario.secrets, index, at) })} />
+                    <input
+                      type='checkbox'
+                      className='size-5'
+                      checked={clue.found}
+                      onChange={() => onChange({ secrets: toggleClue(scenario.secrets, index, at) })}
+                    />
                     {clue.text}
                   </label>
                 ))}
@@ -83,7 +118,12 @@ export function ScenarioPlay({ scenario, onChange }: { scenario: Scenario; onCha
           {scenario.beats.map((beat, index) => (
             // Beats have no identity beyond their place in the scenario.
             <label key={index} className='flex min-h-11 items-center gap-3 text-sm'>
-              <input type='checkbox' className='size-5' checked={beat.done} onChange={() => onChange({ beats: toggleBeat(scenario.beats, index) })} />
+              <input
+                type='checkbox'
+                className='size-5'
+                checked={beat.done}
+                onChange={() => onChange({ beats: toggleBeat(scenario.beats, index) })}
+              />
               <span className={cn(beat.done && 'text-muted-foreground line-through')}>{beat.text}</span>
             </label>
           ))}

@@ -1,7 +1,18 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/prompt-cases.json';
-import { assemblePrompt, estimateTokens, type PromptCharacter, type PromptInput, splitReasoning, summaryPrompt, tableGmPrompt, expressionPrompt, pickOption, scenePicturePrompt } from './assemble';
+import {
+  assemblePrompt,
+  estimateTokens,
+  type PromptCharacter,
+  type PromptInput,
+  splitReasoning,
+  summaryPrompt,
+  tableGmPrompt,
+  expressionPrompt,
+  pickOption,
+  scenePicturePrompt,
+} from './assemble';
 
 type CaseInput = Omit<PromptInput, 'characters'> & { characters: (keyof typeof cases.characters)[] };
 
@@ -38,7 +49,10 @@ describe('assemblePrompt (contract/prompt-cases.json)', () => {
 describe('summaryPrompt (contract/prompt-cases.json summary_cases)', () => {
   it.each(cases.summary_cases)('$name', ({ input, messages, dropped }) => {
     const given = input as unknown as CaseInput;
-    const result = summaryPrompt({ ...given, characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter) });
+    const result = summaryPrompt({
+      ...given,
+      characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter),
+    });
     expect(result.messages).toEqual(messages);
     expect(result.dropped).toBe(dropped);
   });
@@ -53,7 +67,10 @@ describe('splitReasoning (contract/prompt-cases.json reasoning_cases)', () => {
 describe('tableGmPrompt (contract/prompt-cases.json table_gm_cases)', () => {
   it.each(cases.table_gm_cases)('$name', ({ input, messages, dropped }) => {
     const given = input as unknown as CaseInput;
-    const result = tableGmPrompt({ ...given, characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter) });
+    const result = tableGmPrompt({
+      ...given,
+      characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter),
+    });
     expect(result.messages).toEqual(messages);
     expect(result.dropped).toBe(dropped);
   });
@@ -73,7 +90,11 @@ describe('pickOption and expressionPrompt (contract/prompt-cases.json)', () => {
 describe('scenePicturePrompt (contract/prompt-cases.json)', () => {
   it.each(cases.picture_cases)('$name', ({ input, prompt }) => {
     const given = input as unknown as CaseInput & { asked: string };
-    expect(scenePicturePrompt({ ...given, characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter) }, given.asked)).toBe(prompt);
+    expect(
+      scenePicturePrompt(
+        { ...given, characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter) },
+        given.asked,
+      ),
+    ).toBe(prompt);
   });
 });
-

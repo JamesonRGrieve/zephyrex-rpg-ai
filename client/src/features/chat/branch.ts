@@ -62,7 +62,10 @@ export function treeRows<M extends TreeMessage>(messages: readonly M[], pathIds:
     return under.flatMap((message) => {
       const next = new Set(seen).add(message.id);
       const rows = walk(message.id, childDepth, next);
-      return [{ message, depth: childDepth, onPath: pathIds.has(message.id), leaf: (children.get(message.id) ?? []).length === 0 }, ...rows];
+      return [
+        { message, depth: childDepth, onPath: pathIds.has(message.id), leaf: (children.get(message.id) ?? []).length === 0 },
+        ...rows,
+      ];
     });
   };
   return walk(null, 0, new Set());

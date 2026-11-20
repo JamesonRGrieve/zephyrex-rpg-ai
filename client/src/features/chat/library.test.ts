@@ -31,7 +31,13 @@ describe('the chat library', () => {
 
 describe('searchMessages', () => {
   const MESSAGES = [
-    { id: 'm1', chat_id: 'c1', swipes: ['The coolant pump is failing again, Ada says.'], swipe_index: 0, created_at: '2026-11-01T00:00:00' },
+    {
+      id: 'm1',
+      chat_id: 'c1',
+      swipes: ['The coolant pump is failing again, Ada says.'],
+      swipe_index: 0,
+      created_at: '2026-11-01T00:00:00',
+    },
     { id: 'm2', chat_id: 'c2', swipes: ['old', 'Mind the COOLANT.'], swipe_index: 1, created_at: '2026-11-02T00:00:00' },
   ];
 
@@ -46,4 +52,3 @@ describe('searchMessages', () => {
     expect(searchMessages(MESSAGES, 'co')).toEqual([]);
   });
 });
-

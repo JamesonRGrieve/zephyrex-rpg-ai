@@ -19,7 +19,13 @@ export interface TableNoteValue {
 
 const LABELS: Record<NoteKind, string> = TABLE.note_labels;
 
-export function TableNotesEditor({ value, onChange }: { value: readonly TableNoteValue[]; onChange: (next: TableNoteValue[]) => void }): ReactElement {
+export function TableNotesEditor({
+  value,
+  onChange,
+}: {
+  value: readonly TableNoteValue[];
+  onChange: (next: TableNoteValue[]) => void;
+}): ReactElement {
   const [kind, setKind] = useState<NoteKind>('house_rule');
   const [text, setText] = useState('');
   const ids = { kind: useId(), text: useId() };
@@ -39,7 +45,14 @@ export function TableNotesEditor({ value, onChange }: { value: readonly TableNot
             <li key={index} className='flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm'>
               <span className='shrink-0 text-xs font-medium text-muted-foreground'>{LABELS[note.kind]}</span>
               <span className='min-w-0 flex-1 [overflow-wrap:anywhere]'>{note.text}</span>
-              <Button type='button' variant='ghost' size='icon' className='size-11 shrink-0' aria-label={`Remove ${LABELS[note.kind]}: ${note.text}`} onClick={() => onChange(value.filter((_note, at) => at !== index))}>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='size-11 shrink-0'
+                aria-label={`Remove ${LABELS[note.kind]}: ${note.text}`}
+                onClick={() => onChange(value.filter((_note, at) => at !== index))}
+              >
                 <Trash2 aria-hidden />
               </Button>
             </li>
@@ -50,7 +63,12 @@ export function TableNotesEditor({ value, onChange }: { value: readonly TableNot
         <label htmlFor={ids.kind} className='sr-only'>
           Kind of note
         </label>
-        <select id={ids.kind} value={kind} className='h-11 rounded-md border bg-background px-3 text-sm' onChange={(event) => setKind(event.target.value as NoteKind)}>
+        <select
+          id={ids.kind}
+          value={kind}
+          className='h-11 rounded-md border bg-background px-3 text-sm'
+          onChange={(event) => setKind(event.target.value as NoteKind)}
+        >
           {TABLE.note_kinds.map((one) => (
             <option key={one} value={one}>
               {LABELS[one]}

@@ -31,7 +31,13 @@ describe('SillyTavern chats', () => {
 
   it('writes a branch that reads back the same', () => {
     const messages = [
-      { role: 'character' as const, name: 'Ada', swipes: ['Hi.', 'Hello.'], swipe_index: 1, created_at: '2026-11-01T00:00:00' },
+      {
+        role: 'character' as const,
+        name: 'Ada',
+        swipes: ['Hi.', 'Hello.'],
+        swipe_index: 1,
+        created_at: '2026-11-01T00:00:00',
+      },
       { role: 'user' as const, name: 'Sam', swipes: ['I wave.'], swipe_index: 0, created_at: '2026-11-01T00:01:00' },
     ];
     const read = chatFromJsonl(chatToJsonl({ characterName: 'Ada', userName: 'Sam', createdAt: '2026-11-01' }, messages));

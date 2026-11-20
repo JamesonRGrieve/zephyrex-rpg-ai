@@ -42,11 +42,24 @@ function PersonaForm({ persona, done }: { persona: Persona | null; done: () => v
     >
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.name}>Name</Label>
-        <Input id={ids.name} required value={name} maxLength={LIMITS.name_characters} className='h-11' onChange={(event) => setName(event.target.value)} />
+        <Input
+          id={ids.name}
+          required
+          value={name}
+          maxLength={LIMITS.name_characters}
+          className='h-11'
+          onChange={(event) => setName(event.target.value)}
+        />
       </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.description}>Description</Label>
-        <Textarea id={ids.description} rows={5} value={description} maxLength={LIMITS.persona_description_characters} onChange={(event) => setDescription(event.target.value)} />
+        <Textarea
+          id={ids.description}
+          rows={5}
+          value={description}
+          maxLength={LIMITS.persona_description_characters}
+          onChange={(event) => setDescription(event.target.value)}
+        />
       </div>
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <Label htmlFor={ids.isDefault}>Use in new chats</Label>

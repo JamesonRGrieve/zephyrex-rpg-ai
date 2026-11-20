@@ -16,14 +16,27 @@ import { Switch } from 'zephyrex/ui/switch';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { WriteProblem } from '~/components/common/WriteProblem';
-import { type EndpointApi, type EndpointRole, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId, LIMITS } from '~/contract';
+import {
+  type EndpointApi,
+  type EndpointRole,
+  ENDPOINT_ROLES,
+  INSTRUCT_TEMPLATES,
+  type InstructTemplateId,
+  LIMITS,
+} from '~/contract';
 import { type ModelEndpoint, endpoints } from '~/features/data/records';
 import { pingEndpoint } from '~/features/models/ping';
 import { ManagedList } from './ManagedList';
 import { ModelStatus } from './ModelStatus';
 
 /** What a model can be used for (A27), as the form names it. */
-const ROLE_LABELS: Record<EndpointRole, string> = { story: 'Character replies', gm: 'The GM', summary: 'Summaries', translate: 'Translation', image: 'Pictures' };
+const ROLE_LABELS: Record<EndpointRole, string> = {
+  story: 'Character replies',
+  gm: 'The GM',
+  summary: 'Summaries',
+  translate: 'Translation',
+  image: 'Pictures',
+};
 
 /** Common local servers' addresses, to fill in with one tap. */
 export const KNOWN_ENDPOINTS = [
@@ -43,10 +56,27 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
   const [template, setTemplate] = useState<InstructTemplateId>(endpoint?.instruct_template ?? 'chatml');
   const [roles, setRoles] = useState<EndpointRole[]>(endpoint?.roles ?? []);
   const [problem, setProblem] = useState<string | null>(null);
-  const ids = { name: useId(), url: useId(), model: useId(), key: useId(), isDefault: useId(), api: useId(), template: useId() };
+  const ids = {
+    name: useId(),
+    url: useId(),
+    model: useId(),
+    key: useId(),
+    isDefault: useId(),
+    api: useId(),
+    template: useId(),
+  };
 
   const save = async () => {
-    const fields = { name: name.trim(), base_url: baseUrl.trim(), model: model.trim(), is_default: isDefault, api, instruct_template: template, roles, ...(apiKey === '' ? {} : { api_key: apiKey }) };
+    const fields = {
+      name: name.trim(),
+      base_url: baseUrl.trim(),
+      model: model.trim(),
+      is_default: isDefault,
+      api,
+      instruct_template: template,
+      roles,
+      ...(apiKey === '' ? {} : { api_key: apiKey }),
+    };
     const failed = await writeProblem(endpoint === null ? create(fields) : update(endpoint, fields), 'Not saved');
     setProblem(failed);
     if (failed === null) {
@@ -65,14 +95,39 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
     >
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.name}>Name</Label>
-        <Input id={ids.name} required value={name} maxLength={LIMITS.name_characters} placeholder='My Ollama' className='h-11' onChange={(event) => setName(event.target.value)} />
+        <Input
+          id={ids.name}
+          required
+          value={name}
+          maxLength={LIMITS.name_characters}
+          placeholder='My Ollama'
+          className='h-11'
+          onChange={(event) => setName(event.target.value)}
+        />
       </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.url}>Address</Label>
-        <Input id={ids.url} required type='url' inputMode='url' value={baseUrl} maxLength={LIMITS.endpoint_url_characters} placeholder='http://localhost:11434/v1' className='h-11' onChange={(event) => setBaseUrl(event.target.value)} />
+        <Input
+          id={ids.url}
+          required
+          type='url'
+          inputMode='url'
+          value={baseUrl}
+          maxLength={LIMITS.endpoint_url_characters}
+          placeholder='http://localhost:11434/v1'
+          className='h-11'
+          onChange={(event) => setBaseUrl(event.target.value)}
+        />
         <div className='flex flex-wrap gap-2' role='group' aria-label='Fill in a known server'>
           {KNOWN_ENDPOINTS.map((known) => (
-            <Button key={known.label} type='button' variant='outline' size='sm' className='h-9' onClick={() => setBaseUrl(known.base_url)}>
+            <Button
+              key={known.label}
+              type='button'
+              variant='outline'
+              size='sm'
+              className='h-9'
+              onClick={() => setBaseUrl(known.base_url)}
+            >
               {known.label}
             </Button>
           ))}
@@ -80,7 +135,17 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
       </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.model}>Model</Label>
-        <Input id={ids.model} required value={model} maxLength={LIMITS.model_name_characters} placeholder='llama3.1:8b' className='h-11' autoCapitalize='off' autoCorrect='off' onChange={(event) => setModel(event.target.value)} />
+        <Input
+          id={ids.model}
+          required
+          value={model}
+          maxLength={LIMITS.model_name_characters}
+          placeholder='llama3.1:8b'
+          className='h-11'
+          autoCapitalize='off'
+          autoCorrect='off'
+          onChange={(event) => setModel(event.target.value)}
+        />
       </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.key}>API key</Label>
@@ -90,7 +155,9 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           autoComplete='off'
           value={apiKey}
           maxLength={LIMITS.api_key_characters}
-          placeholder={endpoint?.has_api_key === true ? 'Saved; type a new one to replace it' : 'Only if the endpoint needs one'}
+          placeholder={
+            endpoint?.has_api_key === true ? 'Saved; type a new one to replace it' : 'Only if the endpoint needs one'
+          }
           className='h-11'
           onChange={(event) => setApiKey(event.target.value)}
         />
@@ -121,7 +188,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.template}>Instruct template</Label>
           <p id={`${ids.template}-hint`} className='text-xs text-muted-foreground'>
-            The markup the model was trained on. Its stop strings are added to the preset's.
+            The markup the model was trained on. Its stop strings are added to the preset’s.
           </p>
           <select
             id={ids.template}
@@ -140,11 +207,18 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
       )}
       <fieldset className='grid gap-2'>
         <legend className='text-sm font-medium'>Used for</legend>
-        <p className='text-xs text-muted-foreground'>Run each job on the model that suits it: a big model for replies, a small fast one for summaries.</p>
+        <p className='text-xs text-muted-foreground'>
+          Run each job on the model that suits it: a big model for replies, a small fast one for summaries.
+        </p>
         <div className='flex flex-wrap gap-2'>
           {ENDPOINT_ROLES.map((role) => (
             <label key={role} className='flex min-h-11 items-center gap-2 rounded-md border px-3 text-sm'>
-              <input type='checkbox' className='size-5' checked={roles.includes(role)} onChange={() => setRoles(roles.includes(role) ? roles.filter((one) => one !== role) : [...roles, role])} />
+              <input
+                type='checkbox'
+                className='size-5'
+                checked={roles.includes(role)}
+                onChange={() => setRoles(roles.includes(role) ? roles.filter((one) => one !== role) : [...roles, role])}
+              />
               {ROLE_LABELS[role]}
             </label>
           ))}
@@ -167,19 +241,19 @@ export function EndpointManager(): ReactElement {
   const { remove } = endpoints.useActions();
   return (
     <div className='grid gap-8'>
-    <ManagedList
-      what='model'
-      rows={list.data}
-      error={list.error}
-      onRetry={() => list.mutate()}
-      summary={(row) => `${row.model} · ${row.base_url}`}
-      isDefault={(row) => row.is_default}
-      newLabel='Add a model'
-      emptyText='No models yet. Add an OpenAI-compatible endpoint so characters can reply.'
-      editor={(row, done) => <EndpointForm endpoint={row} done={done} />}
-      onDelete={(row) => void remove(row)}
-    />
-    <ModelStatus models={list.data ?? []} check={pingEndpoint} />
+      <ManagedList
+        what='model'
+        rows={list.data}
+        error={list.error}
+        onRetry={() => list.mutate()}
+        summary={(row) => `${row.model} · ${row.base_url}`}
+        isDefault={(row) => row.is_default}
+        newLabel='Add a model'
+        emptyText='No models yet. Add an OpenAI-compatible endpoint so characters can reply.'
+        editor={(row, done) => <EndpointForm endpoint={row} done={done} />}
+        onDelete={(row) => void remove(row)}
+      />
+      <ModelStatus models={list.data ?? []} check={pingEndpoint} />
     </div>
   );
 }

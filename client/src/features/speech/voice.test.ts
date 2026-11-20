@@ -5,7 +5,11 @@ import { DEFAULT_VOICE, speakableText, speechSupport, VOICE_EXTENSION, voiceOf, 
 describe('character voices', () => {
   it('reads a voice from the card, the defaults for anything missing and numbers kept in range', () => {
     expect(voiceOf({})).toEqual(DEFAULT_VOICE);
-    expect(voiceOf({ [VOICE_EXTENSION]: { name: 'Samantha', rate: 9, pitch: -1 } })).toEqual({ name: 'Samantha', rate: 2, pitch: 0 });
+    expect(voiceOf({ [VOICE_EXTENSION]: { name: 'Samantha', rate: 9, pitch: -1 } })).toEqual({
+      name: 'Samantha',
+      rate: 2,
+      pitch: 0,
+    });
     expect(voiceOf({ [VOICE_EXTENSION]: 'nonsense' })).toEqual(DEFAULT_VOICE);
   });
 
@@ -18,13 +22,18 @@ describe('character voices', () => {
 
 describe('speakableText', () => {
   it('reads the reply without reasoning or markup', () => {
-    expect(speakableText('<think>plan</think>*wipes her hands* "Welcome   aboard," she says.')).toBe('wipes her hands "Welcome aboard," she says.');
+    expect(speakableText('<think>plan</think>*wipes her hands* "Welcome   aboard," she says.')).toBe(
+      'wipes her hands "Welcome aboard," she says.',
+    );
   });
 });
 
 describe('speechSupport', () => {
   it('says what the browser offers', () => {
     expect(speechSupport({})).toEqual({ speak: false, listen: false });
-    expect(speechSupport({ speechSynthesis: {}, SpeechSynthesisUtterance: {}, webkitSpeechRecognition: {} })).toEqual({ speak: true, listen: true });
+    expect(speechSupport({ speechSynthesis: {}, SpeechSynthesisUtterance: {}, webkitSpeechRecognition: {} })).toEqual({
+      speak: true,
+      listen: true,
+    });
   });
 });

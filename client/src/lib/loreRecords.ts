@@ -43,10 +43,18 @@ async function unlinkLorebook(ownerId: string, id: string, stamp: Date): Promise
     ...affected.map((chat) =>
       prisma.chat.update({
         where: { id: chat.id },
-        data: { lorebookIds: JSON.stringify((fieldsOf({ ids: jsonList('lorebookIds') }, chat).ids as string[]).filter((one) => one !== id)), updatedAt: stamp },
+        data: {
+          lorebookIds: JSON.stringify(
+            (fieldsOf({ ids: jsonList('lorebookIds') }, chat).ids as string[]).filter((one) => one !== id),
+          ),
+          updatedAt: stamp,
+        },
       }),
     ),
-    prisma.character.updateMany({ where: { createdById: ownerId, lorebookId: id }, data: { lorebookId: null, updatedAt: stamp } }),
+    prisma.character.updateMany({
+      where: { createdById: ownerId, lorebookId: id },
+      data: { lorebookId: null, updatedAt: stamp },
+    }),
   ]);
 }
 
@@ -59,7 +67,9 @@ export const lorebooks: ResourceSpec<BookRow, z.infer<typeof bookCreate>, z.infe
   list: (ownerId) => prisma.lorebook.findMany({ where: { createdById: ownerId }, orderBy: { name: 'asc' } }),
   find: (id, ownerId) => prisma.lorebook.findFirst({ where: { id, createdById: ownerId } }),
   insert: (ownerId, input, stamp) =>
-    prisma.lorebook.create({ data: { createdById: ownerId, ...written(BOOK_COLUMNS, input, stamp) } as Prisma.LorebookUncheckedCreateInput }),
+    prisma.lorebook.create({
+      data: { createdById: ownerId, ...written(BOOK_COLUMNS, input, stamp) } as Prisma.LorebookUncheckedCreateInput,
+    }),
   async updateIfCurrent(id, version, input, stamp, userId) {
     const { count } = await prisma.lorebook.updateMany({
       where: { id, updatedAt: version },
@@ -71,7 +81,10 @@ export const lorebooks: ResourceSpec<BookRow, z.infer<typeof bookCreate>, z.infe
     const book = await prisma.lorebook.findUnique({ where: { id }, select: { createdById: true } });
     if (book === null) return;
     await unlinkLorebook(book.createdById, id, new Date());
-    await prisma.$transaction([prisma.lorebookEntry.deleteMany({ where: { lorebookId: id } }), prisma.lorebook.delete({ where: { id } })]);
+    await prisma.$transaction([
+      prisma.lorebookEntry.deleteMany({ where: { lorebookId: id } }),
+      prisma.lorebook.delete({ where: { id } }),
+    ]);
   },
   fields: (row) => fieldsOf(BOOK_COLUMNS, row),
 };
@@ -187,8 +200,11 @@ export const lorebookEntries: ResourceSpec<EntryRow, z.infer<typeof entryCreate>
     const book = await prisma.lorebook.count({ where: { id: input.lorebook_id, createdById: ownerId } });
     if (book === 0) throw validationError('That lorebook is not one of yours', 'lorebook_id');
     const entries = await prisma.lorebookEntry.count({ where: { lorebookId: input.lorebook_id } });
-    if (entries >= LIMITS.lorebook_entries) throw validationError(`A lorebook has at most ${LIMITS.lorebook_entries} entries`, 'lorebook_id');
-    return prisma.lorebookEntry.create({ data: { createdById: ownerId, ...written(ENTRY_COLUMNS, input, stamp) } as Prisma.LorebookEntryUncheckedCreateInput });
+    if (entries >= LIMITS.lorebook_entries)
+      throw validationError(`A lorebook has at most ${LIMITS.lorebook_entries} entries`, 'lorebook_id');
+    return prisma.lorebookEntry.create({
+      data: { createdById: ownerId, ...written(ENTRY_COLUMNS, input, stamp) } as Prisma.LorebookEntryUncheckedCreateInput,
+    });
   },
   async updateIfCurrent(id, version, input, stamp, userId) {
     const { count } = await prisma.lorebookEntry.updateMany({

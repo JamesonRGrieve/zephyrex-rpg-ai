@@ -6,10 +6,31 @@ import { cardFromPng, cardJsonFromPng, dataUrl, pngTextChunks } from './stCard';
 const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 function chunk(type: string, body: number[]): number[] {
   const length = body.length;
-  return [(length >>> 24) & 255, (length >>> 16) & 255, (length >>> 8) & 255, length & 255, ...[...type].map((c) => c.charCodeAt(0)), ...body, 0, 0, 0, 0];
+  return [
+    (length >>> 24) & 255,
+    (length >>> 16) & 255,
+    (length >>> 8) & 255,
+    length & 255,
+    ...[...type].map((c) => c.charCodeAt(0)),
+    ...body,
+    0,
+    0,
+    0,
+    0,
+  ];
 }
-const textChunk = (keyword: string, value: string) => chunk('tEXt', [...`${keyword}\0${value}`].map((c) => c.charCodeAt(0)));
-const PNG = Uint8Array.from([...SIGNATURE, ...chunk('IHDR', new Array(13).fill(0)), ...textChunk('Software', 'paint'), ...chunk('IDAT', [1, 2, 3]), ...chunk('IEND', [])]);
+const textChunk = (keyword: string, value: string) =>
+  chunk(
+    'tEXt',
+    [...`${keyword}\0${value}`].map((c) => c.charCodeAt(0)),
+  );
+const PNG = Uint8Array.from([
+  ...SIGNATURE,
+  ...chunk('IHDR', new Array(13).fill(0)),
+  ...textChunk('Software', 'paint'),
+  ...chunk('IDAT', [1, 2, 3]),
+  ...chunk('IEND', []),
+]);
 
 const CARD = { spec: 'chara_card_v2', spec_version: '2.0', data: { name: 'Ada ☕', first_mes: 'Hi.' } };
 

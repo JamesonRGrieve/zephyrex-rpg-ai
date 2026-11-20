@@ -7,7 +7,14 @@ describe('writeImportedBook', () => {
   it('creates the book, then each entry in order, in that book', async () => {
     const written: string[] = [];
     const result = await writeImportedBook(
-      { name: 'Kestrel', description: '', entries: [{ ...BLANK_ENTRY, comment: 'one' }, { ...BLANK_ENTRY, comment: 'two' }] },
+      {
+        name: 'Kestrel',
+        description: '',
+        entries: [
+          { ...BLANK_ENTRY, comment: 'one' },
+          { ...BLANK_ENTRY, comment: 'two' },
+        ],
+      },
       {
         createBook: async (fields) => {
           written.push(`book ${fields.name}`);

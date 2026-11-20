@@ -20,7 +20,23 @@
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAFETY, SAMPLER_EXTRAS, SAMPLER_RANGES, TABLE, ENDPOINT_APIS, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import {
+  CHAT_MODES,
+  LIMITS,
+  LORE,
+  MESSAGE_CHANNELS,
+  MESSAGE_ROLES,
+  PRESET_DEFAULTS,
+  PROMPT,
+  SAFETY,
+  SAMPLER_EXTRAS,
+  SAMPLER_RANGES,
+  TABLE,
+  ENDPOINT_APIS,
+  ENDPOINT_ROLES,
+  INSTRUCT_TEMPLATES,
+  type InstructTemplateId,
+} from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -273,13 +289,21 @@ const chatFields = {
   /** A picture behind the chat (A31), a data URL as an avatar is. */
   background: avatar,
   /** The chat's tasks, in order (A53); the first not done is put to the model. */
-  objectives: z.array(z.object({ text: z.string().trim().min(1).max(LIMITS.short_text_characters), done: z.boolean() }).strict()).max(LIMITS.objectives_per_chat),
+  objectives: z
+    .array(z.object({ text: z.string().trim().min(1).max(LIMITS.short_text_characters), done: z.boolean() }).strict())
+    .max(LIMITS.objectives_per_chat),
   /** The table's safety tools (A25): a content rating, lines (never) and veils (off-screen only). */
   content_rating: z.enum(SAFETY.ratings).nullable(),
   lines: z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.safety_items),
   veils: z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.safety_items),
   /** The table's notes (A11): house rules, pacing, tone and reminders, read every turn. */
-  table_notes: z.array(z.object({ kind: z.enum(TABLE.note_kinds), text: z.string().trim().min(1).max(LIMITS.short_text_characters) }).strict()).max(LIMITS.table_notes),
+  table_notes: z
+    .array(
+      z
+        .object({ kind: z.enum(TABLE.note_kinds), text: z.string().trim().min(1).max(LIMITS.short_text_characters) })
+        .strict(),
+    )
+    .max(LIMITS.table_notes),
   /** Paused (A25): no story turns until the table resumes; the table GM still answers. */
   paused: z.boolean(),
   /** The campaign it belongs to (A57); its frame is read every turn. */
@@ -323,7 +347,8 @@ async function checkChatReferences(ownerId: string, input: z.infer<typeof chatUp
   }
   if (input.muted_ids !== undefined && input.muted_ids.length > 0) {
     const found = await prisma.character.count({ where: { ...owned, id: { in: input.muted_ids } } });
-    if (found !== new Set(input.muted_ids).size) throw validationError('Every muted member must be one of your characters', 'muted_ids');
+    if (found !== new Set(input.muted_ids).size)
+      throw validationError('Every muted member must be one of your characters', 'muted_ids');
   }
   if (input.lorebook_ids !== undefined && input.lorebook_ids.length > 0) {
     const found = await prisma.lorebook.count({ where: { ...owned, id: { in: input.lorebook_ids } } });
@@ -489,7 +514,10 @@ export const chatMessages: ResourceSpec<ChatMessageRow, MessageCreate, MessageUp
     const message = await prisma.chatMessage.findUnique({ where: { id }, select: { chatId: true } });
     if (message === null) return;
     const doomed = new Set([id]);
-    const all = await prisma.chatMessage.findMany({ where: { chatId: message.chatId }, select: { id: true, parentId: true } });
+    const all = await prisma.chatMessage.findMany({
+      where: { chatId: message.chatId },
+      select: { id: true, parentId: true },
+    });
     const grow = (): void => {
       const before = doomed.size;
       for (const message of all) if (message.parentId !== null && doomed.has(message.parentId)) doomed.add(message.id);
@@ -518,7 +546,8 @@ const PRESET_COLUMNS: Columns = {
   guidance_scale: plain('guidanceScale'),
 };
 
-const ranged = (setting: keyof typeof SAMPLER_RANGES) => z.number().min(SAMPLER_RANGES[setting][0]).max(SAMPLER_RANGES[setting][1]);
+const ranged = (setting: keyof typeof SAMPLER_RANGES) =>
+  z.number().min(SAMPLER_RANGES[setting][0]).max(SAMPLER_RANGES[setting][1]);
 const wholeRanged = (setting: keyof typeof SAMPLER_RANGES) => ranged(setting).int();
 const stop = z.array(z.string().min(1).max(LIMITS.stop_string_characters)).max(LIMITS.preset_stop_strings);
 /** The prompt manager's layout (A16): each section at most once, in the order given. */
@@ -533,7 +562,10 @@ export const promptLayout = z
       .strict(),
   )
   .max(PROMPT.sections.length)
-  .refine((sections) => new Set(sections.map((section) => section.id)).size === sections.length, 'A section is in the layout once');
+  .refine(
+    (sections) => new Set(sections.map((section) => section.id)).size === sections.length,
+    'A section is in the layout once',
+  );
 const presetFields = {
   temperature: ranged('temperature'),
   top_p: ranged('top_p'),
@@ -545,11 +577,24 @@ const presetFields = {
   prompt_layout: promptLayout,
   /** Token id → bias (A47), sent to a chat API that takes it. */
   logit_bias: z
-    .record(z.string().regex(/^\d+$/, 'A token id is a whole number'), z.number().min(SAMPLER_EXTRAS.logit_bias_range[0] as number).max(SAMPLER_EXTRAS.logit_bias_range[1] as number))
-    .refine((bias) => Object.keys(bias).length <= SAMPLER_EXTRAS.logit_bias_entries, `At most ${SAMPLER_EXTRAS.logit_bias_entries} biased tokens`),
+    .record(
+      z.string().regex(/^\d+$/, 'A token id is a whole number'),
+      z
+        .number()
+        .min(SAMPLER_EXTRAS.logit_bias_range[0] as number)
+        .max(SAMPLER_EXTRAS.logit_bias_range[1] as number),
+    )
+    .refine(
+      (bias) => Object.keys(bias).length <= SAMPLER_EXTRAS.logit_bias_entries,
+      `At most ${SAMPLER_EXTRAS.logit_bias_entries} biased tokens`,
+    ),
   /** Classifier-free guidance (A47): what to steer away from, and how hard, for servers that take it. */
   negative_prompt: z.string().max(LIMITS.card_field_characters),
-  guidance_scale: z.number().min(SAMPLER_EXTRAS.guidance_scale_range[0] as number).max(SAMPLER_EXTRAS.guidance_scale_range[1] as number).nullable(),
+  guidance_scale: z
+    .number()
+    .min(SAMPLER_EXTRAS.guidance_scale_range[0] as number)
+    .max(SAMPLER_EXTRAS.guidance_scale_range[1] as number)
+    .nullable(),
 };
 const presetCreate = z.object({
   name,
@@ -579,7 +624,10 @@ export const presets: ResourceSpec<PresetRow, z.infer<typeof presetCreate>, z.in
   find: (id, ownerId) => prisma.generationPreset.findFirst({ where: { id, createdById: ownerId } }),
   insert: (ownerId, input, stamp) =>
     prisma.generationPreset.create({
-      data: { createdById: ownerId, ...written(PRESET_COLUMNS, input, stamp) } as Prisma.GenerationPresetUncheckedCreateInput,
+      data: {
+        createdById: ownerId,
+        ...written(PRESET_COLUMNS, input, stamp),
+      } as Prisma.GenerationPresetUncheckedCreateInput,
     }),
   async updateIfCurrent(id, version, input, stamp, userId) {
     const { count } = await prisma.generationPreset.updateMany({
@@ -638,7 +686,10 @@ const endpointUpdate = z.object({ name, ...endpointFields }).partial();
 type EndpointRow = Prisma.ModelEndpointGetPayload<object>;
 
 function endpointData(input: z.infer<typeof endpointUpdate>, stamp: Date, userId?: string): Record<string, unknown> {
-  return { ...written(ENDPOINT_COLUMNS, input, stamp, userId), ...(input.api_key === undefined ? {} : { apiKey: input.api_key }) };
+  return {
+    ...written(ENDPOINT_COLUMNS, input, stamp, userId),
+    ...(input.api_key === undefined ? {} : { apiKey: input.api_key }),
+  };
 }
 
 async function clearOtherDefaultEndpoints(ownerId: string, keepId: string | null, stamp: Date): Promise<void> {

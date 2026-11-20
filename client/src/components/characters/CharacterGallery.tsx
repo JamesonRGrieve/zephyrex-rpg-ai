@@ -51,7 +51,10 @@ export function CharacterGallery(): ReactElement {
   const [tag, setTag] = useState<string | null>(null);
   const tags = useMemo(() => tagsOf(list.data ?? []), [list.data]);
   const shown = useMemo(
-    () => (list.data ?? []).filter((character) => matchesSearch(character, query) && (tag === null || character.tags.includes(tag))),
+    () =>
+      (list.data ?? []).filter(
+        (character) => matchesSearch(character, query) && (tag === null || character.tags.includes(tag)),
+      ),
     [list.data, query, tag],
   );
 
@@ -68,7 +71,11 @@ export function CharacterGallery(): ReactElement {
     );
     const imported = results.filter((result) => result.status === 'fulfilled').length;
     const failed = results.flatMap((result, index) =>
-      result.status === 'rejected' ? [`${files[index]?.name ?? 'A file'}: ${result.reason instanceof CardError ? result.reason.message : 'could not be imported'}`] : [],
+      result.status === 'rejected'
+        ? [
+            `${files[index]?.name ?? 'A file'}: ${result.reason instanceof CardError ? result.reason.message : 'could not be imported'}`,
+          ]
+        : [],
     );
     if (imported > 0) notify(imported === 1 ? 'Character imported' : `${imported} characters imported`);
     if (failed.length > 0) notify('Some cards were not imported', failed.join('\n'));
@@ -82,7 +89,9 @@ export function CharacterGallery(): ReactElement {
     try {
       for (const character of shown) {
         const book = (books.data ?? []).find((one) => one.id === character.lorebook_id);
-        const card = await cardWithBook({ ...draftOf(character), extensions: character.extensions }, book, () => entriesOfBook(client, book?.id ?? ''));
+        const card = await cardWithBook({ ...draftOf(character), extensions: character.extensions }, book, () =>
+          entriesOfBook(client, book?.id ?? ''),
+        );
         await exportCard(character.name, character.avatar, card);
       }
       notify(shown.length === 1 ? 'Card exported' : `${shown.length} cards exported`);
@@ -105,19 +114,43 @@ export function CharacterGallery(): ReactElement {
           Search characters
         </label>
         <div className='relative min-w-0 flex-1 basis-48'>
-          <Search className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' aria-hidden />
-          <Input id={searchId} type='search' value={query} onChange={(event) => setQuery(event.target.value)} placeholder='Search by name or tag' className='h-11 pl-9' />
+          <Search
+            className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground'
+            aria-hidden
+          />
+          <Input
+            id={searchId}
+            type='search'
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder='Search by name or tag'
+            className='h-11 pl-9'
+          />
         </div>
         <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
           <FileUp aria-hidden /> Import cards
         </Button>
-        <Button type='button' variant='outline' className='h-11' disabled={exporting || shown.length === 0} onClick={() => void exportShown()}>
-          <Download aria-hidden /> {shown.length === (list.data ?? []).length ? 'Export all' : `Export ${shown.length} shown`}
+        <Button
+          type='button'
+          variant='outline'
+          className='h-11'
+          disabled={exporting || shown.length === 0}
+          onClick={() => void exportShown()}
+        >
+          <Download aria-hidden />{' '}
+          {shown.length === (list.data ?? []).length ? 'Export all' : `Export ${shown.length} shown`}
         </Button>
         <Button type='button' className='h-11' onClick={() => void createBlank()}>
           <Plus aria-hidden /> New character
         </Button>
-        <input ref={fileInput} type='file' accept='.png,.json,image/png,application/json' multiple hidden onChange={(event) => void importFiles(event)} />
+        <input
+          ref={fileInput}
+          type='file'
+          accept='.png,.json,image/png,application/json'
+          multiple
+          hidden
+          onChange={(event) => void importFiles(event)}
+        />
       </div>
       {tags.length > 0 && (
         <div ref={chipGroup} role='radiogroup' aria-label='Tag' className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-1'>
@@ -146,7 +179,10 @@ export function CharacterGallery(): ReactElement {
       <ul className='grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-3'>
         {shown.map((character) => (
           <li key={character.id}>
-            <CharacterTile character={character} onToggleFavourite={() => void update(character, { favourite: !character.favourite })} />
+            <CharacterTile
+              character={character}
+              onToggleFavourite={() => void update(character, { favourite: !character.favourite })}
+            />
           </li>
         ))}
       </ul>

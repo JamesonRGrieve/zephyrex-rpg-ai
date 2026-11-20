@@ -58,11 +58,17 @@ export function ManagedList<T extends ManagedRow>({
       </Button>
       {error !== undefined && <LoadProblem what={`your ${what}s`} error={error} onRetry={onRetry} />}
       {rows === undefined && error === undefined && <SkeletonRows rows={3} />}
-      {rows !== undefined && shown.length === 0 && <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>{emptyText}</p>}
+      {rows !== undefined && shown.length === 0 && (
+        <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>{emptyText}</p>
+      )}
       <ul className='divide-y rounded-xl border'>
         {shown.map((row) => (
           <li key={row.id} className='flex items-center gap-3 p-2'>
-            <button type='button' className='flex min-h-12 min-w-0 flex-1 flex-col items-start rounded-md px-2 text-left hover:bg-accent' onClick={() => setEditing(row)}>
+            <button
+              type='button'
+              className='flex min-h-12 min-w-0 flex-1 flex-col items-start rounded-md px-2 text-left hover:bg-accent'
+              onClick={() => setEditing(row)}
+            >
               <span className='flex items-center gap-2 font-medium'>
                 {row.name}
                 {isDefault?.(row) === true && <Badge variant='secondary'>Default</Badge>}
@@ -77,7 +83,11 @@ export function ManagedList<T extends ManagedRow>({
               aria-label={`Delete ${row.name}`}
               onClick={() => {
                 setHidden(new Set([...hidden, row.id]));
-                deferWithUndo(`${row.name} deleted`, () => onDelete(row), () => setHidden(new Set([...hidden].filter((id) => id !== row.id))));
+                deferWithUndo(
+                  `${row.name} deleted`,
+                  () => onDelete(row),
+                  () => setHidden(new Set([...hidden].filter((id) => id !== row.id))),
+                );
               }}
             >
               <Trash2 aria-hidden />

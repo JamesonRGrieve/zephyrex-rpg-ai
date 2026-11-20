@@ -7,7 +7,9 @@ import { instructStops, renderInstruct } from './instruct';
 
 describe('renderInstruct (contract/instruct-cases.json, shared with the server)', () => {
   it.each(cases.cases)('$name', (testCase) => {
-    expect(renderInstruct(testCase.messages as ModelMessage[], testCase.template as InstructTemplateId, testCase.open_last)).toBe(testCase.prompt);
+    expect(
+      renderInstruct(testCase.messages as ModelMessage[], testCase.template as InstructTemplateId, testCase.open_last),
+    ).toBe(testCase.prompt);
   });
 
   it('gives each template its stop strings', () => {

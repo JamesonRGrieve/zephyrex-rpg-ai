@@ -124,8 +124,15 @@ const byOrder = (a: LoreEntry, b: LoreEntry) => a.order - b.order || (a.id < b.i
 const ranked = (entries: readonly LoreEntry[]) => [...entries].sort(byOrder);
 
 /** The new entries one recursion pass activates, scanning `text`. */
-function recursionPass(candidates: readonly LoreEntry[], activated: ReadonlyMap<string, LoreEntry>, text: string, settings: LoreSettings): LoreEntry[] {
-  return candidates.filter((entry) => !activated.has(entry.id) && !entry.exclude_recursion && matches(entry, text, settings));
+function recursionPass(
+  candidates: readonly LoreEntry[],
+  activated: ReadonlyMap<string, LoreEntry>,
+  text: string,
+  settings: LoreSettings,
+): LoreEntry[] {
+  return candidates.filter(
+    (entry) => !activated.has(entry.id) && !entry.exclude_recursion && matches(entry, text, settings),
+  );
 }
 
 function pickFromGroup(members: readonly LoreEntry[], roll: () => number): LoreEntry {
@@ -154,16 +161,21 @@ export function activateLore(
 ): LoreResult {
   const eligible = (entry: LoreEntry): boolean => {
     if (!entry.enabled) return false;
-    if (entry.character_names.length > 0 && entry.character_names.includes(speaker) === entry.character_exclude) return false;
+    if (entry.character_names.length > 0 && entry.character_names.includes(speaker) === entry.character_exclude)
+      return false;
     if (messageCount < entry.delay) return false;
     return (state[entry.id]?.cooldown_until ?? 0) <= messageCount;
   };
   const candidates = ranked(entries).filter(eligible);
-  const stickyHeld = new Set(candidates.filter((entry) => (state[entry.id]?.sticky_until ?? 0) > messageCount).map((entry) => entry.id));
+  const stickyHeld = new Set(
+    candidates.filter((entry) => (state[entry.id]?.sticky_until ?? 0) > messageCount).map((entry) => entry.id),
+  );
   const buffer = settings.scan_depth > 0 ? history.slice(-settings.scan_depth).join('\n') : '';
 
   const activated = new Map<string, LoreEntry>();
-  let fresh = candidates.filter((entry) => stickyHeld.has(entry.id) || (!entry.delay_until_recursion && matches(entry, buffer, settings)));
+  let fresh = candidates.filter(
+    (entry) => stickyHeld.has(entry.id) || (!entry.delay_until_recursion && matches(entry, buffer, settings)),
+  );
   for (const entry of fresh) activated.set(entry.id, entry);
   for (let step = 0; step < settings.recursion_steps; step += 1) {
     const text = fresh
@@ -195,7 +207,9 @@ export function activateLore(
   // Budget: the highest-order entries that fit.
   let used = 0;
   const fitted: LoreEntry[] = [];
-  for (const entry of kept.filter((one) => !dropped.has(one.id)).sort((a, b) => b.order - a.order || (a.id < b.id ? -1 : 1))) {
+  for (const entry of kept
+    .filter((one) => !dropped.has(one.id))
+    .sort((a, b) => b.order - a.order || (a.id < b.id ? -1 : 1))) {
     const cost = loreTokens(entry.content);
     if (used + cost <= settings.token_budget) {
       used += cost;
@@ -210,7 +224,11 @@ export function activateLore(
     if (entry.position === 'at_depth') {
       const key = `${entry.depth}\u0000${entry.role}`;
       const existing = depths.get(key);
-      depths.set(key, { depth: entry.depth, role: entry.role, content: existing === undefined ? entry.content : `${existing.content}\n${entry.content}` });
+      depths.set(key, {
+        depth: entry.depth,
+        role: entry.role,
+        content: existing === undefined ? entry.content : `${existing.content}\n${entry.content}`,
+      });
     } else {
       const existing = sections[entry.position];
       sections[entry.position] = existing === undefined ? entry.content : `${existing}\n${entry.content}`;

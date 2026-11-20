@@ -18,7 +18,9 @@ export type FolderFilter = { kind: 'all' } | { kind: 'none' } | { kind: 'folder'
 export function chatMatches(chat: LibraryChat, castNames: ReadonlyMap<string, string>, query: string): boolean {
   const needle = query.trim().toLowerCase();
   if (needle === '') return true;
-  return [chat.title, ...chat.tags, ...chat.character_ids.map((id) => castNames.get(id) ?? '')].some((text) => text.toLowerCase().includes(needle));
+  return [chat.title, ...chat.tags, ...chat.character_ids.map((id) => castNames.get(id) ?? '')].some((text) =>
+    text.toLowerCase().includes(needle),
+  );
 }
 
 export function inFolder(chat: LibraryChat, filter: FolderFilter): boolean {
@@ -34,7 +36,14 @@ export function foldersOf(chats: readonly LibraryChat[]): string[] {
 
 /** Tags typed as a comma-separated list: trimmed, empties dropped, each once. */
 export function parseTags(text: string): string[] {
-  return [...new Set(text.split(',').map((tag) => tag.trim()).filter(Boolean))];
+  return [
+    ...new Set(
+      text
+        .split(',')
+        .map((tag) => tag.trim())
+        .filter(Boolean),
+    ),
+  ];
 }
 
 export interface FoundLine {
@@ -60,8 +69,13 @@ export function searchMessages(
       if (at === -1) return [];
       const start = Math.max(0, at - 40);
       const end = Math.min(text.length, at + needle.length + 60);
-      return [{ chatId: message.chat_id, messageId: message.id, excerpt: `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}` }];
+      return [
+        {
+          chatId: message.chat_id,
+          messageId: message.id,
+          excerpt: `${start > 0 ? '…' : ''}${text.slice(start, end)}${end < text.length ? '…' : ''}`,
+        },
+      ];
     })
     .slice(0, limit);
 }
-

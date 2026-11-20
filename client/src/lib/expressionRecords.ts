@@ -31,7 +31,9 @@ function written(input: object, stamp: Date, userId?: string): Record<string, un
 }
 
 async function checkLabel(ownerId: string, characterId: string, newLabel: string, exceptId: string | null): Promise<void> {
-  const clash = await prisma.characterExpression.findFirst({ where: { createdById: ownerId, characterId, label: newLabel, ...(exceptId === null ? {} : { NOT: { id: exceptId } }) } });
+  const clash = await prisma.characterExpression.findFirst({
+    where: { createdById: ownerId, characterId, label: newLabel, ...(exceptId === null ? {} : { NOT: { id: exceptId } }) },
+  });
   if (clash !== null) throw validationError('That character already has a sprite for this label', 'label');
 }
 
@@ -43,22 +45,34 @@ export const characterExpressions: ResourceSpec<Row, z.infer<typeof create>, z.i
   updateSchema: update,
   list: (ownerId, query) =>
     prisma.characterExpression.findMany({
-      where: { createdById: ownerId, ...(query.get('character_id') === null ? {} : { characterId: query.get('character_id') ?? '' }) },
+      where: {
+        createdById: ownerId,
+        ...(query.get('character_id') === null ? {} : { characterId: query.get('character_id') ?? '' }),
+      },
       orderBy: { label: 'asc' },
     }),
   find: (id, ownerId) => prisma.characterExpression.findFirst({ where: { id, createdById: ownerId } }),
   async insert(ownerId, input, stamp) {
-    if ((await prisma.character.count({ where: { id: input.character_id, createdById: ownerId } })) === 0) throw validationError('That character is not one of yours', 'character_id');
-    if ((await prisma.characterExpression.count({ where: { createdById: ownerId, characterId: input.character_id } })) >= EXPRESSION.per_character) {
+    if ((await prisma.character.count({ where: { id: input.character_id, createdById: ownerId } })) === 0)
+      throw validationError('That character is not one of yours', 'character_id');
+    if (
+      (await prisma.characterExpression.count({ where: { createdById: ownerId, characterId: input.character_id } })) >=
+      EXPRESSION.per_character
+    ) {
       throw validationError(`At most ${EXPRESSION.per_character} sprites a character`, 'character_id');
     }
     await checkLabel(ownerId, input.character_id, input.label, null);
-    return prisma.characterExpression.create({ data: { createdById: ownerId, ...written(input, stamp) } as Prisma.CharacterExpressionUncheckedCreateInput });
+    return prisma.characterExpression.create({
+      data: { createdById: ownerId, ...written(input, stamp) } as Prisma.CharacterExpressionUncheckedCreateInput,
+    });
   },
   async updateIfCurrent(id, version, input, stamp, userId) {
     const row = await prisma.characterExpression.findUnique({ where: { id } });
     if (row !== null && input.label !== undefined) await checkLabel(row.createdById, row.characterId, input.label, id);
-    const { count } = await prisma.characterExpression.updateMany({ where: { id, updatedAt: version }, data: written(input, stamp, userId) as Prisma.CharacterExpressionUncheckedUpdateManyInput });
+    const { count } = await prisma.characterExpression.updateMany({
+      where: { id, updatedAt: version },
+      data: written(input, stamp, userId) as Prisma.CharacterExpressionUncheckedUpdateManyInput,
+    });
     return count === 0 ? null : prisma.characterExpression.findUnique({ where: { id } });
   },
   async remove(id) {

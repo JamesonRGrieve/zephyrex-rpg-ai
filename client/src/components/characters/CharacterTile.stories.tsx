@@ -3,7 +3,14 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { CharacterTile } from './CharacterTile';
 
-const ADA = { id: 'c-ada', name: 'Ada Vance', avatar: null, tags: ['sci-fi', 'engineer'], favourite: false, description: 'A ship’s engineer with a dry wit.' };
+const ADA = {
+  id: 'c-ada',
+  name: 'Ada Vance',
+  avatar: null,
+  tags: ['sci-fi', 'engineer'],
+  favourite: false,
+  description: 'A ship’s engineer with a dry wit.',
+};
 
 const meta: Meta<typeof CharacterTile> = {
   title: 'Characters/Character tile',

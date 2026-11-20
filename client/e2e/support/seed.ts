@@ -16,7 +16,8 @@ async function post(page: Page, resource: string, fields: Record<string, unknown
     data: { [resource]: fields },
     headers: { 'Content-Type': 'application/json', ...(await csrf(page)) },
   });
-  if (response.status() !== 201) throw new Error(`seeding ${resource} answered ${response.status()}: ${await response.text()}`);
+  if (response.status() !== 201)
+    throw new Error(`seeding ${resource} answered ${response.status()}: ${await response.text()}`);
   return ((await response.json()) as Record<string, { id: string }>)[resource] as { id: string };
 }
 
@@ -44,15 +45,38 @@ export async function seedChat(page: Page): Promise<Seeded> {
     content: 'Every spanner aboard the Kestrel is cursed: it slips at the worst moment.',
     sticky: 2,
   });
-  await post(page, 'lorebook_entry', { lorebook_id: lorebook.id, comment: 'The ship', constant: true, content: 'The Kestrel is an old ore hauler.' });
-  const chat = await post(page, 'chat', { title: 'Chat with Ada Vance', character_ids: [character.id], lorebook_ids: [lorebook.id] });
+  await post(page, 'lorebook_entry', {
+    lorebook_id: lorebook.id,
+    comment: 'The ship',
+    constant: true,
+    content: 'The Kestrel is an old ore hauler.',
+  });
+  const chat = await post(page, 'chat', {
+    title: 'Chat with Ada Vance',
+    character_ids: [character.id],
+    lorebook_ids: [lorebook.id],
+  });
   const greeting = await post(page, 'chat_message', {
     chat_id: chat.id,
     role: 'character',
     speaker_character_id: character.id,
-    swipes: ['*wipes her hands on a rag* "Mind the coolant," she says. "It bites."', '"You’re the new deckhand? Good. Hold this."'],
+    swipes: [
+      '*wipes her hands on a rag* "Mind the coolant," she says. "It bites."',
+      '"You’re the new deckhand? Good. Hold this."',
+    ],
   });
-  const line = await post(page, 'chat_message', { chat_id: chat.id, parent_id: greeting.id, role: 'user', swipes: ['I hand her the spanner.'] });
-  await post(page, 'chat_message', { chat_id: chat.id, parent_id: line.id, role: 'user', channel: 'ooc', swipes: ['Can we skip ahead to docking?'] });
+  const line = await post(page, 'chat_message', {
+    chat_id: chat.id,
+    parent_id: greeting.id,
+    role: 'user',
+    swipes: ['I hand her the spanner.'],
+  });
+  await post(page, 'chat_message', {
+    chat_id: chat.id,
+    parent_id: line.id,
+    role: 'user',
+    channel: 'ooc',
+    swipes: ['Can we skip ahead to docking?'],
+  });
   return { characterId: character.id, chatId: chat.id, lorebookId: lorebook.id };
 }

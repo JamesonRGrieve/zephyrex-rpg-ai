@@ -35,8 +35,13 @@ export function LorebookLibrary(): ReactElement {
       }),
     );
     const done = results.flatMap((result) => (result.status === 'fulfilled' ? [result.value] : []));
-    const failed = results.flatMap((result, index) => (result.status === 'rejected' ? [`${files[index]?.name ?? 'A file'}: could not be imported`] : []));
-    if (done.length > 0) notify(done.length === 1 ? `Lorebook imported (${done[0]?.entries ?? 0} entries)` : `${done.length} lorebooks imported`);
+    const failed = results.flatMap((result, index) =>
+      result.status === 'rejected' ? [`${files[index]?.name ?? 'A file'}: could not be imported`] : [],
+    );
+    if (done.length > 0)
+      notify(
+        done.length === 1 ? `Lorebook imported (${done[0]?.entries ?? 0} entries)` : `${done.length} lorebooks imported`,
+      );
     if (failed.length > 0) notify('Some files were not imported', failed.join('\n'));
   };
 
@@ -54,7 +59,14 @@ export function LorebookLibrary(): ReactElement {
         <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
           <FileUp aria-hidden /> Import World Info
         </Button>
-        <input ref={fileInput} type='file' accept='.json,application/json' multiple hidden onChange={(event) => void importFiles(event)} />
+        <input
+          ref={fileInput}
+          type='file'
+          accept='.json,application/json'
+          multiple
+          hidden
+          onChange={(event) => void importFiles(event)}
+        />
       </div>
       {list.error !== undefined && <LoadProblem what='your lorebooks' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={3} />}
@@ -78,7 +90,11 @@ export function LorebookLibrary(): ReactElement {
               aria-label={`Delete ${book.name}`}
               onClick={() => {
                 setHidden(new Set([...hidden, book.id]));
-                deferWithUndo(`${book.name} deleted`, () => void remove(book), () => setHidden(new Set([...hidden].filter((id) => id !== book.id))));
+                deferWithUndo(
+                  `${book.name} deleted`,
+                  () => void remove(book),
+                  () => setHidden(new Set([...hidden].filter((id) => id !== book.id))),
+                );
               }}
             >
               <Trash2 aria-hidden />

@@ -3,7 +3,8 @@ import type { Meta, StoryObj } from '@storybook/nextjs';
 import { expect, fn, userEvent, within } from 'storybook/test';
 import { ExpressionSprites } from './ExpressionEditor';
 
-const DOT = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
+const DOT =
+  'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=';
 
 const meta: Meta<typeof ExpressionSprites> = {
   title: 'Characters/Expression sprites',

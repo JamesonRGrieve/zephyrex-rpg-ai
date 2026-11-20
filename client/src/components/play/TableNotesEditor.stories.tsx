@@ -9,7 +9,11 @@ function Harness(): React.ReactElement {
   return <TableNotesEditor value={value} onChange={setValue} />;
 }
 
-const meta: Meta<typeof Harness> = { title: 'Play/Table notes', component: Harness, decorators: [(Story) => <div className='max-w-lg'>{Story()}</div>] };
+const meta: Meta<typeof Harness> = {
+  title: 'Play/Table notes',
+  component: Harness,
+  decorators: [(Story) => <div className='max-w-lg'>{Story()}</div>],
+};
 export default meta;
 type Story = StoryObj<typeof Harness>;
 

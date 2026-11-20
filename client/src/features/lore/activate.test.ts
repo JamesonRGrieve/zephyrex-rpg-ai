@@ -8,7 +8,15 @@ describe('activateLore (contract/lore-cases.json)', () => {
     const draws = [...test.rolls];
     const entries = test.entries.map((entry) => ({ ...cases.defaults, ...entry }) as unknown as LoreEntry);
     const settings = { ...cases.settings, ...('settings' in test ? test.settings : {}) } as LoreSettings;
-    const result = activateLore(entries, test.history, test.message_count, test.speaker, test.state as unknown as LoreState, settings, () => draws.shift() ?? 0);
+    const result = activateLore(
+      entries,
+      test.history,
+      test.message_count,
+      test.speaker,
+      test.state as unknown as LoreState,
+      settings,
+      () => draws.shift() ?? 0,
+    );
     expect(result).toEqual(test.expect);
   });
 });

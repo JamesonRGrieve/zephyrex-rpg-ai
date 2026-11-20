@@ -17,7 +17,10 @@ interface NavigatorHints {
 }
 
 /** WebGL2 support and the GPU's largest texture side, from a throwaway context. */
-export function readWebgl(documentRef: Pick<Document, 'createElement'> | undefined): { webgl2: boolean; maxTextureSize: number } {
+export function readWebgl(documentRef: Pick<Document, 'createElement'> | undefined): {
+  webgl2: boolean;
+  maxTextureSize: number;
+} {
   if (documentRef === undefined) return { webgl2: false, maxTextureSize: 0 };
   try {
     const canvas = documentRef.createElement('canvas');
@@ -44,7 +47,8 @@ function sampleFrames(): Promise<number | null> {
     const stamps: number[] = [];
     const tick = (time: number): void => {
       stamps.push(time);
-      if (stamps.length > FRAME_SAMPLES) resolve(medianFrameMs(stamps.slice(1).map((stamp, index) => stamp - stamps[index])));
+      if (stamps.length > FRAME_SAMPLES)
+        resolve(medianFrameMs(stamps.slice(1).map((stamp, index) => stamp - stamps[index])));
       else requestAnimationFrame(tick);
     };
     requestAnimationFrame(tick);

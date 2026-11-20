@@ -26,7 +26,15 @@ function useVoices(): string[] {
   return names;
 }
 
-export function VoicePicker({ name, value, onChange }: { name: string; value: CharacterVoice; onChange: (next: CharacterVoice) => void }): ReactElement | null {
+export function VoicePicker({
+  name,
+  value,
+  onChange,
+}: {
+  name: string;
+  value: CharacterVoice;
+  onChange: (next: CharacterVoice) => void;
+}): ReactElement | null {
   const voices = useVoices();
   const ids = { voice: useId(), rate: useId(), pitch: useId() };
   const [supported] = useState(() => speechSupport().speak);
@@ -55,14 +63,37 @@ export function VoicePicker({ name, value, onChange }: { name: string; value: Ch
       <div className='grid gap-3 sm:grid-cols-2'>
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.rate}>Speed ({value.rate.toFixed(1)}×)</Label>
-          <input id={ids.rate} type='range' min={RATE_RANGE[0]} max={RATE_RANGE[1]} step={0.1} value={value.rate} className='h-11 accent-primary' onChange={(event) => onChange({ ...value, rate: Number(event.target.value) })} />
+          <input
+            id={ids.rate}
+            type='range'
+            min={RATE_RANGE[0]}
+            max={RATE_RANGE[1]}
+            step={0.1}
+            value={value.rate}
+            className='h-11 accent-primary'
+            onChange={(event) => onChange({ ...value, rate: Number(event.target.value) })}
+          />
         </div>
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.pitch}>Pitch ({value.pitch.toFixed(1)})</Label>
-          <input id={ids.pitch} type='range' min={PITCH_RANGE[0]} max={PITCH_RANGE[1]} step={0.1} value={value.pitch} className='h-11 accent-primary' onChange={(event) => onChange({ ...value, pitch: Number(event.target.value) })} />
+          <input
+            id={ids.pitch}
+            type='range'
+            min={PITCH_RANGE[0]}
+            max={PITCH_RANGE[1]}
+            step={0.1}
+            value={value.pitch}
+            className='h-11 accent-primary'
+            onChange={(event) => onChange({ ...value, pitch: Number(event.target.value) })}
+          />
         </div>
       </div>
-      <Button type='button' variant='outline' className='h-11 justify-self-start' onClick={() => speak(`Hello, I am ${name}.`, value)}>
+      <Button
+        type='button'
+        variant='outline'
+        className='h-11 justify-self-start'
+        onClick={() => speak(`Hello, I am ${name}.`, value)}
+      >
         <Volume2 aria-hidden /> Hear it
       </Button>
     </fieldset>

@@ -16,7 +16,13 @@ export interface Objective {
   done: boolean;
 }
 
-export function ObjectivesEditor({ value, onChange }: { value: readonly Objective[]; onChange: (next: Objective[]) => void }): ReactElement {
+export function ObjectivesEditor({
+  value,
+  onChange,
+}: {
+  value: readonly Objective[];
+  onChange: (next: Objective[]) => void;
+}): ReactElement {
   const [adding, setAdding] = useState('');
   const addId = useId();
   const current = value.findIndex((objective) => !objective.done);
@@ -34,7 +40,13 @@ export function ObjectivesEditor({ value, onChange }: { value: readonly Objectiv
         <ol className='grid gap-2'>
           {value.map((objective, index) => (
             // Objectives have no identity beyond their place in the list.
-            <li key={index} className={cn('flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm', index === current && 'border-primary')}>
+            <li
+              key={index}
+              className={cn(
+                'flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm',
+                index === current && 'border-primary',
+              )}
+            >
               <input
                 type='checkbox'
                 className='size-5 shrink-0'
@@ -42,11 +54,23 @@ export function ObjectivesEditor({ value, onChange }: { value: readonly Objectiv
                 checked={objective.done}
                 onChange={() => onChange(value.map((one, at) => (at === index ? { ...one, done: !one.done } : one)))}
               />
-              <span className={cn('min-w-0 flex-1 [overflow-wrap:anywhere]', objective.done && 'text-muted-foreground line-through')}>
+              <span
+                className={cn(
+                  'min-w-0 flex-1 [overflow-wrap:anywhere]',
+                  objective.done && 'text-muted-foreground line-through',
+                )}
+              >
                 {objective.text}
                 {index === current && <span className='ml-2 text-xs font-medium text-primary'>Current</span>}
               </span>
-              <Button type='button' variant='ghost' size='icon' className='size-11 shrink-0' aria-label={`Remove ${objective.text}`} onClick={() => onChange(value.filter((_one, at) => at !== index))}>
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='size-11 shrink-0'
+                aria-label={`Remove ${objective.text}`}
+                onClick={() => onChange(value.filter((_one, at) => at !== index))}
+              >
                 <Trash2 aria-hidden />
               </Button>
             </li>

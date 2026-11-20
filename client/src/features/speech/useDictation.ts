@@ -11,7 +11,12 @@ interface Recognition {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
-  onresult: ((event: { resultIndex: number; results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }> }) => void) | null;
+  onresult:
+    | ((event: {
+        resultIndex: number;
+        results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>;
+      }) => void)
+    | null;
   onend: (() => void) | null;
   onerror: (() => void) | null;
   start(): void;
@@ -21,7 +26,10 @@ interface Recognition {
 type RecognitionConstructor = new () => Recognition;
 
 /** The finished phrases in a recognition result, from `from` on, joined. */
-export function finishedText(results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>, from: number): string {
+export function finishedText(
+  results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>,
+  from: number,
+): string {
   return Array.from(results)
     .slice(from)
     .filter((result) => result.isFinal)
@@ -30,12 +38,19 @@ export function finishedText(results: ArrayLike<ArrayLike<{ transcript: string }
     .join(' ');
 }
 
-export function useDictation(onPhrase: (text: string) => void): { supported: boolean; listening: boolean; toggle: () => void } {
+export function useDictation(onPhrase: (text: string) => void): {
+  supported: boolean;
+  listening: boolean;
+  toggle: () => void;
+} {
   const [supported] = useState(() => speechSupport().listen);
   const [listening, setListening] = useState(false);
   const recognition = useRef<Recognition | null>(null);
   const phrase = useRef(onPhrase);
-  phrase.current = onPhrase;
+  // The newest callback, for a phrase that arrives after a re-render.
+  useEffect(() => {
+    phrase.current = onPhrase;
+  }, [onPhrase]);
 
   useEffect(() => () => recognition.current?.stop(), []);
 
@@ -44,7 +59,8 @@ export function useDictation(onPhrase: (text: string) => void): { supported: boo
       recognition.current.stop();
       return;
     }
-    const Constructor = (Reflect.get(globalThis, 'SpeechRecognition') ?? Reflect.get(globalThis, 'webkitSpeechRecognition')) as RecognitionConstructor | undefined;
+    const Constructor = (Reflect.get(globalThis, 'SpeechRecognition') ??
+      Reflect.get(globalThis, 'webkitSpeechRecognition')) as RecognitionConstructor | undefined;
     if (Constructor === undefined) return;
     const listener = new Constructor();
     listener.continuous = false;

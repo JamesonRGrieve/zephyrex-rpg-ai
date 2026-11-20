@@ -17,8 +17,14 @@ export function renderInstruct(messages: readonly ModelMessage[], templateId: In
   const closing = messages.at(-1);
   const leftOpen = openLast && closing !== undefined && closing.role === 'assistant';
   const body = leftOpen ? messages.slice(0, -1) : messages;
-  const text = template.start + body.map((message) => `${template[`${message.role}_prefix`]}${message.content}${template[`${message.role}_suffix`]}`).join('');
-  return leftOpen && closing !== undefined ? text + template.assistant_prefix + closing.content : text + template.assistant_prefix;
+  const text =
+    template.start +
+    body
+      .map((message) => `${template[`${message.role}_prefix`]}${message.content}${template[`${message.role}_suffix`]}`)
+      .join('');
+  return leftOpen && closing !== undefined
+    ? text + template.assistant_prefix + closing.content
+    : text + template.assistant_prefix;
 }
 
 export function instructStops(templateId: InstructTemplateId): string[] {

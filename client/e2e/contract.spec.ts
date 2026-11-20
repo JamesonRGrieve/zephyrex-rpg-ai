@@ -46,7 +46,9 @@ test('a record: created with its version, read, guarded by If-Match on change, a
   const changed = await request.put(url, { headers: { ...write, 'If-Match': etag }, data: { persona: { name: 'Samuel' } } });
   expect(changed.status()).toBe(200);
   expect(((await changed.json()) as { persona: { name: string } }).persona.name).toBe('Samuel');
-  expect((await request.put(url, { headers: { ...write, 'If-Match': etag }, data: { persona: { name: 'Stale' } } })).status()).toBe(412);
+  expect(
+    (await request.put(url, { headers: { ...write, 'If-Match': etag }, data: { persona: { name: 'Stale' } } })).status(),
+  ).toBe(412);
 
   const current = changed.headers().etag ?? '';
   expect((await request.delete(url, { headers: { ...write, 'If-Match': current } })).status()).toBe(204);
@@ -71,7 +73,10 @@ test('both editions refuse the same bad input with 422', async ({ page }) => {
 test('the model routes answer 404 for a chat that is not yours, before asking any model', async ({ page }) => {
   const { request, write } = await api(page);
   for (const route of ['prompt', 'summarize', 'generate']) {
-    const response = await request.post(`/api/v1/ai_chat/${route}`, { headers: write, data: { generate: { chat_id: 'no-such-chat' } } });
+    const response = await request.post(`/api/v1/ai_chat/${route}`, {
+      headers: write,
+      data: { generate: { chat_id: 'no-such-chat' } },
+    });
     expect(response.status(), route).toBe(404);
   }
 });

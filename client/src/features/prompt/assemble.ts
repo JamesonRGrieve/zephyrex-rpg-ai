@@ -119,7 +119,9 @@ export function scenarioText(scenario: ScenarioView | null | undefined): string 
     const disposition = said(person.disposition);
     const agenda = said(person.agenda);
     const secret = said(person.secret);
-    return [`- ${name}${disposition === '' ? '' : ` (${disposition})`}${agenda === '' ? '' : `: wants ${agenda}`}${secret === '' ? '' : `. Secret: ${secret}`}`];
+    return [
+      `- ${name}${disposition === '' ? '' : ` (${disposition})`}${agenda === '' ? '' : `: wants ${agenda}`}${secret === '' ? '' : `. Secret: ${secret}`}`,
+    ];
   });
   const places = (scenario.places ?? []).map((place) => place.trim()).filter(Boolean);
   const clocks = (scenario.clocks ?? []).map((clock) => {
@@ -131,11 +133,15 @@ export function scenarioText(scenario: ScenarioView | null | undefined): string 
     return `- ${clock.name.trim()}: ${Math.min(filled, segments)}/${segments}${state === '' ? '' : ` (${state})`}${advances === '' ? '' : `; advances when ${advances}`}${whenFull === '' ? '' : `; when full: ${whenFull}`}`;
   });
   const secrets = (scenario.secrets ?? []).map((secret) => {
-    const clues = (secret.clues ?? []).filter((clue) => clue.text.trim() !== '').map((clue) => `${clue.text.trim()} (${clue.found ? 'found' : 'not found'})`);
+    const clues = (secret.clues ?? [])
+      .filter((clue) => clue.text.trim() !== '')
+      .map((clue) => `${clue.text.trim()} (${clue.found ? 'found' : 'not found'})`);
     const learned = (secret.clues ?? []).some((clue) => clue.found);
     return `- ${secret.truth.trim()} [${learned ? 'learned' : 'not yet learned'}]${clues.length === 0 ? '' : `. Clues: ${clues.join('; ')}`}`;
   });
-  const beats = (scenario.beats ?? []).filter((beat) => !beat.done && beat.text.trim() !== '').map((beat) => beat.text.trim());
+  const beats = (scenario.beats ?? [])
+    .filter((beat) => !beat.done && beat.text.trim() !== '')
+    .map((beat) => beat.text.trim());
   const outcomes = (scenario.outcomes ?? []).map((outcome) => outcome.trim()).filter(Boolean);
   const lines = [
     said(scenario.premise) === '' ? '' : `Premise: ${said(scenario.premise)}`,
@@ -211,7 +217,9 @@ export interface TableNote {
 /** The table's notes as the model reads them (A11): one labelled line each, under a heading. */
 export function tableNotesText(notes: readonly TableNote[] | undefined): string {
   const labels: Record<string, string> = TABLE.note_labels;
-  const kept = (notes ?? []).flatMap((note) => (note.kind in labels && note.text.trim() !== '' ? [`${labels[note.kind]}: ${note.text.trim()}`] : []));
+  const kept = (notes ?? []).flatMap((note) =>
+    note.kind in labels && note.text.trim() !== '' ? [`${labels[note.kind]}: ${note.text.trim()}`] : [],
+  );
   return kept.length === 0 ? '' : [TABLE.notes_heading, ...kept].join('\n');
 }
 
@@ -247,15 +255,26 @@ export interface PromptSection {
 }
 
 /** The layout in full: the given sections in order (unknown and repeated ones dropped), then the rest, on. */
-export function promptLayout(given: readonly { id: string; enabled?: boolean; max_tokens?: number | null }[] | undefined): PromptSection[] {
+export function promptLayout(
+  given: readonly { id: string; enabled?: boolean; max_tokens?: number | null }[] | undefined,
+): PromptSection[] {
   const known: readonly string[] = PROMPT.sections;
   const layout: PromptSection[] = [];
   for (const section of given ?? []) {
     if (known.includes(section.id) && !layout.some((kept) => kept.id === section.id)) {
-      layout.push({ id: section.id as PromptSectionId, enabled: section.enabled ?? true, max_tokens: section.max_tokens ?? null });
+      layout.push({
+        id: section.id as PromptSectionId,
+        enabled: section.enabled ?? true,
+        max_tokens: section.max_tokens ?? null,
+      });
     }
   }
-  return [...layout, ...PROMPT.sections.filter((id) => !layout.some((kept) => kept.id === id)).map((id) => ({ id, enabled: true, max_tokens: null }))];
+  return [
+    ...layout,
+    ...PROMPT.sections
+      .filter((id) => !layout.some((kept) => kept.id === id))
+      .map((id) => ({ id, enabled: true, max_tokens: null })),
+  ];
 }
 
 /** A section cut to its budget (characters at the contract's ratio, counted as code points), trimmed. */
@@ -292,7 +311,11 @@ export function estimateTokens(message: ModelMessage): number {
 
 type LoreSections = LoreResult['sections'];
 
-function systemText(texts: Partial<Record<PromptSectionId, string>>, layout: readonly PromptSection[], names: MacroNames): string {
+function systemText(
+  texts: Partial<Record<PromptSectionId, string>>,
+  layout: readonly PromptSection[],
+  names: MacroNames,
+): string {
   // Each section is cut to its budget once its macros are filled in: the budget is what the model reads.
   return layout
     .flatMap((section) => {
@@ -380,7 +403,16 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const narrating = input.mode === 'narrate';
   // Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
   const speaker: PromptCharacter | undefined = narrating
-    ? { id: '', name: PROMPT.narrator_name, description: '', personality: '', scenario: '', example_messages: '', system_prompt: '', post_history_instructions: '' }
+    ? {
+        id: '',
+        name: PROMPT.narrator_name,
+        description: '',
+        personality: '',
+        scenario: '',
+        example_messages: '',
+        system_prompt: '',
+        post_history_instructions: '',
+      }
     : input.characters.find((character) => character.id === input.speaker_id);
   if (speaker === undefined) throw new Error('The speaker must be one of the chat’s characters');
   const userName = input.persona?.name ?? DEFAULT_USER_NAME;
@@ -400,18 +432,31 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     PROMPT.cast_heading,
     ...input.characters
       .filter((character) => character.description.trim() !== '')
-      .map((character) => `- ${character.name}: ${expandMacros(character.description.trim(), { char: character.name, user: userName })}`),
+      .map(
+        (character) =>
+          `- ${character.name}: ${expandMacros(character.description.trim(), { char: character.name, user: userName })}`,
+      ),
   ].join('\n');
   const persona = input.persona;
   const texts: Partial<Record<PromptSectionId, string>> = {
-    main: override.trim() !== '' ? override : narrating ? PROMPT.narrate_prompt : speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
+    main:
+      override.trim() !== ''
+        ? override
+        : narrating
+          ? PROMPT.narrate_prompt
+          : speaker.system_prompt.trim() !== ''
+            ? speaker.system_prompt
+            : PROMPT.default_system_prompt,
     safety: safetyText(input.safety),
     table_notes: tableNotesText(input.table_notes),
     campaign: frameText(input.frame),
     running_scenario: scenarioText(input.scenario),
     lore_before_char: loreSections.before_char ?? '',
     // The narrator reads every character, in brief: each one's description with its own name filled in.
-    description: narrating && input.characters.some((character) => character.description.trim() !== '') ? castText : speaker.description,
+    description:
+      narrating && input.characters.some((character) => character.description.trim() !== '')
+        ? castText
+        : speaker.description,
     personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
     scenario: speaker.scenario.trim() === '' ? '' : `Scenario: ${speaker.scenario}`,
     lore_after_char: loreSections.after_char ?? '',
@@ -433,13 +478,23 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     // The chat's current task (A53), a system line at its depth.
     ...((input.objective ?? '').trim() === ''
       ? []
-      : [{ depth: PROMPT.objective_depth, message: { role: 'system' as const, content: expandMacros(PROMPT.objective_prompt.replace('{{task}}', (input.objective ?? '').trim()), names) } }]),
+      : [
+          {
+            depth: PROMPT.objective_depth,
+            message: {
+              role: 'system' as const,
+              content: expandMacros(PROMPT.objective_prompt.replace('{{task}}', (input.objective ?? '').trim()), names),
+            },
+          },
+        ]),
   ];
   const mode = input.mode ?? 'reply';
   const instructions = sectionText('post_history', speaker.post_history_instructions);
   const after: ModelMessage[] = [
     ...(instructions === '' ? [] : [{ role: 'system' as const, content: instructions }]),
-    ...(mode === 'impersonate' ? [{ role: 'system' as const, content: expandMacros(PROMPT.impersonate_prompt, names) }] : []),
+    ...(mode === 'impersonate'
+      ? [{ role: 'system' as const, content: expandMacros(PROMPT.impersonate_prompt, names) }]
+      : []),
   ];
   // An X-carded turn (A25) stays in the chat but out of what the model reads.
   const storyTurns = input.history.filter((turn) => story.has(turn.channel) && turn.x_carded !== true);
@@ -447,12 +502,18 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const history = storyTurns
     .map((turn, index) => {
       const placement = turn.role === 'user' ? 'user_input' : turn.role === 'character' ? 'ai_output' : null;
-      return placement === null ? turn : { ...turn, content: applyRegex(turn.content, input.regex ?? [], placement, 'prompt', storyTurns.length - 1 - index) };
+      return placement === null
+        ? turn
+        : {
+            ...turn,
+            content: applyRegex(turn.content, input.regex ?? [], placement, 'prompt', storyTurns.length - 1 - index),
+          };
     })
     .map((turn) => historyMessage(turn, speaker.id, namesById, group, names.user, narrating));
 
   const budget = input.context_tokens - input.max_tokens;
-  const cost = (messages: readonly ModelMessage[]) => messages.reduce((total, message) => total + estimateTokens(message), 0);
+  const cost = (messages: readonly ModelMessage[]) =>
+    messages.reduce((total, message) => total + estimateTokens(message), 0);
   const fixed = cost([system, ...after, ...inserts.map((insert) => insert.message)]);
 
   // Keep the newest turns that fit; everything older is dropped.
@@ -488,7 +549,12 @@ export function summaryPrompt(
   const lines = input.history
     .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
     .map((turn) => {
-      const name = turn.role === 'user' ? userName : turn.role === 'character' ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR) : NARRATOR;
+      const name =
+        turn.role === 'user'
+          ? userName
+          : turn.role === 'character'
+            ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR)
+            : NARRATOR;
       return `${name}: ${turn.content}`;
     });
   const instruction: ModelMessage = { role: 'system', content: PROMPT.summarize_prompt };
@@ -521,12 +587,19 @@ export function translatePrompt(text: string, language: string): ModelMessage[] 
  * channel) as the assistant's. The oldest table talk is dropped to fit.
  */
 export function tableGmPrompt(
-  input: Pick<PromptInput, 'characters' | 'persona' | 'history' | 'context_tokens' | 'max_tokens' | 'summary' | 'safety' | 'table_notes'>,
+  input: Pick<
+    PromptInput,
+    'characters' | 'persona' | 'history' | 'context_tokens' | 'max_tokens' | 'summary' | 'safety' | 'table_notes'
+  >,
 ): AssembledPrompt {
   const userName = input.persona?.name ?? DEFAULT_USER_NAME;
   const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
   const named = (turn: PromptTurn) =>
-    turn.role === 'user' ? userName : turn.role === 'character' ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR) : NARRATOR;
+    turn.role === 'user'
+      ? userName
+      : turn.role === 'character'
+        ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR)
+        : NARRATOR;
   const story = new Set<string>(PROMPT.story_channels);
   const recent = input.history
     .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
@@ -550,7 +623,9 @@ export function tableGmPrompt(
   const talk: ModelMessage[] = input.history
     .filter((turn) => turn.channel === 'ooc' || turn.channel === 'gm')
     .map((turn) =>
-      turn.role === 'narrator' && turn.channel === 'gm' ? { role: 'assistant', content: turn.content } : { role: 'user', content: `${named(turn)}: ${turn.content}` },
+      turn.role === 'narrator' && turn.channel === 'gm'
+        ? { role: 'assistant', content: turn.content }
+        : { role: 'user', content: `${named(turn)}: ${turn.content}` },
     );
   const budget = input.context_tokens - input.max_tokens - estimateTokens(system);
   let kept = talk.length;
@@ -563,7 +638,6 @@ export function tableGmPrompt(
   }
   return { messages: [system, ...talk.slice(kept)], dropped: kept };
 }
-
 
 /** What a model is asked to name a line's feeling (A4), choosing only from `options`. */
 export function expressionPrompt(line: string, options: readonly string[]): ModelMessage[] {
@@ -587,17 +661,18 @@ export function pickOption(answer: string, options: readonly string[]): string |
  * What an image model is asked to draw (A30): the person's own words, or the last story turns
  * (named; table talk and X-carded turns left out) as a scene, cut to the contract's length (code points).
  */
-export function scenePicturePrompt(
-  input: Pick<PromptInput, 'characters' | 'persona' | 'history'>,
-  asked = '',
-): string {
+export function scenePicturePrompt(input: Pick<PromptInput, 'characters' | 'persona' | 'history'>, asked = ''): string {
   const cut = (text: string) => Array.from(text).slice(0, PICTURE.prompt_characters).join('');
   if (asked.trim() !== '') return cut(asked.trim());
   const userName = input.persona?.name ?? DEFAULT_USER_NAME;
   const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
   const story = new Set<string>(PROMPT.story_channels);
   const named = (turn: PromptTurn) =>
-    turn.role === 'user' ? userName : turn.role === 'character' ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR) : NARRATOR;
+    turn.role === 'user'
+      ? userName
+      : turn.role === 'character'
+        ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR)
+        : NARRATOR;
   const scene = input.history
     .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
     .slice(-PICTURE.scene_turns)
@@ -605,4 +680,3 @@ export function scenePicturePrompt(
     .join(' ');
   return cut(PICTURE.scene_prefix + scene);
 }
-

@@ -30,7 +30,15 @@ export const SABOTAGE: Scenario = {
   cast: [{ name: 'Reyes', agenda: 'to sell the ship', secret: 'she cut the line', disposition: 'friendly' }],
   places: ['the engine room', 'bay two'],
   clocks: [{ name: 'The pump fails', segments: 4, filled: 3, advances: 'a jump is made', when_full: 'the ship drifts' }],
-  secrets: [{ truth: 'Reyes cut the line.', clues: [{ text: 'Cut marks', found: false }, { text: 'Her gloves', found: false }] }],
+  secrets: [
+    {
+      truth: 'Reyes cut the line.',
+      clues: [
+        { text: 'Cut marks', found: false },
+        { text: 'Her gloves', found: false },
+      ],
+    },
+  ],
   beats: [{ text: 'The buyer hails', done: false }],
   outcomes: ['Reyes is caught'],
 };

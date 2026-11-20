@@ -8,7 +8,21 @@
  * A reply's alternatives (swipes) and a fork's branches are paged with arrows; every action is a
  * button in reach of a thumb, and the menu holds the rest.
  */
-import { Bookmark, Brain, Languages, Volume2, X, ChevronLeft, ChevronRight, Ellipsis, FastForward, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
+import {
+  Bookmark,
+  Brain,
+  Languages,
+  Volume2,
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Ellipsis,
+  FastForward,
+  GitBranch,
+  Pencil,
+  RotateCw,
+  Trash2,
+} from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -62,16 +76,42 @@ const CHANNEL_LABEL: Record<MessageView['channel'], string | null> = {
   system: 'Note',
 };
 
-function Pager({ label, index, count, onStep }: { label: string; index: number; count: number; onStep: (step: -1 | 1) => void }): ReactElement {
+function Pager({
+  label,
+  index,
+  count,
+  onStep,
+}: {
+  label: string;
+  index: number;
+  count: number;
+  onStep: (step: -1 | 1) => void;
+}): ReactElement {
   return (
     <div className='flex items-center gap-1 text-xs text-muted-foreground' role='group' aria-label={label}>
-      <Button type='button' variant='ghost' size='icon' className='size-9' aria-label={`Previous ${label.toLowerCase()}`} disabled={index === 0} onClick={() => onStep(-1)}>
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon'
+        className='size-9'
+        aria-label={`Previous ${label.toLowerCase()}`}
+        disabled={index === 0}
+        onClick={() => onStep(-1)}
+      >
         <ChevronLeft aria-hidden />
       </Button>
       <span aria-live='polite'>
         {index + 1}/{count}
       </span>
-      <Button type='button' variant='ghost' size='icon' className='size-9' aria-label={`Next ${label.toLowerCase()}`} disabled={index === count - 1} onClick={() => onStep(1)}>
+      <Button
+        type='button'
+        variant='ghost'
+        size='icon'
+        className='size-9'
+        aria-label={`Next ${label.toLowerCase()}`}
+        disabled={index === count - 1}
+        onClick={() => onStep(1)}
+      >
         <ChevronRight aria-hidden />
       </Button>
     </div>
@@ -135,7 +175,8 @@ export function MessageItem({
   writing?: boolean;
   layout?: MessageLayout;
   /** A translation to show under the text (A43): written, being written, or failed. */
-  translation?: { status: 'writing' } | { status: 'done'; text: string; onHide: () => void } | { status: 'failed'; reason: string };
+  translation?:
+    { status: 'writing' } | { status: 'done'; text: string; onHide: () => void } | { status: 'failed'; reason: string };
 } & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   const editId = useId();
@@ -144,7 +185,10 @@ export function MessageItem({
   const lastSwipe = message.swipe.index === message.swipe.count - 1;
   if (message.xCarded === true) {
     return (
-      <article aria-label={`${message.speaker}, X-carded`} className='flex items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground'>
+      <article
+        aria-label={`${message.speaker}, X-carded`}
+        className='flex items-center justify-between gap-3 rounded-lg border border-dashed px-3 py-2 text-sm text-muted-foreground'
+      >
         <span>
           <X className='mr-1 inline size-4' aria-hidden />
           {message.speaker}’s message was X-carded: it is out of the story.
@@ -170,7 +214,10 @@ export function MessageItem({
         message.channel === 'roll' && 'rounded-lg border border-dashed px-3 py-2 text-sm',
         message.bookmarked && !tableTalk && 'border-l-2 border-primary pl-3',
         layout === 'bubbles' && story && 'rounded-2xl border bg-card px-3 py-2',
-        layout === 'bubbles' && story && mine && 'ml-8 flex-row-reverse border-primary bg-accent text-accent-foreground sm:ml-16',
+        layout === 'bubbles' &&
+          story &&
+          mine &&
+          'ml-8 flex-row-reverse border-primary bg-accent text-accent-foreground sm:ml-16',
         layout === 'bubbles' && story && !mine && 'mr-8 sm:mr-16',
         layout === 'document' && 'leading-relaxed',
       )}
@@ -189,14 +236,22 @@ export function MessageItem({
         </header>
         {editing === null ? (
           <>
-            {tableTalk ? <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{message.text}</p> : <StoryText text={message.text} writing={writing} />}
+            {tableTalk ? (
+              <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{message.text}</p>
+            ) : (
+              <StoryText text={message.text} writing={writing} />
+            )}
             {(message.images ?? []).length > 0 && (
               <ul className='mt-2 flex flex-wrap gap-2' aria-label='Pictures'>
                 {(message.images ?? []).map((url, index) => (
                   // Pictures have no identity beyond their place in this message.
                   <li key={index}>
                     <a href={url} target='_blank' rel='noreferrer' className='block'>
-                      <img src={url} alt={`Picture ${index + 1} from ${message.speaker}`} className='max-h-40 max-w-full rounded-md border object-contain' />
+                      <img
+                        src={url}
+                        alt={`Picture ${index + 1} from ${message.speaker}`}
+                        className='max-h-40 max-w-full rounded-md border object-contain'
+                      />
                     </a>
                   </li>
                 ))}
@@ -205,11 +260,19 @@ export function MessageItem({
             {translation !== undefined && (
               <div className='mt-2 rounded-md border-l-2 border-primary bg-muted px-3 py-2 text-sm' aria-live='polite'>
                 {translation.status === 'writing' && <p className='text-muted-foreground'>Translating…</p>}
-                {translation.status === 'failed' && <p role='alert' className='text-destructive'>{translation.reason}</p>}
+                {translation.status === 'failed' && (
+                  <p role='alert' className='text-destructive'>
+                    {translation.reason}
+                  </p>
+                )}
                 {translation.status === 'done' && (
                   <>
                     <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{translation.text}</p>
-                    <button type='button' className='mt-1 min-h-11 text-xs text-muted-foreground underline' onClick={translation.onHide}>
+                    <button
+                      type='button'
+                      className='mt-1 min-h-11 text-xs text-muted-foreground underline'
+                      onClick={translation.onHide}
+                    >
                       Hide translation
                     </button>
                   </>
@@ -240,23 +303,42 @@ export function MessageItem({
             </div>
           </form>
         )}
-        {writing && message.text === '' && <p className='animate-pulse text-muted-foreground motion-reduce:animate-none'>Writing…</p>}
+        {writing && message.text === '' && (
+          <p className='animate-pulse text-muted-foreground motion-reduce:animate-none'>Writing…</p>
+        )}
         {!writing && editing === null && (
           <footer className='mt-1 flex flex-wrap items-center gap-x-3'>
             {actions.onSwipe !== undefined && (message.swipe.count > 1 || actions.onRegenerate !== undefined) && (
               <div className='flex items-center'>
-                {message.swipe.count > 1 && <Pager label='Reply' index={message.swipe.index} count={message.swipe.count} onStep={actions.onSwipe} />}
+                {message.swipe.count > 1 && (
+                  <Pager label='Reply' index={message.swipe.index} count={message.swipe.count} onStep={actions.onSwipe} />
+                )}
                 {lastSwipe && actions.onRegenerate !== undefined && (
-                  <Button type='button' variant='ghost' size='icon' className='size-9' aria-label='Write another reply' onClick={actions.onRegenerate}>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    className='size-9'
+                    aria-label='Write another reply'
+                    onClick={actions.onRegenerate}
+                  >
                     <RotateCw aria-hidden />
                   </Button>
                 )}
               </div>
             )}
-            {message.fork.count > 1 && actions.onFork !== undefined && <Pager label='Branch' index={message.fork.index} count={message.fork.count} onStep={actions.onFork} />}
+            {message.fork.count > 1 && actions.onFork !== undefined && (
+              <Pager label='Branch' index={message.fork.index} count={message.fork.count} onStep={actions.onFork} />
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
-                <Button type='button' variant='ghost' size='icon' className='size-9' aria-label={`More for ${message.speaker}'s message`}>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='size-9'
+                  aria-label={`More for ${message.speaker}'s message`}
+                >
                   <Ellipsis aria-hidden />
                 </Button>
               </DropdownMenuTrigger>

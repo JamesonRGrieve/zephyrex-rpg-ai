@@ -20,7 +20,12 @@ const fields = {
   scope_id: z.string().min(1).nullable(),
 };
 const create = z
-  .object({ name: fields.name, text: fields.text, scope: fields.scope.default('global'), scope_id: fields.scope_id.default(null) })
+  .object({
+    name: fields.name,
+    text: fields.text,
+    scope: fields.scope.default('global'),
+    scope_id: fields.scope_id.default(null),
+  })
   .refine((document) => (document.scope === 'global') === (document.scope_id === null), {
     message: 'A global document names no chat or character; a chat or character document names one',
     path: ['scope_id'],
@@ -59,10 +64,15 @@ export const dataDocuments: ResourceSpec<Row, z.infer<typeof create>, z.infer<ty
   find: (id, ownerId) => prisma.dataDocument.findFirst({ where: { id, createdById: ownerId } }),
   async insert(ownerId, input, stamp) {
     await checkScope(ownerId, input);
-    return prisma.dataDocument.create({ data: { createdById: ownerId, ...written(input, stamp) } as Prisma.DataDocumentUncheckedCreateInput });
+    return prisma.dataDocument.create({
+      data: { createdById: ownerId, ...written(input, stamp) } as Prisma.DataDocumentUncheckedCreateInput,
+    });
   },
   async updateIfCurrent(id, version, input, stamp, userId) {
-    const { count } = await prisma.dataDocument.updateMany({ where: { id, updatedAt: version }, data: written(input, stamp, userId) as Prisma.DataDocumentUncheckedUpdateManyInput });
+    const { count } = await prisma.dataDocument.updateMany({
+      where: { id, updatedAt: version },
+      data: written(input, stamp, userId) as Prisma.DataDocumentUncheckedUpdateManyInput,
+    });
     return count === 0 ? null : prisma.dataDocument.findUnique({ where: { id } });
   },
   async remove(id) {

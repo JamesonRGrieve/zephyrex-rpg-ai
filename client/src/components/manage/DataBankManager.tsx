@@ -21,7 +21,8 @@ import { ManagedList } from './ManagedList';
 
 type Scope = DataDocument['scope'];
 const SCOPE_LABELS: Record<Scope, string> = { global: 'Every chat', chat: 'One chat', character: 'One character' };
-const CHIP = 'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const CHIP =
+  'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
 
 function DocumentForm({ document, done }: { document: DataDocument | null; done: () => void }): ReactElement {
   const { create, update } = dataDocuments.useActions();
@@ -34,7 +35,10 @@ function DocumentForm({ document, done }: { document: DataDocument | null; done:
   const [problem, setProblem] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
   const ids = { name: useId(), text: useId(), scope: useId(), target: useId() };
-  const targets = scope === 'chat' ? (chatList.data ?? []).map((chat) => ({ id: chat.id, name: chat.title })) : (cast.data ?? []).map((one) => ({ id: one.id, name: one.name }));
+  const targets =
+    scope === 'chat'
+      ? (chatList.data ?? []).map((chat) => ({ id: chat.id, name: chat.title }))
+      : (cast.data ?? []).map((one) => ({ id: one.id, name: one.name }));
 
   const readFile = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -68,7 +72,15 @@ function DocumentForm({ document, done }: { document: DataDocument | null; done:
     >
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.name}>Name</Label>
-        <Input id={ids.name} required value={name} maxLength={LIMITS.name_characters} placeholder='The Kestrel’s deck plan' className='h-11' onChange={(event) => setName(event.target.value)} />
+        <Input
+          id={ids.name}
+          required
+          value={name}
+          maxLength={LIMITS.name_characters}
+          placeholder='The Kestrel’s deck plan'
+          className='h-11'
+          onChange={(event) => setName(event.target.value)}
+        />
       </div>
       {document === null && (
         <div className='grid gap-2'>
@@ -93,7 +105,13 @@ function DocumentForm({ document, done }: { document: DataDocument | null; done:
           {scope !== 'global' && (
             <>
               <Label htmlFor={ids.target}>{scope === 'chat' ? 'Chat' : 'Character'}</Label>
-              <select id={ids.target} required value={scopeId ?? ''} className='h-11 rounded-md border bg-background px-3 text-sm' onChange={(event) => setScopeId(event.target.value === '' ? null : event.target.value)}>
+              <select
+                id={ids.target}
+                required
+                value={scopeId ?? ''}
+                className='h-11 rounded-md border bg-background px-3 text-sm'
+                onChange={(event) => setScopeId(event.target.value === '' ? null : event.target.value)}
+              >
                 <option value=''>Choose…</option>
                 {targets.map((target) => (
                   <option key={target.id} value={target.id}>
@@ -111,15 +129,33 @@ function DocumentForm({ document, done }: { document: DataDocument | null; done:
           <Button type='button' variant='ghost' className='h-11' onClick={() => fileInput.current?.click()}>
             <FileUp aria-hidden /> Read a file
           </Button>
-          <input ref={fileInput} type='file' accept='.txt,.md,text/plain,text/markdown' hidden onChange={(event) => void readFile(event)} />
+          <input
+            ref={fileInput}
+            type='file'
+            accept='.txt,.md,text/plain,text/markdown'
+            hidden
+            onChange={(event) => void readFile(event)}
+          />
         </div>
         <p id={`${ids.text}-hint`} className='text-xs text-muted-foreground'>
           Split it with blank lines: each part is found on its own when the story mentions what it is about.
         </p>
-        <Textarea id={ids.text} required rows={10} value={text} maxLength={LIMITS.data_document_characters} aria-describedby={`${ids.text}-hint`} onChange={(event) => setText(event.target.value)} />
+        <Textarea
+          id={ids.text}
+          required
+          rows={10}
+          value={text}
+          maxLength={LIMITS.data_document_characters}
+          aria-describedby={`${ids.text}-hint`}
+          onChange={(event) => setText(event.target.value)}
+        />
       </div>
       <WriteProblem problem={problem} />
-      <Button type='submit' className='h-11' disabled={name.trim() === '' || text.trim() === '' || (document === null && scope !== 'global' && scopeId === null)}>
+      <Button
+        type='submit'
+        className='h-11'
+        disabled={name.trim() === '' || text.trim() === '' || (document === null && scope !== 'global' && scopeId === null)}
+      >
         Save
       </Button>
     </form>

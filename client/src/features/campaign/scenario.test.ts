@@ -1,9 +1,25 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { advanceClock, learned, ScenarioFileError, scenarioFromJson, scenarioToJson, toggleBeat, toggleClue } from './scenario';
+import {
+  advanceClock,
+  learned,
+  ScenarioFileError,
+  scenarioFromJson,
+  scenarioToJson,
+  toggleBeat,
+  toggleClue,
+} from './scenario';
 
 const CLOCKS = [{ name: 'Pump', segments: 4, filled: 3, advances: '', when_full: '' }];
-const SECRETS = [{ truth: 'Reyes did it.', clues: [{ text: 'Cut marks', found: false }, { text: 'Gloves', found: false }] }];
+const SECRETS = [
+  {
+    truth: 'Reyes did it.',
+    clues: [
+      { text: 'Cut marks', found: false },
+      { text: 'Gloves', found: false },
+    ],
+  },
+];
 
 describe('scenario state in play', () => {
   it('moves a clock within its segments', () => {

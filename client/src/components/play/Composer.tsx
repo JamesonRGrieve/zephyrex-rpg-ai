@@ -24,7 +24,11 @@ const CHANNELS: { value: ComposerChannel; label: string }[] = [
 ];
 
 const BOX_LABELS: Record<ComposerChannel, string> = { ic: 'Your next line', ooc: 'Table talk', gm: 'A question for the GM' };
-const PLACEHOLDERS: Record<ComposerChannel, string> = { ic: 'What do you say or do?', ooc: 'Talk to the table…', gm: 'Ask the GM, out of character…' };
+const PLACEHOLDERS: Record<ComposerChannel, string> = {
+  ic: 'What do you say or do?',
+  ooc: 'Talk to the table…',
+  gm: 'Ask the GM, out of character…',
+};
 
 /** Whether the device's main pointer is coarse (a finger), where Enter should not send. */
 function touchFirst(): boolean {
@@ -70,7 +74,9 @@ export function Composer({
   const [channel, setChannel] = useState<ComposerChannel>('ic');
   const boxId = useId();
   // Dictation (A29): each finished phrase is added to what is typed.
-  const dictation = useDictation((phrase) => setText((current) => (current.trim() === '' ? phrase : `${current.trimEnd()} ${phrase}`)));
+  const dictation = useDictation((phrase) =>
+    setText((current) => (current.trim() === '' ? phrase : `${current.trimEnd()} ${phrase}`)),
+  );
 
   const [images, setImages] = useState<string[]>([]);
   const [pictureProblem, setPictureProblem] = useState<string | null>(null);
@@ -221,7 +227,10 @@ export function Composer({
               />
               <label
                 htmlFor={attachId}
-                className={cn('flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring', images.length >= LIMITS.images_per_message && 'pointer-events-none text-muted-foreground')}
+                className={cn(
+                  'flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
+                  images.length >= LIMITS.images_per_message && 'pointer-events-none text-muted-foreground',
+                )}
               >
                 <ImagePlus className='size-5' aria-hidden />
               </label>
@@ -255,7 +264,15 @@ export function Composer({
             </Button>
           )}
           {onNarrate !== undefined && !writing && channel === 'ic' && (
-            <Button type='button' size='icon' variant='ghost' className='size-11 shrink-0' aria-label='Narrate what happens next' disabled={disabled} onClick={onNarrate}>
+            <Button
+              type='button'
+              size='icon'
+              variant='ghost'
+              className='size-11 shrink-0'
+              aria-label='Narrate what happens next'
+              disabled={disabled}
+              onClick={onNarrate}
+            >
               <BookOpen aria-hidden />
             </Button>
           )}
@@ -277,11 +294,24 @@ export function Composer({
             </Button>
           )}
           {writing ? (
-            <Button type='button' size='icon' variant='outline' className='size-11 shrink-0' aria-label='Stop the reply' onClick={onStop}>
+            <Button
+              type='button'
+              size='icon'
+              variant='outline'
+              className='size-11 shrink-0'
+              aria-label='Stop the reply'
+              onClick={onStop}
+            >
               <Square aria-hidden />
             </Button>
           ) : (
-            <Button type='submit' size='icon' className='size-11 shrink-0' aria-label='Send' disabled={disabled || text.trim() === ''}>
+            <Button
+              type='submit'
+              size='icon'
+              className='size-11 shrink-0'
+              aria-label='Send'
+              disabled={disabled || text.trim() === ''}
+            >
               <Send aria-hidden />
             </Button>
           )}

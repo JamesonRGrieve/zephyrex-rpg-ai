@@ -35,7 +35,15 @@ export function parseStops(text: string): string[] {
     .slice(0, LIMITS.preset_stop_strings);
 }
 
-function SamplerField({ setting, value, onChange }: { setting: (typeof SETTINGS)[number]; value: number; onChange: (value: number) => void }): ReactElement {
+function SamplerField({
+  setting,
+  value,
+  onChange,
+}: {
+  setting: (typeof SETTINGS)[number];
+  value: number;
+  onChange: (value: number) => void;
+}): ReactElement {
   const id = useId();
   const [low, high] = SAMPLER_RANGES[setting.key];
   return (
@@ -54,7 +62,14 @@ function SamplerField({ setting, value, onChange }: { setting: (typeof SETTINGS)
           onChange={(event) => onChange(Math.min(high, Math.max(low, Number(event.target.value))))}
         />
       </div>
-      <Slider min={low} max={high} step={setting.step} value={[value]} aria-label={setting.label} onValueChange={([next]) => next !== undefined && onChange(next)} />
+      <Slider
+        min={low}
+        max={high}
+        step={setting.step}
+        value={[value]}
+        aria-label={setting.label}
+        onValueChange={([next]) => next !== undefined && onChange(next)}
+      />
     </div>
   );
 }
@@ -80,7 +95,11 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
   const [values, setValues] = useState<Samplers>(() => samplersOf(preset ?? PRESET_DEFAULTS));
   const [stops, setStops] = useState((preset?.stop ?? []).join('\n'));
   const [layout, setLayout] = useState<PromptSection[]>(preset?.prompt_layout ?? []);
-  const [bias, setBias] = useState(Object.entries(preset?.logit_bias ?? {}).map(([token, value]) => `${token}: ${value}`).join('\n'));
+  const [bias, setBias] = useState(
+    Object.entries(preset?.logit_bias ?? {})
+      .map(([token, value]) => `${token}: ${value}`)
+      .join('\n'),
+  );
   const [negative, setNegative] = useState(preset?.negative_prompt ?? '');
   const [guidance, setGuidance] = useState(preset?.guidance_scale?.toString() ?? '');
   const [problem, setProblem] = useState<string | null>(null);
@@ -116,39 +135,86 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
     >
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.name}>Name</Label>
-        <Input id={ids.name} required value={name} maxLength={LIMITS.name_characters} className='h-11' onChange={(event) => setName(event.target.value)} />
+        <Input
+          id={ids.name}
+          required
+          value={name}
+          maxLength={LIMITS.name_characters}
+          className='h-11'
+          onChange={(event) => setName(event.target.value)}
+        />
       </div>
       {SETTINGS.map((setting) => (
-        <SamplerField key={setting.key} setting={setting} value={values[setting.key]} onChange={(next) => setValues({ ...values, [setting.key]: next })} />
+        <SamplerField
+          key={setting.key}
+          setting={setting}
+          value={values[setting.key]}
+          onChange={(next) => setValues({ ...values, [setting.key]: next })}
+        />
       ))}
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.stops}>Stop strings</Label>
         <p id={`${ids.stops}-hint`} className='text-xs text-muted-foreground'>
           One per line. The reply ends when the model writes one.
         </p>
-        <textarea id={ids.stops} rows={3} value={stops} aria-describedby={`${ids.stops}-hint`} className='rounded-md border bg-background p-2 text-sm' onChange={(event) => setStops(event.target.value)} />
+        <textarea
+          id={ids.stops}
+          rows={3}
+          value={stops}
+          aria-describedby={`${ids.stops}-hint`}
+          className='rounded-md border bg-background p-2 text-sm'
+          onChange={(event) => setStops(event.target.value)}
+        />
       </div>
       <PromptLayoutEditor value={layout} onChange={setLayout} />
       <details className='grid gap-3 rounded-lg border p-3'>
-        <summary className='min-h-11 cursor-pointer content-center text-sm font-medium'>Advanced: logit bias and guidance</summary>
+        <summary className='min-h-11 cursor-pointer content-center text-sm font-medium'>
+          Advanced: logit bias and guidance
+        </summary>
         <div className='mt-3 grid gap-4'>
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.bias}>Logit bias</Label>
             <p id={`${ids.bias}-hint`} className='text-xs text-muted-foreground'>
               One per line as token id: bias, from -100 (never) to 100 (always). Only servers that take it use it.
             </p>
-            <textarea id={ids.bias} rows={3} value={bias} aria-describedby={`${ids.bias}-hint`} placeholder='50256: -100' className='rounded-md border bg-background p-2 font-mono text-sm' onChange={(event) => setBias(event.target.value)} />
+            <textarea
+              id={ids.bias}
+              rows={3}
+              value={bias}
+              aria-describedby={`${ids.bias}-hint`}
+              placeholder='50256: -100'
+              className='rounded-md border bg-background p-2 font-mono text-sm'
+              onChange={(event) => setBias(event.target.value)}
+            />
           </div>
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.negative}>Negative prompt</Label>
             <p id={`${ids.negative}-hint`} className='text-xs text-muted-foreground'>
               What guidance steers away from, on servers with classifier-free guidance.
             </p>
-            <textarea id={ids.negative} rows={2} value={negative} aria-describedby={`${ids.negative}-hint`} className='rounded-md border bg-background p-2 text-sm' onChange={(event) => setNegative(event.target.value)} />
+            <textarea
+              id={ids.negative}
+              rows={2}
+              value={negative}
+              aria-describedby={`${ids.negative}-hint`}
+              className='rounded-md border bg-background p-2 text-sm'
+              onChange={(event) => setNegative(event.target.value)}
+            />
           </div>
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.guidance}>Guidance scale</Label>
-            <Input id={ids.guidance} type='number' inputMode='decimal' step={0.1} min={1} max={5} placeholder='Off' value={guidance} className='h-11 w-32' onChange={(event) => setGuidance(event.target.value)} />
+            <Input
+              id={ids.guidance}
+              type='number'
+              inputMode='decimal'
+              step={0.1}
+              min={1}
+              max={5}
+              placeholder='Off'
+              value={guidance}
+              className='h-11 w-32'
+              onChange={(event) => setGuidance(event.target.value)}
+            />
           </div>
         </div>
       </details>

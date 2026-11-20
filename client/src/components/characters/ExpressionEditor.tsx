@@ -57,7 +57,9 @@ export function ExpressionSprites({
   return (
     <fieldset className='grid gap-3 rounded-lg border p-3'>
       <legend className='px-1 text-sm font-medium'>Expressions</legend>
-      <p className='text-xs text-muted-foreground'>A picture of {name} for each feeling. In a chat, the one that fits each line is shown.</p>
+      <p className='text-xs text-muted-foreground'>
+        A picture of {name} for each feeling. In a chat, the one that fits each line is shown.
+      </p>
       {shown.length > 0 && (
         <ul className='flex flex-wrap gap-3' aria-label='Sprites'>
           {shown.map((sprite) => (
@@ -89,7 +91,14 @@ export function ExpressionSprites({
         <label htmlFor={ids.label} className='sr-only'>
           Feeling
         </label>
-        <Input id={ids.label} value={label} maxLength={EXPRESSION.label_characters} placeholder='joy' className='h-11 w-40' onChange={(event) => setLabel(event.target.value)} />
+        <Input
+          id={ids.label}
+          value={label}
+          maxLength={EXPRESSION.label_characters}
+          placeholder='joy'
+          className='h-11 w-40'
+          onChange={(event) => setLabel(event.target.value)}
+        />
         <input
           id={ids.file}
           type='file'

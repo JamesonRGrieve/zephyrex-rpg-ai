@@ -26,7 +26,14 @@ const COLUMNS: Columns = {
 
 const items = z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.campaign_list_items);
 const scale = (keys: readonly string[], [low, high]: readonly number[]) =>
-  z.record(z.enum(keys as [string, ...string[]]), z.number().int().min(low as number).max(high as number));
+  z.record(
+    z.enum(keys as [string, ...string[]]),
+    z
+      .number()
+      .int()
+      .min(low as number)
+      .max(high as number),
+  );
 const fields = {
   name: z.string().trim().min(1).max(LIMITS.name_characters),
   premise: z.string().max(LIMITS.card_field_characters),
@@ -70,16 +77,25 @@ export const campaigns: ResourceSpec<Row, z.infer<typeof create>, z.infer<typeof
   updateSchema: update,
   list: (ownerId) => prisma.campaign.findMany({ where: { createdById: ownerId }, orderBy: { name: 'asc' } }),
   find: (id, ownerId) => prisma.campaign.findFirst({ where: { id, createdById: ownerId } }),
-  insert: (ownerId, input, stamp) => prisma.campaign.create({ data: { createdById: ownerId, ...written(input, stamp) } as Prisma.CampaignUncheckedCreateInput }),
+  insert: (ownerId, input, stamp) =>
+    prisma.campaign.create({
+      data: { createdById: ownerId, ...written(input, stamp) } as Prisma.CampaignUncheckedCreateInput,
+    }),
   async updateIfCurrent(id, version, input, stamp, userId) {
-    const { count } = await prisma.campaign.updateMany({ where: { id, updatedAt: version }, data: written(input, stamp, userId) as Prisma.CampaignUncheckedUpdateManyInput });
+    const { count } = await prisma.campaign.updateMany({
+      where: { id, updatedAt: version },
+      data: written(input, stamp, userId) as Prisma.CampaignUncheckedUpdateManyInput,
+    });
     return count === 0 ? null : prisma.campaign.findUnique({ where: { id } });
   },
   async remove(id) {
     const campaign = await prisma.campaign.findUnique({ where: { id }, select: { createdById: true } });
     if (campaign === null) return;
     await prisma.$transaction([
-      prisma.chat.updateMany({ where: { createdById: campaign.createdById, campaignId: id }, data: { campaignId: null, updatedAt: new Date() } }),
+      prisma.chat.updateMany({
+        where: { createdById: campaign.createdById, campaignId: id },
+        data: { campaignId: null, updatedAt: new Date() },
+      }),
       prisma.campaign.delete({ where: { id } }),
     ]);
   },
@@ -109,9 +125,18 @@ const long = z.string().trim().max(LIMITS.card_field_characters);
 const named = z.string().trim().min(1).max(LIMITS.short_text_characters);
 const [fewestSegments, mostSegments] = SCENARIO.clock_segment_range as [number, number];
 const clock = z
-  .object({ name: named, segments: z.number().int().min(fewestSegments).max(mostSegments), filled: z.number().int().min(0), advances: short, when_full: short })
+  .object({
+    name: named,
+    segments: z.number().int().min(fewestSegments).max(mostSegments),
+    filled: z.number().int().min(0),
+    advances: short,
+    when_full: short,
+  })
   .strict()
-  .refine((one) => one.filled <= one.segments, { message: 'A clock’s filled segments are 0 to its segments', path: ['filled'] });
+  .refine((one) => one.filled <= one.segments, {
+    message: 'A clock’s filled segments are 0 to its segments',
+    path: ['filled'],
+  });
 const scenarioFields = {
   name: z.string().trim().min(1).max(LIMITS.name_characters),
   campaign_id: z.string().min(1).nullable(),
@@ -123,7 +148,14 @@ const scenarioFields = {
   places: z.array(named).max(limits.places),
   clocks: z.array(clock).max(limits.clocks),
   secrets: z
-    .array(z.object({ truth: z.string().trim().min(1).max(LIMITS.card_field_characters), clues: z.array(z.object({ text: named, found: z.boolean() }).strict()).max(limits.clues_per_secret) }).strict())
+    .array(
+      z
+        .object({
+          truth: z.string().trim().min(1).max(LIMITS.card_field_characters),
+          clues: z.array(z.object({ text: named, found: z.boolean() }).strict()).max(limits.clues_per_secret),
+        })
+        .strict(),
+    )
     .max(limits.secrets),
   beats: z.array(z.object({ text: named, done: z.boolean() }).strict()).max(limits.beats),
   outcomes: z.array(named).max(limits.outcomes),
@@ -148,7 +180,8 @@ type ScenarioRow = Prisma.ScenarioGetPayload<object>;
 
 async function checkCampaign(ownerId: string, campaignId: string | null | undefined): Promise<void> {
   if (campaignId === null || campaignId === undefined) return;
-  if ((await prisma.campaign.count({ where: { id: campaignId, createdById: ownerId } })) === 0) throw validationError('That campaign is not one of yours', 'campaign_id');
+  if ((await prisma.campaign.count({ where: { id: campaignId, createdById: ownerId } })) === 0)
+    throw validationError('That campaign is not one of yours', 'campaign_id');
 }
 
 export const scenarios: ResourceSpec<ScenarioRow, z.infer<typeof scenarioCreate>, z.infer<typeof scenarioUpdate>> = {
@@ -161,14 +194,24 @@ export const scenarios: ResourceSpec<ScenarioRow, z.infer<typeof scenarioCreate>
   find: (id, ownerId) => prisma.scenario.findFirst({ where: { id, createdById: ownerId } }),
   async insert(ownerId, input, stamp) {
     await checkCampaign(ownerId, input.campaign_id);
-    return prisma.scenario.create({ data: { createdById: ownerId, ...columnsOf(SCENARIO_COLUMNS, input), updatedAt: stamp } as Prisma.ScenarioUncheckedCreateInput });
+    return prisma.scenario.create({
+      data: {
+        createdById: ownerId,
+        ...columnsOf(SCENARIO_COLUMNS, input),
+        updatedAt: stamp,
+      } as Prisma.ScenarioUncheckedCreateInput,
+    });
   },
   async updateIfCurrent(id, version, input, stamp, userId) {
     const row = await prisma.scenario.findUnique({ where: { id }, select: { createdById: true } });
     if (row !== null) await checkCampaign(row.createdById, input.campaign_id);
     const { count } = await prisma.scenario.updateMany({
       where: { id, updatedAt: version },
-      data: { ...columnsOf(SCENARIO_COLUMNS, input), updatedAt: stamp, ...(userId === undefined ? {} : { updatedById: userId }) } as Prisma.ScenarioUncheckedUpdateManyInput,
+      data: {
+        ...columnsOf(SCENARIO_COLUMNS, input),
+        updatedAt: stamp,
+        ...(userId === undefined ? {} : { updatedById: userId }),
+      } as Prisma.ScenarioUncheckedUpdateManyInput,
     });
     return count === 0 ? null : prisma.scenario.findUnique({ where: { id } });
   },
@@ -176,10 +219,12 @@ export const scenarios: ResourceSpec<ScenarioRow, z.infer<typeof scenarioCreate>
     const scenario = await prisma.scenario.findUnique({ where: { id }, select: { createdById: true } });
     if (scenario === null) return;
     await prisma.$transaction([
-      prisma.chat.updateMany({ where: { createdById: scenario.createdById, scenarioId: id }, data: { scenarioId: null, updatedAt: new Date() } }),
+      prisma.chat.updateMany({
+        where: { createdById: scenario.createdById, scenarioId: id },
+        data: { scenarioId: null, updatedAt: new Date() },
+      }),
       prisma.scenario.delete({ where: { id } }),
     ]);
   },
   fields: (row) => fieldsOf(SCENARIO_COLUMNS, row),
 };
-

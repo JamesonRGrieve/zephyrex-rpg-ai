@@ -15,7 +15,9 @@ describe('lorebook editor helpers', () => {
   it('names a row by its label, first key or content', () => {
     expect(entryTitle({ comment: ' Tools ', keys: ['x'], content: '' })).toBe('Tools');
     expect(entryTitle({ comment: '', keys: ['spanner'], content: '' })).toBe('spanner');
-    expect(entryTitle({ comment: '', keys: [], content: 'A long piece of lore about the ship and its crew' })).toBe('A long piece of lore about the ship and ');
+    expect(entryTitle({ comment: '', keys: [], content: 'A long piece of lore about the ship and its crew' })).toBe(
+      'A long piece of lore about the ship and ',
+    );
     expect(entryTitle({ comment: '', keys: [], content: '' })).toBe('Untitled entry');
   });
 

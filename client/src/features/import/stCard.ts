@@ -39,7 +39,8 @@ const CHUNK_CRC = 4;
 const CARD_KEYWORDS = ['ccv3', 'chara'];
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
-const texts = (value: unknown): string[] => (Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : []);
+const texts = (value: unknown): string[] =>
+  Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [];
 const object = (value: unknown): Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value) ? (value as Record<string, unknown>) : {};
 
@@ -113,7 +114,8 @@ export function pngTextChunks(bytes: Uint8Array): { keyword: string; text: strin
     if (type === 'tEXt') {
       const body = bytes.subarray(start, start + length);
       const split = body.indexOf(0);
-      if (split > 0) chunks.push({ keyword: latin1.decode(body.subarray(0, split)), text: latin1.decode(body.subarray(split + 1)) });
+      if (split > 0)
+        chunks.push({ keyword: latin1.decode(body.subarray(0, split)), text: latin1.decode(body.subarray(split + 1)) });
     }
     if (type === 'IEND') break;
     offset = start + length + CHUNK_CRC;
@@ -130,7 +132,9 @@ function decodeBase64Json(encoded: string): unknown {
 /** The card JSON a PNG carries (V3's `ccv3` preferred over V2's `chara`). */
 export function cardJsonFromPng(bytes: Uint8Array): unknown {
   const chunks = pngTextChunks(bytes);
-  const chunk = CARD_KEYWORDS.map((keyword) => chunks.find((found) => found.keyword === keyword)).find((found) => found !== undefined);
+  const chunk = CARD_KEYWORDS.map((keyword) => chunks.find((found) => found.keyword === keyword)).find(
+    (found) => found !== undefined,
+  );
   if (chunk === undefined) throw new CardError('This PNG carries no character card');
   try {
     return decodeBase64Json(chunk.text);

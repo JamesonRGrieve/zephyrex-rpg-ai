@@ -27,7 +27,20 @@ const VIEWPORTS = {
 } as const;
 const THEMES = ['dark', 'light'] as const;
 const VISITOR_PAGES = ['/', '/user', '/docs/privacy'];
-const APP_PAGES = ['/play', '/campaigns', '/scenarios', '/characters', '/lorebooks', '/data-bank', '/personas', '/presets', '/models', '/regex', '/quick-replies', '/settings'];
+const APP_PAGES = [
+  '/play',
+  '/campaigns',
+  '/scenarios',
+  '/characters',
+  '/lorebooks',
+  '/data-bank',
+  '/personas',
+  '/presets',
+  '/models',
+  '/regex',
+  '/quick-replies',
+  '/settings',
+];
 /** The dev server's own badge is not part of the app: leave it out of the shots. */
 const HIDE_DEV_TOOLS = 'nextjs-portal { display: none !important; }';
 const PER_SHOT_MS = 15_000;
@@ -160,9 +173,18 @@ async function audit(browser: Browser, testInfo: TestInfo, signedIn: boolean): P
         if (signedIn && isHosted(testInfo)) await signIn(page);
         // Signed in, the pages with something in them too: a character and a chat.
         const seeded = signedIn ? await seedChat(page) : null;
-        const targets = seeded === null ? pages : [...pages, `/characters/${seeded.characterId}`, `/play/${seeded.chatId}`, `/lorebooks/${seeded.lorebookId}`];
+        const targets =
+          seeded === null
+            ? pages
+            : [...pages, `/characters/${seeded.characterId}`, `/play/${seeded.chatId}`, `/lorebooks/${seeded.lorebookId}`];
         for (const target of targets) {
-          const slug = target === '/' ? 'home' : target.slice(1).replaceAll('/', '-').replace(/[0-9a-f-]{36}$/, 'record');
+          const slug =
+            target === '/'
+              ? 'home'
+              : target
+                  .slice(1)
+                  .replaceAll('/', '-')
+                  .replace(/[0-9a-f-]{36}$/, 'record');
           const name = `${testInfo.project.name}-${signedIn ? 'in' : 'out'}-${size}-${theme}-${slug}`;
           expectClean(await shoot(page, origin, target, name));
         }

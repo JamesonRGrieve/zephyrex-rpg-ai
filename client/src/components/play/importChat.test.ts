@@ -31,7 +31,14 @@ describe('writeImportedChat', () => {
     expect(result).toEqual({ id: 'chat', messages: 2 });
     expect(written).toEqual([
       { title: 'Chat with Ada (imported)', character_ids: ['c-ada'] },
-      { chat_id: 'chat', parent_id: null, role: 'character', speaker_character_id: 'c-ada', swipes: ['Hi.', 'Hello.'], swipe_index: 1 },
+      {
+        chat_id: 'chat',
+        parent_id: null,
+        role: 'character',
+        speaker_character_id: 'c-ada',
+        swipes: ['Hi.', 'Hello.'],
+        swipe_index: 1,
+      },
       { chat_id: 'chat', parent_id: 'm1', role: 'user', speaker_character_id: null, swipes: ['I wave.'], swipe_index: 0 },
     ]);
   });

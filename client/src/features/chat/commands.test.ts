@@ -16,8 +16,16 @@ describe('parseCommand', () => {
   });
 
   it('finds who /sendas speaks as: quoted, a cast name with spaces, or the first word', () => {
-    expect(parseCommand('/sendas "Ada Vance" Mind the coolant.')).toEqual({ name: 'sendas', character: 'Ada Vance', text: 'Mind the coolant.' });
-    expect(parseCommand('/sendas ada vance Mind it.', ['Ada Vance'])).toEqual({ name: 'sendas', character: 'Ada Vance', text: 'Mind it.' });
+    expect(parseCommand('/sendas "Ada Vance" Mind the coolant.')).toEqual({
+      name: 'sendas',
+      character: 'Ada Vance',
+      text: 'Mind the coolant.',
+    });
+    expect(parseCommand('/sendas ada vance Mind it.', ['Ada Vance'])).toEqual({
+      name: 'sendas',
+      character: 'Ada Vance',
+      text: 'Mind it.',
+    });
     expect(parseCommand('/sendas Bram Stew is up.')).toEqual({ name: 'sendas', character: 'Bram', text: 'Stew is up.' });
   });
 

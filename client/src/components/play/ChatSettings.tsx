@@ -137,16 +137,38 @@ export function ChatSettings({
   const [linesText, setLinesText] = useState(value.lines.join(', '));
   const [veilsText, setVeilsText] = useState(value.veils.join(', '));
   const [pictureProblem, setPictureProblem] = useState<string | null>(null);
-  const ids = { rating: useId(), lines: useId(), veils: useId(), background: useId(), folder: useId(), folderList: useId(), tags: useId(), title: useId(), summary: useId(), system: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
-  const setLore = <K extends keyof LoreSettingsValue>(key: K, next: LoreSettingsValue[K]) => set('lore_settings', { ...draft.lore_settings, [key]: next });
+  const ids = {
+    rating: useId(),
+    lines: useId(),
+    veils: useId(),
+    background: useId(),
+    folder: useId(),
+    folderList: useId(),
+    tags: useId(),
+    title: useId(),
+    summary: useId(),
+    system: useId(),
+    note: useId(),
+    scan: useId(),
+    budget: useId(),
+    recursion: useId(),
+  };
+  const setLore = <K extends keyof LoreSettingsValue>(key: K, next: LoreSettingsValue[K]) =>
+    set('lore_settings', { ...draft.lore_settings, [key]: next });
   const loreNumber = (key: 'scan_depth' | 'token_budget' | 'recursion_steps', text: string) => {
     const [low, high] = LORE.ranges[key];
     const value = Number.parseInt(text, 10);
     setLore(key, Number.isNaN(value) ? undefined : Math.min(high, Math.max(low, value)));
   };
   const toggleBook = (id: string) =>
-    set('lorebook_ids', draft.lorebook_ids.includes(id) ? draft.lorebook_ids.filter((one) => one !== id) : [...draft.lorebook_ids, id].slice(0, LIMITS.lorebooks_per_chat));
-  const set = <K extends keyof ChatSettingsValue>(key: K, next: ChatSettingsValue[K]) => setDraft((current) => ({ ...current, [key]: next }));
+    set(
+      'lorebook_ids',
+      draft.lorebook_ids.includes(id)
+        ? draft.lorebook_ids.filter((one) => one !== id)
+        : [...draft.lorebook_ids, id].slice(0, LIMITS.lorebooks_per_chat),
+    );
+  const set = <K extends keyof ChatSettingsValue>(key: K, next: ChatSettingsValue[K]) =>
+    setDraft((current) => ({ ...current, [key]: next }));
 
   return (
     <Sheet
@@ -171,7 +193,9 @@ export function ChatSettings({
           onSubmit={(event) => {
             event.preventDefault();
             // Settings left empty take the contract's defaults: they are not sent.
-            const loreSettings = Object.fromEntries(Object.entries(draft.lore_settings).filter(([, setting]) => setting !== undefined));
+            const loreSettings = Object.fromEntries(
+              Object.entries(draft.lore_settings).filter(([, setting]) => setting !== undefined),
+            );
             onSave({
               ...draft,
               title: draft.title.trim() || value.title,
@@ -186,12 +210,26 @@ export function ChatSettings({
         >
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.title}>Title</Label>
-            <Input id={ids.title} value={draft.title} maxLength={LIMITS.chat_title_characters} className='h-11' onChange={(event) => set('title', event.target.value)} />
+            <Input
+              id={ids.title}
+              value={draft.title}
+              maxLength={LIMITS.chat_title_characters}
+              className='h-11'
+              onChange={(event) => set('title', event.target.value)}
+            />
           </div>
           <div className='grid gap-3 sm:grid-cols-2'>
             <div className='grid gap-1.5'>
               <Label htmlFor={ids.folder}>Folder</Label>
-              <Input id={ids.folder} list={ids.folderList} value={draft.folder} maxLength={LIMITS.name_characters} placeholder='None' className='h-11' onChange={(event) => set('folder', event.target.value)} />
+              <Input
+                id={ids.folder}
+                list={ids.folderList}
+                value={draft.folder}
+                maxLength={LIMITS.name_characters}
+                placeholder='None'
+                className='h-11'
+                onChange={(event) => set('folder', event.target.value)}
+              />
               <datalist id={ids.folderList}>
                 {folders.map((name) => (
                   <option key={name} value={name} />
@@ -200,14 +238,50 @@ export function ChatSettings({
             </div>
             <div className='grid gap-1.5'>
               <Label htmlFor={ids.tags}>Tags</Label>
-              <Input id={ids.tags} value={tagText} placeholder='heist, Vell' className='h-11' onChange={(event) => setTagText(event.target.value)} />
+              <Input
+                id={ids.tags}
+                value={tagText}
+                placeholder='heist, Vell'
+                className='h-11'
+                onChange={(event) => setTagText(event.target.value)}
+              />
             </div>
           </div>
-          <Choice label='Campaign' value={draft.campaign_id} options={campaigns} noneLabel='None' onChange={(next) => set('campaign_id', next)} />
-          <Choice label='Scenario' value={draft.scenario_id} options={scenarios} noneLabel='None' onChange={(next) => set('scenario_id', next)} />
-          <Choice label='You play as' value={draft.persona_id} options={personas} noneLabel='Your default persona' onChange={(next) => set('persona_id', next)} />
-          <Choice label='Preset' value={draft.preset_id} options={presets} noneLabel='Default settings' onChange={(next) => set('preset_id', next)} />
-          <Choice label='Model' value={draft.endpoint_id} options={endpoints} noneLabel='Your default model' onChange={(next) => set('endpoint_id', next)} />
+          <Choice
+            label='Campaign'
+            value={draft.campaign_id}
+            options={campaigns}
+            noneLabel='None'
+            onChange={(next) => set('campaign_id', next)}
+          />
+          <Choice
+            label='Scenario'
+            value={draft.scenario_id}
+            options={scenarios}
+            noneLabel='None'
+            onChange={(next) => set('scenario_id', next)}
+          />
+          <Choice
+            label='You play as'
+            value={draft.persona_id}
+            options={personas}
+            noneLabel='Your default persona'
+            onChange={(next) => set('persona_id', next)}
+          />
+          <Choice
+            label='Preset'
+            value={draft.preset_id}
+            options={presets}
+            noneLabel='Default settings'
+            onChange={(next) => set('preset_id', next)}
+          />
+          <Choice
+            label='Model'
+            value={draft.endpoint_id}
+            options={endpoints}
+            noneLabel='Your default model'
+            onChange={(next) => set('endpoint_id', next)}
+          />
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.system}>System prompt</Label>
             <p id={`${ids.system}-hint`} className='text-xs text-muted-foreground'>
@@ -271,8 +345,13 @@ export function ChatSettings({
           <div className='grid gap-1.5'>
             <span className='text-sm font-medium'>Background</span>
             <div className='flex flex-wrap items-center gap-3'>
-              {draft.background !== null && <img src={draft.background} alt='' className='h-16 w-28 rounded-md border object-cover' />}
-              <label htmlFor={ids.background} className='inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border px-4 text-sm'>
+              {draft.background !== null && (
+                <img src={draft.background} alt='' className='h-16 w-28 rounded-md border object-cover' />
+              )}
+              <label
+                htmlFor={ids.background}
+                className='inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border px-4 text-sm'
+              >
                 <ImageUp className='size-4' aria-hidden /> {draft.background === null ? 'Choose a picture' : 'Change'}
               </label>
               <input
@@ -313,7 +392,12 @@ export function ChatSettings({
                     className='size-5'
                     checked={!draft.muted_ids.includes(member.id)}
                     onChange={() =>
-                      set('muted_ids', draft.muted_ids.includes(member.id) ? draft.muted_ids.filter((id) => id !== member.id) : [...draft.muted_ids, member.id])
+                      set(
+                        'muted_ids',
+                        draft.muted_ids.includes(member.id)
+                          ? draft.muted_ids.filter((id) => id !== member.id)
+                          : [...draft.muted_ids, member.id],
+                      )
                     }
                   />
                   {member.name}
@@ -342,11 +426,23 @@ export function ChatSettings({
             </div>
             <div className='grid gap-1.5'>
               <Label htmlFor={ids.lines}>Lines (never, even off-screen)</Label>
-              <Input id={ids.lines} value={linesText} placeholder='spiders, harm to children' className='h-11' onChange={(event) => setLinesText(event.target.value)} />
+              <Input
+                id={ids.lines}
+                value={linesText}
+                placeholder='spiders, harm to children'
+                className='h-11'
+                onChange={(event) => setLinesText(event.target.value)}
+              />
             </div>
             <div className='grid gap-1.5'>
               <Label htmlFor={ids.veils}>Veils (off-screen only)</Label>
-              <Input id={ids.veils} value={veilsText} placeholder='torture, romance' className='h-11' onChange={(event) => setVeilsText(event.target.value)} />
+              <Input
+                id={ids.veils}
+                value={veilsText}
+                placeholder='torture, romance'
+                className='h-11'
+                onChange={(event) => setVeilsText(event.target.value)}
+              />
             </div>
           </fieldset>
           <TableNotesEditor value={draft.table_notes} onChange={(next) => set('table_notes', next)} />
@@ -356,7 +452,12 @@ export function ChatSettings({
             {lorebooks.length === 0 && <p className='text-sm text-muted-foreground'>No lorebooks yet.</p>}
             {lorebooks.map((book) => (
               <label key={book.id} className='flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm'>
-                <input type='checkbox' className='size-5' checked={draft.lorebook_ids.includes(book.id)} onChange={() => toggleBook(book.id)} />
+                <input
+                  type='checkbox'
+                  className='size-5'
+                  checked={draft.lorebook_ids.includes(book.id)}
+                  onChange={() => toggleBook(book.id)}
+                />
                 {book.name}
               </label>
             ))}
@@ -366,23 +467,57 @@ export function ChatSettings({
             <div className='grid gap-3 sm:grid-cols-3'>
               <div className='grid gap-1.5'>
                 <Label htmlFor={ids.scan}>Messages scanned</Label>
-                <Input id={ids.scan} type='number' inputMode='numeric' className='h-11' placeholder={String(LORE.defaults.scan_depth)} value={draft.lore_settings.scan_depth ?? ''} onChange={(event) => loreNumber('scan_depth', event.target.value)} />
+                <Input
+                  id={ids.scan}
+                  type='number'
+                  inputMode='numeric'
+                  className='h-11'
+                  placeholder={String(LORE.defaults.scan_depth)}
+                  value={draft.lore_settings.scan_depth ?? ''}
+                  onChange={(event) => loreNumber('scan_depth', event.target.value)}
+                />
               </div>
               <div className='grid gap-1.5'>
                 <Label htmlFor={ids.budget}>Token budget</Label>
-                <Input id={ids.budget} type='number' inputMode='numeric' className='h-11' placeholder={String(LORE.defaults.token_budget)} value={draft.lore_settings.token_budget ?? ''} onChange={(event) => loreNumber('token_budget', event.target.value)} />
+                <Input
+                  id={ids.budget}
+                  type='number'
+                  inputMode='numeric'
+                  className='h-11'
+                  placeholder={String(LORE.defaults.token_budget)}
+                  value={draft.lore_settings.token_budget ?? ''}
+                  onChange={(event) => loreNumber('token_budget', event.target.value)}
+                />
               </div>
               <div className='grid gap-1.5'>
                 <Label htmlFor={ids.recursion}>Recursion steps</Label>
-                <Input id={ids.recursion} type='number' inputMode='numeric' className='h-11' placeholder={String(LORE.defaults.recursion_steps)} value={draft.lore_settings.recursion_steps ?? ''} onChange={(event) => loreNumber('recursion_steps', event.target.value)} />
+                <Input
+                  id={ids.recursion}
+                  type='number'
+                  inputMode='numeric'
+                  className='h-11'
+                  placeholder={String(LORE.defaults.recursion_steps)}
+                  value={draft.lore_settings.recursion_steps ?? ''}
+                  onChange={(event) => loreNumber('recursion_steps', event.target.value)}
+                />
               </div>
             </div>
             <label className='flex min-h-11 items-center gap-3 text-sm'>
-              <input type='checkbox' className='size-5' checked={draft.lore_settings.case_sensitive ?? false} onChange={(event) => setLore('case_sensitive', event.target.checked)} />
+              <input
+                type='checkbox'
+                className='size-5'
+                checked={draft.lore_settings.case_sensitive ?? false}
+                onChange={(event) => setLore('case_sensitive', event.target.checked)}
+              />
               Keys are case-sensitive
             </label>
             <label className='flex min-h-11 items-center gap-3 text-sm'>
-              <input type='checkbox' className='size-5' checked={draft.lore_settings.match_whole_words ?? false} onChange={(event) => setLore('match_whole_words', event.target.checked)} />
+              <input
+                type='checkbox'
+                className='size-5'
+                checked={draft.lore_settings.match_whole_words ?? false}
+                onChange={(event) => setLore('match_whole_words', event.target.checked)}
+              />
               Keys match whole words only
             </label>
           </fieldset>

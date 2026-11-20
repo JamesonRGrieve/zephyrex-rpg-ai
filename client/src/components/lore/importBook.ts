@@ -10,7 +10,10 @@ export interface BookWriters {
   createEntry(fields: EntryFields & { lorebook_id: string }): Promise<unknown>;
 }
 
-export async function writeImportedBook(book: ImportedLorebook, writers: BookWriters): Promise<{ id: string; entries: number }> {
+export async function writeImportedBook(
+  book: ImportedLorebook,
+  writers: BookWriters,
+): Promise<{ id: string; entries: number }> {
   const created = await writers.createBook({ name: book.name, description: book.description });
   await book.entries.reduce<Promise<unknown>>(
     (previous, entry) => previous.then(() => writers.createEntry({ ...entry, lorebook_id: created.id })),

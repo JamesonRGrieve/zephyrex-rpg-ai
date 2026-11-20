@@ -22,14 +22,19 @@ export function ContextInspector({ prompt }: { prompt: InspectedPrompt }): React
           The window
         </h3>
         <p className='text-sm'>
-          About {prompt.tokens.toLocaleString()} of {budget.toLocaleString()} tokens ({percent}%), leaving {prompt.max_tokens.toLocaleString()} for the reply.
+          About {prompt.tokens.toLocaleString()} of {budget.toLocaleString()} tokens ({percent}%), leaving{' '}
+          {prompt.max_tokens.toLocaleString()} for the reply.
         </p>
         <div className='h-2 overflow-hidden rounded-full bg-muted' role='img' aria-label={`${percent}% of the window used`}>
           <div className='h-full bg-primary' style={{ width: `${percent}%` }} />
         </div>
         <p className='text-sm text-muted-foreground'>
-          {prompt.dropped === 0 ? 'Nothing was left out.' : `${prompt.dropped} older ${prompt.dropped === 1 ? 'turn was' : 'turns were'} left out to fit.`}{' '}
-          {prompt.active_lore.length === 0 ? 'No lore entries went in.' : `${prompt.active_lore.length} lore ${prompt.active_lore.length === 1 ? 'entry' : 'entries'} went in.`}
+          {prompt.dropped === 0
+            ? 'Nothing was left out.'
+            : `${prompt.dropped} older ${prompt.dropped === 1 ? 'turn was' : 'turns were'} left out to fit.`}{' '}
+          {prompt.active_lore.length === 0
+            ? 'No lore entries went in.'
+            : `${prompt.active_lore.length} lore ${prompt.active_lore.length === 1 ? 'entry' : 'entries'} went in.`}
         </p>
       </section>
       <section aria-labelledby='context-messages' className='grid gap-2'>

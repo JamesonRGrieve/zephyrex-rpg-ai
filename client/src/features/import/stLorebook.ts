@@ -18,7 +18,15 @@ export interface ImportedLorebook {
 }
 
 // SillyTavern's numeric codes, in its order.
-const POSITIONS = ['before_char', 'after_char', 'before_an', 'after_an', 'at_depth', 'before_example', 'after_example'] as const;
+const POSITIONS = [
+  'before_char',
+  'after_char',
+  'before_an',
+  'after_an',
+  'at_depth',
+  'before_example',
+  'after_example',
+] as const;
 const LOGIC = ['and_any', 'not_all', 'not_any', 'and_all'] as const;
 const ROLES = ['system', 'user', 'assistant'] as const;
 
@@ -94,7 +102,10 @@ export function lorebookFromJson(json: unknown, fallbackName: string): ImportedL
 }
 
 /** A lorebook as a SillyTavern World Info file. */
-export function lorebookToJson(book: { name: string; description: string }, entries: readonly EntryFields[]): Record<string, unknown> {
+export function lorebookToJson(
+  book: { name: string; description: string },
+  entries: readonly EntryFields[],
+): Record<string, unknown> {
   return {
     name: book.name,
     description: book.description,
@@ -136,7 +147,10 @@ export function lorebookToJson(book: { name: string; description: string }, entr
 }
 
 /** A lorebook as a Character Card V2 `character_book` (spec fields, SillyTavern's extras in `extensions`). */
-export function characterBookFromEntries(book: { name: string; description: string }, entries: readonly EntryFields[]): Record<string, unknown> {
+export function characterBookFromEntries(
+  book: { name: string; description: string },
+  entries: readonly EntryFields[],
+): Record<string, unknown> {
   return {
     name: book.name,
     description: book.description,

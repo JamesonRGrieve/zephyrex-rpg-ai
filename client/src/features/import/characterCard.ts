@@ -12,6 +12,7 @@ export async function cardWithBook(
   entriesOf: () => Promise<readonly EntryFields[]>,
 ): Promise<Record<string, unknown>> {
   const card = cardToJson(fields);
-  if (book !== undefined) Reflect.set(Object(card.data), 'character_book', characterBookFromEntries(book, await entriesOf()));
+  if (book !== undefined)
+    Reflect.set(Object(card.data), 'character_book', characterBookFromEntries(book, await entriesOf()));
   return card;
 }

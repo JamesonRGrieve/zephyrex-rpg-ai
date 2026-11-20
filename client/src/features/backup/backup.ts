@@ -13,7 +13,9 @@ export const BACKUP_FORMAT = 'zephyrex-rpg-ai-backup';
 export const BACKUP_VERSION = 1;
 
 /** How a field of a record points at another record. */
-type Ref = { field: string; resource: string; many?: boolean } | { field: string; scopeField: string; byScope: Record<string, string> };
+type Ref =
+  | { field: string; resource: string; many?: boolean }
+  | { field: string; scopeField: string; byScope: Record<string, string> };
 
 export interface BackupResource {
   /** The singular name (paths and bodies). */
@@ -60,7 +62,11 @@ export const BACKUP_RESOURCES: readonly BackupResource[] = [
       { field: 'speaker_character_id', resource: 'character' },
     ],
   },
-  { resource: 'data_document', plural: 'data_documents', refs: [{ field: 'scope_id', scopeField: 'scope', byScope: { chat: 'chat', character: 'character' } }] },
+  {
+    resource: 'data_document',
+    plural: 'data_documents',
+    refs: [{ field: 'scope_id', scopeField: 'scope', byScope: { chat: 'chat', character: 'character' } }],
+  },
 ];
 
 /** Fields every record carries that the server sets. */
@@ -87,8 +93,10 @@ export class BackupFileError extends Error {
 }
 
 export function readBackup(json: unknown): Backup {
-  if (Reflect.get(Object(json), 'format') !== BACKUP_FORMAT) throw new BackupFileError('This is not a Zephyrex RPG AI backup');
-  if (Reflect.get(Object(json), 'version') !== BACKUP_VERSION) throw new BackupFileError('This backup is from another version');
+  if (Reflect.get(Object(json), 'format') !== BACKUP_FORMAT)
+    throw new BackupFileError('This is not a Zephyrex RPG AI backup');
+  if (Reflect.get(Object(json), 'version') !== BACKUP_VERSION)
+    throw new BackupFileError('This backup is from another version');
   const records: unknown = Reflect.get(Object(json), 'records');
   if (typeof records !== 'object' || records === null) throw new BackupFileError('This backup holds no records');
   return json as Backup;
@@ -114,7 +122,11 @@ export function parentsFirst(messages: readonly BackupRecord[]): BackupRecord[] 
  * The fields to write for `record`, its references pointed at the new ids (`ids`, by resource then
  * old id). A reference to a record that was not restored becomes null (or is left out of a list).
  */
-export function restoredFields(spec: BackupResource, record: BackupRecord, ids: ReadonlyMap<string, ReadonlyMap<string, string>>): Record<string, unknown> {
+export function restoredFields(
+  spec: BackupResource,
+  record: BackupRecord,
+  ids: ReadonlyMap<string, ReadonlyMap<string, string>>,
+): Record<string, unknown> {
   const dropped = new Set([...SERVER_SET, ...(spec.drop ?? [])]);
   const fields: Record<string, unknown> = Object.fromEntries(Object.entries(record).filter(([key]) => !dropped.has(key)));
   for (const ref of spec.refs) {
@@ -122,7 +134,9 @@ export function restoredFields(spec: BackupResource, record: BackupRecord, ids: 
     const value = record[ref.field];
     const map = target === undefined ? undefined : ids.get(target);
     if ('many' in ref && ref.many === true) {
-      fields[ref.field] = Array.isArray(value) ? value.flatMap((old) => (typeof old === 'string' && map?.has(old) === true ? [map.get(old)] : [])) : [];
+      fields[ref.field] = Array.isArray(value)
+        ? value.flatMap((old) => (typeof old === 'string' && map?.has(old) === true ? [map.get(old)] : []))
+        : [];
     } else if (typeof value === 'string') {
       fields[ref.field] = map?.get(value) ?? null;
     }

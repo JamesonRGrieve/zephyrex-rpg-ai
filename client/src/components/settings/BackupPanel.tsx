@@ -14,7 +14,15 @@ import { Button } from 'zephyrex/ui/button';
 import { z } from 'zod';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { jsonBody } from '~/features/data/records';
-import { BACKUP_RESOURCES, type BackupRecord, BackupFileError, makeBackup, parentsFirst, readBackup, restoredFields } from '~/features/backup/backup';
+import {
+  BACKUP_RESOURCES,
+  type BackupRecord,
+  BackupFileError,
+  makeBackup,
+  parentsFirst,
+  readBackup,
+  restoredFields,
+} from '~/features/backup/backup';
 
 const record = z.looseObject({ id: z.string() });
 
@@ -29,9 +37,19 @@ export function BackupPanel(): ReactElement {
     setBusy('saving');
     setProblem(null);
     try {
-      const lists = await Promise.all(BACKUP_RESOURCES.map(async (spec) => [spec.resource, (await client.list(`/v1/${spec.resource}`, spec.plural, record)) as BackupRecord[]] as const));
-      const url = URL.createObjectURL(new Blob([JSON.stringify(makeBackup(Object.fromEntries(lists)), null, 2)], { type: 'application/json' }));
-      const link = Object.assign(document.createElement('a'), { href: url, download: `rpg-ai-backup-${new Date().toISOString().slice(0, 10)}.json` });
+      const lists = await Promise.all(
+        BACKUP_RESOURCES.map(
+          async (spec) =>
+            [spec.resource, (await client.list(`/v1/${spec.resource}`, spec.plural, record)) as BackupRecord[]] as const,
+        ),
+      );
+      const url = URL.createObjectURL(
+        new Blob([JSON.stringify(makeBackup(Object.fromEntries(lists)), null, 2)], { type: 'application/json' }),
+      );
+      const link = Object.assign(document.createElement('a'), {
+        href: url,
+        download: `rpg-ai-backup-${new Date().toISOString().slice(0, 10)}.json`,
+      });
       link.click();
       URL.revokeObjectURL(url);
       notify('Backup saved');
@@ -53,7 +71,10 @@ export function BackupPanel(): ReactElement {
       let written = 0;
       /** One record written, its new id noted for the records that point at it. */
       const writeOne = async (spec: (typeof BACKUP_RESOURCES)[number], old: BackupRecord): Promise<void> => {
-        const answer = await client.post(`/v1/${spec.resource}`, jsonBody({ [spec.resource]: restoredFields(spec, old, ids) }));
+        const answer = await client.post(
+          `/v1/${spec.resource}`,
+          jsonBody({ [spec.resource]: restoredFields(spec, old, ids) }),
+        );
         ids.get(spec.resource)?.set(old.id, record.parse(Reflect.get(Object(answer), spec.resource)).id);
         written += 1;
       };
@@ -72,7 +93,13 @@ export function BackupPanel(): ReactElement {
       await mutate(() => true);
       notify('Backup restored', `${written} records added.`);
     } catch (error) {
-      setProblem(error instanceof BackupFileError ? error.message : error instanceof Error ? `Restoring stopped: ${error.message}` : 'The backup could not be restored');
+      setProblem(
+        error instanceof BackupFileError
+          ? error.message
+          : error instanceof Error
+            ? `Restoring stopped: ${error.message}`
+            : 'The backup could not be restored',
+      );
     }
     setBusy(null);
   };
@@ -83,16 +110,29 @@ export function BackupPanel(): ReactElement {
         Backups
       </h2>
       <p className='text-sm text-muted-foreground'>
-        Everything as one file: characters, lorebooks, chats, campaigns and the rest. Restoring adds it beside what is here. Model keys are not saved.
+        Everything as one file: characters, lorebooks, chats, campaigns and the rest. Restoring adds it beside what is here.
+        Model keys are not saved.
       </p>
       <div className='flex flex-wrap gap-2'>
         <Button type='button' className='h-11' disabled={busy !== null} onClick={() => void download()}>
           <DatabaseBackup aria-hidden /> {busy === 'saving' ? 'Saving…' : 'Save a backup'}
         </Button>
-        <Button type='button' variant='outline' className='h-11' disabled={busy !== null} onClick={() => fileInput.current?.click()}>
+        <Button
+          type='button'
+          variant='outline'
+          className='h-11'
+          disabled={busy !== null}
+          onClick={() => fileInput.current?.click()}
+        >
           <FileUp aria-hidden /> {busy === 'restoring' ? 'Restoring…' : 'Restore a backup'}
         </Button>
-        <input ref={fileInput} type='file' accept='.json,application/json' hidden onChange={(event) => void restore(event)} />
+        <input
+          ref={fileInput}
+          type='file'
+          accept='.json,application/json'
+          hidden
+          onChange={(event) => void restore(event)}
+        />
       </div>
       <WriteProblem problem={problem} />
     </section>

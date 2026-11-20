@@ -14,8 +14,13 @@ import { campaigns, type Scenario, scenarios } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
 
 function saveFile(scenario: Scenario): void {
-  const url = URL.createObjectURL(new Blob([JSON.stringify(scenarioToJson(scenario), null, 2)], { type: 'application/json' }));
-  const link = Object.assign(document.createElement('a'), { href: url, download: `${scenario.name.replace(/[^\w.-]+/g, '_') || 'scenario'}.json` });
+  const url = URL.createObjectURL(
+    new Blob([JSON.stringify(scenarioToJson(scenario), null, 2)], { type: 'application/json' }),
+  );
+  const link = Object.assign(document.createElement('a'), {
+    href: url,
+    download: `${scenario.name.replace(/[^\w.-]+/g, '_') || 'scenario'}.json`,
+  });
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -30,11 +35,19 @@ export function ScenarioManager(): ReactElement {
   const readFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = [...(event.target.files ?? [])];
     event.target.value = '';
-    const results = await Promise.allSettled(files.map(async (file) => create({ ...scenarioFromJson(JSON.parse(await file.text()) as unknown), campaign_id: null })));
+    const results = await Promise.allSettled(
+      files.map(async (file) =>
+        create({ ...scenarioFromJson(JSON.parse(await file.text()) as unknown), campaign_id: null }),
+      ),
+    );
     const done = results.filter((result) => result.status === 'fulfilled').length;
     if (done > 0) notify(done === 1 ? 'Scenario read in' : `${done} scenarios read in`);
     const refused = results.find((result) => result.status === 'rejected');
-    if (refused !== undefined) notify('Some files were not read in', refused.reason instanceof ScenarioFileError ? refused.reason.message : 'Each must be a scenario file (.json).');
+    if (refused !== undefined)
+      notify(
+        'Some files were not read in',
+        refused.reason instanceof ScenarioFileError ? refused.reason.message : 'Each must be a scenario file (.json).',
+      );
   };
 
   return (
@@ -43,7 +56,14 @@ export function ScenarioManager(): ReactElement {
         <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
           <FileUp aria-hidden /> Read in a scenario
         </Button>
-        <input ref={fileInput} type='file' accept='.json,application/json' multiple hidden onChange={(event) => void readFiles(event)} />
+        <input
+          ref={fileInput}
+          type='file'
+          accept='.json,application/json'
+          multiple
+          hidden
+          onChange={(event) => void readFiles(event)}
+        />
       </div>
       <ManagedList
         what='scenario'

@@ -4,11 +4,29 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ModelStatus } from './ModelStatus';
 
-const MODEL = { id: 'e1', created_at: 'x', updated_at: null, name: 'Local', base_url: 'http://h/v1', model: 'tiny', is_default: true, has_api_key: false, api: 'chat' as const, instruct_template: 'chatml' as const, roles: ['story' as const] };
+const MODEL = {
+  id: 'e1',
+  created_at: 'x',
+  updated_at: null,
+  name: 'Local',
+  base_url: 'http://h/v1',
+  model: 'tiny',
+  is_default: true,
+  has_api_key: false,
+  api: 'chat' as const,
+  instruct_template: 'chatml' as const,
+  roles: ['story' as const],
+};
 
 describe('ModelStatus', () => {
   it('checks a model and says how it answered, and when the model is not offered', async () => {
-    const check = vi.fn(async () => ({ ok: true, latency_ms: 42, status: 200, has_model: false, detail: '3 models offered' }));
+    const check = vi.fn(async () => ({
+      ok: true,
+      latency_ms: 42,
+      status: 200,
+      has_model: false,
+      detail: '3 models offered',
+    }));
     render(<ModelStatus models={[MODEL]} check={check} />);
     await userEvent.click(screen.getByRole('button', { name: 'Check Local' }));
     expect(await screen.findByText(/3 models offered · 42 ms · tiny is not offered/)).toBeInTheDocument();

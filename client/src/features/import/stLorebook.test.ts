@@ -30,7 +30,15 @@ const WORLD_INFO = {
       matchWholeWords: null,
       characterFilter: { names: ['Ada'], isExclude: true },
     },
-    '1': { uid: 1, key: 'harbour, dock', content: 'Ships dock here.', position: 6, disable: true, probability: 10, useProbability: false },
+    '1': {
+      uid: 1,
+      key: 'harbour, dock',
+      content: 'Ships dock here.',
+      position: 6,
+      disable: true,
+      probability: 10,
+      useProbability: false,
+    },
   },
 };
 
@@ -61,7 +69,12 @@ describe('SillyTavern lorebooks', () => {
       character_exclude: true,
     });
     // A comma-separated key string, after-examples position, disabled, and probability left off.
-    expect(book.entries[1]).toMatchObject({ keys: ['harbour', 'dock'], position: 'after_example', enabled: false, probability: 100 });
+    expect(book.entries[1]).toMatchObject({
+      keys: ['harbour', 'dock'],
+      position: 'after_example',
+      enabled: false,
+      probability: 100,
+    });
   });
 
   it('reads a card’s character_book, with SillyTavern’s extras in extensions', () => {
@@ -72,7 +85,14 @@ describe('SillyTavern lorebooks', () => {
         character_book: {
           name: 'Ada’s past',
           entries: [
-            { keys: ['forge'], content: 'She grew up at a forge.', insertion_order: 7, enabled: true, position: 'before_char', extensions: { depth: 9, probability: 60, useProbability: true } },
+            {
+              keys: ['forge'],
+              content: 'She grew up at a forge.',
+              insertion_order: 7,
+              enabled: true,
+              position: 'before_char',
+              extensions: { depth: 9, probability: 60, useProbability: true },
+            },
           ],
         },
       },
@@ -80,7 +100,14 @@ describe('SillyTavern lorebooks', () => {
     const book = lorebookFromJson(card, 'Ada');
     expect(book.name).toBe('Ada’s past');
     expect(book.entries).toEqual([
-      expect.objectContaining({ keys: ['forge'], order: 7, position: 'before_char', depth: 9, probability: 60, enabled: true }),
+      expect.objectContaining({
+        keys: ['forge'],
+        order: 7,
+        position: 'before_char',
+        depth: 9,
+        probability: 60,
+        enabled: true,
+      }),
     ]);
   });
 
@@ -98,7 +125,10 @@ describe('SillyTavern lorebooks', () => {
 
   it('writes a card book that reads back the same, at depth and all', () => {
     const book = lorebookFromJson(WORLD_INFO, 'x');
-    const card = { spec: 'chara_card_v2', data: { name: 'Ada', character_book: characterBookFromEntries({ name: 'Kestrel', description: '' }, book.entries) } };
+    const card = {
+      spec: 'chara_card_v2',
+      data: { name: 'Ada', character_book: characterBookFromEntries({ name: 'Kestrel', description: '' }, book.entries) },
+    };
     expect(lorebookFromJson(card, 'Ada').entries).toEqual(book.entries);
   });
 });

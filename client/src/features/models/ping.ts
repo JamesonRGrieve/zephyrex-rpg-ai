@@ -4,7 +4,13 @@
 import { csrfHeaders } from '@zephyrex/auth/lib/session';
 import { z } from 'zod';
 
-export const pingSchema = z.object({ ok: z.boolean(), latency_ms: z.number(), status: z.number().nullable(), has_model: z.boolean().nullable(), detail: z.string() });
+export const pingSchema = z.object({
+  ok: z.boolean(),
+  latency_ms: z.number(),
+  status: z.number().nullable(),
+  has_model: z.boolean().nullable(),
+  detail: z.string(),
+});
 export type PingResult = z.infer<typeof pingSchema>;
 
 export async function pingEndpoint(endpointId: string): Promise<PingResult> {

@@ -71,8 +71,12 @@ export const FEATURES: readonly Feature[] = [
   {
     id: 'models',
     title: 'Any model, anywhere',
-    summary: 'Point it at Ollama, llama.cpp, a gateway or a hosted API: anything OpenAI-compatible, or text completion with instruct templates.',
-    details: ['A model per job: replies, the GM, summaries, translation', 'Your API keys never leave your machine except to the endpoint you chose'],
+    summary:
+      'Point it at Ollama, llama.cpp, a gateway or a hosted API: anything OpenAI-compatible, or text completion with instruct templates.',
+    details: [
+      'A model per job: replies, the GM, summaries, translation',
+      'Your API keys never leave your machine except to the endpoint you chose',
+    ],
     availability: 'everywhere',
   },
   {
@@ -98,7 +102,8 @@ export const FAQS: readonly Faq[] = [
   },
   {
     question: 'Which models can I use?',
-    answer: 'Any endpoint that speaks the OpenAI chat-completions API: Ollama, llama.cpp, vLLM, a gateway such as Bifrost, or a hosted service.',
+    answer:
+      'Any endpoint that speaks the OpenAI chat-completions API: Ollama, llama.cpp, vLLM, a gateway such as Bifrost, or a hosted service.',
   },
   {
     question: 'Where are my chats kept?',
@@ -118,6 +123,12 @@ export const CLOSING = {
 
 export const FOOTER: readonly FooterColumn[] = [
   { title: 'App', links: [START, { label: 'Characters', href: '/characters' }, { label: 'Models', href: '/models' }] },
-  { title: 'Learn', links: [{ label: 'Features', href: '#features' }, { label: 'FAQ', href: '#faq' }] },
+  {
+    title: 'Learn',
+    links: [
+      { label: 'Features', href: '#features' },
+      { label: 'FAQ', href: '#faq' },
+    ],
+  },
   { title: 'More', links: [{ label: 'Privacy policy', href: '/docs/privacy' }] },
 ];

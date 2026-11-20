@@ -14,7 +14,11 @@ describe('CampaignBrief', () => {
   });
 
   it('leaves out what the frame leaves empty', () => {
-    render(<CampaignBrief campaign={{ ...KESTREL, dials: {}, themes: [], pillars: {}, structure: null, truths: [], characters: '' }} />);
+    render(
+      <CampaignBrief
+        campaign={{ ...KESTREL, dials: {}, themes: [], pillars: {}, structure: null, truths: [], characters: '' }}
+      />,
+    );
     expect(screen.queryByRole('heading', { name: 'What is true' })).not.toBeInTheDocument();
     expect(screen.queryByRole('heading', { name: 'Tone and themes' })).not.toBeInTheDocument();
   });

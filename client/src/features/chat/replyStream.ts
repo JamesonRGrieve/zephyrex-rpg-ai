@@ -5,9 +5,7 @@
  */
 
 export type ReplyEvent =
-  | { type: 'delta'; text: string }
-  | { type: 'done'; dropped: number }
-  | { type: 'error'; detail: string };
+  { type: 'delta'; text: string } | { type: 'done'; dropped: number } | { type: 'error'; detail: string };
 
 /** One event block (`event:` and `data:` lines); null when it is not one of ours. */
 export function parseEventBlock(block: string): ReplyEvent | null {
@@ -25,8 +23,10 @@ export function parseEventBlock(block: string): ReplyEvent | null {
   }
   const field = (key: string): unknown => Reflect.get(Object(body), key);
   if (name === 'delta' && typeof field('text') === 'string') return { type: 'delta', text: field('text') as string };
-  if (name === 'done') return { type: 'done', dropped: typeof field('dropped') === 'number' ? (field('dropped') as number) : 0 };
-  if (name === 'error') return { type: 'error', detail: typeof field('detail') === 'string' ? (field('detail') as string) : 'The reply failed' };
+  if (name === 'done')
+    return { type: 'done', dropped: typeof field('dropped') === 'number' ? (field('dropped') as number) : 0 };
+  if (name === 'error')
+    return { type: 'error', detail: typeof field('detail') === 'string' ? (field('detail') as string) : 'The reply failed' };
   return null;
 }
 

@@ -25,8 +25,13 @@ import { type RegexScriptRecord, regexScripts } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
 
 const PLACEMENT_LABELS: Record<RegexPlacement, string> = { user_input: 'Your messages', ai_output: 'Characters’ replies' };
-const TARGET_LABELS: Record<RegexTarget, string> = { stored: 'As saved', display: 'Only as shown', prompt: 'Only for the model' };
-const CHIP = 'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const TARGET_LABELS: Record<RegexTarget, string> = {
+  stored: 'As saved',
+  display: 'Only as shown',
+  prompt: 'Only for the model',
+};
+const CHIP =
+  'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
 
 export function targetOf(script: Pick<RegexScriptRecord, 'display_only' | 'prompt_only'>): RegexTarget {
   return script.display_only ? 'display' : script.prompt_only ? 'prompt' : 'stored';
@@ -50,7 +55,18 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
   const [position, setPosition] = useState(String(script?.position ?? 0));
   const [sample, setSample] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
-  const ids = { name: useId(), find: useId(), replace: useId(), where: useId(), when: useId(), min: useId(), max: useId(), enabled: useId(), position: useId(), sample: useId() };
+  const ids = {
+    name: useId(),
+    find: useId(),
+    replace: useId(),
+    where: useId(),
+    when: useId(),
+    min: useId(),
+    max: useId(),
+    enabled: useId(),
+    position: useId(),
+    sample: useId(),
+  };
   const valid = find !== '' && compileFind(find) !== null;
 
   const save = async () => {
@@ -77,7 +93,23 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
   const preview =
     sample === '' || !valid
       ? ''
-      : applyRegex(sample, [{ find, replace, placements: [placements[0] ?? 'ai_output'], display_only: false, prompt_only: false, min_depth: null, max_depth: null, enabled: true }], placements[0] ?? 'ai_output', 'stored');
+      : applyRegex(
+          sample,
+          [
+            {
+              find,
+              replace,
+              placements: [placements[0] ?? 'ai_output'],
+              display_only: false,
+              prompt_only: false,
+              min_depth: null,
+              max_depth: null,
+              enabled: true,
+            },
+          ],
+          placements[0] ?? 'ai_output',
+          'stored',
+        );
 
   return (
     <form
@@ -89,7 +121,15 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
     >
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.name}>Name</Label>
-        <Input id={ids.name} required value={name} maxLength={LIMITS.name_characters} placeholder='Italic actions' className='h-11' onChange={(event) => setName(event.target.value)} />
+        <Input
+          id={ids.name}
+          required
+          value={name}
+          maxLength={LIMITS.name_characters}
+          placeholder='Italic actions'
+          className='h-11'
+          onChange={(event) => setName(event.target.value)}
+        />
       </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.find}>Find</Label>
@@ -117,7 +157,15 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
         <p id={`${ids.replace}-hint`} className='text-xs text-muted-foreground'>
           $1, $2… for the groups; $&amp; or {'{{match}}'} for the whole match.
         </p>
-        <Textarea id={ids.replace} rows={2} value={replace} maxLength={LIMITS.regex_replacement_characters} className='font-mono' aria-describedby={`${ids.replace}-hint`} onChange={(event) => setReplace(event.target.value)} />
+        <Textarea
+          id={ids.replace}
+          rows={2}
+          value={replace}
+          maxLength={LIMITS.regex_replacement_characters}
+          className='font-mono'
+          aria-describedby={`${ids.replace}-hint`}
+          onChange={(event) => setReplace(event.target.value)}
+        />
       </div>
       <fieldset className='grid gap-2'>
         <legend id={ids.where} className='text-sm font-medium'>
@@ -130,7 +178,13 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
                 type='checkbox'
                 className='size-5'
                 checked={placements.includes(placement)}
-                onChange={() => setPlacements(placements.includes(placement) ? placements.filter((one) => one !== placement) : [...placements, placement])}
+                onChange={() =>
+                  setPlacements(
+                    placements.includes(placement)
+                      ? placements.filter((one) => one !== placement)
+                      : [...placements, placement],
+                  )
+                }
               />
               {PLACEMENT_LABELS[placement]}
             </label>
@@ -153,18 +207,42 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
         <div className='grid grid-cols-2 gap-3'>
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.min}>From depth</Label>
-            <Input id={ids.min} type='number' inputMode='numeric' placeholder='Newest (0)' className='h-11' value={minDepth} onChange={(event) => setMinDepth(event.target.value)} />
+            <Input
+              id={ids.min}
+              type='number'
+              inputMode='numeric'
+              placeholder='Newest (0)'
+              className='h-11'
+              value={minDepth}
+              onChange={(event) => setMinDepth(event.target.value)}
+            />
           </div>
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.max}>To depth</Label>
-            <Input id={ids.max} type='number' inputMode='numeric' placeholder='Oldest' className='h-11' value={maxDepth} onChange={(event) => setMaxDepth(event.target.value)} />
+            <Input
+              id={ids.max}
+              type='number'
+              inputMode='numeric'
+              placeholder='Oldest'
+              className='h-11'
+              value={maxDepth}
+              onChange={(event) => setMaxDepth(event.target.value)}
+            />
           </div>
         </div>
       )}
       <div className='grid grid-cols-2 gap-3'>
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.position}>Order</Label>
-          <Input id={ids.position} type='number' inputMode='numeric' min={0} className='h-11' value={position} onChange={(event) => setPosition(event.target.value)} />
+          <Input
+            id={ids.position}
+            type='number'
+            inputMode='numeric'
+            min={0}
+            className='h-11'
+            value={position}
+            onChange={(event) => setPosition(event.target.value)}
+          />
         </div>
         <div className='flex min-h-11 items-end justify-between gap-3 pb-2'>
           <Label htmlFor={ids.enabled}>On</Label>
@@ -173,8 +251,18 @@ function RegexForm({ script, done }: { script: RegexScriptRecord | null; done: (
       </div>
       <div className='grid gap-1.5 rounded-lg border bg-muted/40 p-3'>
         <Label htmlFor={ids.sample}>Try it</Label>
-        <Input id={ids.sample} value={sample} placeholder='*waves* Hello there.' className='h-11' onChange={(event) => setSample(event.target.value)} />
-        <output htmlFor={`${ids.sample} ${ids.find} ${ids.replace}`} aria-label='Result' className='min-h-6 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]'>
+        <Input
+          id={ids.sample}
+          value={sample}
+          placeholder='*waves* Hello there.'
+          className='h-11'
+          onChange={(event) => setSample(event.target.value)}
+        />
+        <output
+          htmlFor={`${ids.sample} ${ids.find} ${ids.replace}`}
+          aria-label='Result'
+          className='min-h-6 whitespace-pre-wrap text-sm [overflow-wrap:anywhere]'
+        >
           {preview}
         </output>
       </div>
@@ -195,17 +283,24 @@ export function RegexManager(): ReactElement {
   const readFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = [...(event.target.files ?? [])];
     event.target.value = '';
-    const read = await Promise.all(files.map(async (file) => regexScriptsFromJson(JSON.parse(await file.text()) as unknown))).catch(() => null);
+    const read = await Promise.all(
+      files.map(async (file) => regexScriptsFromJson(JSON.parse(await file.text()) as unknown)),
+    ).catch(() => null);
     if (read === null) {
       notify('Not read in', 'Each file must be a SillyTavern regex script (.json).');
       return;
     }
     const offset = list.data?.length ?? 0;
     const scripts = read.flatMap((one) => one.scripts);
-    const results = await Promise.allSettled(scripts.map((script, index) => create({ ...script, position: Math.min(LIMITS.regex_scripts, offset + index) })));
+    const results = await Promise.allSettled(
+      scripts.map((script, index) => create({ ...script, position: Math.min(LIMITS.regex_scripts, offset + index) })),
+    );
     const added = results.filter((result) => result.status === 'fulfilled').length;
     const refused = read.flatMap((one) => one.refused);
-    notify(`${added} ${added === 1 ? 'script' : 'scripts'} read in`, refused.length === 0 ? undefined : `Not usable here: ${refused.join(', ')}.`);
+    notify(
+      `${added} ${added === 1 ? 'script' : 'scripts'} read in`,
+      refused.length === 0 ? undefined : `Not usable here: ${refused.join(', ')}.`,
+    );
   };
 
   return (
@@ -214,19 +309,28 @@ export function RegexManager(): ReactElement {
         <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
           <FileUp aria-hidden /> Read in from SillyTavern
         </Button>
-        <input ref={fileInput} type='file' accept='.json,application/json' multiple hidden onChange={(event) => void readFiles(event)} />
+        <input
+          ref={fileInput}
+          type='file'
+          accept='.json,application/json'
+          multiple
+          hidden
+          onChange={(event) => void readFiles(event)}
+        />
       </div>
-    <ManagedList
-      what='regex script'
-      rows={list.data}
-      error={list.error}
-      onRetry={() => list.mutate()}
-      summary={(row) => `${row.enabled ? '' : 'Off · '}${TARGET_LABELS[targetOf(row)]} · ${row.placements.map((placement) => PLACEMENT_LABELS[placement]).join(', ')}`}
-      newLabel='New script'
-      emptyText='No regex scripts yet. Add one to tidy or restyle chat text, e.g. to show *actions* in italics.'
-      editor={(row, done) => <RegexForm script={row} done={done} />}
-      onDelete={(row) => void remove(row)}
-    />
+      <ManagedList
+        what='regex script'
+        rows={list.data}
+        error={list.error}
+        onRetry={() => list.mutate()}
+        summary={(row) =>
+          `${row.enabled ? '' : 'Off · '}${TARGET_LABELS[targetOf(row)]} · ${row.placements.map((placement) => PLACEMENT_LABELS[placement]).join(', ')}`
+        }
+        newLabel='New script'
+        emptyText='No regex scripts yet. Add one to tidy or restyle chat text, e.g. to show *actions* in italics.'
+        editor={(row, done) => <RegexForm script={row} done={done} />}
+        onDelete={(row) => void remove(row)}
+      />
     </div>
   );
 }

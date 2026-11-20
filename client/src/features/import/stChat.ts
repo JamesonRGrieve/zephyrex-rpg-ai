@@ -39,7 +39,10 @@ function turnOf(line: Record<string, unknown>): ImportedTurn | null {
   const swipes = Array.isArray(line.swipes) ? line.swipes.filter((swipe): swipe is string => typeof swipe === 'string') : [];
   const all = swipes.length > 0 ? swipes : [message];
   if (all.every((swipe) => swipe === '')) return null;
-  const chosen = typeof line.swipe_id === 'number' && line.swipe_id >= 0 && line.swipe_id < all.length ? line.swipe_id : Math.max(0, all.indexOf(message));
+  const chosen =
+    typeof line.swipe_id === 'number' && line.swipe_id >= 0 && line.swipe_id < all.length
+      ? line.swipe_id
+      : Math.max(0, all.indexOf(message));
   const role: ImportedRole = line.is_user === true ? 'user' : line.is_system === true ? 'narrator' : 'character';
   return { role, name: text(line.name), swipes: all, swipe_index: chosen };
 }
@@ -79,7 +82,10 @@ export interface ExportedMessage {
 }
 
 /** A branch as a SillyTavern chat file. */
-export function chatToJsonl(header: { characterName: string; userName: string; createdAt: string }, messages: readonly ExportedMessage[]): string {
+export function chatToJsonl(
+  header: { characterName: string; userName: string; createdAt: string },
+  messages: readonly ExportedMessage[],
+): string {
   const lines: unknown[] = [
     { user_name: header.userName, character_name: header.characterName, create_date: header.createdAt, chat_metadata: {} },
     ...messages.map((message) => ({

@@ -11,7 +11,11 @@ function Harness(): React.ReactElement {
   return <ScenarioPlay scenario={scenario} onChange={(next) => setScenario({ ...scenario, ...next })} />;
 }
 
-const meta: Meta<typeof Harness> = { title: 'Campaign/Scenario in play', component: Harness, decorators: [(Story) => <div className='max-w-md'>{Story()}</div>] };
+const meta: Meta<typeof Harness> = {
+  title: 'Campaign/Scenario in play',
+  component: Harness,
+  decorators: [(Story) => <div className='max-w-md'>{Story()}</div>],
+};
 export default meta;
 type Story = StoryObj<typeof Harness>;
 

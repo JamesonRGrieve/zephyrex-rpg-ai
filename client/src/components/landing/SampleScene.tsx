@@ -17,7 +17,11 @@ export function SampleScene(): ReactElement {
         {LINES.map((line) => (
           <li
             key={line.text}
-            className={line.kind === 'table' ? 'ml-6 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground' : 'rounded-lg border px-3 py-2'}
+            className={
+              line.kind === 'table'
+                ? 'ml-6 rounded-lg bg-muted px-3 py-2 text-sm text-muted-foreground'
+                : 'rounded-lg border px-3 py-2'
+            }
           >
             <span className='block text-xs font-semibold'>{line.who}</span>
             {line.text}

@@ -24,7 +24,15 @@ import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf, treeRows } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
-import { deviceLanguage, expressionFor, pictureOfScene, type InspectedPrompt, inspectPrompt, summarizeBranch, translateText } from '~/features/chat/inspectPrompt';
+import {
+  deviceLanguage,
+  expressionFor,
+  pictureOfScene,
+  type InspectedPrompt,
+  inspectPrompt,
+  summarizeBranch,
+  translateText,
+} from '~/features/chat/inspectPrompt';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
@@ -37,7 +45,24 @@ import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
 import { PICTURE, TABLE } from '~/contract';
-import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts, campaigns, scenarios, characterExpressions } from '~/features/data/records';
+import {
+  type Character,
+  type Chat,
+  type ChatMessage,
+  characters,
+  chats,
+  endpoints,
+  lorebooks,
+  messages,
+  type Persona,
+  personas,
+  presets,
+  quickReplies,
+  regexScripts,
+  campaigns,
+  scenarios,
+  characterExpressions,
+} from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
@@ -48,7 +73,12 @@ import { NextSpeaker } from './NextSpeaker';
 import { MessageItem, type MessageView } from './MessageItem';
 
 /** The chat's text size on this device (A49). */
-const TEXT_SIZE_CLASS: Record<TextSize, string> = { small: 'text-sm', normal: 'text-base', large: 'text-lg', larger: 'text-xl' };
+const TEXT_SIZE_CLASS: Record<TextSize, string> = {
+  small: 'text-sm',
+  normal: 'text-base',
+  large: 'text-lg',
+  larger: 'text-xl',
+};
 /** The campaign's resolution mode (A63–A66), named in the header. */
 const MODE_LABELS = { narrative: 'Narrative', mechanical: 'Rules as written', hybrid: 'Hybrid' } as const;
 const MODE_HINTS = {
@@ -72,7 +102,13 @@ export function messageViews(
     const character = message.speaker_character_id === null ? undefined : cast.get(message.speaker_character_id);
     // The table GM (a narrator on the gm channel) speaks as the GM, out of character.
     const speaker =
-      message.role === 'user' ? (persona?.name ?? YOU) : message.role === 'character' ? (character?.name ?? NARRATOR) : message.channel === 'gm' ? TABLE.gm_name : NARRATOR;
+      message.role === 'user'
+        ? (persona?.name ?? YOU)
+        : message.role === 'character'
+          ? (character?.name ?? NARRATOR)
+          : message.channel === 'gm'
+            ? TABLE.gm_name
+            : NARRATOR;
     const avatar = message.role === 'user' ? (persona?.avatar ?? null) : (character?.avatar ?? null);
     const { siblings, index } = siblingsOf(all, message);
     return {
@@ -104,7 +140,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const spriteList = characterExpressions.useList();
   const sprites = spriteList.data ?? [];
   const [stage, setStage] = useState<{ characterId: string; label: string } | null>(null);
-  const staged = stage === null ? undefined : sprites.find((sprite) => sprite.character_id === stage.characterId && sprite.label === stage.label);
+  const staged =
+    stage === null
+      ? undefined
+      : sprites.find((sprite) => sprite.character_id === stage.characterId && sprite.label === stage.label);
   const campaign = campaignList.data?.find((one) => one.id === chat.campaign_id);
   const running = scenarioList.data?.find((one) => one.id === chat.scenario_id);
   const { update: updateScenario } = scenarios.useActions();
@@ -128,10 +167,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   // Oldest first, whatever order the back end answers in: the tree's latest leaf is the last child.
   const all = useMemo(
-    () => [...(list.data ?? [])].filter((message) => !hidden.has(message.id)).sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    () =>
+      [...(list.data ?? [])]
+        .filter((message) => !hidden.has(message.id))
+        .sort((a, b) => a.created_at.localeCompare(b.created_at)),
     [list.data, hidden],
   );
-  const leaf = leafId !== null && all.some((message) => message.id === leafId) ? (latestLeaf(all, leafId)?.id ?? leafId) : (latestLeaf(all)?.id ?? null);
+  const leaf =
+    leafId !== null && all.some((message) => message.id === leafId)
+      ? (latestLeaf(all, leafId)?.id ?? leafId)
+      : (latestLeaf(all)?.id ?? null);
   const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
   const persona = useMemo(() => {
@@ -140,7 +185,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   }, [personaList.data, chat.persona_id]);
   const { settings } = useDeviceSettings();
   const [canSpeak] = useState(() => speechSupport().speak);
-  const views = messageViews(branch, all, castById, persona).filter((view) => settings.showTableTalk || (view.channel !== 'ooc' && view.channel !== 'gm'));
+  const views = messageViews(branch, all, castById, persona).filter(
+    (view) => settings.showTableTalk || (view.channel !== 'ooc' && view.channel !== 'gm'),
+  );
   const writing = reply.state.status === 'writing';
 
   useWakeLock(writing);
@@ -159,14 +206,23 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   /** Streams the next reply after `parentId`, then keeps it as a new message. */
   const replyAfter = async (parentId: string | null, path: readonly ChatMessage[]) => {
     // The person's pick for the next turn (A10), else the cast's order; a pick is used once.
-    const speakerId = picked !== null && chat.character_ids.includes(picked) ? picked : nextSpeaker(chat.character_ids, path, chat.muted_ids);
+    const speakerId =
+      picked !== null && chat.character_ids.includes(picked)
+        ? picked
+        : nextSpeaker(chat.character_ids, path, chat.muted_ids);
     setPicked(null);
     if (speakerId === null) return;
     setWritingAfter({ parentId, speakerId });
     const result = await reply.write({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
-    const saved = await create({ chat_id: chat.id, parent_id: parentId, role: 'character', speaker_character_id: speakerId, swipes: [stored(result.text, 'ai_output')] });
+    const saved = await create({
+      chat_id: chat.id,
+      parent_id: parentId,
+      role: 'character',
+      speaker_character_id: speakerId,
+      swipes: [stored(result.text, 'ai_output')],
+    });
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
     setLeafId(saved.id);
     void showExpression(speakerId, saved.swipes[0] ?? '');
@@ -180,9 +236,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   };
 
   /** Translations shown under messages (A43), by message; kept only while the chat is open. */
-  const [translations, setTranslations] = useState<ReadonlyMap<string, { status: 'writing' } | { status: 'done'; text: string } | { status: 'failed'; reason: string }>>(new Map());
+  const [translations, setTranslations] = useState<
+    ReadonlyMap<string, { status: 'writing' } | { status: 'done'; text: string } | { status: 'failed'; reason: string }>
+  >(new Map());
   const [language] = useState(() => deviceLanguage());
-  const setTranslation = (id: string, value: { status: 'writing' } | { status: 'done'; text: string } | { status: 'failed'; reason: string } | null) =>
+  const setTranslation = (
+    id: string,
+    value: { status: 'writing' } | { status: 'done'; text: string } | { status: 'failed'; reason: string } | null,
+  ) =>
     setTranslations((current) => {
       const next = new Map(current);
       if (value === null) next.delete(id);
@@ -194,7 +255,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     try {
       setTranslation(id, { status: 'done', text: await translateText(chat.id, text, language) });
     } catch (error) {
-      setTranslation(id, { status: 'failed', reason: error instanceof Error ? error.message : 'The translation could not be written' });
+      setTranslation(id, {
+        status: 'failed',
+        reason: error instanceof Error ? error.message : 'The translation could not be written',
+      });
     }
   };
   const translationOf = (id: string) => {
@@ -214,17 +278,31 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const runCommand = async (command: Command) => {
     switch (command.name) {
       case 'sys': {
-        const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'narrator', channel: 'ic', swipes: [command.text] });
+        const saved = await create({
+          chat_id: chat.id,
+          parent_id: leaf,
+          role: 'narrator',
+          channel: 'ic',
+          swipes: [command.text],
+        });
         setLeafId(saved.id);
         return;
       }
       case 'sendas': {
-        const id = chat.character_ids.find((one) => castById.get(one)?.name.toLowerCase() === command.character.toLowerCase());
+        const id = chat.character_ids.find(
+          (one) => castById.get(one)?.name.toLowerCase() === command.character.toLowerCase(),
+        );
         if (id === undefined) {
           notify(`${command.character} is not in this chat`);
           return;
         }
-        const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'character', speaker_character_id: id, swipes: [stored(command.text, 'ai_output')] });
+        const saved = await create({
+          chat_id: chat.id,
+          parent_id: leaf,
+          role: 'character',
+          speaker_character_id: id,
+          swipes: [stored(command.text, 'ai_output')],
+        });
         setLeafId(saved.id);
         return;
       }
@@ -265,7 +343,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await reply.write({ chat_id: chat.id, leaf_id: leaf, speaker_id: null, mode: 'narrate' });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
-    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'narrator', channel: 'ic', swipes: [stored(result.text, 'ai_output')] });
+    const saved = await create({
+      chat_id: chat.id,
+      parent_id: leaf,
+      role: 'narrator',
+      channel: 'ic',
+      swipes: [stored(result.text, 'ai_output')],
+    });
     if (settings.readAloud) readAloud(null, saved.swipes[0] ?? '');
     setLeafId(saved.id);
   };
@@ -276,7 +360,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setDrawing(true);
     try {
       const drawn = await pictureOfScene(chat.id, leaf);
-      const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'system', channel: 'system', swipes: [PICTURE.caption], images: [drawn.image] });
+      const saved = await create({
+        chat_id: chat.id,
+        parent_id: leaf,
+        role: 'system',
+        channel: 'system',
+        swipes: [PICTURE.caption],
+        images: [drawn.image],
+      });
       setLeafId(saved.id);
     } catch (error) {
       notify('No picture', error instanceof Error ? error.message : undefined);
@@ -291,12 +382,25 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await reply.write({ chat_id: chat.id, leaf_id: question.id, speaker_id: null, mode: 'table' });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
-    const saved = await create({ chat_id: chat.id, parent_id: question.id, role: 'narrator', channel: 'gm', swipes: [result.text.trim()] });
+    const saved = await create({
+      chat_id: chat.id,
+      parent_id: question.id,
+      role: 'narrator',
+      channel: 'gm',
+      swipes: [result.text.trim()],
+    });
     setLeafId(saved.id);
   };
 
   const send = async (text: string, channel: ComposerChannel, images: string[] = []) => {
-    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'user', channel, swipes: [channel === 'ic' ? stored(text, 'user_input') : text], images });
+    const saved = await create({
+      chat_id: chat.id,
+      parent_id: leaf,
+      role: 'user',
+      channel,
+      swipes: [channel === 'ic' ? stored(text, 'user_input') : text],
+      images,
+    });
     setLeafId(saved.id);
     if (channel === 'gm') await askGm(saved);
     // Paused (A25): the story waits; the line is kept for when the table resumes.
@@ -306,32 +410,57 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const regenerate = async (message: ChatMessage) => {
     if (message.speaker_character_id === null) return;
     setWritingAfter({ parentId: message.parent_id, speakerId: message.speaker_character_id });
-    const result = await reply.write({ chat_id: chat.id, leaf_id: message.parent_id, speaker_id: message.speaker_character_id });
+    const result = await reply.write({
+      chat_id: chat.id,
+      leaf_id: message.parent_id,
+      speaker_id: message.speaker_character_id,
+    });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
-    await update(message, { swipes: [...message.swipes, stored(result.text, 'ai_output')], swipe_index: message.swipes.length });
+    await update(message, {
+      swipes: [...message.swipes, stored(result.text, 'ai_output')],
+      swipe_index: message.swipes.length,
+    });
   };
 
   /** Carries on the shown alternative of a character's message, where it stopped. */
   const continueMessage = async (message: ChatMessage) => {
     if (message.speaker_character_id === null) return;
     setWritingAfter({ parentId: message.id, speakerId: message.speaker_character_id });
-    const result = await reply.write({ chat_id: chat.id, leaf_id: message.id, speaker_id: message.speaker_character_id, mode: 'continue' });
+    const result = await reply.write({
+      chat_id: chat.id,
+      leaf_id: message.id,
+      speaker_id: message.speaker_character_id,
+      mode: 'continue',
+    });
     setWritingAfter(null);
     if (result === null || result.text === '') return;
-    await update(message, { swipes: message.swipes.map((text, index) => (index === message.swipe_index ? stored(`${text}${result.text}`, 'ai_output') : text)) });
+    await update(message, {
+      swipes: message.swipes.map((text, index) =>
+        index === message.swipe_index ? stored(`${text}${result.text}`, 'ai_output') : text,
+      ),
+    });
   };
 
   /** The person's own next line, written by the model, for the composer. */
   const impersonate = async (): Promise<string | null> => {
-    const result = await reply.write({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids), mode: 'impersonate' });
+    const result = await reply.write({
+      chat_id: chat.id,
+      leaf_id: leaf,
+      speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids),
+      mode: 'impersonate',
+    });
     return result?.text ?? null;
   };
 
   /** A summary of the shown branch, for chat settings to fill in. */
   const summarize = async (): Promise<string | null> => {
     try {
-      const summary = await summarizeBranch({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids) });
+      const summary = await summarizeBranch({
+        chat_id: chat.id,
+        leaf_id: leaf,
+        speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids),
+      });
       if (summary.dropped > 0) notify('The oldest turns did not fit', `${summary.dropped} were left out of the summary.`);
       return summary.text;
     } catch (error) {
@@ -362,7 +491,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const openInspector = async () => {
     setInspected('loading');
     try {
-      setInspected(await inspectPrompt({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids) }));
+      setInspected(
+        await inspectPrompt({
+          chat_id: chat.id,
+          leaf_id: leaf,
+          speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids),
+        }),
+      );
     } catch (error) {
       setInspected(null);
       notify('The prompt could not be read', error instanceof Error ? error.message : undefined);
@@ -376,10 +511,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const named = branch.map((message, index) => ({ ...message, name: speakers[index]?.speaker ?? NARRATOR }));
     const content =
       format === 'jsonl'
-        ? chatToJsonl({ characterName: castById.get(chat.character_ids[0] ?? '')?.name ?? '', userName: persona?.name ?? YOU, createdAt: chat.created_at }, named)
+        ? chatToJsonl(
+            {
+              characterName: castById.get(chat.character_ids[0] ?? '')?.name ?? '',
+              userName: persona?.name ?? YOU,
+              createdAt: chat.created_at,
+            },
+            named,
+          )
         : chatToText(named);
     const url = URL.createObjectURL(new Blob([content], { type: format === 'jsonl' ? 'application/jsonl' : 'text/plain' }));
-    const link = Object.assign(document.createElement('a'), { href: url, download: `${chat.title.replace(/[^\w.-]+/g, '_')}.${format === 'jsonl' ? 'jsonl' : 'txt'}` });
+    const link = Object.assign(document.createElement('a'), {
+      href: url,
+      download: `${chat.title.replace(/[^\w.-]+/g, '_')}.${format === 'jsonl' ? 'jsonl' : 'txt'}`,
+    });
     link.click();
     URL.revokeObjectURL(url);
   };
@@ -403,7 +548,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   if (list.error !== undefined) return <LoadProblem what='this chat' error={list.error} onRetry={() => list.mutate()} />;
 
   const pending = writingAfter === null ? undefined : castById.get(writingAfter.speakerId);
-  const options = <T extends { id: string; name: string }>(rows: readonly T[] | undefined) => (rows ?? []).map(({ id, name }) => ({ id, name }));
+  const options = <T extends { id: string; name: string }>(rows: readonly T[] | undefined) =>
+    (rows ?? []).map(({ id, name }) => ({ id, name }));
 
   return (
     <div
@@ -412,7 +558,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       // text never depends on the picture for contrast.
       style={chat.background === null ? undefined : { backgroundImage: `url(${JSON.stringify(chat.background)})` }}
     >
-      <div className={cn('mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 py-2', chat.background !== null && 'rounded-b-xl bg-background')}>
+      <div
+        className={cn(
+          'mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 py-2',
+          chat.background !== null && 'rounded-b-xl bg-background',
+        )}
+      >
         {campaign?.resolution_mode != null && (
           // The mode in force, always in view (A66).
           <Badge variant='outline' className='shrink-0' title={`${campaign.name}: ${MODE_HINTS[campaign.resolution_mode]}`}>
@@ -425,7 +576,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             return (
               <li key={id}>
                 <Avatar className='size-9 border-2 border-background'>
-                  {character?.avatar !== undefined && character.avatar !== null && <AvatarImage src={character.avatar} alt='' />}
+                  {character?.avatar !== undefined && character.avatar !== null && (
+                    <AvatarImage src={character.avatar} alt='' />
+                  )}
                   <AvatarFallback>{initials(character?.name ?? '?')}</AvatarFallback>
                 </Avatar>
                 <span className='sr-only'>{character?.name ?? 'A character'}</span>
@@ -439,11 +592,24 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             variant={chat.paused ? 'default' : 'ghost'}
             className='h-11'
             aria-pressed={chat.paused}
-            onClick={() => void updateChat(chat, { paused: !chat.paused }).then(() => notify(chat.paused ? 'Resumed' : 'Paused', chat.paused ? undefined : 'No story turns until you resume. The GM still answers.'))}
+            onClick={() =>
+              void updateChat(chat, { paused: !chat.paused }).then(() =>
+                notify(
+                  chat.paused ? 'Resumed' : 'Paused',
+                  chat.paused ? undefined : 'No story turns until you resume. The GM still answers.',
+                ),
+              )
+            }
           >
             {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />} {chat.paused ? 'Resume' : 'Pause'}
           </Button>
-          <Button type='button' variant='outline' className='h-11' onClick={() => void xCardLatest()} aria-label='X-card the latest reply'>
+          <Button
+            type='button'
+            variant='outline'
+            className='h-11'
+            onClick={() => void xCardLatest()}
+            aria-label='X-card the latest reply'
+          >
             <X aria-hidden /> X-card
           </Button>
           {running !== undefined && (
@@ -498,9 +664,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           const message = byId(view.id);
           if (message === undefined) return null;
           // Display-only regex scripts (A33) change how a message looks here, never what is saved.
-          const placement: RegexPlacement | null = message.role === 'user' ? 'user_input' : message.role === 'character' ? 'ai_output' : null;
+          const placement: RegexPlacement | null =
+            message.role === 'user' ? 'user_input' : message.role === 'character' ? 'ai_output' : null;
           const depth = branch.length - 1 - branch.findIndex((one) => one.id === message.id);
-          const shown = placement === null ? view : { ...view, text: applyRegex(view.text, scripts, placement, 'display', depth) };
+          const shown =
+            placement === null ? view : { ...view, text: applyRegex(view.text, scripts, placement, 'display', depth) };
           return (
             <li key={view.id}>
               <MessageItem
@@ -509,7 +677,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
                 onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
                 onFork={(step) => fork(message, step)}
-                onEdit={(text) => void update(message, { swipes: message.swipes.map((old, index) => (index === message.swipe_index ? text : old)) })}
+                onEdit={(text) =>
+                  void update(message, {
+                    swipes: message.swipes.map((old, index) => (index === message.swipe_index ? text : old)),
+                  })
+                }
                 onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
                 onBranch={() => {
                   setLeafId(message.id);
@@ -517,9 +689,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 }}
                 onDelete={() => deleteMessage(message)}
                 onXCard={() => void update(message, { x_carded: !message.x_carded })}
-                onContinue={message.role === 'character' && message.id === leaf && !writing ? () => void continueMessage(message) : undefined}
+                onContinue={
+                  message.role === 'character' && message.id === leaf && !writing
+                    ? () => void continueMessage(message)
+                    : undefined
+                }
                 onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
-                onTranslate={chat.character_ids.length > 0 ? { label: `Translate into ${language}`, run: () => void translateMessage(message.id, shown.text) } : undefined}
+                onTranslate={
+                  chat.character_ids.length > 0
+                    ? { label: `Translate into ${language}`, run: () => void translateMessage(message.id, shown.text) }
+                    : undefined
+                }
                 translation={translationOf(message.id)}
               />
             </li>
@@ -550,7 +730,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       {staged !== undefined && settings.showExpressions && (
         // The stage (A4): the latest speaker, as their line feels.
         <figure className='mx-auto flex w-full max-w-3xl items-end justify-center px-3'>
-          <img src={staged.image} alt={`${castById.get(staged.character_id)?.name ?? 'The speaker'}, ${staged.label}`} className='max-h-48 rounded-lg object-contain' />
+          <img
+            src={staged.image}
+            alt={`${castById.get(staged.character_id)?.name ?? 'The speaker'}, ${staged.label}`}
+            className='max-h-48 rounded-lg object-contain'
+          />
         </figure>
       )}
       {chat.character_ids.length > 1 && (
@@ -587,7 +771,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           }))}
       />
       <Sheet open={scenarioOpen && running !== undefined} onOpenChange={setScenarioOpen}>
-        <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
+        <SheetContent
+          side={mobile ? 'bottom' : 'right'}
+          className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
+        >
           <SheetHeader>
             <SheetTitle>{running?.name ?? 'Scenario'}</SheetTitle>
             <SheetDescription>The state in play. The GM reads it every turn.</SheetDescription>
@@ -597,7 +784,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <ScenarioPlay
                 scenario={running}
                 onChange={(next) =>
-                  void updateScenario(running, next).catch((error: unknown) => notify('Not saved', error instanceof Error ? error.message : undefined))
+                  void updateScenario(running, next).catch((error: unknown) =>
+                    notify('Not saved', error instanceof Error ? error.message : undefined),
+                  )
                 }
               />
             )}
@@ -605,7 +794,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         </SheetContent>
       </Sheet>
       <Sheet open={treeOpen} onOpenChange={setTreeOpen}>
-        <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
+        <SheetContent
+          side={mobile ? 'bottom' : 'right'}
+          className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
+        >
           <SheetHeader>
             <SheetTitle>Every branch</SheetTitle>
             <SheetDescription>Choose a message to show the branch through it.</SheetDescription>
@@ -629,12 +821,21 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         </SheetContent>
       </Sheet>
       <Sheet open={inspected !== null} onOpenChange={(open) => !open && setInspected(null)}>
-        <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
+        <SheetContent
+          side={mobile ? 'bottom' : 'right'}
+          className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
+        >
           <SheetHeader>
             <SheetTitle>Context</SheetTitle>
             <SheetDescription>What the model would read for the next reply.</SheetDescription>
           </SheetHeader>
-          <div className='p-4'>{inspected === 'loading' ? <SkeletonRows rows={5} /> : inspected !== null && <ContextInspector prompt={inspected} />}</div>
+          <div className='p-4'>
+            {inspected === 'loading' ? (
+              <SkeletonRows rows={5} />
+            ) : (
+              inspected !== null && <ContextInspector prompt={inspected} />
+            )}
+          </div>
         </SheetContent>
       </Sheet>
       <ChatSettings

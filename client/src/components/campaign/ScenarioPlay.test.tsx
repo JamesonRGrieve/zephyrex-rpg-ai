@@ -18,7 +18,12 @@ describe('ScenarioPlay', () => {
   });
 
   it('says what happens when a clock is full, and stops it at full', () => {
-    render(<ScenarioPlay scenario={{ ...SABOTAGE, clocks: [{ ...SABOTAGE.clocks[0], filled: 4 } as (typeof SABOTAGE.clocks)[number]] }} onChange={vi.fn()} />);
+    render(
+      <ScenarioPlay
+        scenario={{ ...SABOTAGE, clocks: [{ ...SABOTAGE.clocks[0], filled: 4 } as (typeof SABOTAGE.clocks)[number]] }}
+        onChange={vi.fn()}
+      />,
+    );
     expect(screen.getByText('Full: the ship drifts')).toBeInTheDocument();
     expect(screen.getByRole('button', { name: 'Fill a segment of The pump fails' })).toBeDisabled();
   });

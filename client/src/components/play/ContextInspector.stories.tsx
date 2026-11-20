@@ -10,7 +10,11 @@ const meta: Meta<typeof ContextInspector> = {
   args: {
     prompt: {
       messages: [
-        { role: 'system', content: "Write Ada's next reply in a fictional chat between Ada and Sam.\n\nAda is a ship's engineer.", tokens: 26 },
+        {
+          role: 'system',
+          content: "Write Ada's next reply in a fictional chat between Ada and Sam.\n\nAda is a ship's engineer.",
+          tokens: 26,
+        },
         { role: 'assistant', content: '*wipes her hands* Welcome aboard.', tokens: 13 },
         { role: 'user', content: 'I hand her the spanner.', tokens: 10 },
       ],

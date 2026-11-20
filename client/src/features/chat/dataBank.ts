@@ -30,17 +30,24 @@ export function chunksOf(text: string): string[] {
     .filter((part) => part !== '')
     .flatMap((paragraph) => {
       const all = points(paragraph);
-      return Array.from({ length: Math.ceil(all.length / limit) }, (_unused, index) => all.slice(index * limit, (index + 1) * limit).join(''));
+      return Array.from({ length: Math.ceil(all.length / limit) }, (_unused, index) =>
+        all.slice(index * limit, (index + 1) * limit).join(''),
+      );
     });
   return pieces.reduce<string[]>((chunks, piece) => {
     const last = chunks.at(-1);
-    if (last !== undefined && points(last).length + 2 + points(piece).length <= limit) return [...chunks.slice(0, -1), `${last}\n\n${piece}`];
+    if (last !== undefined && points(last).length + 2 + points(piece).length <= limit)
+      return [...chunks.slice(0, -1), `${last}\n\n${piece}`];
     return [...chunks, piece];
   }, []);
 }
 
 export function wordsOf(text: string): Set<string> {
-  return new Set((text.toLowerCase().match(WORD) ?? []).filter((word) => points(word).length >= DATA_BANK.min_word_characters && !STOP.has(word)));
+  return new Set(
+    (text.toLowerCase().match(WORD) ?? []).filter(
+      (word) => points(word).length >= DATA_BANK.min_word_characters && !STOP.has(word),
+    ),
+  );
 }
 
 /** The chunks of `documents` most about the last turns of `story`, in document order. */

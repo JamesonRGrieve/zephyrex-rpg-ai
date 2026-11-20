@@ -25,9 +25,17 @@ export interface DeviceSettings {
   showExpressions: boolean;
 }
 
-export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = { tier: 'auto', showTableTalk: true, chatLayout: 'flat', textSize: 'normal', readAloud: false, showExpressions: true };
+export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
+  tier: 'auto',
+  showTableTalk: true,
+  chatLayout: 'flat',
+  textSize: 'normal',
+  readAloud: false,
+  showExpressions: true,
+};
 
-const oneOf = <T extends string>(options: readonly T[], value: unknown, fallback: T): T => (options.includes(value as T) ? (value as T) : fallback);
+const oneOf = <T extends string>(options: readonly T[], value: unknown, fallback: T): T =>
+  options.includes(value as T) ? (value as T) : fallback;
 
 const KEY = 'rpg-ai:device-settings';
 const TIERS: readonly TierChoice[] = ['auto', 'strong', 'standard', 'light'];

@@ -20,10 +20,38 @@
 import type { NextRequest } from 'next/server';
 import { ApiError, apiErrorResponse, localOwner, notFound, readJsonObject, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { type EndpointApi, type EndpointRole, type InstructTemplateId, LIMITS, LORE, PICTURE, PRESET_DEFAULTS, PROMPT } from '~/contract';
+import {
+  type EndpointApi,
+  type EndpointRole,
+  type InstructTemplateId,
+  LIMITS,
+  LORE,
+  PICTURE,
+  PRESET_DEFAULTS,
+  PROMPT,
+} from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { type AssembledPrompt, assemblePrompt, type CampaignFrame, expressionPrompt, pickOption, type ScenarioView, scenePicturePrompt, splitReasoning, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import {
+  type AssembledPrompt,
+  assemblePrompt,
+  type CampaignFrame,
+  expressionPrompt,
+  pickOption,
+  type ScenarioView,
+  scenePicturePrompt,
+  splitReasoning,
+  estimateTokens,
+  summaryPrompt,
+  tableGmPrompt,
+  type TableNote,
+  translatePrompt,
+  type ModelMessage,
+  type PromptInput,
+  type PromptMode,
+  type PromptSection,
+  type PromptTurn,
+} from '~/features/prompt/assemble';
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
@@ -67,7 +95,10 @@ export interface Endpoint {
 
 /** Everything a reply needs, read as the owner sees it. */
 /** The role a request's model serves (A27). */
-export function roleOf(mode: z.infer<typeof request>['mode'], purpose: 'reply' | 'summary' | 'translate' = 'reply'): EndpointRole {
+export function roleOf(
+  mode: z.infer<typeof request>['mode'],
+  purpose: 'reply' | 'summary' | 'translate' = 'reply',
+): EndpointRole {
   if (purpose !== 'reply') return purpose;
   return mode === 'table' || mode === 'narrate' ? 'gm' : 'story';
 }
@@ -77,7 +108,15 @@ export async function generationInputs(
   body: z.infer<typeof request>,
   roll: () => number = Math.random,
   purpose: 'reply' | 'summary' | 'translate' = 'reply',
-): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState; activeLore: string[]; images: string[]; paused: boolean }> {
+): Promise<{
+  prompt: PromptInput;
+  sampler: Sampler;
+  endpoint: Endpoint;
+  loreState: LoreState;
+  activeLore: string[];
+  images: string[];
+  paused: boolean;
+}> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
   const chatFields = chats.fields(chat) as {
@@ -102,10 +141,16 @@ export async function generationInputs(
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
   const ordered = chatFields.character_ids.flatMap((id) => cast.filter((character) => character.id === id));
-  const promptCharacters = ordered.map((row) => ({ id: row.id, ...(characters.fields(row) as Omit<PromptInput['characters'][number], 'id'>) }));
+  const promptCharacters = ordered.map((row) => ({
+    id: row.id,
+    ...(characters.fields(row) as Omit<PromptInput['characters'][number], 'id'>),
+  }));
   // Narrating (A20), the GM speaks, so no character is named as the speaker.
   const speakerId = body.mode === 'narrate' ? '' : (body.speaker_id ?? promptCharacters[0]?.id);
-  if (speakerId === undefined || (body.mode !== 'narrate' && !promptCharacters.some((character) => character.id === speakerId))) {
+  if (
+    speakerId === undefined ||
+    (body.mode !== 'narrate' && !promptCharacters.some((character) => character.id === speakerId))
+  ) {
     throw validationError('The speaker must be a character in the chat', 'speaker_id');
   }
 
@@ -117,7 +162,16 @@ export async function generationInputs(
 
   const messages = (await chatMessages.list(ownerId, new URLSearchParams({ chat_id: chat.id }))).map((row) => ({
     id: row.id,
-    ...(chatMessages.fields(row) as { parent_id: string | null; role: PromptTurn['role']; channel: string; speaker_character_id: string | null; swipes: string[]; swipe_index: number; images: string[]; x_carded: boolean }),
+    ...(chatMessages.fields(row) as {
+      parent_id: string | null;
+      role: PromptTurn['role'];
+      channel: string;
+      speaker_character_id: string | null;
+      swipes: string[];
+      swipe_index: number;
+      images: string[];
+      x_carded: boolean;
+    }),
   }));
   if (body.leaf_id !== null && !messages.some((message) => message.id === body.leaf_id)) {
     throw validationError('The leaf must be a message in the chat', 'leaf_id');
@@ -125,7 +179,8 @@ export async function generationInputs(
   const path = body.leaf_id === null ? [] : branchTo(messages, body.leaf_id);
   // The newest line's pictures go to a vision model (A44); older ones stay in the chat only.
   const leafMessage = path.at(-1);
-  const images = leafMessage !== undefined && leafMessage.role === 'user' && leafMessage.channel === 'ic' ? leafMessage.images : [];
+  const images =
+    leafMessage !== undefined && leafMessage.role === 'user' && leafMessage.channel === 'ic' ? leafMessage.images : [];
   const history: PromptTurn[] = path.map((message) => ({
     role: message.role,
     channel: message.channel,
@@ -138,8 +193,13 @@ export async function generationInputs(
   const story = new Set<string>(PROMPT.story_channels);
   // What lore and the data bank scan: the story, less what the table X-carded (A25).
   const storyTexts = history.filter((turn) => story.has(turn.channel) && turn.x_carded !== true).map((turn) => turn.content);
-  const bookIds = [...new Set([...chatFields.lorebook_ids, ...ordered.flatMap((row) => (row.lorebookId === null ? [] : [row.lorebookId]))])];
-  const entryRows = bookIds.length === 0 ? [] : await prisma.lorebookEntry.findMany({ where: { createdById: ownerId, lorebookId: { in: bookIds } } });
+  const bookIds = [
+    ...new Set([...chatFields.lorebook_ids, ...ordered.flatMap((row) => (row.lorebookId === null ? [] : [row.lorebookId]))]),
+  ];
+  const entryRows =
+    bookIds.length === 0
+      ? []
+      : await prisma.lorebookEntry.findMany({ where: { createdById: ownerId, lorebookId: { in: bookIds } } });
   const entries = entryRows.map((row) => ({ id: row.id, ...(lorebookEntries.fields(row) as Omit<LoreEntry, 'id'>) }));
   const stateRow = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
   const priorState: LoreState = stateRow === null ? {} : (JSON.parse(stateRow.state) as LoreState);
@@ -155,7 +215,10 @@ export async function generationInputs(
   const lore = activateLore(entries, storyTexts, storyTexts.length, speakerName, priorState, settings, roll);
 
   const presetRow = chatFields.preset_id === null ? null : await presets.find(chatFields.preset_id, ownerId);
-  const sampler: Sampler = presetRow === null ? { ...PRESET_DEFAULTS, stop: [], prompt_layout: [] } : (presets.fields(presetRow) as unknown as Sampler);
+  const sampler: Sampler =
+    presetRow === null
+      ? { ...PRESET_DEFAULTS, stop: [], prompt_layout: [] }
+      : (presets.fields(presetRow) as unknown as Sampler);
 
   // The model for this request's role (A27): a model serving the role; for replies the chat's own
   // choice comes first. Otherwise the chat's model, then the default, then any.
@@ -227,12 +290,17 @@ async function dataBankDocuments(ownerId: string, chatId: string, characterIds: 
   const rows = await prisma.dataDocument.findMany({
     where: {
       createdById: ownerId,
-      OR: [{ scope: 'global' }, { scope: 'chat', scopeId: chatId }, { scope: 'character', scopeId: { in: [...characterIds] } }],
+      OR: [
+        { scope: 'global' },
+        { scope: 'chat', scopeId: chatId },
+        { scope: 'character', scopeId: { in: [...characterIds] } },
+      ],
     },
     orderBy: { name: 'asc' },
   });
   // In the server's order: everyone's, then the chat's, then each cast member's in turn.
-  const rank = (row: (typeof rows)[number]) => (row.scope === 'global' ? -2 : row.scope === 'chat' ? -1 : characterIds.indexOf(row.scopeId ?? ''));
+  const rank = (row: (typeof rows)[number]) =>
+    row.scope === 'global' ? -2 : row.scope === 'chat' ? -1 : characterIds.indexOf(row.scopeId ?? '');
   return rows.sort((a, b) => rank(a) - rank(b)).map((row) => row.text);
 }
 
@@ -264,7 +332,13 @@ export function withImages(messages: readonly ModelMessage[], images: readonly s
   const last = messages.findLastIndex((message) => message.role === 'user');
   return messages.map((message, index) =>
     index === last
-      ? { role: message.role, content: [{ type: 'text', text: message.content }, ...images.map((url) => ({ type: 'image_url', image_url: { url } }))] }
+      ? {
+          role: message.role,
+          content: [
+            { type: 'text', text: message.content },
+            ...images.map((url) => ({ type: 'image_url', image_url: { url } })),
+          ],
+        }
       : message,
   );
 }
@@ -273,12 +347,20 @@ export function withImages(messages: readonly ModelMessage[], images: readonly s
  * What the model endpoint is sent: the messages for a chat API, or for a text API one prompt in
  * the endpoint's instruct template (a continued reply left open), with its stop strings added.
  */
-export function upstreamBody(endpoint: Endpoint, sampler: Sampler, messages: readonly ModelMessage[], mode: PromptMode, images: readonly string[] = []): Record<string, unknown> {
+export function upstreamBody(
+  endpoint: Endpoint,
+  sampler: Sampler,
+  messages: readonly ModelMessage[],
+  mode: PromptMode,
+  images: readonly string[] = [],
+): Record<string, unknown> {
   const text = endpoint.api === 'text';
   const stop = [...sampler.stop, ...(text ? instructStops(endpoint.instruct_template) : [])];
   return {
     model: endpoint.model,
-    ...(text ? { prompt: renderInstruct(messages, endpoint.instruct_template, mode === 'continue') } : { messages: withImages(messages, images) }),
+    ...(text
+      ? { prompt: renderInstruct(messages, endpoint.instruct_template, mode === 'continue') }
+      : { messages: withImages(messages, images) }),
     stream: true,
     temperature: sampler.temperature,
     top_p: sampler.top_p,
@@ -293,7 +375,11 @@ export function upstreamBody(endpoint: Endpoint, sampler: Sampler, messages: rea
   };
 }
 
-const SSE_HEADERS = { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' };
+const SSE_HEADERS = {
+  'Content-Type': 'text/event-stream; charset=utf-8',
+  'Cache-Control': 'no-store',
+  Connection: 'keep-alive',
+};
 
 function event(name: string, data: unknown): Uint8Array {
   return new TextEncoder().encode(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
@@ -340,7 +426,11 @@ export async function inspectPrompt(nextRequest: NextRequest): Promise<Response>
 }
 
 /** The endpoint's answer to `body`, or the framework's 502 when it cannot be reached or refuses. */
-async function askModel(endpoint: Endpoint, body: Record<string, unknown>, signal: AbortSignal): Promise<ReadableStream<Uint8Array>> {
+async function askModel(
+  endpoint: Endpoint,
+  body: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
   const upstream = await fetch(completionsUrl(endpoint.base_url, endpoint.api), {
     method: 'POST',
     headers: {
@@ -399,10 +489,20 @@ export async function translate(nextRequest: NextRequest): Promise<Response> {
     const owner = localOwner(nextRequest);
     const envelope = await readJsonObject(nextRequest);
     const parsed = translateRequest.safeParse(Reflect.get(envelope, 'translate'));
-    if (!parsed.success) throw validationError('A translate object with a chat_id, text and language is required', 'translate');
+    if (!parsed.success)
+      throw validationError('A translate object with a chat_id, text and language is required', 'translate');
     const asked = parsed.data;
-    const { sampler, endpoint } = await generationInputs(owner.id, { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' }, Math.random, 'translate');
-    const stream = await askModel(endpoint, upstreamBody(endpoint, sampler, translatePrompt(asked.text, asked.language), 'reply'), nextRequest.signal);
+    const { sampler, endpoint } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' },
+      Math.random,
+      'translate',
+    );
+    const stream = await askModel(
+      endpoint,
+      upstreamBody(endpoint, sampler, translatePrompt(asked.text, asked.language), 'reply'),
+      nextRequest.signal,
+    );
     const text = await collect(completionDeltas(stream)).catch(() => {
       throw new ApiError(502, { message: 'The model stopped mid-translation', code: 'model_refused' });
     });
@@ -439,17 +539,28 @@ export async function ping(nextRequest: NextRequest): Promise<Response> {
       signal: AbortSignal.any([nextRequest.signal, AbortSignal.timeout(PING_TIMEOUT_MS)]),
     }).catch(() => null);
     const latency = Date.now() - started;
-    if (answer === null) return Response.json({ ping: { ok: false, latency_ms: latency, status: null, has_model: null, detail: 'The server could not be reached' } });
+    if (answer === null)
+      return Response.json({
+        ping: { ok: false, latency_ms: latency, status: null, has_model: null, detail: 'The server could not be reached' },
+      });
     const body: unknown = await answer.json().catch(() => null);
     const listed: unknown = Reflect.get(Object(body), 'data');
-    const ids = Array.isArray(listed) ? listed.flatMap((model) => (typeof Reflect.get(Object(model), 'id') === 'string' ? [String(Reflect.get(Object(model), 'id'))] : [])) : null;
+    const ids = Array.isArray(listed)
+      ? listed.flatMap((model) =>
+          typeof Reflect.get(Object(model), 'id') === 'string' ? [String(Reflect.get(Object(model), 'id'))] : [],
+        )
+      : null;
     return Response.json({
       ping: {
         ok: answer.ok,
         latency_ms: latency,
         status: answer.status,
         has_model: ids === null ? null : ids.includes(row.model),
-        detail: answer.ok ? (ids === null ? 'Answered, without a model list' : `${ids.length} models offered`) : `Answered ${answer.status}`,
+        detail: answer.ok
+          ? ids === null
+            ? 'Answered, without a model list'
+            : `${ids.length} models offered`
+          : `Answered ${answer.status}`,
       },
     });
   } catch (error) {
@@ -457,7 +568,11 @@ export async function ping(nextRequest: NextRequest): Promise<Response> {
   }
 }
 
-const expressionRequest = z.object({ chat_id: z.string().min(1), character_id: z.string().min(1), text: z.string().min(1).max(LIMITS.message_characters) });
+const expressionRequest = z.object({
+  chat_id: z.string().min(1),
+  character_id: z.string().min(1),
+  text: z.string().min(1).max(LIMITS.message_characters),
+});
 
 /**
  * `POST /v1/ai_chat/expression` (A4): which of a character's sprites fits a line. The chat's model
@@ -470,12 +585,32 @@ export async function expression(nextRequest: NextRequest): Promise<Response> {
     const owner = localOwner(nextRequest);
     const envelope = await readJsonObject(nextRequest);
     const parsed = expressionRequest.safeParse(Reflect.get(envelope, 'expression'));
-    if (!parsed.success) throw validationError('An expression object with a chat_id, character_id and text is required', 'expression');
+    if (!parsed.success)
+      throw validationError('An expression object with a chat_id, character_id and text is required', 'expression');
     const asked = parsed.data;
-    const labels = (await prisma.characterExpression.findMany({ where: { createdById: owner.id, characterId: asked.character_id }, orderBy: { label: 'asc' } })).map((row) => row.label);
+    const labels = (
+      await prisma.characterExpression.findMany({
+        where: { createdById: owner.id, characterId: asked.character_id },
+        orderBy: { label: 'asc' },
+      })
+    ).map((row) => row.label);
     if (labels.length === 0) return Response.json({ expression: { label: null } });
-    const { sampler, endpoint } = await generationInputs(owner.id, { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' }, Math.random, 'summary');
-    const stream = await askModel(endpoint, upstreamBody(endpoint, { ...sampler, max_tokens: 8 }, expressionPrompt(splitReasoning(asked.text).reply, labels), 'reply'), nextRequest.signal);
+    const { sampler, endpoint } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' },
+      Math.random,
+      'summary',
+    );
+    const stream = await askModel(
+      endpoint,
+      upstreamBody(
+        endpoint,
+        { ...sampler, max_tokens: 8 },
+        expressionPrompt(splitReasoning(asked.text).reply, labels),
+        'reply',
+      ),
+      nextRequest.signal,
+    );
     const answer = await collect(completionDeltas(stream)).catch(() => '');
     return Response.json({ expression: { label: pickOption(answer, labels) } });
   } catch (error) {
@@ -501,7 +636,11 @@ export function pictureOf(answer: unknown): string | null {
   return typeof url === 'string' && url.startsWith('data:image/') ? url : null;
 }
 
-const pictureRequest = z.object({ chat_id: z.string().min(1), leaf_id: z.string().nullable().default(null), prompt: z.string().max(PICTURE.prompt_characters).default('') });
+const pictureRequest = z.object({
+  chat_id: z.string().min(1),
+  leaf_id: z.string().nullable().default(null),
+  prompt: z.string().max(PICTURE.prompt_characters).default(''),
+});
 
 /**
  * `POST /v1/ai_chat/picture` (A30): a picture of the scene, drawn by a model the person set to draw
@@ -516,24 +655,35 @@ export async function picture(nextRequest: NextRequest): Promise<Response> {
     const parsed = pictureRequest.safeParse(Reflect.get(envelope, 'picture'));
     if (!parsed.success) throw validationError('A picture object with a chat_id is required', 'picture');
     const asked = parsed.data;
-    const { prompt: input } = await generationInputs(owner.id, { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'reply' });
+    const { prompt: input } = await generationInputs(owner.id, {
+      chat_id: asked.chat_id,
+      leaf_id: asked.leaf_id,
+      speaker_id: null,
+      mode: 'reply',
+    });
     const drawing = (await endpoints.list(owner.id, NO_QUERY))
       .filter((row) => (endpoints.fields(row).roles as string[]).includes('image'))
       .sort((a, b) => a.name.localeCompare(b.name));
     const row = drawing.find((one) => one.isDefault) ?? drawing[0];
-    if (row === undefined) throw new ApiError(409, { message: 'Set a model to draw pictures first', code: 'no_image_model' });
+    if (row === undefined)
+      throw new ApiError(409, { message: 'Set a model to draw pictures first', code: 'no_image_model' });
     const prompt = scenePicturePrompt(input, asked.prompt);
     const answer = await fetch(imagesUrl(row.baseUrl), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...(row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` }) },
+      headers: {
+        'Content-Type': 'application/json',
+        ...(row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` }),
+      },
       body: JSON.stringify({ model: row.model, prompt, n: 1, size: PICTURE.size, response_format: 'b64_json' }),
       signal: nextRequest.signal,
     }).catch(() => {
       throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });
     });
-    if (answer.status >= 400) throw new ApiError(502, { message: `The model endpoint answered ${answer.status}`, code: 'model_refused' });
+    if (answer.status >= 400)
+      throw new ApiError(502, { message: `The model endpoint answered ${answer.status}`, code: 'model_refused' });
     const image = pictureOf(await answer.json().catch(() => null));
-    if (image === null || image.length > LIMITS.avatar_bytes) throw new ApiError(502, { message: 'The model sent no picture this app can keep', code: 'model_refused' });
+    if (image === null || image.length > LIMITS.avatar_bytes)
+      throw new ApiError(502, { message: 'The model sent no picture this app can keep', code: 'model_refused' });
     return Response.json({ picture: { prompt, image } });
   } catch (error) {
     return apiErrorResponse(error);
@@ -546,12 +696,17 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
     const body = await readRequest(nextRequest);
     const { prompt, sampler, endpoint, loreState, images, paused } = await generationInputs(owner.id, body);
     // Paused (A25): no story turns until the table resumes. The table GM still answers.
-    if (paused && body.mode !== 'table') throw new ApiError(409, { message: 'The table has paused the game', code: 'paused' });
+    if (paused && body.mode !== 'table')
+      throw new ApiError(409, { message: 'The table has paused the game', code: 'paused' });
     const assembled = promptFor(body.mode, prompt);
     // The lore timers move with the reply that read them.
     await saveLoreState(owner.id, body.chat_id, loreState);
 
-    const upstream = await askModel(endpoint, upstreamBody(endpoint, sampler, assembled.messages, body.mode === 'table' ? 'reply' : body.mode, images), nextRequest.signal);
+    const upstream = await askModel(
+      endpoint,
+      upstreamBody(endpoint, sampler, assembled.messages, body.mode === 'table' ? 'reply' : body.mode, images),
+      nextRequest.signal,
+    );
     const deltas = completionDeltas(upstream);
     const stream = new ReadableStream<Uint8Array>({
       async pull(controller) {

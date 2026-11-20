@@ -13,7 +13,13 @@ import type { PingResult } from '~/features/models/ping';
 
 type Checked = PingResult | 'checking' | { failed: string };
 
-export function ModelStatus({ models, check }: { models: readonly ModelEndpoint[]; check: (id: string) => Promise<PingResult> }): ReactElement | null {
+export function ModelStatus({
+  models,
+  check,
+}: {
+  models: readonly ModelEndpoint[];
+  check: (id: string) => Promise<PingResult>;
+}): ReactElement | null {
   const [results, setResults] = useState<ReadonlyMap<string, Checked>>(new Map());
   if (models.length === 0) return null;
   const set = (id: string, value: Checked) => setResults((current) => new Map(current).set(id, value));
@@ -47,17 +53,29 @@ export function ModelStatus({ models, check }: { models: readonly ModelEndpoint[
               </span>
               <span aria-live='polite' className='text-xs'>
                 {result === 'checking' && 'Checking…'}
-                {result !== undefined && result !== 'checking' && 'failed' in result && <span className='text-destructive'>{result.failed}</span>}
+                {result !== undefined && result !== 'checking' && 'failed' in result && (
+                  <span className='text-destructive'>{result.failed}</span>
+                )}
                 {result !== undefined && result !== 'checking' && 'ok' in result && (
                   <span className={result.ok ? 'text-foreground' : 'text-destructive'}>
-                    {result.ok ? <CircleCheck className='mr-1 inline size-4 text-primary' aria-hidden /> : <CircleAlert className='mr-1 inline size-4' aria-hidden />}
+                    {result.ok ? (
+                      <CircleCheck className='mr-1 inline size-4 text-primary' aria-hidden />
+                    ) : (
+                      <CircleAlert className='mr-1 inline size-4' aria-hidden />
+                    )}
                     {result.detail}
                     {result.ok && ` · ${result.latency_ms} ms`}
                     {result.has_model === false && ` · ${model.model} is not offered`}
                   </span>
                 )}
               </span>
-              <Button type='button' variant='ghost' className='h-11' onClick={() => run(model.id)} aria-label={`Check ${model.name}`}>
+              <Button
+                type='button'
+                variant='ghost'
+                className='h-11'
+                onClick={() => run(model.id)}
+                aria-label={`Check ${model.name}`}
+              >
                 Check
               </Button>
             </li>

@@ -20,12 +20,32 @@ import { CAMPAIGN, LIMITS } from '~/contract';
 import { parseTags } from '~/features/chat/library';
 import { type Campaign, campaigns } from '~/features/data/records';
 
-const CHIP = 'h-11 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
-const STRUCTURE_LABELS: Record<(typeof CAMPAIGN.structures)[number], string> = { sandbox: 'Sandbox', linear: 'Linear', episodic: 'Episodic', one_shot: 'One-shot' };
-const MODE_LABELS: Record<(typeof CAMPAIGN.resolution_modes)[number], string> = { narrative: 'Narrative', mechanical: 'Rules as written', hybrid: 'Hybrid' };
+const CHIP =
+  'h-11 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const STRUCTURE_LABELS: Record<(typeof CAMPAIGN.structures)[number], string> = {
+  sandbox: 'Sandbox',
+  linear: 'Linear',
+  episodic: 'Episodic',
+  one_shot: 'One-shot',
+};
+const MODE_LABELS: Record<(typeof CAMPAIGN.resolution_modes)[number], string> = {
+  narrative: 'Narrative',
+  mechanical: 'Rules as written',
+  hybrid: 'Hybrid',
+};
 
 /** One row of chips choosing one value (or none, by choosing it again). */
-function Pick<T extends string | number>({ label, options, value, onChange }: { label: string; options: readonly { value: T; label: string }[]; value: T | null; onChange: (next: T | null) => void }): ReactElement {
+function Pick<T extends string | number>({
+  label,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  options: readonly { value: T; label: string }[];
+  value: T | null;
+  onChange: (next: T | null) => void;
+}): ReactElement {
   const id = useId();
   return (
     <div className='grid gap-2'>
@@ -34,7 +54,12 @@ function Pick<T extends string | number>({ label, options, value, onChange }: { 
       </span>
       <div ref={chipGroup} role='radiogroup' aria-labelledby={id} className='flex flex-wrap gap-2'>
         {options.map((option) => (
-          <ChoiceChip key={String(option.value)} checked={value === option.value} className={CHIP} onClick={() => onChange(value === option.value ? null : option.value)}>
+          <ChoiceChip
+            key={String(option.value)}
+            checked={value === option.value}
+            className={CHIP}
+            onClick={() => onChange(value === option.value ? null : option.value)}
+          >
             {option.label}
           </ChoiceChip>
         ))}
@@ -101,15 +126,37 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
     >
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.name}>Name</Label>
-        <Input id={ids.name} required value={name} maxLength={LIMITS.name_characters} placeholder='The Kestrel' className='h-11' onChange={(event) => setName(event.target.value)} />
+        <Input
+          id={ids.name}
+          required
+          value={name}
+          maxLength={LIMITS.name_characters}
+          placeholder='The Kestrel'
+          className='h-11'
+          onChange={(event) => setName(event.target.value)}
+        />
       </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.premise}>Premise</Label>
-        <Textarea id={ids.premise} rows={3} value={premise} maxLength={LIMITS.card_field_characters} placeholder='The promise of the campaign, in a paragraph.' onChange={(event) => setPremise(event.target.value)} />
+        <Textarea
+          id={ids.premise}
+          rows={3}
+          value={premise}
+          maxLength={LIMITS.card_field_characters}
+          placeholder='The promise of the campaign, in a paragraph.'
+          onChange={(event) => setPremise(event.target.value)}
+        />
       </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.genre}>Genre</Label>
-        <Input id={ids.genre} value={genre} maxLength={LIMITS.short_text_characters} placeholder='Space opera' className='h-11' onChange={(event) => setGenre(event.target.value)} />
+        <Input
+          id={ids.genre}
+          value={genre}
+          maxLength={LIMITS.short_text_characters}
+          placeholder='Space opera'
+          className='h-11'
+          onChange={(event) => setGenre(event.target.value)}
+        />
       </div>
       <fieldset className='grid gap-4'>
         <legend className='text-sm font-medium'>Tone</legend>
@@ -125,7 +172,13 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
       </fieldset>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.themes}>Themes</Label>
-        <Input id={ids.themes} value={themes} placeholder='loyalty, the cost of freedom' className='h-11' onChange={(event) => setThemes(event.target.value)} />
+        <Input
+          id={ids.themes}
+          value={themes}
+          placeholder='loyalty, the cost of freedom'
+          className='h-11'
+          onChange={(event) => setThemes(event.target.value)}
+        />
       </div>
       <fieldset className='grid gap-4'>
         <legend className='text-sm font-medium'>How much of each</legend>
@@ -139,13 +192,25 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
           />
         ))}
       </fieldset>
-      <Pick label='Structure' options={CAMPAIGN.structures.map((value) => ({ value, label: STRUCTURE_LABELS[value] }))} value={structure} onChange={setStructure} />
+      <Pick
+        label='Structure'
+        options={CAMPAIGN.structures.map((value) => ({ value, label: STRUCTURE_LABELS[value] }))}
+        value={structure}
+        onChange={setStructure}
+      />
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.truths}>Setting truths</Label>
         <p id={`${ids.truths}-hint`} className='text-xs text-muted-foreground'>
           One per line: what everyone agrees is true before play.
         </p>
-        <Textarea id={ids.truths} rows={4} value={truths} aria-describedby={`${ids.truths}-hint`} placeholder={'Magic is feared.\nThe empire fell last winter.'} onChange={(event) => setTruths(event.target.value)} />
+        <Textarea
+          id={ids.truths}
+          rows={4}
+          value={truths}
+          aria-describedby={`${ids.truths}-hint`}
+          placeholder={'Magic is feared.\nThe empire fell last winter.'}
+          onChange={(event) => setTruths(event.target.value)}
+        />
       </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.characters}>The characters</Label>
@@ -158,7 +223,12 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
           onChange={(event) => setCharacters(event.target.value)}
         />
       </div>
-      <Pick label='Resolution' options={CAMPAIGN.resolution_modes.map((value) => ({ value, label: MODE_LABELS[value] }))} value={mode} onChange={setMode} />
+      <Pick
+        label='Resolution'
+        options={CAMPAIGN.resolution_modes.map((value) => ({ value, label: MODE_LABELS[value] }))}
+        value={mode}
+        onChange={setMode}
+      />
       <WriteProblem problem={problem} />
       <div className='flex flex-wrap gap-2'>
         <Button type='submit' className='h-11 flex-1' disabled={name.trim() === ''}>

@@ -50,7 +50,9 @@ export function parseCommand(raw: string, castNames: readonly string[] = []): Co
       const byName = castNames.find((cast) => rest.toLowerCase().startsWith(`${cast.toLowerCase()} `));
       const character = quoted?.[1] ?? byName ?? rest.split(/\s+/)[0] ?? '';
       const line = quoted?.[2] ?? (byName === undefined ? rest.slice(character.length) : rest.slice(byName.length));
-      return character === '' || line.trim() === '' ? { unknown: '/sendas needs a name and a line' } : { name: 'sendas', character, text: line.trim() };
+      return character === '' || line.trim() === ''
+        ? { unknown: '/sendas needs a name and a line' }
+        : { name: 'sendas', character, text: line.trim() };
     }
     case 'narrate':
     case 'continue':

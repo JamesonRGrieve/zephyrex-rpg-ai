@@ -55,7 +55,10 @@ test('a first chat: a model, a character, a reply, another reply, and table talk
   await expect(page.getByText('Writing…')).toHaveCount(0);
 });
 
-test('the landing page leads to the chats, and the app installs: a manifest and an icon @phone', async ({ page, request }) => {
+test('the landing page leads to the chats, and the app installs: a manifest and an icon @phone', async ({
+  page,
+  request,
+}) => {
   await page.goto('/');
   // Lite has no accounts, and a signed-in hosted person goes straight to their chats too.
   await expect(page).toHaveURL(/\/play$/);

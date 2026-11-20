@@ -52,9 +52,18 @@ function SectionRow({
   const budgetId = useId();
   const [low, high] = PROMPT.section_token_range;
   return (
-    <li className={cn('grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center', !section.enabled && 'bg-muted/40 text-muted-foreground')}>
+    <li
+      className={cn(
+        'grid gap-2 rounded-lg border p-3 sm:grid-cols-[1fr_auto_auto] sm:items-center',
+        !section.enabled && 'bg-muted/40 text-muted-foreground',
+      )}
+    >
       <div className='flex min-h-11 items-center gap-3'>
-        <Switch checked={section.enabled} aria-label={`Include ${label}`} onCheckedChange={(enabled) => onChange({ ...section, enabled })} />
+        <Switch
+          checked={section.enabled}
+          aria-label={`Include ${label}`}
+          onCheckedChange={(enabled) => onChange({ ...section, enabled })}
+        />
         <span className='text-sm font-medium'>{label}</span>
       </div>
       <div className='flex items-center gap-2'>
@@ -72,15 +81,34 @@ function SectionRow({
           value={section.max_tokens ?? ''}
           onChange={(event) => {
             const value = Number.parseInt(event.target.value, 10);
-            onChange({ ...section, max_tokens: Number.isNaN(value) ? null : Math.min(high ?? value, Math.max(low ?? value, value)) });
+            onChange({
+              ...section,
+              max_tokens: Number.isNaN(value) ? null : Math.min(high ?? value, Math.max(low ?? value, value)),
+            });
           }}
         />
       </div>
       <div className='flex gap-1 justify-self-end'>
-        <Button type='button' variant='ghost' size='icon' className='size-11' aria-label={`Move ${label} up`} disabled={first} onClick={() => onMove(-1)}>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-11'
+          aria-label={`Move ${label} up`}
+          disabled={first}
+          onClick={() => onMove(-1)}
+        >
           <ArrowUp aria-hidden />
         </Button>
-        <Button type='button' variant='ghost' size='icon' className='size-11' aria-label={`Move ${label} down`} disabled={last} onClick={() => onMove(1)}>
+        <Button
+          type='button'
+          variant='ghost'
+          size='icon'
+          className='size-11'
+          aria-label={`Move ${label} down`}
+          disabled={last}
+          onClick={() => onMove(1)}
+        >
           <ArrowDown aria-hidden />
         </Button>
       </div>
@@ -88,7 +116,13 @@ function SectionRow({
   );
 }
 
-export function PromptLayoutEditor({ value, onChange }: { value: readonly PromptSection[]; onChange: (next: PromptSection[]) => void }): ReactElement {
+export function PromptLayoutEditor({
+  value,
+  onChange,
+}: {
+  value: readonly PromptSection[];
+  onChange: (next: PromptSection[]) => void;
+}): ReactElement {
   const layout = promptLayout(value);
   const move = (index: number, step: -1 | 1) => {
     const next = [...layout];
@@ -99,7 +133,9 @@ export function PromptLayoutEditor({ value, onChange }: { value: readonly Prompt
   return (
     <fieldset className='grid gap-2'>
       <legend className='text-sm font-medium'>Prompt sections</legend>
-      <p className='text-xs text-muted-foreground'>What the model reads before the chat, in this order. The chat itself always goes in.</p>
+      <p className='text-xs text-muted-foreground'>
+        What the model reads before the chat, in this order. The chat itself always goes in.
+      </p>
       <ol className='grid gap-2'>
         {layout.map((section, index) => (
           <SectionRow

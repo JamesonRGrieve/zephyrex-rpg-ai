@@ -49,7 +49,11 @@ export function inspectPrompt(request: ReplyRequest): Promise<InspectedPrompt> {
 export const PICTURE_PATH = '/api/v1/ai_chat/picture';
 
 /** A picture of the scene up to `leafId` (A30), drawn by a model set to draw; nothing is saved. */
-export async function pictureOfScene(chatId: string, leafId: string | null, prompt = ''): Promise<{ prompt: string; image: string }> {
+export async function pictureOfScene(
+  chatId: string,
+  leafId: string | null,
+  prompt = '',
+): Promise<{ prompt: string; image: string }> {
   const response = await fetch(PICTURE_PATH, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },

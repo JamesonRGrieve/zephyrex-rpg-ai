@@ -9,12 +9,18 @@ export type ScenarioParts = Omit<Scenario, 'id' | 'created_at' | 'updated_at'>;
 
 /** The clocks with clock `index` moved `step` segments, kept within 0 and its segments. */
 export function advanceClock(clocks: Scenario['clocks'], index: number, step: number): Scenario['clocks'] {
-  return clocks.map((clock, at) => (at === index ? { ...clock, filled: Math.min(clock.segments, Math.max(0, clock.filled + step)) } : clock));
+  return clocks.map((clock, at) =>
+    at === index ? { ...clock, filled: Math.min(clock.segments, Math.max(0, clock.filled + step)) } : clock,
+  );
 }
 
 /** The secrets with clue `clue` of secret `secret` found, or not found again. */
 export function toggleClue(secrets: Scenario['secrets'], secret: number, clue: number): Scenario['secrets'] {
-  return secrets.map((one, at) => (at === secret ? { ...one, clues: one.clues.map((found, index) => (index === clue ? { ...found, found: !found.found } : found)) } : one));
+  return secrets.map((one, at) =>
+    at === secret
+      ? { ...one, clues: one.clues.map((found, index) => (index === clue ? { ...found, found: !found.found } : found)) }
+      : one,
+  );
 }
 
 /** The beats with beat `index` marked done, or not done again. */
@@ -32,12 +38,36 @@ const fileSchema = z
     hook: z.string().default(''),
     stakes: z.string().default(''),
     situation: z.string().default(''),
-    cast: z.array(z.object({ name: z.string(), agenda: z.string().default(''), secret: z.string().default(''), disposition: z.string().default('') })).default([]),
+    cast: z
+      .array(
+        z.object({
+          name: z.string(),
+          agenda: z.string().default(''),
+          secret: z.string().default(''),
+          disposition: z.string().default(''),
+        }),
+      )
+      .default([]),
     places: z.array(z.string()).default([]),
     clocks: z
-      .array(z.object({ name: z.string(), segments: z.number().int(), filled: z.number().int().default(0), advances: z.string().default(''), when_full: z.string().default('') }))
+      .array(
+        z.object({
+          name: z.string(),
+          segments: z.number().int(),
+          filled: z.number().int().default(0),
+          advances: z.string().default(''),
+          when_full: z.string().default(''),
+        }),
+      )
       .default([]),
-    secrets: z.array(z.object({ truth: z.string(), clues: z.array(z.object({ text: z.string(), found: z.boolean().default(false) })).default([]) })).default([]),
+    secrets: z
+      .array(
+        z.object({
+          truth: z.string(),
+          clues: z.array(z.object({ text: z.string(), found: z.boolean().default(false) })).default([]),
+        }),
+      )
+      .default([]),
     beats: z.array(z.object({ text: z.string(), done: z.boolean().default(false) })).default([]),
     outcomes: z.array(z.string()).default([]),
   })
@@ -79,7 +109,10 @@ export function scenarioToJson(scenario: ScenarioParts, keepState = false): Reco
       : {
           ...parts,
           clocks: parts.clocks.map((clock) => ({ ...clock, filled: 0 })),
-          secrets: parts.secrets.map((secret) => ({ ...secret, clues: secret.clues.map((clue) => ({ ...clue, found: false })) })),
+          secrets: parts.secrets.map((secret) => ({
+            ...secret,
+            clues: secret.clues.map((clue) => ({ ...clue, found: false })),
+          })),
           beats: parts.beats.map((beat) => ({ ...beat, done: false })),
         },
   };

@@ -7,7 +7,18 @@ const SIGNATURE = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 /** A PNG's chunk: length, type, body and a CRC (the reader does not check CRCs). */
 function chunk(type: string, body: Uint8Array): number[] {
   const length = body.length;
-  return [(length >>> 24) & 255, (length >>> 16) & 255, (length >>> 8) & 255, length & 255, ...[...type].map((c) => c.charCodeAt(0)), ...body, 0, 0, 0, 0];
+  return [
+    (length >>> 24) & 255,
+    (length >>> 16) & 255,
+    (length >>> 8) & 255,
+    length & 255,
+    ...[...type].map((c) => c.charCodeAt(0)),
+    ...body,
+    0,
+    0,
+    0,
+    0,
+  ];
 }
 
 const latin1 = (value: string) => Uint8Array.from([...value].map((c) => c.charCodeAt(0)));
@@ -15,7 +26,12 @@ const base64Json = (value: unknown) => btoa(String.fromCharCode(...new TextEncod
 const textChunk = (keyword: string, value: string) => chunk('tEXt', latin1(`${keyword}\0${value}`));
 
 function png(...chunks: number[][]): Uint8Array<ArrayBuffer> {
-  return Uint8Array.from([...SIGNATURE, ...chunk('IHDR', new Uint8Array(13)), ...chunks.flat(), ...chunk('IEND', new Uint8Array())]);
+  return Uint8Array.from([
+    ...SIGNATURE,
+    ...chunk('IHDR', new Uint8Array(13)),
+    ...chunks.flat(),
+    ...chunk('IEND', new Uint8Array()),
+  ]);
 }
 
 const V2 = {
@@ -76,9 +92,18 @@ describe('SillyTavern cards', () => {
   });
 
   it('hands back a card’s embedded lorebook, and none when it has no entries', async () => {
-    const withBook = { ...V2, data: { ...V2.data, character_book: { name: 'Ada’s past', entries: [{ keys: ['forge'], content: 'She grew up at a forge.' }] } } };
+    const withBook = {
+      ...V2,
+      data: {
+        ...V2.data,
+        character_book: { name: 'Ada’s past', entries: [{ keys: ['forge'], content: 'She grew up at a forge.' }] },
+      },
+    };
     const read = await readCardFile(new Blob([JSON.stringify(withBook)]));
-    expect(read.book).toMatchObject({ name: 'Ada’s past', entries: [{ keys: ['forge'], content: 'She grew up at a forge.' }] });
+    expect(read.book).toMatchObject({
+      name: 'Ada’s past',
+      entries: [{ keys: ['forge'], content: 'She grew up at a forge.' }],
+    });
     const empty = { ...V2, data: { ...V2.data, character_book: { entries: [] } } };
     expect((await readCardFile(new Blob([JSON.stringify(empty)]))).book).toBeNull();
     expect((await readCardFile(new Blob([JSON.stringify(V2)]))).book).toBeNull();

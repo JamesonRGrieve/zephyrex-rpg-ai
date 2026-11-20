@@ -49,11 +49,18 @@ export const quickReplies: ResourceSpec<Row, z.infer<typeof create>, z.infer<typ
   modelName: 'QuickReplyModel',
   createSchema: create,
   updateSchema: update,
-  list: (ownerId) => prisma.quickReply.findMany({ where: { createdById: ownerId }, orderBy: [{ position: 'asc' }, { label: 'asc' }] }),
+  list: (ownerId) =>
+    prisma.quickReply.findMany({ where: { createdById: ownerId }, orderBy: [{ position: 'asc' }, { label: 'asc' }] }),
   find: (id, ownerId) => prisma.quickReply.findFirst({ where: { id, createdById: ownerId } }),
-  insert: (ownerId, input, stamp) => prisma.quickReply.create({ data: { createdById: ownerId, ...written(input, stamp) } as Prisma.QuickReplyUncheckedCreateInput }),
+  insert: (ownerId, input, stamp) =>
+    prisma.quickReply.create({
+      data: { createdById: ownerId, ...written(input, stamp) } as Prisma.QuickReplyUncheckedCreateInput,
+    }),
   async updateIfCurrent(id, version, input, stamp, userId) {
-    const { count } = await prisma.quickReply.updateMany({ where: { id, updatedAt: version }, data: written(input, stamp, userId) as Prisma.QuickReplyUncheckedUpdateManyInput });
+    const { count } = await prisma.quickReply.updateMany({
+      where: { id, updatedAt: version },
+      data: written(input, stamp, userId) as Prisma.QuickReplyUncheckedUpdateManyInput,
+    });
     return count === 0 ? null : prisma.quickReply.findUnique({ where: { id } });
   },
   async remove(id) {

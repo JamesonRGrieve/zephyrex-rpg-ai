@@ -6,7 +6,16 @@ import { capabilitiesOf } from './capabilities';
 describe('capabilitiesOf', () => {
   it('turns on what the lite back end lists, and nothing it does not', () => {
     const lite = capabilitiesOf(new Set(LITE_EXTENSIONS.map((extension) => extension.name)), true);
-    expect(lite).toEqual({ loaded: true, characters: true, lorebooks: true, chats: true, campaigns: true, accounts: false, world: false, table: false });
+    expect(lite).toEqual({
+      loaded: true,
+      characters: true,
+      lorebooks: true,
+      chats: true,
+      campaigns: true,
+      accounts: false,
+      world: false,
+      table: false,
+    });
   });
 
   it('finds the world and the table when their products are loaded beside this one', () => {

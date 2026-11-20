@@ -56,7 +56,14 @@ export function pngWithCard(png: Uint8Array, card: unknown): Uint8Array {
   const kept: Uint8Array[] = [png.subarray(0, SIGNATURE_LENGTH)];
   let offset = SIGNATURE_LENGTH;
   let inserted = false;
-  const cardChunk = chunk('tEXt', new Uint8Array([...'chara\0'].map((char) => char.charCodeAt(0)).concat([...base64Utf8(JSON.stringify(card))].map((char) => char.charCodeAt(0)))));
+  const cardChunk = chunk(
+    'tEXt',
+    new Uint8Array(
+      [...'chara\0']
+        .map((char) => char.charCodeAt(0))
+        .concat([...base64Utf8(JSON.stringify(card))].map((char) => char.charCodeAt(0))),
+    ),
+  );
   while (offset + CHUNK_HEADER <= png.length) {
     const length = view.getUint32(offset);
     const type = latin1.decode(png.subarray(offset + 4, offset + CHUNK_HEADER));

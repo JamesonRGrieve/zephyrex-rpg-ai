@@ -59,7 +59,12 @@ export const LORE_POSITIONS = contract.lore.positions as unknown as readonly [
   'after_an',
   'at_depth',
 ];
-export const SELECTIVE_LOGIC = contract.lore.selective_logic as unknown as readonly ['and_any', 'not_all', 'not_any', 'and_all'];
+export const SELECTIVE_LOGIC = contract.lore.selective_logic as unknown as readonly [
+  'and_any',
+  'not_all',
+  'not_any',
+  'and_all',
+];
 export const DEPTH_ROLES = contract.lore.depth_roles as unknown as readonly ['system', 'user', 'assistant'];
 export type LorePosition = (typeof LORE_POSITIONS)[number];
 export type SelectiveLogic = (typeof SELECTIVE_LOGIC)[number];
@@ -73,7 +78,13 @@ export const INSTRUCT_TEMPLATES = contract.instruct_templates;
 export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;
 export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text'];
 /** What a model can be used for (A27): replies, the GM's voices, summaries, translation. */
-export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly ['story', 'gm', 'summary', 'translate', 'image'];
+export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly [
+  'story',
+  'gm',
+  'summary',
+  'translate',
+  'image',
+];
 export type EndpointRole = (typeof ENDPOINT_ROLES)[number];
 export type EndpointApi = (typeof ENDPOINT_APIS)[number];
 
@@ -127,4 +138,3 @@ export const EXPRESSION = contract.expression;
 
 /** Pictures of the scene (A30): what the image model is asked for, and at what size. */
 export const PICTURE = contract.picture;
-

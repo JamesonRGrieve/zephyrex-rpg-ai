@@ -8,7 +8,8 @@ import type { ReactElement } from 'react';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 
-const CHIP = 'h-9 shrink-0 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+const CHIP =
+  'h-9 shrink-0 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
 
 export function NextSpeaker({
   cast,
@@ -25,12 +26,22 @@ export function NextSpeaker({
   const inTurn = cast.find((one) => one.id === upNext)?.name;
   return (
     <div className='mx-auto w-full max-w-3xl px-3'>
-      <div ref={chipGroup} role='radiogroup' aria-label='Next to speak' className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-2'>
+      <div
+        ref={chipGroup}
+        role='radiogroup'
+        aria-label='Next to speak'
+        className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-2'
+      >
         <ChoiceChip checked={picked === null} className={CHIP} onClick={() => onPick(null)}>
           In turn{inTurn === undefined ? '' : ` (${inTurn})`}
         </ChoiceChip>
         {cast.map((one) => (
-          <ChoiceChip key={one.id} checked={picked === one.id} className={CHIP} onClick={() => onPick(picked === one.id ? null : one.id)}>
+          <ChoiceChip
+            key={one.id}
+            checked={picked === one.id}
+            className={CHIP}
+            onClick={() => onPick(picked === one.id ? null : one.id)}
+          >
             {one.name}
           </ChoiceChip>
         ))}

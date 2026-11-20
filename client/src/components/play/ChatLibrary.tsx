@@ -69,7 +69,10 @@ export function ChatLibrary(): ReactElement {
   const [query, setQuery] = useState('');
   const [folder, setFolder] = useState<FolderFilter>({ kind: 'all' });
   const searchId = useId();
-  const castNames = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character.name])), [cast.data]);
+  const castNames = useMemo(
+    () => new Map((cast.data ?? []).map((character) => [character.id, character.name])),
+    [cast.data],
+  );
   const folders = foldersOf(list.data ?? []);
   const all = (list.data ?? []).filter((chat) => !hidden.has(chat.id));
   // Newest first, whatever order the back end answers in.
@@ -79,7 +82,8 @@ export function ChatLibrary(): ReactElement {
   const shown = all
     .filter((chat) => inFolder(chat, folder) && chatMatches(chat, castNames, query))
     .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
-  const chip = 'h-9 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
+  const chip =
+    'h-9 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
 
   return (
     <div className='space-y-4'>
@@ -90,7 +94,14 @@ export function ChatLibrary(): ReactElement {
         <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
           <FileUp aria-hidden /> Import chat
         </Button>
-        <input ref={fileInput} type='file' accept='.jsonl,application/jsonl,application/x-ndjson' multiple hidden onChange={(event) => void importFiles(event)} />
+        <input
+          ref={fileInput}
+          type='file'
+          accept='.jsonl,application/jsonl,application/x-ndjson'
+          multiple
+          hidden
+          onChange={(event) => void importFiles(event)}
+        />
       </div>
       {all.length > 0 && (
         <div className='grid gap-2'>
@@ -98,16 +109,36 @@ export function ChatLibrary(): ReactElement {
             <label htmlFor={searchId} className='sr-only'>
               Search chats
             </label>
-            <Search className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' aria-hidden />
-            <Input id={searchId} type='search' value={query} placeholder='Search by title, character or tag' className='h-11 pl-9' onChange={(event) => setQuery(event.target.value)} />
+            <Search
+              className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground'
+              aria-hidden
+            />
+            <Input
+              id={searchId}
+              type='search'
+              value={query}
+              placeholder='Search by title, character or tag'
+              className='h-11 pl-9'
+              onChange={(event) => setQuery(event.target.value)}
+            />
           </div>
           {folders.length > 0 && (
-            <div ref={chipGroup} role='radiogroup' aria-label='Folder' className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-1'>
+            <div
+              ref={chipGroup}
+              role='radiogroup'
+              aria-label='Folder'
+              className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-1'
+            >
               <ChoiceChip checked={folder.kind === 'all'} className={chip} onClick={() => setFolder({ kind: 'all' })}>
                 All
               </ChoiceChip>
               {folders.map((name) => (
-                <ChoiceChip key={name} checked={folder.kind === 'folder' && folder.name === name} className={chip} onClick={() => setFolder({ kind: 'folder', name })}>
+                <ChoiceChip
+                  key={name}
+                  checked={folder.kind === 'folder' && folder.name === name}
+                  className={chip}
+                  onClick={() => setFolder({ kind: 'folder', name })}
+                >
                   {name}
                 </ChoiceChip>
               ))}
@@ -121,9 +152,13 @@ export function ChatLibrary(): ReactElement {
       {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} avatar />}
       {list.data !== undefined && all.length === 0 && (
-        <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>No chats yet. Start one with a character.</p>
+        <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>
+          No chats yet. Start one with a character.
+        </p>
       )}
-      {all.length > 0 && shown.length === 0 && found.length === 0 && <p className='p-4 text-center text-muted-foreground'>No chat matches.</p>}
+      {all.length > 0 && shown.length === 0 && found.length === 0 && (
+        <p className='p-4 text-center text-muted-foreground'>No chat matches.</p>
+      )}
       {found.length > 0 && (
         <section aria-labelledby='found-lines' className='grid gap-2'>
           <h2 id='found-lines' className='text-sm font-semibold'>
@@ -132,8 +167,13 @@ export function ChatLibrary(): ReactElement {
           <ul className='divide-y rounded-xl border'>
             {found.map((line) => (
               <li key={line.messageId}>
-                <Link href={`/play/${line.chatId}?at=${line.messageId}`} className='block min-h-11 p-3 text-sm hover:bg-accent'>
-                  <span className='block text-xs text-muted-foreground'>{all.find((chat) => chat.id === line.chatId)?.title ?? 'A chat'}</span>
+                <Link
+                  href={`/play/${line.chatId}?at=${line.messageId}`}
+                  className='block min-h-11 p-3 text-sm hover:bg-accent'
+                >
+                  <span className='block text-xs text-muted-foreground'>
+                    {all.find((chat) => chat.id === line.chatId)?.title ?? 'A chat'}
+                  </span>
                   <span className='[overflow-wrap:anywhere]'>{line.excerpt}</span>
                 </Link>
               </li>
@@ -175,7 +215,11 @@ export function ChatLibrary(): ReactElement {
               aria-label={`Delete ${chat.title}`}
               onClick={() => {
                 setHidden(new Set([...hidden, chat.id]));
-                deferWithUndo(`${chat.title} deleted`, () => void remove(chat), () => setHidden(new Set([...hidden].filter((id) => id !== chat.id))));
+                deferWithUndo(
+                  `${chat.title} deleted`,
+                  () => void remove(chat),
+                  () => setHidden(new Set([...hidden].filter((id) => id !== chat.id))),
+                );
               }}
             >
               <Trash2 aria-hidden />

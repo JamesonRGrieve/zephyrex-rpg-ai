@@ -22,7 +22,12 @@ const message = (id: string, parent: string | null, extra: Partial<ChatMessage>)
 });
 
 describe('messageViews', () => {
-  const greeting = message('g', null, { role: 'character', speaker_character_id: 'ada', swipes: ['Hi', 'Hello'], swipe_index: 1 });
+  const greeting = message('g', null, {
+    role: 'character',
+    speaker_character_id: 'ada',
+    swipes: ['Hi', 'Hello'],
+    swipe_index: 1,
+  });
   const mine = message('u1', 'g', { swipes: ['I wave.'] });
   const other = message('u2', 'g', { channel: 'ooc', swipes: ['brb'] });
   const cast = new Map([['ada', { name: 'Ada', avatar: null }]]);

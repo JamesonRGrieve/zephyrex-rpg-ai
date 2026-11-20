@@ -2,7 +2,13 @@
 import { describe, expect, it } from 'vitest';
 import { greetingSwipes, nextSpeaker, siblingsOf } from './turns';
 
-const said = (id: string, speaker: string | null, role = 'character', channel = 'ic') => ({ id, parent_id: null, role, channel, speaker_character_id: speaker });
+const said = (id: string, speaker: string | null, role = 'character', channel = 'ic') => ({
+  id,
+  parent_id: null,
+  role,
+  channel,
+  speaker_character_id: speaker,
+});
 
 describe('turns', () => {
   it('lets the one character reply, and takes turns in a group', () => {

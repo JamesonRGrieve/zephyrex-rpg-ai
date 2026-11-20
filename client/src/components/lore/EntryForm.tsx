@@ -35,7 +35,14 @@ const ROLE_LABELS: Record<(typeof DEPTH_ROLES)[number], string> = { system: 'Sys
 
 /** Keys as typed: one per line, trimmed, without blanks or repeats, within the limits. */
 export function parseKeys(text: string): string[] {
-  return [...new Set(text.split('\n').map((key) => key.trim()).filter(Boolean))]
+  return [
+    ...new Set(
+      text
+        .split('\n')
+        .map((key) => key.trim())
+        .filter(Boolean),
+    ),
+  ]
     .filter((key) => key.length <= LIMITS.lore_key_characters)
     .slice(0, LIMITS.lore_keys_per_entry);
 }
@@ -57,7 +64,17 @@ function Group({ title, children }: { title: string; children: ReactNode }): Rea
   );
 }
 
-function Toggle({ label, hint, checked, onChange }: { label: string; hint?: string; checked: boolean; onChange: (value: boolean) => void }): ReactElement {
+function Toggle({
+  label,
+  hint,
+  checked,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}): ReactElement {
   const id = useId();
   return (
     <div className='flex min-h-11 items-center justify-between gap-3'>
@@ -86,17 +103,41 @@ function NumberField({
   return (
     <div className='grid gap-1.5'>
       <Label htmlFor={id}>{label}</Label>
-      <Input id={id} type='number' inputMode='numeric' min={low} max={high} value={value} className='h-11' onChange={(event) => onChange(clampTo(event.target.value, range, value))} />
+      <Input
+        id={id}
+        type='number'
+        inputMode='numeric'
+        min={low}
+        max={high}
+        value={value}
+        className='h-11'
+        onChange={(event) => onChange(clampTo(event.target.value, range, value))}
+      />
     </div>
   );
 }
 
-function Choice<T extends string>({ label, value, options, onChange }: { label: string; value: T; options: Record<T, string>; onChange: (value: T) => void }): ReactElement {
+function Choice<T extends string>({
+  label,
+  value,
+  options,
+  onChange,
+}: {
+  label: string;
+  value: T;
+  options: Record<T, string>;
+  onChange: (value: T) => void;
+}): ReactElement {
   const id = useId();
   return (
     <div className='grid gap-1.5'>
       <Label htmlFor={id}>{label}</Label>
-      <select id={id} value={value} onChange={(event) => onChange(event.target.value as T)} className='h-11 rounded-md border bg-background px-3 text-sm'>
+      <select
+        id={id}
+        value={value}
+        onChange={(event) => onChange(event.target.value as T)}
+        className='h-11 rounded-md border bg-background px-3 text-sm'
+      >
         {(Object.entries(options) as [T, string][]).map(([option, text]) => (
           <option key={option} value={option}>
             {text}
@@ -120,51 +161,116 @@ export function EntryForm({ value, onChange }: { value: EntryFields; onChange: (
       <Group title='What it says'>
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.comment}>Label</Label>
-          <Input id={ids.comment} value={value.comment} maxLength={LIMITS.short_text_characters} className='h-11' onChange={(event) => set('comment', event.target.value)} />
+          <Input
+            id={ids.comment}
+            value={value.comment}
+            maxLength={LIMITS.short_text_characters}
+            className='h-11'
+            onChange={(event) => set('comment', event.target.value)}
+          />
         </div>
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.content}>Content</Label>
-          <Textarea id={ids.content} rows={6} value={value.content} maxLength={LIMITS.lore_content_characters} onChange={(event) => set('content', event.target.value)} />
+          <Textarea
+            id={ids.content}
+            rows={6}
+            value={value.content}
+            maxLength={LIMITS.lore_content_characters}
+            onChange={(event) => set('content', event.target.value)}
+          />
         </div>
       </Group>
 
       <Group title='When it activates'>
         <Toggle label='Enabled' checked={value.enabled} onChange={(next) => set('enabled', next)} />
-        <Toggle label='Always on' hint='Constant: in every reply, whatever is said.' checked={value.constant} onChange={(next) => set('constant', next)} />
+        <Toggle
+          label='Always on'
+          hint='Constant: in every reply, whatever is said.'
+          checked={value.constant}
+          onChange={(next) => set('constant', next)}
+        />
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.keys}>Keys</Label>
           <p id={`${ids.keys}-hint`} className='text-xs text-muted-foreground'>
             One per line. Any one of them in the recent chat activates the entry. Write /pattern/i for a regular expression.
           </p>
-          <Textarea id={ids.keys} rows={3} aria-describedby={`${ids.keys}-hint`} defaultValue={value.keys.join('\n')} onBlur={(event) => set('keys', parseKeys(event.target.value))} />
+          <Textarea
+            id={ids.keys}
+            rows={3}
+            aria-describedby={`${ids.keys}-hint`}
+            defaultValue={value.keys.join('\n')}
+            onBlur={(event) => set('keys', parseKeys(event.target.value))}
+          />
         </div>
-        <Choice label='Secondary keys must match' value={value.selective_logic} options={LOGIC_LABELS} onChange={(next) => set('selective_logic', next)} />
+        <Choice
+          label='Secondary keys must match'
+          value={value.selective_logic}
+          options={LOGIC_LABELS}
+          onChange={(next) => set('selective_logic', next)}
+        />
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.secondary}>Secondary keys</Label>
-          <Textarea id={ids.secondary} rows={2} defaultValue={value.secondary_keys.join('\n')} onBlur={(event) => set('secondary_keys', parseKeys(event.target.value))} />
+          <Textarea
+            id={ids.secondary}
+            rows={2}
+            defaultValue={value.secondary_keys.join('\n')}
+            onBlur={(event) => set('secondary_keys', parseKeys(event.target.value))}
+          />
         </div>
       </Group>
 
       <Group title='Where it goes'>
-        <Choice label='Position' value={value.position} options={POSITION_LABELS} onChange={(next) => set('position', next)} />
+        <Choice
+          label='Position'
+          value={value.position}
+          options={POSITION_LABELS}
+          onChange={(next) => set('position', next)}
+        />
         {value.position === 'at_depth' && (
           <div className='grid gap-3 sm:grid-cols-2'>
-            <NumberField label='Depth (messages from the end)' value={value.depth} range='depth' onChange={(next) => set('depth', next)} />
+            <NumberField
+              label='Depth (messages from the end)'
+              value={value.depth}
+              range='depth'
+              onChange={(next) => set('depth', next)}
+            />
             <Choice label='As' value={value.role} options={ROLE_LABELS} onChange={(next) => set('role', next)} />
           </div>
         )}
-        <NumberField label='Order (higher goes later and wins the budget)' value={value.order} range='order' onChange={(next) => set('order', next)} />
+        <NumberField
+          label='Order (higher goes later and wins the budget)'
+          value={value.order}
+          range='order'
+          onChange={(next) => set('order', next)}
+        />
       </Group>
 
       <Group title='Chance and groups'>
-        <NumberField label='Chance (%)' value={value.probability} range='probability' onChange={(next) => set('probability', next)} />
+        <NumberField
+          label='Chance (%)'
+          value={value.probability}
+          range='probability'
+          onChange={(next) => set('probability', next)}
+        />
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.group}>Inclusion group</Label>
-          <Input id={ids.group} value={value.group} maxLength={LIMITS.short_text_characters} placeholder='Only one entry of a group goes in' className='h-11' onChange={(event) => set('group', event.target.value)} />
+          <Input
+            id={ids.group}
+            value={value.group}
+            maxLength={LIMITS.short_text_characters}
+            placeholder='Only one entry of a group goes in'
+            className='h-11'
+            onChange={(event) => set('group', event.target.value)}
+          />
         </div>
         {value.group !== '' && (
           <div className='grid gap-3 sm:grid-cols-2'>
-            <NumberField label='Group weight' value={value.group_weight} range='group_weight' onChange={(next) => set('group_weight', next)} />
+            <NumberField
+              label='Group weight'
+              value={value.group_weight}
+              range='group_weight'
+              onChange={(next) => set('group_weight', next)}
+            />
             <Toggle label='Wins its group' checked={value.prioritize} onChange={(next) => set('prioritize', next)} />
           </div>
         )}
@@ -179,15 +285,37 @@ export function EntryForm({ value, onChange }: { value: EntryFields; onChange: (
       </Group>
 
       <Group title='Recursion'>
-        <Toggle label='Never activated by other entries' checked={value.exclude_recursion} onChange={(next) => set('exclude_recursion', next)} />
-        <Toggle label='Never activates other entries' checked={value.prevent_recursion} onChange={(next) => set('prevent_recursion', next)} />
-        <Toggle label='Only activated by other entries' checked={value.delay_until_recursion} onChange={(next) => set('delay_until_recursion', next)} />
+        <Toggle
+          label='Never activated by other entries'
+          checked={value.exclude_recursion}
+          onChange={(next) => set('exclude_recursion', next)}
+        />
+        <Toggle
+          label='Never activates other entries'
+          checked={value.prevent_recursion}
+          onChange={(next) => set('prevent_recursion', next)}
+        />
+        <Toggle
+          label='Only activated by other entries'
+          checked={value.delay_until_recursion}
+          onChange={(next) => set('delay_until_recursion', next)}
+        />
       </Group>
 
       <Group title='Matching'>
         <div className='grid gap-3 sm:grid-cols-2'>
-          <Choice label='Case-sensitive' value={triOf(value.case_sensitive)} options={TRI} onChange={(next) => set('case_sensitive', triValue(next))} />
-          <Choice label='Whole words only' value={triOf(value.match_whole_words)} options={TRI} onChange={(next) => set('match_whole_words', triValue(next))} />
+          <Choice
+            label='Case-sensitive'
+            value={triOf(value.case_sensitive)}
+            options={TRI}
+            onChange={(next) => set('case_sensitive', triValue(next))}
+          />
+          <Choice
+            label='Whole words only'
+            value={triOf(value.match_whole_words)}
+            options={TRI}
+            onChange={(next) => set('match_whole_words', triValue(next))}
+          />
         </div>
       </Group>
 
@@ -202,7 +330,11 @@ export function EntryForm({ value, onChange }: { value: EntryFields; onChange: (
             onBlur={(event) => set('character_names', parseKeys(event.target.value))}
           />
         </div>
-        <Toggle label='Everyone except these' checked={value.character_exclude} onChange={(next) => set('character_exclude', next)} />
+        <Toggle
+          label='Everyone except these'
+          checked={value.character_exclude}
+          onChange={(next) => set('character_exclude', next)}
+        />
       </Group>
     </div>
   );

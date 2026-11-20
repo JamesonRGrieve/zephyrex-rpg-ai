@@ -10,7 +10,11 @@ function Harness(): React.ReactElement {
   return <PromptLayoutEditor value={layout} onChange={setLayout} />;
 }
 
-const meta: Meta<typeof Harness> = { title: 'Prompt/Prompt sections', component: Harness, decorators: [(Story) => <div className='max-w-2xl'>{Story()}</div>] };
+const meta: Meta<typeof Harness> = {
+  title: 'Prompt/Prompt sections',
+  component: Harness,
+  decorators: [(Story) => <div className='max-w-2xl'>{Story()}</div>],
+};
 export default meta;
 type Story = StoryObj<typeof Harness>;
 
@@ -19,7 +23,9 @@ export const Reorder: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: 'Move Description up' }));
     const names = canvas.getAllByRole('listitem').map((row) => row.textContent ?? '');
-    await expect(names.findIndex((name) => name.includes('Description'))).toBeLessThan(names.findIndex((name) => name.includes('Lore before the character')));
+    await expect(names.findIndex((name) => name.includes('Description'))).toBeLessThan(
+      names.findIndex((name) => name.includes('Lore before the character')),
+    );
     await userEvent.click(canvas.getByRole('switch', { name: 'Include Scenario' }));
     await expect(canvas.getByRole('switch', { name: 'Include Scenario' })).not.toBeChecked();
   },

@@ -8,7 +8,16 @@ const meta: Meta<typeof MessageItem> = {
   title: 'Play/Message',
   component: MessageItem,
   decorators: [(Story) => <div className='max-w-2xl'>{Story()}</div>],
-  args: { message: ADA_REPLY, onSwipe: fn(), onRegenerate: fn(), onFork: fn(), onEdit: fn(), onBookmark: fn(), onBranch: fn(), onDelete: fn() },
+  args: {
+    message: ADA_REPLY,
+    onSwipe: fn(),
+    onRegenerate: fn(),
+    onFork: fn(),
+    onEdit: fn(),
+    onBookmark: fn(),
+    onBranch: fn(),
+    onDelete: fn(),
+  },
 };
 export default meta;
 type Story = StoryObj<typeof MessageItem>;
@@ -71,7 +80,6 @@ export const Document: Story = {
     await expect(within(canvasElement).queryByText('AV')).not.toBeInTheDocument();
   },
 };
-
 
 const hideTranslation = fn();
 

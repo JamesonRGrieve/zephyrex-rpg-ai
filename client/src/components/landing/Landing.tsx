@@ -21,7 +21,13 @@ export function Landing({ start = START }: { start?: { label: string; href: stri
         cta={start}
       />
       <main className='mx-auto w-full min-w-0 max-w-5xl space-y-20 px-4 pb-safe'>
-        <Hero title={HERO.title} lead={HERO.lead} primary={start} secondary={{ label: 'See what it does', href: '#features' }} sample={<SampleScene />} />
+        <Hero
+          title={HERO.title}
+          lead={HERO.lead}
+          primary={start}
+          secondary={{ label: 'See what it does', href: '#features' }}
+          sample={<SampleScene />}
+        />
         <Section id='features' title='What it does' eyebrow='Features'>
           <div className='grid gap-4 sm:grid-cols-2'>
             {FEATURES.map((feature) => (

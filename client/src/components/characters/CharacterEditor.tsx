@@ -8,7 +8,7 @@
  */
 import { Download, MessageSquarePlus, Save, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
-import { type ReactElement, useEffect, useId, useState } from 'react';
+import { type ReactElement, useId, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { useClient, writeProblem } from 'zephyrex';
 import { Button } from 'zephyrex/ui/button';
@@ -25,8 +25,38 @@ import { VoicePicker } from './VoicePicker';
 import { type CharacterDraft, CharacterForm } from './CharacterForm';
 
 export function draftOf(character: Character): CharacterDraft {
-  const { name, avatar, description, personality, scenario, first_message, alternate_greetings, example_messages, system_prompt, post_history_instructions, creator_notes, creator, character_version, tags } = character;
-  return { name, avatar, description, personality, scenario, first_message, alternate_greetings, example_messages, system_prompt, post_history_instructions, creator_notes, creator, character_version, tags };
+  const {
+    name,
+    avatar,
+    description,
+    personality,
+    scenario,
+    first_message,
+    alternate_greetings,
+    example_messages,
+    system_prompt,
+    post_history_instructions,
+    creator_notes,
+    creator,
+    character_version,
+    tags,
+  } = character;
+  return {
+    name,
+    avatar,
+    description,
+    personality,
+    scenario,
+    first_message,
+    alternate_greetings,
+    example_messages,
+    system_prompt,
+    post_history_instructions,
+    creator_notes,
+    creator,
+    character_version,
+    tags,
+  };
 }
 
 /** A lorebook's entries, read as the signed-in person sees them. */
@@ -45,7 +75,8 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const { update, remove } = characters.useActions();
   const { create: createChat } = chats.useActions();
   const router = useRouter();
-  const [draft, setDraft] = useState<CharacterDraft | null>(null);
+  // The person's edits; until there are any, the draft is the record as saved.
+  const [edited, setDraft] = useState<CharacterDraft | null>(null);
   const [saving, setSaving] = useState(false);
   const [problem, setProblem] = useState<string | null>(null);
   const books = lorebooks.useList();
@@ -53,13 +84,11 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const [voice, setVoice] = useState<CharacterVoice | null>(null);
   const client = useClient();
 
-  useEffect(() => {
-    if (record.data !== undefined && draft === null) setDraft(draftOf(record.data));
-  }, [record.data, draft]);
-
-  if (record.error !== undefined) return <LoadProblem what='this character' error={record.error} onRetry={() => record.mutate()} />;
-  if (record.data === undefined || draft === null) return <SkeletonRows rows={6} />;
+  if (record.error !== undefined)
+    return <LoadProblem what='this character' error={record.error} onRetry={() => record.mutate()} />;
+  if (record.data === undefined) return <SkeletonRows rows={6} />;
   const saved = record.data;
+  const draft = edited ?? draftOf(saved);
   const changed = isChanged(draft, saved);
 
   const save = async () => {
@@ -77,7 +106,9 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   /** The card, with the character's lorebook as its character_book, as a PNG card or JSON. */
   const exportThis = async () => {
     const book = (books.data ?? []).find((one) => one.id === saved.lorebook_id);
-    const card = await cardWithBook({ ...draft, extensions: saved.extensions }, book, () => entriesOfBook(client, book?.id ?? ''));
+    const card = await cardWithBook({ ...draft, extensions: saved.extensions }, book, () =>
+      entriesOfBook(client, book?.id ?? ''),
+    );
     await exportCard(saved.name, draft.avatar, card);
   };
 
@@ -88,7 +119,11 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
 
   const deleteCharacter = () => {
     router.push('/characters');
-    deferWithUndo(`${saved.name} deleted`, () => void remove(saved), () => router.push(`/characters/${saved.id}`));
+    deferWithUndo(
+      `${saved.name} deleted`,
+      () => void remove(saved),
+      () => router.push(`/characters/${saved.id}`),
+    );
   };
 
   return (
@@ -116,7 +151,11 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
           aria-describedby={`${bookPicker}-hint`}
           value={saved.lorebook_id ?? ''}
           className='h-11 rounded-md border bg-background px-3 text-sm'
-          onChange={(event) => void update(saved, { lorebook_id: event.target.value === '' ? null : event.target.value }).then(() => notify('Saved'))}
+          onChange={(event) =>
+            void update(saved, { lorebook_id: event.target.value === '' ? null : event.target.value }).then(() =>
+              notify('Saved'),
+            )
+          }
         >
           <option value=''>None</option>
           {(books.data ?? []).map((book) => (
@@ -147,7 +186,12 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
       <div className='mb-6'>
         <ExpressionEditor characterId={saved.id} name={saved.name} />
       </div>
-      <CharacterForm key={saved.id} value={draft} onChange={setDraft} onAvatarRefused={(reason) => notify('Picture not used', reason)} />
+      <CharacterForm
+        key={saved.id}
+        value={draft}
+        onChange={setDraft}
+        onAvatarRefused={(reason) => notify('Picture not used', reason)}
+      />
       <div className='fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 pb-safe backdrop-blur-sm md:sticky md:mt-8 md:border md:rounded-xl'>
         <div className='mx-auto max-w-3xl px-4 pt-3'>
           <WriteProblem problem={problem} />

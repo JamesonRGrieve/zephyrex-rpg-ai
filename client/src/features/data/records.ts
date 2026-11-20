@@ -11,7 +11,25 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CAMPAIGN, CHAT_MODES, DATA_BANK, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SAFETY, TABLE, SELECTIVE_LOGIC, ENDPOINT_APIS, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import {
+  CAMPAIGN,
+  CHAT_MODES,
+  DATA_BANK,
+  DEPTH_ROLES,
+  LORE_POSITIONS,
+  MESSAGE_CHANNELS,
+  MESSAGE_ROLES,
+  PROMPT,
+  QUICK_REPLY,
+  REGEX,
+  SAFETY,
+  TABLE,
+  SELECTIVE_LOGIC,
+  ENDPOINT_APIS,
+  ENDPOINT_ROLES,
+  INSTRUCT_TEMPLATES,
+  type InstructTemplateId,
+} from '~/contract';
 
 const JSON_BODY = z.json();
 
@@ -168,14 +186,18 @@ export function resource<T extends Versioned, Create extends object, Extra = obj
     },
     useOne(id) {
       const client = useClient();
-      return useSWR(id === null ? null : `${path}/${id}`, async () => one(schema, singular, await client.get(`${path}/${id ?? ''}`)));
+      return useSWR(id === null ? null : `${path}/${id}`, async () =>
+        one(schema, singular, await client.get(`${path}/${id ?? ''}`)),
+      );
     },
     useActions() {
       const client = useClient();
       const { mutate } = useSWRConfig();
       // A change has every list of this resource, and the record itself, read again.
       const refresh = async (id?: string) => {
-        await mutate((key) => typeof key === 'string' && (key === path || key.startsWith(`${path}?`) || key === `${path}/${id ?? ''}`));
+        await mutate(
+          (key) => typeof key === 'string' && (key === path || key.startsWith(`${path}?`) || key === `${path}/${id ?? ''}`),
+        );
       };
       return {
         async create(fields) {
@@ -184,7 +206,11 @@ export function resource<T extends Versioned, Create extends object, Extra = obj
           return saved;
         },
         async update(seen, changes) {
-          const saved = one(schema, singular, await client.put(`${path}/${seen.id}`, jsonBody({ [singular]: changes }), seen));
+          const saved = one(
+            schema,
+            singular,
+            await client.put(`${path}/${seen.id}`, jsonBody({ [singular]: changes }), seen),
+          );
           await refresh(saved.id);
           return saved;
         },
@@ -197,14 +223,22 @@ export function resource<T extends Versioned, Create extends object, Extra = obj
   };
 }
 
-export const characters = resource<Character, Fields<Character> & { name: string }>('character', 'characters', characterSchema);
+export const characters = resource<Character, Fields<Character> & { name: string }>(
+  'character',
+  'characters',
+  characterSchema,
+);
 export const personas = resource<Persona, Fields<Persona> & { name: string }>('persona', 'personae', personaSchema);
 export const chats = resource<Chat, Fields<Chat> & { title: string; character_ids: string[] }>('chat', 'chats', chatSchema);
 export const messages = resource<
   ChatMessage,
   Pick<ChatMessage, 'chat_id' | 'parent_id' | 'role' | 'swipes'> & Fields<ChatMessage>
 >('chat_message', 'chat_messages', messageSchema);
-export const presets = resource<Preset, Fields<Preset> & { name: string }>('generation_preset', 'generation_presets', presetSchema);
+export const presets = resource<Preset, Fields<Preset> & { name: string }>(
+  'generation_preset',
+  'generation_presets',
+  presetSchema,
+);
 export const endpoints = resource<
   ModelEndpoint,
   Fields<ModelEndpoint, { api_key?: string }> & { name: string; base_url: string; model: string },
@@ -266,7 +300,11 @@ export const regexScriptSchema = z.object({
   position: z.number(),
 });
 export type RegexScriptRecord = z.infer<typeof regexScriptSchema>;
-export const regexScripts = resource<RegexScriptRecord, Fields<RegexScriptRecord> & { name: string; find: string }>('regex_script', 'regex_scripts', regexScriptSchema);
+export const regexScripts = resource<RegexScriptRecord, Fields<RegexScriptRecord> & { name: string; find: string }>(
+  'regex_script',
+  'regex_scripts',
+  regexScriptSchema,
+);
 
 export const quickReplySchema = z.object({
   ...versioned,
@@ -278,7 +316,11 @@ export const quickReplySchema = z.object({
   position: z.number(),
 });
 export type QuickReply = z.infer<typeof quickReplySchema>;
-export const quickReplies = resource<QuickReply, Fields<QuickReply> & { label: string; message: string }>('quick_reply', 'quick_replies', quickReplySchema);
+export const quickReplies = resource<QuickReply, Fields<QuickReply> & { label: string; message: string }>(
+  'quick_reply',
+  'quick_replies',
+  quickReplySchema,
+);
 
 export const dataDocumentSchema = z.object({
   ...versioned,
@@ -288,7 +330,11 @@ export const dataDocumentSchema = z.object({
   scope_id: z.string().nullable(),
 });
 export type DataDocument = z.infer<typeof dataDocumentSchema>;
-export const dataDocuments = resource<DataDocument, Fields<DataDocument> & { name: string; text: string }>('data_document', 'data_documents', dataDocumentSchema);
+export const dataDocuments = resource<DataDocument, Fields<DataDocument> & { name: string; text: string }>(
+  'data_document',
+  'data_documents',
+  dataDocumentSchema,
+);
 
 export const campaignSchema = z.object({
   ...versioned,
@@ -316,7 +362,9 @@ export const scenarioSchema = z.object({
   situation: z.string(),
   cast: z.array(z.object({ name: z.string(), agenda: z.string(), secret: z.string(), disposition: z.string() })),
   places: z.array(z.string()),
-  clocks: z.array(z.object({ name: z.string(), segments: z.number(), filled: z.number(), advances: z.string(), when_full: z.string() })),
+  clocks: z.array(
+    z.object({ name: z.string(), segments: z.number(), filled: z.number(), advances: z.string(), when_full: z.string() }),
+  ),
   secrets: z.array(z.object({ truth: z.string(), clues: z.array(z.object({ text: z.string(), found: z.boolean() })) })),
   beats: z.array(z.object({ text: z.string(), done: z.boolean() })),
   outcomes: z.array(z.string()),
@@ -324,11 +372,14 @@ export const scenarioSchema = z.object({
 export type Scenario = z.infer<typeof scenarioSchema>;
 export const scenarios = resource<Scenario, Fields<Scenario> & { name: string }>('scenario', 'scenarios', scenarioSchema);
 
-export const characterExpressionSchema = z.object({ ...versioned, character_id: z.string(), label: z.string(), image: z.string() });
+export const characterExpressionSchema = z.object({
+  ...versioned,
+  character_id: z.string(),
+  label: z.string(),
+  image: z.string(),
+});
 export type CharacterExpression = z.infer<typeof characterExpressionSchema>;
-export const characterExpressions = resource<CharacterExpression, Fields<CharacterExpression> & { character_id: string; label: string; image: string }>(
-  'character_expression',
-  'character_expressions',
-  characterExpressionSchema,
-);
-
+export const characterExpressions = resource<
+  CharacterExpression,
+  Fields<CharacterExpression> & { character_id: string; label: string; image: string }
+>('character_expression', 'character_expressions', characterExpressionSchema);

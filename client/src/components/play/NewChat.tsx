@@ -32,7 +32,10 @@ export function NewChat({ open, onOpenChange }: { open: boolean; onOpenChange: (
   const [picked, setPicked] = useState<string[]>([]);
   const [starting, setStarting] = useState(false);
 
-  const toggle = (id: string) => setPicked(picked.includes(id) ? picked.filter((one) => one !== id) : [...picked, id].slice(0, LIMITS.characters_per_chat));
+  const toggle = (id: string) =>
+    setPicked(
+      picked.includes(id) ? picked.filter((one) => one !== id) : [...picked, id].slice(0, LIMITS.characters_per_chat),
+    );
 
   const start = async () => {
     const cast = picked.flatMap((id) => (list.data ?? []).filter((character) => character.id === id));
@@ -40,10 +43,20 @@ export function NewChat({ open, onOpenChange }: { open: boolean; onOpenChange: (
     if (first === undefined) return;
     setStarting(true);
     try {
-      const chat = await create({ title: chatTitle(cast), character_ids: picked, mode: cast.length > 1 ? 'group' : 'character' });
+      const chat = await create({
+        title: chatTitle(cast),
+        character_ids: picked,
+        mode: cast.length > 1 ? 'group' : 'character',
+      });
       const greetings = greetingSwipes(first.first_message, first.alternate_greetings);
       if (greetings.length > 0) {
-        await createMessage({ chat_id: chat.id, parent_id: null, role: 'character', speaker_character_id: first.id, swipes: greetings });
+        await createMessage({
+          chat_id: chat.id,
+          parent_id: null,
+          role: 'character',
+          speaker_character_id: first.id,
+          swipes: greetings,
+        });
       }
       onOpenChange(false);
       setPicked([]);
@@ -69,22 +82,34 @@ export function NewChat({ open, onOpenChange }: { open: boolean; onOpenChange: (
                   type='button'
                   aria-pressed={order !== -1}
                   onClick={() => toggle(character.id)}
-                  className={cn('flex min-h-14 w-full items-center gap-3 rounded-lg border p-2 text-left', order !== -1 && 'border-primary bg-primary/10')}
+                  className={cn(
+                    'flex min-h-14 w-full items-center gap-3 rounded-lg border p-2 text-left',
+                    order !== -1 && 'border-primary bg-primary/10',
+                  )}
                 >
                   <Avatar className='size-10'>
                     {character.avatar !== null && <AvatarImage src={character.avatar} alt='' />}
                     <AvatarFallback>{initials(character.name)}</AvatarFallback>
                   </Avatar>
                   <span className='min-w-0 flex-1 truncate font-medium'>{character.name}</span>
-                  {order !== -1 && <span className='text-xs text-muted-foreground'>{order === 0 ? 'Speaks first' : `#${order + 1}`}</span>}
+                  {order !== -1 && (
+                    <span className='text-xs text-muted-foreground'>{order === 0 ? 'Speaks first' : `#${order + 1}`}</span>
+                  )}
                 </button>
               </li>
             );
           })}
-          {list.data !== undefined && list.data.length === 0 && <li className='text-muted-foreground'>Add a character first.</li>}
+          {list.data !== undefined && list.data.length === 0 && (
+            <li className='text-muted-foreground'>Add a character first.</li>
+          )}
         </ul>
         <div className='border-t p-4'>
-          <Button type='button' className='h-11 w-full' disabled={picked.length === 0 || starting} onClick={() => void start()}>
+          <Button
+            type='button'
+            className='h-11 w-full'
+            disabled={picked.length === 0 || starting}
+            onClick={() => void start()}
+          >
             {starting ? 'Starting…' : picked.length > 1 ? `Start a group chat (${picked.length})` : 'Start the chat'}
           </Button>
         </div>

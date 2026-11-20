@@ -20,7 +20,9 @@ describe('PromptLayoutEditor', () => {
     const ids: string[] = onChange.mock.lastCall?.[0].map((section: { id: string }) => section.id);
     expect(ids.indexOf('description')).toBe(ids.indexOf('lore_before_char') - 1);
     await userEvent.click(screen.getByRole('switch', { name: 'Include Example dialogue' }));
-    expect(onChange.mock.lastCall?.[0].find((section: { id: string }) => section.id === 'examples')).toMatchObject({ enabled: false });
+    expect(onChange.mock.lastCall?.[0].find((section: { id: string }) => section.id === 'examples')).toMatchObject({
+      enabled: false,
+    });
     await userEvent.type(screen.getAllByLabelText('Max tokens')[0] as HTMLElement, '5');
     expect(onChange.mock.lastCall?.[0][0]).toMatchObject({ id: 'main', max_tokens: 5 });
   });
