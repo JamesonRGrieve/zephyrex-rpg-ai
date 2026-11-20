@@ -2,7 +2,7 @@
 'use client';
 /**
  * A chat's own settings: its title, who the person plays as, the sampler preset, the model, the
- * author's note (docs/DESIGN.md A16), the lorebooks it reads and its World Info settings (A14). Native selects on purpose: on a phone they open the system's
+ * author's note and its own system prompt (docs/DESIGN.md A16), the lorebooks it reads and its World Info settings (A14). Native selects on purpose: on a phone they open the system's
  * own picker. Opens from the side on a wide screen and from the bottom on a phone.
  */
 import { type ReactElement, useId, useState } from 'react';
@@ -22,6 +22,7 @@ export interface ChatSettingsValue {
   author_note: string;
   lorebook_ids: string[];
   lore_settings: LoreSettingsValue;
+  system_prompt: string;
 }
 
 /** What a chat sets of World Info's settings; the rest take the contract's defaults. */
@@ -95,7 +96,7 @@ export function ChatSettings({
 }): ReactElement {
   const mobile = useIsMobile();
   const [draft, setDraft] = useState(value);
-  const ids = { title: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
+  const ids = { title: useId(), system: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
   const setLore = <K extends keyof LoreSettingsValue>(key: K, next: LoreSettingsValue[K]) => set('lore_settings', { ...draft.lore_settings, [key]: next });
   const loreNumber = (key: 'scan_depth' | 'token_budget' | 'recursion_steps', text: string) => {
     const [low, high] = LORE.ranges[key];
@@ -136,6 +137,20 @@ export function ChatSettings({
           <Choice label='You play as' value={draft.persona_id} options={personas} noneLabel='Your default persona' onChange={(next) => set('persona_id', next)} />
           <Choice label='Preset' value={draft.preset_id} options={presets} noneLabel='Default settings' onChange={(next) => set('preset_id', next)} />
           <Choice label='Model' value={draft.endpoint_id} options={endpoints} noneLabel='Your default model' onChange={(next) => set('endpoint_id', next)} />
+          <div className='grid gap-1.5'>
+            <Label htmlFor={ids.system}>System prompt</Label>
+            <p id={`${ids.system}-hint`} className='text-xs text-muted-foreground'>
+              Replaces the character’s own for this chat. Leave it blank to keep theirs.
+            </p>
+            <Textarea
+              id={ids.system}
+              rows={3}
+              value={draft.system_prompt}
+              maxLength={LIMITS.chat_system_prompt_characters}
+              aria-describedby={`${ids.system}-hint`}
+              onChange={(event) => set('system_prompt', event.target.value)}
+            />
+          </div>
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.note}>Author’s note</Label>
             <p id={`${ids.note}-hint`} className='text-xs text-muted-foreground'>

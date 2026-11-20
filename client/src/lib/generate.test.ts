@@ -168,6 +168,23 @@ describe('POST /v1/ai_chat/prompt', () => {
   });
 });
 
+describe('the prompt manager', () => {
+  it('lays the system text out as the chat’s preset says, with the chat’s own system prompt', async () => {
+    const { chat, line } = await seed();
+    const layout = [
+      { id: 'description', enabled: true, max_tokens: null },
+      { id: 'main', enabled: true, max_tokens: 2 },
+    ];
+    const preset = await prisma.generationPreset.create({
+      data: { ...stamp(), name: 'Layout', temperature: 0.7, topP: 1, topK: 0, repetitionPenalty: 1, maxTokens: 200, contextTokens: 4096, promptLayout: JSON.stringify(layout) },
+    });
+    await prisma.chat.update({ where: { id: chat.id }, data: { presetId: preset.id, systemPrompt: 'Narrate {{char}} closely.' } });
+    const response = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+    const body = (await response.json()) as { prompt: { messages: { content: string }[] } };
+    expect(body.prompt.messages[0]?.content).toBe('Ada is an engineer.\n\nNarrate');
+  });
+});
+
 describe('completionsUrl', () => {
   it('appends /chat/completions once, whatever the trailing slashes', () => {
     expect(completionsUrl('http://h:1/v1')).toBe('http://h:1/v1/chat/completions');

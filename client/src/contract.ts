@@ -24,7 +24,23 @@ export type ChatMode = (typeof CHAT_MODES)[number];
 export type SamplerSetting = keyof typeof SAMPLER_RANGES;
 
 /** How a prompt is assembled (features/prompt/assemble.ts; cases in contract/prompt-cases.json). */
-export const PROMPT = contract.prompt;
+export const PROMPT = {
+  ...contract.prompt,
+  sections: contract.prompt.sections as unknown as readonly [
+    'main',
+    'lore_before_char',
+    'description',
+    'personality',
+    'scenario',
+    'lore_after_char',
+    'persona',
+    'lore_before_example',
+    'examples',
+    'lore_after_example',
+    'author_note',
+    'post_history',
+  ],
+};
 
 /** World Info: positions, logic, defaults and ranges (features/lore/activate.ts; cases in contract/lore-cases.json). */
 export const LORE = contract.lore;

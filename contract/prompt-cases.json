@@ -434,6 +434,72 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "the prompt manager: the chat's system prompt, sections reordered, turned off and cut to their budget",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "speaker_id": "c-ada",
+        "persona": {
+          "name": "Sam",
+          "description": "A deckhand with a limp."
+        },
+        "author_note": "Keep the mood tense.",
+        "system_prompt": "Narrate {{char}} in the third person.",
+        "layout": [
+          {
+            "id": "persona",
+            "enabled": true,
+            "max_tokens": null
+          },
+          {
+            "id": "description",
+            "enabled": true,
+            "max_tokens": 3
+          },
+          {
+            "id": "examples",
+            "enabled": false,
+            "max_tokens": null
+          },
+          {
+            "id": "author_note",
+            "enabled": false,
+            "max_tokens": null
+          },
+          {
+            "id": "nonsense",
+            "enabled": true
+          },
+          {
+            "id": "persona",
+            "enabled": false
+          }
+        ],
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Hello."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Sam: A deckhand with a limp.\n\nAda is a shi\n\nNarrate Ada in the third person.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard."
+        },
+        {
+          "role": "user",
+          "content": "Hello."
+        }
+      ],
+      "dropped": 0
     }
   ]
 }

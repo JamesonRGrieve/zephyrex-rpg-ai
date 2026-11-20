@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import contract from '../../contract/rpg_ai.json';
-import { CHAT_MODES, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, SAMPLER_RANGES } from './contract';
+import { CHAT_MODES, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAMPLER_RANGES } from './contract';
 
 describe('contract', () => {
   it('casts the enum tuples to exactly what the contract lists', () => {
@@ -11,6 +11,7 @@ describe('contract', () => {
     expect([...MESSAGE_ROLES]).toEqual(contract.message_roles);
     expect([...MESSAGE_CHANNELS]).toEqual(contract.message_channels);
     expect([...CHAT_MODES]).toEqual(contract.chat_modes);
+    expect([...PROMPT.sections]).toEqual(contract.prompt.sections);
   });
 
   it('keeps every preset default inside its sampler range', () => {

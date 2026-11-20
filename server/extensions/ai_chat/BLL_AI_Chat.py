@@ -123,6 +123,26 @@ def _lorebook_ids(ids: Any) -> Any:
     return ids
 
 
+def _prompt_layout(layout: Any) -> Any:
+    """The prompt manager's layout (A16): known sections, each at most once, with a budget in range."""
+    if layout is None:
+        return None
+    low, high = PROMPT["section_token_range"]
+    seen: set[str] = set()
+    for section in layout:
+        if not isinstance(section, dict) or set(section) != {"id", "enabled", "max_tokens"}:
+            raise ValueError("Each section is {id, enabled, max_tokens}")
+        if section["id"] not in PROMPT["sections"] or section["id"] in seen:
+            raise ValueError("A section is a known one, in the layout once")
+        if not isinstance(section["enabled"], bool):
+            raise ValueError("A section's enabled is true or false")
+        budget = section["max_tokens"]
+        if budget is not None and (isinstance(budget, bool) or not isinstance(budget, int) or not low <= budget <= high):
+            raise ValueError(f"A section's max_tokens is null or {low} to {high}")
+        seen.add(section["id"])
+    return layout
+
+
 def _lore_settings(settings: Any) -> Any:
     """A chat's World Info settings; what it leaves out takes the contract's defaults."""
     if settings is None:
@@ -214,6 +234,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     author_note: str = Field("", description="Read close to the end of the chat")
     lorebook_ids: list[str] = Field(default_factory=list, description="The lorebooks it reads")
     lore_settings: dict[str, Any] = Field(default_factory=dict, description="World Info settings")
+    system_prompt: str = Field("", description="The chat's own system prompt (blank: the card's)")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
@@ -227,6 +248,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         author_note: str = Field("", max_length=MAX_NOTE)
         lorebook_ids: list[str] = Field(default_factory=list)
         lore_settings: dict[str, Any] = Field(default_factory=dict)
+        system_prompt: str = Field("", max_length=LIMITS["chat_system_prompt_characters"])
 
     class Update(BaseModel, ChatChecks):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -238,6 +260,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         author_note: str | None = Field(None, max_length=MAX_NOTE)
         lorebook_ids: list[str] | None = None
         lore_settings: dict[str, Any] | None = None
+        system_prompt: str | None = Field(None, max_length=LIMITS["chat_system_prompt_characters"])
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -274,6 +297,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("author_note", "")
         kwargs.setdefault("lorebook_ids", [])
         kwargs.setdefault("lore_settings", {})
+        kwargs.setdefault("system_prompt", "")
         self._check_references(kwargs)
         return super().create(**kwargs)
 
@@ -426,6 +450,11 @@ class PresetChecks(PlainModel):
     def _checked_stops(cls, value: Any) -> Any:
         return _stops(value)
 
+    @field_validator("prompt_layout", check_fields=False)
+    @classmethod
+    def _checked_layout(cls, value: Any) -> Any:
+        return _prompt_layout(value)
+
 
 class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["GenerationPresetManager"]]
@@ -437,6 +466,7 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
     max_tokens: int = Field(int(PRESET_DEFAULTS["max_tokens"]))
     context_tokens: int = Field(int(PRESET_DEFAULTS["context_tokens"]))
     stop: list[str] = Field(default_factory=list)
+    prompt_layout: list[dict[str, Any]] = Field(default_factory=list, description="The prompt manager's sections, in order")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI sampler presets"
 
@@ -449,6 +479,7 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         max_tokens: int = int(PRESET_DEFAULTS["max_tokens"])
         context_tokens: int = int(PRESET_DEFAULTS["context_tokens"])
         stop: list[str] = Field(default_factory=list)
+        prompt_layout: list[dict[str, Any]] = Field(default_factory=list)
 
     class Update(BaseModel, PresetChecks):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -459,6 +490,7 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         max_tokens: int | None = None
         context_tokens: int | None = None
         stop: list[str] | None = None
+        prompt_layout: list[dict[str, Any]] | None = None
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -470,6 +502,7 @@ class GenerationPresetManager(AbstractBLLManager[GenerationPresetModel], RouterM
     def create(self, **kwargs: Any) -> Any:
         # Scalar defaults are written; the list's must be explicit.
         kwargs.setdefault("stop", [])
+        kwargs.setdefault("prompt_layout", [])
         for setting, value in PRESET_DEFAULTS.items():
             kwargs.setdefault(setting, value)
         return super().create(**kwargs)
@@ -687,10 +720,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         if save_timers:
             timers.save(chat.id, lore.state)
 
-        sampler: dict[str, Any] = {**PRESET_DEFAULTS, "stop": []}
+        sampler: dict[str, Any] = {**PRESET_DEFAULTS, "stop": [], "prompt_layout": []}
         if chat.preset_id:
             preset = self._manager(GenerationPresetManager).get(id=chat.preset_id)
-            sampler = {key: getattr(preset, key) for key in (*PRESET_DEFAULTS.keys(), "stop")}
+            sampler = {key: getattr(preset, key) for key in (*PRESET_DEFAULTS.keys(), "stop", "prompt_layout")}
 
         endpoints = self._manager(ModelEndpointManager)
         if chat.endpoint_id:
@@ -710,6 +743,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             int(sampler["max_tokens"]),
             {"sections": lore.sections, "at_depth": lore.at_depth},
             body.mode,
+            sampler["prompt_layout"] or [],
+            chat.system_prompt or "",
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {

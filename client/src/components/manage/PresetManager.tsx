@@ -8,6 +8,8 @@ import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Slider } from 'zephyrex/ui/slider';
+import { PromptLayoutEditor } from '~/components/prompt/PromptLayoutEditor';
+import type { PromptSection } from '~/features/prompt/assemble';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, PRESET_DEFAULTS, SAMPLER_RANGES, type SamplerSetting } from '~/contract';
 import { type Preset, presets } from '~/features/data/records';
@@ -67,11 +69,12 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
   const [name, setName] = useState(preset?.name ?? '');
   const [values, setValues] = useState<Samplers>(() => samplersOf(preset ?? PRESET_DEFAULTS));
   const [stops, setStops] = useState((preset?.stop ?? []).join('\n'));
+  const [layout, setLayout] = useState<PromptSection[]>(preset?.prompt_layout ?? []);
   const [problem, setProblem] = useState<string | null>(null);
   const ids = { name: useId(), stops: useId() };
 
   const save = async () => {
-    const fields = { name: name.trim(), ...values, stop: parseStops(stops) };
+    const fields = { name: name.trim(), ...values, stop: parseStops(stops), prompt_layout: layout };
     const failed = await writeProblem(preset === null ? create(fields) : update(preset, fields), 'Not saved');
     setProblem(failed);
     if (failed === null) {
@@ -102,6 +105,7 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
         </p>
         <textarea id={ids.stops} rows={3} value={stops} aria-describedby={`${ids.stops}-hint`} className='rounded-md border bg-background p-2 text-sm' onChange={(event) => setStops(event.target.value)} />
       </div>
+      <PromptLayoutEditor value={layout} onChange={setLayout} />
       <WriteProblem problem={problem} />
       <div className='flex gap-2'>
         <Button type='submit' className='h-11 flex-1' disabled={name.trim() === ''}>

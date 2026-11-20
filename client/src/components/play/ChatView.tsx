@@ -310,6 +310,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           author_note: chat.author_note,
           lorebook_ids: chat.lorebook_ids,
           lore_settings: chat.lore_settings as LoreSettingsValue,
+          system_prompt: chat.system_prompt,
         }}
         personas={options(personaList.data)}
         presets={options(presetList.data)}

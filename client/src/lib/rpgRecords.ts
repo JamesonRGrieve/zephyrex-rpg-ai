@@ -20,7 +20,7 @@
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, SAMPLER_RANGES } from '~/contract';
+import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAMPLER_RANGES } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -217,6 +217,7 @@ const CHAT_COLUMNS: Columns = {
   author_note: plain('authorNote'),
   lorebook_ids: jsonList('lorebookIds'),
   lore_settings: jsonObject('loreSettings'),
+  system_prompt: plain('systemPrompt'),
 };
 
 const title = z.string().trim().min(1).max(LIMITS.chat_title_characters);
@@ -250,6 +251,7 @@ const chatFields = {
     .max(LIMITS.lorebooks_per_chat)
     .refine((ids) => new Set(ids).size === ids.length, 'A lorebook is in a chat once'),
   lore_settings: loreSettings,
+  system_prompt: z.string().max(LIMITS.chat_system_prompt_characters),
 };
 const chatCreate = z.object({
   title,
@@ -261,6 +263,7 @@ const chatCreate = z.object({
   author_note: chatFields.author_note.default(''),
   lorebook_ids: chatFields.lorebook_ids.default([]),
   lore_settings: loreSettings.default({}),
+  system_prompt: chatFields.system_prompt.default(''),
 });
 const chatUpdate = z.object({ title, ...chatFields }).partial();
 
@@ -449,11 +452,25 @@ const PRESET_COLUMNS: Columns = {
   max_tokens: plain('maxTokens'),
   context_tokens: plain('contextTokens'),
   stop: jsonList('stop'),
+  prompt_layout: jsonList('promptLayout'),
 };
 
 const ranged = (setting: keyof typeof SAMPLER_RANGES) => z.number().min(SAMPLER_RANGES[setting][0]).max(SAMPLER_RANGES[setting][1]);
 const wholeRanged = (setting: keyof typeof SAMPLER_RANGES) => ranged(setting).int();
 const stop = z.array(z.string().min(1).max(LIMITS.stop_string_characters)).max(LIMITS.preset_stop_strings);
+/** The prompt manager's layout (A16): each section at most once, in the order given. */
+export const promptLayout = z
+  .array(
+    z
+      .object({
+        id: z.enum(PROMPT.sections),
+        enabled: z.boolean(),
+        max_tokens: z.number().int().min(PROMPT.section_token_range[0]).max(PROMPT.section_token_range[1]).nullable(),
+      })
+      .strict(),
+  )
+  .max(PROMPT.sections.length)
+  .refine((sections) => new Set(sections.map((section) => section.id)).size === sections.length, 'A section is in the layout once');
 const presetFields = {
   temperature: ranged('temperature'),
   top_p: ranged('top_p'),
@@ -462,6 +479,7 @@ const presetFields = {
   max_tokens: wholeRanged('max_tokens'),
   context_tokens: wholeRanged('context_tokens'),
   stop,
+  prompt_layout: promptLayout,
 };
 const presetCreate = z.object({
   name,
@@ -472,6 +490,7 @@ const presetCreate = z.object({
   max_tokens: presetFields.max_tokens.default(PRESET_DEFAULTS.max_tokens),
   context_tokens: presetFields.context_tokens.default(PRESET_DEFAULTS.context_tokens),
   stop: stop.default([]),
+  prompt_layout: promptLayout.default([]),
 });
 const presetUpdate = z.object({ name, ...presetFields }).partial();
 

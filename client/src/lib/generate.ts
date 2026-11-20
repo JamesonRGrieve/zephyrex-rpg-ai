@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { assemblePrompt, estimateTokens, type PromptInput, type PromptTurn } from '~/features/prompt/assemble';
+import { assemblePrompt, estimateTokens, type PromptInput, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { prisma } from '~/lib/prisma';
@@ -46,6 +46,7 @@ interface Sampler {
   max_tokens: number;
   context_tokens: number;
   stop: string[];
+  prompt_layout: PromptSection[];
 }
 
 interface Endpoint {
@@ -70,6 +71,7 @@ export async function generationInputs(
     author_note: string;
     lorebook_ids: string[];
     lore_settings: Partial<LoreSettings>;
+    system_prompt: string;
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -120,7 +122,7 @@ export async function generationInputs(
   const lore = activateLore(entries, storyTexts, storyTexts.length, speakerName, priorState, settings, roll);
 
   const presetRow = chatFields.preset_id === null ? null : await presets.find(chatFields.preset_id, ownerId);
-  const sampler: Sampler = presetRow === null ? { ...PRESET_DEFAULTS, stop: [] } : (presets.fields(presetRow) as unknown as Sampler);
+  const sampler: Sampler = presetRow === null ? { ...PRESET_DEFAULTS, stop: [], prompt_layout: [] } : (presets.fields(presetRow) as unknown as Sampler);
 
   const endpointRow =
     chatFields.endpoint_id === null
@@ -141,6 +143,8 @@ export async function generationInputs(
       max_tokens: sampler.max_tokens,
       lore,
       mode: body.mode,
+      layout: sampler.prompt_layout,
+      system_prompt: chatFields.system_prompt,
     },
     sampler,
     endpoint: { base_url: endpointRow.baseUrl, model: endpointRow.model, api_key: endpointRow.apiKey },

@@ -55,22 +55,33 @@ class Assembled:
     dropped: int
 
 
-def _system_text(
-    speaker: Mapping[str, Any], persona: Mapping[str, Any] | None, names: Mapping[str, str], lore: Mapping[str, str]
-) -> str:
-    sections = [
-        PROMPT["default_system_prompt"] if not speaker["system_prompt"].strip() else speaker["system_prompt"],
-        lore.get("before_char", ""),
-        speaker["description"],
-        f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",
-        f"Scenario: {speaker['scenario']}" if speaker["scenario"].strip() else "",
-        lore.get("after_char", ""),
-        f"{{{{user}}}}: {persona['description']}" if persona is not None and persona["description"].strip() else "",
-        lore.get("before_example", ""),
-        f"Example dialogue:\n{speaker['example_messages']}" if speaker["example_messages"].strip() else "",
-        lore.get("after_example", ""),
+def prompt_layout(given: Sequence[Mapping[str, Any]] | None) -> list[dict[str, Any]]:
+    """The prompt manager's layout (A16): the given sections in their order (unknown and repeated
+    ones dropped), then any section it leaves out, on, in the contract's order."""
+    known = PROMPT["sections"]
+    layout: list[dict[str, Any]] = []
+    for section in given or []:
+        if section.get("id") in known and all(kept["id"] != section["id"] for kept in layout):
+            layout.append({"id": section["id"], "enabled": bool(section.get("enabled", True)), "max_tokens": section.get("max_tokens")})
+    return layout + [{"id": id_, "enabled": True, "max_tokens": None} for id_ in known if all(kept["id"] != id_ for kept in layout)]
+
+
+def _capped(text: str, max_tokens: int | None) -> str:
+    """A section cut to its token budget (characters at the contract's ratio), whitespace trimmed."""
+    text = text.strip()
+    if max_tokens is None:
+        return text
+    return text[: max_tokens * PROMPT["characters_per_token"]].rstrip()
+
+
+def _system_text(texts: Mapping[str, str], layout: Sequence[Mapping[str, Any]], names: Mapping[str, str]) -> str:
+    # Each section is cut to its budget once its macros are filled in: the budget is what the model reads.
+    parts = [
+        _capped(expand_macros(texts[section["id"]], names), section["max_tokens"])
+        for section in layout
+        if section["enabled"] and section["id"] in texts
     ]
-    return expand_macros("\n\n".join(section.strip() for section in sections if section.strip()), names)
+    return "\n\n".join(part for part in parts if part)
 
 
 def _history_message(
@@ -100,6 +111,8 @@ def assemble_prompt(
     max_tokens: int,
     lore: Mapping[str, Any] | None = None,
     mode: str = "reply",
+    layout: Sequence[Mapping[str, Any]] | None = None,
+    system_prompt: str = "",
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -110,10 +123,30 @@ def assemble_prompt(
     story = set(PROMPT["story_channels"])
 
     sections: Mapping[str, str] = (lore or {}).get("sections", {})
-    system = {"role": "system", "content": _system_text(speaker, persona, names, sections)}
+    arranged = {section["id"]: section for section in prompt_layout(layout)}
+    order = list(arranged.values())
+
+    def kept(id_: str, text: str) -> str:
+        section = arranged[id_]
+        return _capped(expand_macros(text, names), section["max_tokens"]) if section["enabled"] else ""
+
+    main = system_prompt if system_prompt.strip() else speaker["system_prompt"] if speaker["system_prompt"].strip() else PROMPT["default_system_prompt"]
+    texts = {
+        "main": main,
+        "lore_before_char": sections.get("before_char", ""),
+        "description": speaker["description"],
+        "personality": f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",
+        "scenario": f"Scenario: {speaker['scenario']}" if speaker["scenario"].strip() else "",
+        "lore_after_char": sections.get("after_char", ""),
+        "persona": f"{{{{user}}}}: {persona['description']}" if persona is not None and persona["description"].strip() else "",
+        "lore_before_example": sections.get("before_example", ""),
+        "examples": f"Example dialogue:\n{speaker['example_messages']}" if speaker["example_messages"].strip() else "",
+        "lore_after_example": sections.get("after_example", ""),
+    }
+    system = {"role": "system", "content": _system_text(texts, order, names)}
     block = "\n".join(
         part.strip()
-        for part in (sections.get("before_an", ""), author_note, sections.get("after_an", ""))
+        for part in (sections.get("before_an", ""), kept("author_note", author_note), sections.get("after_an", ""))
         if part.strip()
     )
     note = expand_macros(block, names)
@@ -122,11 +155,8 @@ def assemble_prompt(
         (insert["depth"], {"role": insert["role"], "content": expand_macros(insert["content"], names)})
         for insert in (lore or {}).get("at_depth", [])
     ]
-    after = (
-        [{"role": "system", "content": expand_macros(speaker["post_history_instructions"], names)}]
-        if speaker["post_history_instructions"].strip()
-        else []
-    )
+    instructions = kept("post_history", speaker["post_history_instructions"])
+    after = [{"role": "system", "content": expand_macros(instructions, names)}] if instructions else []
     if mode == "impersonate":
         after.append({"role": "system", "content": expand_macros(PROMPT["impersonate_prompt"], names)})
     turns = [

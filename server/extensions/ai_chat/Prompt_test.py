@@ -24,6 +24,8 @@ def test_case(case: dict[str, Any]) -> None:
         max_tokens=given["max_tokens"],
         lore=given.get("lore"),
         mode=given.get("mode", "reply"),
+        layout=given.get("layout"),
+        system_prompt=given.get("system_prompt", ""),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]

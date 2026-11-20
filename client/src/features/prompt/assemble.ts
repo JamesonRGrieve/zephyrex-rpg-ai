@@ -19,6 +19,11 @@
  *
  * Every card text is macro-expanded (`{{char}}`, `{{user}}`).
  *
+ * The prompt manager (A16): `layout` orders the system text's sections and the author's note and
+ * post-history instructions, turns any off, and cuts any to a token budget (after its macros are
+ * filled in). Sections a layout leaves out follow it, on, in the contract's order. A chat's
+ * `system_prompt` replaces the card's (and the default) as the `main` section.
+ *
  * Modes (A6): `reply` (the next character turn), `continue` (the last message is the character's
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
@@ -62,6 +67,40 @@ export interface PromptInput {
   lore?: Pick<LoreResult, 'sections' | 'at_depth'>;
   /** What is asked for (`reply` when left out). */
   mode?: PromptMode;
+  /** The prompt manager's layout (the contract's order, all on, when left out). */
+  layout?: readonly PromptSection[];
+  /** The chat's own system prompt; blank keeps the card's. */
+  system_prompt?: string;
+}
+
+export type PromptSectionId = (typeof PROMPT.sections)[number];
+
+export interface PromptSection {
+  id: PromptSectionId;
+  enabled: boolean;
+  max_tokens: number | null;
+}
+
+/** The layout in full: the given sections in order (unknown and repeated ones dropped), then the rest, on. */
+export function promptLayout(given: readonly { id: string; enabled?: boolean; max_tokens?: number | null }[] | undefined): PromptSection[] {
+  const known: readonly string[] = PROMPT.sections;
+  const layout: PromptSection[] = [];
+  for (const section of given ?? []) {
+    if (known.includes(section.id) && !layout.some((kept) => kept.id === section.id)) {
+      layout.push({ id: section.id as PromptSectionId, enabled: section.enabled ?? true, max_tokens: section.max_tokens ?? null });
+    }
+  }
+  return [...layout, ...PROMPT.sections.filter((id) => !layout.some((kept) => kept.id === id)).map((id) => ({ id, enabled: true, max_tokens: null }))];
+}
+
+/** A section cut to its budget (characters at the contract's ratio, counted as code points), trimmed. */
+function capped(text: string, maxTokens: number | null): string {
+  const trimmed = text.trim();
+  if (maxTokens === null) return trimmed;
+  return Array.from(trimmed)
+    .slice(0, maxTokens * PROMPT.characters_per_token)
+    .join('')
+    .trimEnd();
 }
 
 export type PromptMode = 'reply' | 'continue' | 'impersonate';
@@ -88,26 +127,15 @@ export function estimateTokens(message: ModelMessage): number {
 
 type LoreSections = LoreResult['sections'];
 
-function systemText(speaker: PromptCharacter, persona: PromptPersona | null, names: MacroNames, lore: LoreSections): string {
-  const sections = [
-    speaker.system_prompt.trim() === '' ? PROMPT.default_system_prompt : speaker.system_prompt,
-    lore.before_char ?? '',
-    speaker.description,
-    speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
-    speaker.scenario.trim() === '' ? '' : `Scenario: ${speaker.scenario}`,
-    lore.after_char ?? '',
-    persona === null || persona.description.trim() === '' ? '' : `{{user}}: ${persona.description}`,
-    lore.before_example ?? '',
-    speaker.example_messages.trim() === '' ? '' : `Example dialogue:\n${speaker.example_messages}`,
-    lore.after_example ?? '',
-  ];
-  return expandMacros(
-    sections
-      .map((section) => section.trim())
-      .filter((section) => section !== '')
-      .join('\n\n'),
-    names,
-  );
+function systemText(texts: Partial<Record<PromptSectionId, string>>, layout: readonly PromptSection[], names: MacroNames): string {
+  // Each section is cut to its budget once its macros are filled in: the budget is what the model reads.
+  return layout
+    .flatMap((section) => {
+      const text = texts[section.id];
+      return section.enabled && text !== undefined ? [capped(expandMacros(text, names), section.max_tokens)] : [];
+    })
+    .filter((part) => part !== '')
+    .join('\n\n');
 }
 
 function historyMessage(
@@ -166,8 +194,27 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const story = new Set<string>(PROMPT.story_channels);
 
   const loreSections: LoreSections = input.lore?.sections ?? {};
-  const system: ModelMessage = { role: 'system', content: systemText(speaker, input.persona, names, loreSections) };
-  const note = expandMacros(noteBlock(input.author_note, loreSections), names);
+  const layout = promptLayout(input.layout);
+  const sectionText = (id: PromptSectionId, text: string): string => {
+    const section = layout.find((one) => one.id === id);
+    return section === undefined || !section.enabled ? '' : capped(expandMacros(text, names), section.max_tokens);
+  };
+  const override = input.system_prompt ?? '';
+  const persona = input.persona;
+  const texts: Partial<Record<PromptSectionId, string>> = {
+    main: override.trim() !== '' ? override : speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
+    lore_before_char: loreSections.before_char ?? '',
+    description: speaker.description,
+    personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
+    scenario: speaker.scenario.trim() === '' ? '' : `Scenario: ${speaker.scenario}`,
+    lore_after_char: loreSections.after_char ?? '',
+    persona: persona === null || persona.description.trim() === '' ? '' : `{{user}}: ${persona.description}`,
+    lore_before_example: loreSections.before_example ?? '',
+    examples: speaker.example_messages.trim() === '' ? '' : `Example dialogue:\n${speaker.example_messages}`,
+    lore_after_example: loreSections.after_example ?? '',
+  };
+  const system: ModelMessage = { role: 'system', content: systemText(texts, layout, names) };
+  const note = expandMacros(noteBlock(sectionText('author_note', input.author_note), loreSections), names);
   const inserts: Insert[] = [
     ...(note === '' ? [] : [{ depth: PROMPT.author_note_depth, message: { role: 'system' as const, content: note } }]),
     ...(input.lore?.at_depth ?? []).map((insert: DepthInsert) => ({
@@ -176,8 +223,9 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     })),
   ];
   const mode = input.mode ?? 'reply';
+  const instructions = sectionText('post_history', speaker.post_history_instructions);
   const after: ModelMessage[] = [
-    ...(speaker.post_history_instructions.trim() === '' ? [] : [{ role: 'system' as const, content: expandMacros(speaker.post_history_instructions, names) }]),
+    ...(instructions === '' ? [] : [{ role: 'system' as const, content: instructions }]),
     ...(mode === 'impersonate' ? [{ role: 'system' as const, content: expandMacros(PROMPT.impersonate_prompt, names) }] : []),
   ];
   const history = input.history

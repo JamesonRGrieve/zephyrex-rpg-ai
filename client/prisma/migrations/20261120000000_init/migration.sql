@@ -50,6 +50,7 @@ CREATE TABLE "Chat" (
     "authorNote" TEXT NOT NULL DEFAULT '',
     "lorebookIds" TEXT NOT NULL DEFAULT '[]',
     "loreSettings" TEXT NOT NULL DEFAULT '{}',
+    "systemPrompt" TEXT NOT NULL DEFAULT '',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
@@ -84,6 +85,7 @@ CREATE TABLE "GenerationPreset" (
     "maxTokens" INTEGER NOT NULL,
     "contextTokens" INTEGER NOT NULL,
     "stop" TEXT NOT NULL DEFAULT '[]',
+    "promptLayout" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

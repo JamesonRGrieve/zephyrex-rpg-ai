@@ -25,7 +25,8 @@
     "lore_keys_per_entry": 64,
     "lore_key_characters": 200,
     "lore_content_characters": 50000,
-    "lorebooks_per_chat": 16
+    "lorebooks_per_chat": 16,
+    "chat_system_prompt_characters": 50000
   },
   "message_roles": [
     "user",
@@ -102,6 +103,24 @@
       "reply",
       "continue",
       "impersonate"
+    ],
+    "sections": [
+      "main",
+      "lore_before_char",
+      "description",
+      "personality",
+      "scenario",
+      "lore_after_char",
+      "persona",
+      "lore_before_example",
+      "examples",
+      "lore_after_example",
+      "author_note",
+      "post_history"
+    ],
+    "section_token_range": [
+      1,
+      32768
     ]
   },
   "lore": {

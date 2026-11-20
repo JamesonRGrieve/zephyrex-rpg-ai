@@ -69,6 +69,7 @@ model Chat {
   authorNote   String   @default("")
   lorebookIds  String   @default("[]")
   loreSettings String   @default("{}")
+  systemPrompt String   @default("")
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   updatedById  String?
@@ -107,6 +108,7 @@ model GenerationPreset {
   maxTokens         Int
   contextTokens     Int
   stop              String   @default("[]")
+  promptLayout      String   @default("[]")
   createdAt         DateTime @default(now())
   updatedAt         DateTime
   updatedById       String?

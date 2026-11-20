@@ -11,7 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, SELECTIVE_LOGIC } from '~/contract';
+import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, SELECTIVE_LOGIC } from '~/contract';
 
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
@@ -57,6 +57,7 @@ export const chatSchema = z.object({
   author_note: z.string(),
   lorebook_ids: z.array(z.string()),
   lore_settings: z.record(z.string(), z.union([z.number(), z.boolean()])),
+  system_prompt: z.string(),
 });
 export type Chat = z.infer<typeof chatSchema>;
 
@@ -83,6 +84,7 @@ export const presetSchema = z.object({
   max_tokens: z.number(),
   context_tokens: z.number(),
   stop: z.array(z.string()),
+  prompt_layout: z.array(z.object({ id: z.enum(PROMPT.sections), enabled: z.boolean(), max_tokens: z.number().nullable() })),
 });
 export type Preset = z.infer<typeof presetSchema>;
 

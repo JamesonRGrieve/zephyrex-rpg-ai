@@ -242,6 +242,22 @@ class TestGenerate:
         bad = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "mode": "sing"}}, headers=_headers(user))
         assert bad.status_code == 422
 
+    def test_the_prompt_manager_layout_and_the_chats_system_prompt(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada", description="Ada fixes engines.", example_messages="<START>").json()["character"]
+        bad = _create(server, user, "generation_preset", name="Bad", prompt_layout=[{"id": "nonsense", "enabled": True, "max_tokens": None}])
+        assert bad.status_code == 422
+        twice = [{"id": "main", "enabled": True, "max_tokens": None}] * 2
+        assert _create(server, user, "generation_preset", name="Twice", prompt_layout=twice).status_code == 422
+        layout = [{"id": "description", "enabled": True, "max_tokens": None}, {"id": "examples", "enabled": False, "max_tokens": None}]
+        preset = _create(server, user, "generation_preset", name="Layout", prompt_layout=layout).json()["generation_preset"]
+        assert preset["prompt_layout"] == layout
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], preset_id=preset["id"], system_prompt="Narrate {{char}}.").json()["chat"]
+        inspected = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"]}}, headers=_headers(user))
+        assert inspected.status_code == 200, inspected.text
+        assert inspected.json()["prompt"]["messages"][0]["content"] == "Ada fixes engines.\n\nNarrate Ada."
+
     def test_asks_for_a_model_first_and_refuses_an_unknown_chat(self, server: TestClient) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]
