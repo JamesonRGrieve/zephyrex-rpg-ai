@@ -165,6 +165,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
             [
               ['chat', 'Chat completions'],
               ['text', 'Text completion'],
+              ['horde', 'AI Horde'],
             ] as const
           ).map(([value, label]) => (
             <ChoiceChip key={value} checked={api === value} className='h-11 px-4' onClick={() => setApi(value)}>
@@ -173,7 +174,13 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           ))}
         </div>
       </div>
-      {api === 'text' && (
+      {api === 'horde' && (
+        <p className='text-xs text-muted-foreground'>
+          AI Horde (aihorde.net/api) shares volunteers’ models: a reply is queued, so it can take a while. Without a key it
+          goes in anonymously, at the back of the queue.
+        </p>
+      )}
+      {(api === 'text' || api === 'horde') && (
         <div className='grid gap-1.5'>
           <Label htmlFor={ids.template}>Instruct template</Label>
           <p id={`${ids.template}-hint`} className='text-xs text-muted-foreground'>

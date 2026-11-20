@@ -223,7 +223,8 @@
   "paid_features": {},
   "endpoint_apis": [
     "chat",
-    "text"
+    "text",
+    "horde"
   ],
   "instruct_templates": {
     "chatml": {
@@ -542,5 +543,14 @@
     "prompt_characters": 1000,
     "size": "768x768",
     "caption": "A picture of the scene."
+  },
+  "horde": {
+    "$comment": "AI Horde (A48): a text job submitted, then polled, never streamed. Its answer reaches the rest of the app as a text completion's stream would.",
+    "submit_path": "/v2/generate/text/async",
+    "status_path": "/v2/generate/text/status/",
+    "poll_ms": 2000,
+    "wait_ms": 300000,
+    "client_agent": "zephyrex-rpg-ai:0.1:self-hosted",
+    "anonymous_key": "0000000000"
   }
 }

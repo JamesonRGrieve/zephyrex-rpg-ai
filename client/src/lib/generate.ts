@@ -24,6 +24,7 @@ import {
   type EndpointApi,
   type EndpointRole,
   type InstructTemplateId,
+  HORDE,
   LIMITS,
   LORE,
   PICTURE,
@@ -354,7 +355,8 @@ export function upstreamBody(
   mode: PromptMode,
   images: readonly string[] = [],
 ): Record<string, unknown> {
-  const text = endpoint.api === 'text';
+  // AI Horde (A48) takes one prompt, as a text API does.
+  const text = endpoint.api === 'text' || endpoint.api === 'horde';
   const stop = [...sampler.stop, ...(text ? instructStops(endpoint.instruct_template) : [])];
   return {
     model: endpoint.model,
@@ -426,11 +428,90 @@ export async function inspectPrompt(nextRequest: NextRequest): Promise<Response>
 }
 
 /** The endpoint's answer to `body`, or the framework's 502 when it cannot be reached or refuses. */
+/** AI Horde's text job (A48), from the body a text API would get. */
+export function hordeBody(body: Record<string, unknown>): Record<string, unknown> {
+  const stop = body.stop;
+  return {
+    prompt: body.prompt,
+    params: {
+      max_length: body.max_tokens,
+      temperature: body.temperature,
+      top_p: body.top_p,
+      top_k: body.top_k,
+      rep_pen: body.repetition_penalty,
+      ...(Array.isArray(stop) && stop.length > 0 ? { stop_sequence: stop } : {}),
+    },
+    models: typeof body.model === 'string' && body.model !== '' ? [body.model] : [],
+  };
+}
+
+/** One text completion's stream, as an OpenAI-compatible server sends it: what the rest reads. */
+export function textAsStream(text: string): ReadableStream<Uint8Array> {
+  const body = `data: ${JSON.stringify({ choices: [{ text }] })}\n\ndata: [DONE]\n\n`;
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(new TextEncoder().encode(body));
+      controller.close();
+    },
+  });
+}
+
+const wait = (ms: number, signal: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    const timer = setTimeout(resolve, ms);
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer);
+      reject(new ApiError(499, { message: 'The request was stopped', code: 'stopped' }));
+    });
+  });
+
+/** AI Horde (A48): the job submitted, then polled until it is done; its text as a stream. */
+async function askHorde(
+  endpoint: Endpoint,
+  body: Record<string, unknown>,
+  signal: AbortSignal,
+): Promise<ReadableStream<Uint8Array>> {
+  const base = endpoint.base_url.replace(/\/+$/, '');
+  const headers = {
+    'Content-Type': 'application/json',
+    apikey: endpoint.api_key === '' ? HORDE.anonymous_key : endpoint.api_key,
+    'Client-Agent': HORDE.client_agent,
+  };
+  const unreachable = () => {
+    throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });
+  };
+  const submitted = await fetch(`${base}${HORDE.submit_path}`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(hordeBody(body)),
+    signal,
+  }).catch(unreachable);
+  if (!submitted.ok)
+    throw new ApiError(502, { message: `The model endpoint answered ${submitted.status}`, code: 'model_refused' });
+  const id: unknown = Reflect.get(Object(await submitted.json().catch(() => null)), 'id');
+  if (typeof id !== 'string') throw new ApiError(502, { message: 'The Horde gave no job', code: 'model_refused' });
+  const deadline = Date.now() + HORDE.wait_ms;
+  const poll = async (): Promise<string> => {
+    if (Date.now() > deadline) throw new ApiError(504, { message: 'The Horde took too long', code: 'model_timeout' });
+    await wait(HORDE.poll_ms, signal);
+    const answer = await fetch(`${base}${HORDE.status_path}${id}`, { headers, signal }).catch(unreachable);
+    const status: unknown = await answer.json().catch(() => null);
+    if (Reflect.get(Object(status), 'faulted') === true)
+      throw new ApiError(502, { message: 'The Horde could not write it', code: 'model_refused' });
+    if (Reflect.get(Object(status), 'done') !== true) return poll();
+    const generations: unknown = Reflect.get(Object(status), 'generations');
+    const text: unknown = Reflect.get(Object(Array.isArray(generations) ? generations[0] : undefined), 'text');
+    return typeof text === 'string' ? text : '';
+  };
+  return textAsStream(await poll());
+}
+
 async function askModel(
   endpoint: Endpoint,
   body: Record<string, unknown>,
   signal: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
+  if (endpoint.api === 'horde') return askHorde(endpoint, body, signal);
   const upstream = await fetch(completionsUrl(endpoint.base_url, endpoint.api), {
     method: 'POST',
     headers: {

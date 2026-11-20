@@ -76,7 +76,9 @@ export const SAMPLER_EXTRAS = contract.sampler_extras;
 /** Text-completion prompt markup (features/prompt/instruct.ts; cases in contract/instruct-cases.json). */
 export const INSTRUCT_TEMPLATES = contract.instruct_templates;
 export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;
-export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text'];
+export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text', 'horde'];
+/** AI Horde (A48): where a text job is submitted and polled, and how long to wait. */
+export const HORDE = contract.horde;
 /** What a model can be used for (A27): replies, the GM's voices, summaries, translation. */
 export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly [
   'story',

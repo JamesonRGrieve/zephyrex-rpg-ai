@@ -105,3 +105,11 @@ export const GmProposesANote: Story = {
     await expect(args.proposal?.onAdd).toHaveBeenCalled();
   },
 };
+
+/** A reply written just now, with what it cost (AP5). */
+export const WithCost: Story = {
+  args: { cost: { tokens: 21, seconds: 3.4 } },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('About 21 tokens · 3.4 s')).toBeInTheDocument();
+  },
+};

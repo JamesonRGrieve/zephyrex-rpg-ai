@@ -98,4 +98,21 @@ describe('MessageItem', () => {
     expect(screen.queryByRole('button', { name: 'Add to table notes' })).not.toBeInTheDocument();
     expect(screen.getByText('In the table notes')).toBeInTheDocument();
   });
+
+  it('moves a message up or down from the menu, where offered (A9)', async () => {
+    const onMoveUp = vi.fn();
+    const onMoveDown = vi.fn();
+    render(<MessageItem message={ADA_REPLY} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />);
+    await userEvent.click(screen.getByRole('button', { name: /More for/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move up' }));
+    expect(onMoveUp).toHaveBeenCalledTimes(1);
+    await userEvent.click(screen.getByRole('button', { name: /More for/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Move down' }));
+    expect(onMoveDown).toHaveBeenCalledTimes(1);
+  });
+
+  it('says what a reply written now cost (AP5)', () => {
+    render(<MessageItem message={ADA_REPLY} cost={{ tokens: 21, seconds: 3.4 }} />);
+    expect(screen.getByText('About 21 tokens · 3.4 s')).toBeInTheDocument();
+  });
 });

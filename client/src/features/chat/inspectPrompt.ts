@@ -46,6 +46,25 @@ export function inspectPrompt(request: ReplyRequest): Promise<InspectedPrompt> {
   return ask(INSPECT_PATH, request, 'prompt', inspectedSchema, 'The prompt could not be read');
 }
 
+export const MOVE_PATH = '/api/v1/ai_chat/move';
+
+/** Moves a message up its branch (A9): swapped with its parent; the id that now holds it. */
+export async function moveMessageUp(messageId: string): Promise<string> {
+  const response = await fetch(MOVE_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ move: { message_id: messageId } }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  const moved: unknown = Reflect.get(Object(Reflect.get(Object(body), 'move')), 'message_id');
+  if (!response.ok || typeof moved !== 'string') {
+    const detail: unknown = Reflect.get(Object(body), 'detail');
+    const message: unknown = typeof detail === 'string' ? detail : Reflect.get(Object(detail), 'message');
+    throw new Error(typeof message === 'string' ? message : `The message could not be moved (${response.status})`);
+  }
+  return moved;
+}
+
 export const PICTURE_PATH = '/api/v1/ai_chat/picture';
 
 /** A picture of the scene up to `leafId` (A30), drawn by a model set to draw; nothing is saved. */

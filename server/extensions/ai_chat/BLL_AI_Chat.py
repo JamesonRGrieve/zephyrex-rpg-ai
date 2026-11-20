@@ -18,6 +18,7 @@ Actions on ``/v1/ai_chat``:
   ``done``, ``error``). Out-of-character table talk never reaches the model.
 """
 
+import asyncio
 import json
 import random
 import re
@@ -1133,6 +1134,26 @@ class ExpressionEnvelope(PlainModel):
     expression: Expression
 
 
+class MoveRequest(PlainModel):
+    message_id: str = Field(..., min_length=1)
+
+
+class MoveRequestEnvelope(PlainModel):
+    move: MoveRequest
+
+
+class Moved(PlainModel):
+    message_id: str
+
+
+class MovedEnvelope(PlainModel):
+    move: Moved
+
+
+# What a message is, as against where it sits in the tree: what moving it up swaps with its parent (A9).
+MOVED_FIELDS = ("role", "channel", "speaker_character_id", "swipes", "swipe_index", "bookmarked", "images", "x_carded")
+
+
 class PictureRequest(PlainModel):
     chat_id: str = Field(..., min_length=1)
     leaf_id: str | None = None
@@ -1231,7 +1252,8 @@ def upstream_body(
 ) -> dict[str, Any]:
     """The messages for a chat API; for a text API one prompt in the endpoint's instruct template (a
     continued reply left open), with the template's stop strings added."""
-    text = endpoint.api == "text"
+    # AI Horde (A48) takes one prompt, as a text API does.
+    text = endpoint.api in ("text", "horde")
     stop = [*sampler["stop"], *(instruct_stops(endpoint.instruct_template) if text else [])]
     return {
         "model": endpoint.model,
@@ -1307,6 +1329,52 @@ class ReasoningJoiner:
             return None
         self.inside = False
         return str(self.close)
+
+
+HORDE: dict[str, Any] = CONTRACT["horde"]
+
+
+def horde_body(body: Mapping[str, Any]) -> dict[str, Any]:
+    """AI Horde's text job (A48), from the body a text API would get (lib/generate.ts hordeBody)."""
+    stop = body.get("stop")
+    params: dict[str, Any] = {
+        "max_length": body.get("max_tokens"),
+        "temperature": body.get("temperature"),
+        "top_p": body.get("top_p"),
+        "top_k": body.get("top_k"),
+        "rep_pen": body.get("repetition_penalty"),
+    }
+    if isinstance(stop, list) and stop:
+        params["stop_sequence"] = stop
+    model = body.get("model")
+    return {"prompt": body.get("prompt"), "params": params, "models": [model] if isinstance(model, str) and model else []}
+
+
+async def horde_text(endpoint: Any, key: str, body: Mapping[str, Any]) -> str:
+    """AI Horde (A48): the job submitted, then polled until done; its text, or the framework's 502/504."""
+    base = endpoint.base_url.rstrip("/")
+    headers = {"Content-Type": "application/json", "apikey": key or HORDE["anonymous_key"], "Client-Agent": HORDE["client_agent"]}
+    deadline = time.monotonic() + HORDE["wait_ms"] / 1000
+    try:
+        async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
+            submitted = await client.post(base + HORDE["submit_path"], headers=headers, json=horde_body(body))
+            if submitted.status_code >= 400:
+                raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {submitted.status_code}", "code": "model_refused"})
+            job = submitted.json().get("id") if isinstance(submitted.json(), dict) else None
+            if not isinstance(job, str):
+                raise HTTPException(status_code=502, detail={"message": "The Horde gave no job", "code": "model_refused"})
+            while time.monotonic() < deadline:
+                await asyncio.sleep(HORDE["poll_ms"] / 1000)
+                status = (await client.get(base + HORDE["status_path"] + job, headers=headers)).json()
+                if status.get("faulted"):
+                    raise HTTPException(status_code=502, detail={"message": "The Horde could not write it", "code": "model_refused"})
+                if status.get("done"):
+                    generations = status.get("generations") or [{}]
+                    text = generations[0].get("text") if isinstance(generations[0], dict) else None
+                    return text if isinstance(text, str) else ""
+    except (httpx.HTTPError, ValueError) as error:
+        raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
+    raise HTTPException(status_code=504, detail={"message": "The Horde took too long", "code": "model_timeout"})
 
 
 def frame(name: str, data: dict[str, Any]) -> str:
@@ -1637,9 +1705,42 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             raise HTTPException(status_code=502, detail={"message": "The model sent no picture this app can keep", "code": "model_refused"})
         return PictureEnvelope(picture=Picture(prompt=prompt, image=image))
 
+    @custom_route(
+        method="POST",
+        path="/move",
+        input_model=MoveRequestEnvelope,
+        output_model=MovedEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Move a message up: swap it with its parent, where the parent has no other reply (A9)",
+    )
+    async def move_route(self, body: MoveRequestEnvelope) -> MovedEnvelope:
+        messages = self._manager(ChatMessageManager)
+        try:
+            message = messages.get(id=body.move.message_id)
+        except HTTPException as error:
+            raise HTTPException(status_code=404, detail={"message": "Request searched ChatMessageModel and could not find the required record."}) from error
+        if message.parent_id is None:
+            raise HTTPException(status_code=422, detail={"message": "The first message has nothing above it", "code": "validation_error"})
+        parent = messages.get(id=message.parent_id)
+        # Only along one branch: with other replies under the parent, a swap would reorder their branches too.
+        replies = [one for one in messages.list(chat_id=message.chat_id) if one.parent_id == parent.id]
+        if len(replies) != 1:
+            raise HTTPException(status_code=422, detail={"message": "Its parent has other replies, so it can't move up", "code": "validation_error"})
+        upper = {field: getattr(parent, field) for field in MOVED_FIELDS}
+        lower = {field: getattr(message, field) for field in MOVED_FIELDS}
+        # The speaker and role change places too, which a client's update may not do: the framework's
+        # trusted update, for server-side operations, validates against the whole model.
+        messages.update_trusted(parent.id, **lower)
+        messages.update_trusted(message.id, **upper)
+        return MovedEnvelope(move=Moved(message_id=parent.id))
+
     async def _ask(self, context: dict[str, Any], sampler: dict[str, Any], messages: list[dict[str, str]]) -> str:
         """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""
         endpoint, key = context["endpoint"], context["key"]
+        if endpoint.api == "horde":
+            return (await horde_text(endpoint, key, upstream_body(endpoint, sampler, messages, "reply"))).strip()
         request = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
@@ -1688,6 +1789,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if paused:
                 raise HTTPException(status_code=409, detail={"message": "The table has paused the game", "code": "paused"})
         assembled, request, _sampler, _active, _context = self._inputs(body.generate)
+        if _context["endpoint"].api == "horde":
+            # AI Horde (A48): asked as a job, then answered as one text completion would be.
+            text = await horde_text(_context["endpoint"], _context["key"], request["json"])
+
+            async def answered() -> AsyncIterator[str]:
+                joiner = ReasoningJoiner()
+                delta = joiner.take(json.dumps({"choices": [{"text": text}]}))
+                if delta is not None:
+                    yield frame("delta", {"text": delta})
+                closing = joiner.end()
+                if closing is not None:
+                    yield frame("delta", {"text": closing})
+                yield frame("done", {"dropped": assembled.dropped})
+
+            return event_stream(answered())
         client = httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS)
         try:
             upstream = await client.send(client.build_request("POST", **request), stream=True)

@@ -8,7 +8,10 @@
  * A reply's alternatives (swipes) and a fork's branches are paged with arrows; every action is a
  * button in reach of a thumb, and the menu holds the rest.
  */
+import { type ReplyStats, statsLabel } from '~/features/chat/replyStats';
 import {
+  ArrowDown,
+  ArrowUp,
   Bookmark,
   Brain,
   Languages,
@@ -56,6 +59,10 @@ export interface MessageActions {
   onFork?: (step: -1 | 1) => void;
   onEdit?: (text: string) => void;
   onBookmark?: () => void;
+  /** Moves it up its branch, swapping with the message above (A9); offered where that has no other reply. */
+  onMoveUp?: () => void;
+  /** Moves it down, swapping with its only reply (A9). */
+  onMoveDown?: () => void;
   onBranch?: () => void;
   onDelete?: () => void;
   /** The X-card (A25): takes the message out of the story, or puts it back. */
@@ -170,6 +177,7 @@ export function MessageItem({
   layout = 'flat',
   translation,
   proposal,
+  cost,
   ...actions
 }: {
   message: MessageView;
@@ -180,6 +188,8 @@ export function MessageItem({
     { status: 'writing' } | { status: 'done'; text: string; onHide: () => void } | { status: 'failed'; reason: string };
   /** A table note the GM proposes (A11): kept only when a player adds it. */
   proposal?: { label: string; text: string; added: boolean; onAdd: () => void };
+  /** What writing it cost (AP5), for a reply written in this visit. */
+  cost?: ReplyStats;
 } & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   const editId = useId();
@@ -260,6 +270,7 @@ export function MessageItem({
                 ))}
               </ul>
             )}
+            {cost !== undefined && <p className='mt-1 text-xs text-muted-foreground'>{statsLabel(cost)}</p>}
             {proposal !== undefined && (
               <div className='mt-2 flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm'>
                 <p>
@@ -389,6 +400,16 @@ export function MessageItem({
                 {actions.onBookmark !== undefined && (
                   <DropdownMenuItem onSelect={actions.onBookmark}>
                     <Bookmark aria-hidden /> {message.bookmarked ? 'Remove bookmark' : 'Bookmark'}
+                  </DropdownMenuItem>
+                )}
+                {actions.onMoveUp !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onMoveUp}>
+                    <ArrowUp aria-hidden /> Move up
+                  </DropdownMenuItem>
+                )}
+                {actions.onMoveDown !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onMoveDown}>
+                    <ArrowDown aria-hidden /> Move down
                   </DropdownMenuItem>
                 )}
                 {actions.onBranch !== undefined && (

@@ -26,8 +26,12 @@ class FakeModel(BaseHTTPRequestHandler):
     """A real HTTP server answering as an OpenAI-compatible endpoint: a two-piece streamed reply."""
 
     def do_GET(self) -> None:
-        # The model list (A28's check).
-        body = json.dumps({"data": [{"id": "tiny"}, {"id": "small"}]}).encode()
+        # AI Horde's job status (A48), done at the first poll; otherwise the model list (A28's check).
+        if "/v2/generate/text/status/" in self.path:
+            RECEIVED.append({"path": self.path, "apikey": self.headers.get("apikey"), "body": None})
+            body = json.dumps({"done": True, "generations": [{"text": "Aye, captain."}]}).encode()
+        else:
+            body = json.dumps({"data": [{"id": "tiny"}, {"id": "small"}]}).encode()
         self.send_response(200)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
@@ -37,6 +41,16 @@ class FakeModel(BaseHTTPRequestHandler):
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
         RECEIVED.append({"path": self.path, "authorization": self.headers.get("Authorization"), "body": json.loads(self.rfile.read(length))})
+        if self.path.endswith("/v2/generate/text/async"):
+            RECEIVED[-1]["apikey"] = self.headers.get("apikey")
+            RECEIVED[-1]["agent"] = self.headers.get("Client-Agent")
+            body = json.dumps({"id": "job-1"}).encode()
+            self.send_response(202)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.endswith("/images/generations"):
             # A drawn picture (A30): a one-pixel PNG.
             body = json.dumps({"data": [{"b64_json": "iVBORw0KGgo="}]}).encode()
@@ -305,6 +319,44 @@ class TestGenerate:
         # Nor can an update make one loop.
         made_loop = _put(server, user, "quick_reply", filler.json()["quick_reply"]["id"], filler.headers["ETag"], action="send")
         assert made_loop.status_code == 422, made_loop.text
+
+    def test_the_ai_horde_answers_as_a_job(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Horde", base_url=model_url.removesuffix("/v1") + "/api", model="koboldcpp/tiny", api="horde", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ready?"]).json()["chat_message"]
+        RECEIVED.clear()
+        response = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert response.status_code == 200, response.text
+        assert 'event: delta\ndata: {"text": "Aye, captain."}' in response.text
+        submit, poll = RECEIVED[0], RECEIVED[1]
+        assert submit["path"] == "/api/v2/generate/text/async"
+        assert (submit["apikey"], submit["agent"]) == ("0000000000", "zephyrex-rpg-ai:0.1:self-hosted")
+        assert submit["body"]["models"] == ["koboldcpp/tiny"] and "Ready?" in submit["body"]["prompt"]
+        assert poll["path"] == "/api/v2/generate/text/status/job-1"
+
+    def test_a_message_moves_up_its_branch(self, server: TestClient) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        first = _create(server, user, "chat_message", chat_id=chat["id"], role="character", speaker_character_id=ada["id"], swipes=["Hello."]).json()["chat_message"]
+        second = _create(server, user, "chat_message", chat_id=chat["id"], parent_id=first["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        third = _create(
+            server, user, "chat_message", chat_id=chat["id"], parent_id=second["id"], role="character", speaker_character_id=ada["id"], swipes=["Mind it."]
+        ).json()["chat_message"]
+        moved = server.post("/v1/ai_chat/move", json={"move": {"message_id": third["id"]}}, headers=_headers(user))
+        assert moved.status_code == 200, moved.text
+        assert moved.json() == {"move": {"message_id": second["id"]}}
+        upper = server.get(f"/v1/chat_message/{second['id']}", headers=_headers(user)).json()["chat_message"]
+        lower = server.get(f"/v1/chat_message/{third['id']}", headers=_headers(user)).json()["chat_message"]
+        assert (upper["role"], upper["speaker_character_id"], upper["swipes"]) == ("character", ada["id"], ["Mind it."])
+        assert (lower["role"], lower["speaker_character_id"], lower["swipes"], lower["parent_id"]) == ("user", None, ["Hi."], second["id"])
+        assert server.post("/v1/ai_chat/move", json={"move": {"message_id": first["id"]}}, headers=_headers(user)).status_code == 422
+        _create(server, user, "chat_message", chat_id=chat["id"], parent_id=first["id"], role="user", swipes=["Another."])
+        refused = server.post("/v1/ai_chat/move", json={"move": {"message_id": second["id"]}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+        assert server.post("/v1/ai_chat/move", json={"move": {"message_id": "nope"}}, headers=_headers(user)).status_code == 404
 
     def test_a_chat_keeps_its_tags_and_folder(self, server: TestClient) -> None:
         user = create_user(server)

@@ -686,12 +686,14 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A1, A2 | Cards V1/V2/V3 in (JSON, PNG), several at once; out as PNG with the lorebook inside, or JSON, one or every card shown | |
 | A3 | Personas | |
 | A6 | Streaming, stop, regenerate, continue, impersonate | |
-| A7–A9 | Swipes, branches (with a view of every branch), edit, delete, bookmarks | moving a message |
+| A7–A9 | Swipes, branches (with a view of every branch), edit, delete, bookmarks; moving a message up or down its branch (server: the framework's update_trusted) | |
 | A10, A52 | Group chats: turn order, natural order (a member the last story line names speaks next), pick who speaks next, members left out of turns, group greetings in turn | natural order by a decision model (natural order by who is named is in) |
 | A11 | OOC channels kept out of the story; table notes (house rules, pacing, tone, reminders) in every prompt; the table GM proposes a note as its answer's last line, which a player adds or leaves | |
 | A20 | The GM's two voices: the narrator tells what happens next in the story (every character in brief, its own narration as its voice); the table GM answers `gm` questions out of character; pause; the campaign's GM style, read by the GM's voices only | the GM taking turns on its own |
 | AP2 | Previously…: the rolling summary at the top of a chat when a session starts, read aloud where the browser can speak, hidden on request | written from the last session report too (A24, VTT) |
 | AP9 | Names without lore: names the story keeps using that no character, persona or lore entry covers, each a tap from a stub entry in a chosen lorebook | a stub drafted by a model; wiki pages (A15) |
+| AP5 | Each reply written while the chat is open says about how many tokens it came to and how long it took | cost for hosted APIs (a price per endpoint); kept across visits |
+| A48 | AI Horde as a backend: an endpoint whose API is AI Horde is asked as a job (submitted, then polled) and answers as any reply does, in both editions; anonymous without a key | the Horde's worker and model list in the model check |
 | A12 | Chat library: search by title, cast, tag or the words of any message (opening the chat there); folders and tags | |
 | A13, A56 | SillyTavern chat import; branch export as JSONL or text; a backup of everything as one file, restored beside what is there | |
 | A14 | World Info, the full entry surface and activation; ST import and export | |
@@ -707,7 +709,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A43 | Translate a message by the translation model (else the chat's), for display; every new reply translated into the device's language when the device asks (Translate replies) | translating what the person writes before it is sent |
 | A45 | Reasoning folded under Thinking, never read back to the model; reasoning a model streams apart (`reasoning_content`, `reasoning`) folded in as `<think>` | |
 | A47 | Chat- and text-completion endpoints; logit bias and classifier-free guidance on presets | tokenizer choice |
-| A49 | Layouts (flat, bubbles, document) and text size, per device | themes, custom CSS |
+| A49 | Layouts (flat, bubbles, document) and text size, per device; themes (the framework's light, dark and colour-blind pair) in Settings | custom CSS |
 | A51 | Character tags, folders (filter chips shared with the chat library), favourites, search | |
 
 ## Phases

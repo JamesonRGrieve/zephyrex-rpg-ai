@@ -40,6 +40,7 @@ import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
 import {
   deviceLanguage,
   expressionFor,
+  moveMessageUp,
   pictureOfScene,
   type InspectedPrompt,
   inspectPrompt,
@@ -59,6 +60,7 @@ import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
 import { LIMITS, PICTURE, TABLE } from '~/contract';
 import { hasNote, type ProposedNote, proposedNote } from '~/features/chat/proposedNote';
+import { type ReplyStats, replyStats, timed } from '~/features/chat/replyStats';
 import {
   type Character,
   type Chat,
@@ -232,7 +234,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setPicked(null);
     if (speakerId === null) return;
     setWritingAfter({ parentId, speakerId });
-    const result = await reply.write({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
+    const result = await timedWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
     const saved = await create({
@@ -244,6 +246,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     });
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
     setLeafId(saved.id);
+    noteCost(saved.id, result);
     void showExpression(speakerId, saved.swipes[0] ?? '');
     autoTranslate(saved.id, saved.swipes[0] ?? '');
   };
@@ -372,6 +375,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
   };
 
+  /** What each reply written in this visit cost (AP5), by message id. */
+  const [replyCost, setReplyCost] = useState<ReadonlyMap<string, ReplyStats>>(new Map());
+  const timedWrite = async (request: Parameters<typeof reply.write>[0]) => {
+    const { value, seconds } = await timed(() => reply.write(request));
+    return value === null ? null : { ...value, seconds };
+  };
+  const noteCost = (id: string, written: { text: string; seconds: number }) =>
+    setReplyCost((current) => new Map(current).set(id, replyStats(written.text, written.seconds)));
+
   /** The narrator (A20): the GM tells what happens next, as a narrator turn in the story. */
   const narrate = async () => {
     if (chat.paused) {
@@ -379,7 +391,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       return;
     }
     setWritingAfter({ parentId: leaf, speakerId: NARRATOR_TURN });
-    const result = await reply.write({ chat_id: chat.id, leaf_id: leaf, speaker_id: null, mode: 'narrate' });
+    const result = await timedWrite({ chat_id: chat.id, leaf_id: leaf, speaker_id: null, mode: 'narrate' });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
     const saved = await create({
@@ -391,6 +403,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     });
     if (settings.readAloud) readAloud(null, saved.swipes[0] ?? '');
     setLeafId(saved.id);
+    noteCost(saved.id, result);
     autoTranslate(saved.id, saved.swipes[0] ?? '');
   };
 
@@ -419,7 +432,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   /** The table GM's answer to a question on the `gm` channel (A11, A20): out of character, never in the story. */
   const askGm = async (question: ChatMessage) => {
     setWritingAfter({ parentId: question.id, speakerId: '' });
-    const result = await reply.write({ chat_id: chat.id, leaf_id: question.id, speaker_id: null, mode: 'table' });
+    const result = await timedWrite({ chat_id: chat.id, leaf_id: question.id, speaker_id: null, mode: 'table' });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
     const saved = await create({
@@ -430,6 +443,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       swipes: [result.text.trim()],
     });
     setLeafId(saved.id);
+    noteCost(saved.id, result);
   };
 
   const send = async (text: string, channel: ComposerChannel, images: string[] = []) => {
@@ -450,7 +464,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const regenerate = async (message: ChatMessage) => {
     if (message.speaker_character_id === null) return;
     setWritingAfter({ parentId: message.parent_id, speakerId: message.speaker_character_id });
-    const result = await reply.write({
+    const result = await timedWrite({
       chat_id: chat.id,
       leaf_id: message.parent_id,
       speaker_id: message.speaker_character_id,
@@ -461,13 +475,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       swipes: [...message.swipes, stored(result.text, 'ai_output')],
       swipe_index: message.swipes.length,
     });
+    noteCost(message.id, result);
   };
 
   /** Carries on the shown alternative of a character's message, where it stopped. */
   const continueMessage = async (message: ChatMessage) => {
     if (message.speaker_character_id === null) return;
     setWritingAfter({ parentId: message.id, speakerId: message.speaker_character_id });
-    const result = await reply.write({
+    const result = await timedWrite({
       chat_id: chat.id,
       leaf_id: message.id,
       speaker_id: message.speaker_character_id,
@@ -480,6 +495,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         index === message.swipe_index ? stored(`${text}${result.text}`, 'ai_output') : text,
       ),
     });
+    noteCost(message.id, result);
   };
 
   /** The person's own next line, written by the model, for the composer. */
@@ -573,6 +589,21 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const { siblings, index } = siblingsOf(all, message);
     const target = siblings[index + step];
     if (target !== undefined) setLeafId(latestLeaf(all, target.id)?.id ?? target.id);
+  };
+
+  /** Moves a message up its branch (A9), where the message above has no other reply. */
+  const moveUp = async (message: ChatMessage) => {
+    try {
+      await moveMessageUp(message.id);
+      await list.mutate();
+    } catch (error) {
+      notify('Not moved', error instanceof Error ? error.message : undefined);
+    }
+  };
+  /** The only reply under `id`, if it has exactly one. */
+  const onlyReply = (id: string) => {
+    const replies = all.filter((one) => one.parent_id === id);
+    return replies.length === 1 ? replies[0] : undefined;
   };
 
   const deleteMessage = (message: ChatMessage) => {
@@ -730,6 +761,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <MessageItem
                 layout={settings.chatLayout}
                 message={shown}
+                cost={replyCost.get(message.id)}
                 proposal={
                   proposal === null
                     ? undefined
@@ -749,6 +781,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   })
                 }
                 onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
+                onMoveUp={
+                  message.parent_id !== null && onlyReply(message.parent_id) !== undefined && !writing
+                    ? () => void moveUp(message)
+                    : undefined
+                }
+                onMoveDown={(() => {
+                  const below = onlyReply(message.id);
+                  return below !== undefined && !writing ? () => void moveUp(below) : undefined;
+                })()}
                 onBranch={() => {
                   setLeafId(message.id);
                   notify('Branching from here', 'Your next message starts a new branch.');

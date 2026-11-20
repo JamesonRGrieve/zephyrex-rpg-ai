@@ -30,6 +30,8 @@ import {
 interface Received {
   path: string;
   authorization: string | undefined;
+  apikey?: string | undefined;
+  agent?: string | undefined;
   body: { model: string; stream: boolean; messages: { role: string; content: string }[] };
 }
 
@@ -50,10 +52,24 @@ beforeAll(async () => {
       received.push({
         path: request.url ?? '',
         authorization: request.headers.authorization,
-        body: JSON.parse(text) as Received['body'],
+        apikey: request.headers.apikey as string | undefined,
+        agent: request.headers['client-agent'] as string | undefined,
+        // A poll (GET) has no body.
+        body: (text === '' ? {} : JSON.parse(text)) as Received['body'],
       });
       if (answer === 'refuse') {
         response.writeHead(401).end('{"error":"bad key"}');
+        return;
+      }
+      // AI Horde (A48): a job, then its status, done at the first poll.
+      if ((request.url ?? '').endsWith('/v2/generate/text/async')) {
+        response.writeHead(202, { 'Content-Type': 'application/json' }).end(JSON.stringify({ id: 'job-1' }));
+        return;
+      }
+      if ((request.url ?? '').endsWith('/v2/generate/text/status/job-1')) {
+        response
+          .writeHead(200, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ done: true, generations: [{ text: 'Aye, captain.' }] }));
         return;
       }
       if ((request.url ?? '').endsWith('/images/generations')) {
@@ -146,6 +162,30 @@ describe('POST /v1/ai_chat/generate', () => {
     expect(response.status).toBe(409);
     expect(await response.json()).toMatchObject({ detail: { code: 'no_model_endpoint' } });
   });
+
+  it('asks the AI Horde as a job and streams its answer like any reply (A48)', async () => {
+    const { chat, line } = await seed(false);
+    await prisma.modelEndpoint.create({
+      data: {
+        ...stamp(),
+        name: 'Horde',
+        baseUrl: `${baseUrl.replace(/\/v1$/, '')}/api`,
+        model: 'koboldcpp/tiny',
+        api: 'horde',
+        isDefault: true,
+      },
+    });
+    const response = await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+    const text = await events(response);
+    expect(text).toContain('event: delta\ndata: {"text":"Aye, captain."}');
+    const [submit, poll] = received;
+    expect(submit?.path).toBe('/api/v2/generate/text/async');
+    expect(submit?.apikey).toBe('0000000000');
+    expect(submit?.agent).toBe('zephyrex-rpg-ai:0.1:self-hosted');
+    expect(submit?.body).toMatchObject({ models: ['koboldcpp/tiny'], params: { max_length: expect.any(Number) } });
+    expect(Reflect.get(Object(submit?.body), 'prompt')).toEqual(expect.stringContaining('I hand her the spanner.'));
+    expect(poll?.path).toBe('/api/v2/generate/text/status/job-1');
+  }, 15_000);
 
   it('answers 502 when the model refuses, 404 for an unknown chat and 422 for a bad request', async () => {
     const { chat } = await seed();
