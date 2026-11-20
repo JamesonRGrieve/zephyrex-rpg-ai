@@ -14,11 +14,11 @@ push-mirrored to GitHub and deployed by Forgejo Actions, as 16 Worldviews and Ch
 
 Design docs:
 
-- [wiki/DESIGN.md](wiki/DESIGN.md)
-- [vtt/DESIGN.md](vtt/DESIGN.md)
-- [ai/DESIGN.md](ai/DESIGN.md)
+- [zephyrex-rpg-wiki: docs/DESIGN.md](https://github.com/JamesonRGrieve/zephyrex-rpg-wiki/blob/main/docs/DESIGN.md)
+- [zephyrex-vtt: docs/DESIGN.md](https://github.com/JamesonRGrieve/zephyrex-vtt/blob/main/docs/DESIGN.md)
+- [DESIGN.md](DESIGN.md) (this repo, zephyrex-rpg-ai)
 
-The entity model they share stays in [../server/OBJECT_PLAN.md](../server/OBJECT_PLAN.md).
+The entity model they share stays in [zephyrex-rpg-wiki: server/OBJECT_PLAN.md](https://github.com/JamesonRGrieve/zephyrex-rpg-wiki/blob/main/server/OBJECT_PLAN.md).
 Model fields are defined there once, and these docs cite its sections rather than
 repeating them. Build order (operator, 2026-11-20): the AI product is built first. Its
 work is then ported back to the wiki and the VTT.
@@ -38,7 +38,7 @@ is a person). The AI product reads and writes both.
 | `rpg_core`: game systems, character injection; `rpg_traits`, `rpg_scene`, `rpg_dice`, `rpg_combat`, `rpg_cards` | vtt | Mechanics and play. |
 | `rpg_log` (exists) | wiki (operator, 2026-11-20) | The campaign's history: encounter, combat, dialogue, interaction and transaction logs, next to session reports. It sits below the VTT, so its references to VTT records (combatants, encounters, traits) are polymorphic `target_entity_type + target_entity_id` (OBJECT_PLAN §7), never foreign keys into a VTT table. The VTT and the AI GM write to it. |
 | `rpg_state` (exists) | split per OBJECT_PLAN §6 into the rows above | |
-| `ai_character`, `ai_lorebook`, plus the GM, table and decision extensions in [ai/DESIGN.md](ai/DESIGN.md) | ai | SillyTavern's surface. |
+| `ai_character`, `ai_lorebook`, plus the GM, table and decision extensions in [DESIGN.md](DESIGN.md) | ai | SillyTavern's surface. |
 | `calendar`, `conversations`, `media`, `maps`, `genealogy`, `live_sync`, `ai*`, `entitlements`, `cloud` | **framework** | Already shipped in server-framework (`36bb425e`). OBJECT_PLAN marked some of these `[NEW]`. Each product uses the framework's, and extends it only where a field is RPG-specific. |
 
 The framework already serves the generic Tier-0 concerns, so this repo does not build

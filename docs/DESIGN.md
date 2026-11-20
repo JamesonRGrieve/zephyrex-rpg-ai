@@ -3,8 +3,8 @@
 An AI roleplay and AI game-master app that competes with SillyTavern. It plays inside a real
 world (the wiki) and at a real table (the VTT), so its characters remember canon, keep
 secrets and roll real dice. It is built first. The wiki and VTT get its shared pieces
-ported back. Suite context and ownership: [../SUITE.md](../SUITE.md). Entity fields for
-cards and lorebooks: [OBJECT_PLAN](../../server/OBJECT_PLAN.md) §4 *Phase 4 — Tier AI*.
+ported back. Suite context and ownership: [SUITE.md](SUITE.md). Entity fields for
+cards and lorebooks: [OBJECT_PLAN](https://github.com/JamesonRGrieve/zephyrex-rpg-wiki/blob/main/server/OBJECT_PLAN.md) §4 *Phase 4 — Tier AI*.
 
 ## The operator's requirements (2026-11-20)
 

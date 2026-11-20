@@ -1,80 +1,45 @@
-# zephyrex-rpg
+# zephyrex-rpg-ai
 
-RPG campaign manager built on the Zephyrex framework: characters, family trees, factions, quests and session logs.
+AI roleplay and an AI game master, built on the Zephyrex framework. It is planned for full
+feature parity with SillyTavern: character cards, lorebooks, presets, swipes, branches,
+group chats, STscript, extensions.
 
-The framework supplies auth, the database layer, REST and GraphQL, and the admin UI. This repo only adds the RPG domain: three server extensions and one client extension.
+It adds what SillyTavern does not have:
 
-Status: early alpha. The server data model is in place and tested. The client currently mounts a placeholder dashboard at `/rpg`.
+- a real world, from the wiki;
+- real mechanics, from the VTT;
+- out-of-character table talk with the GM;
+- model pools across several servers;
+- Jev-style decision models for combat.
+
+It is one of three products in the Zephyrex RPG suite:
+
+- [zephyrex-rpg-wiki](https://github.com/JamesonRGrieve/zephyrex-rpg-wiki): the world.
+- [zephyrex-vtt](https://github.com/JamesonRGrieve/zephyrex-vtt): the table.
+- **zephyrex-rpg-ai**: the voices. It reads and writes the other two through their APIs.
+
+Status: design stage. Read [docs/DESIGN.md](docs/DESIGN.md), and
+[docs/SUITE.md](docs/SUITE.md) for how the three products divide and compose. The
+worldbuilding and mechanics code that used to live here moved, with its history, to
+zephyrex-rpg-wiki (`rpg_log`, the entity plan) and zephyrex-vtt (`rpg_state`).
 
 ## Layout
 
 ```
 server/   FastAPI backend, a consumer of the zephyrex Python package
 client/   Next.js frontend, a consumer of the zephyrex npm package
+docs/     SUITE.md, DESIGN.md
 ```
 
-## Server extensions
-
-| Extension   | Depends on                          | Provides |
-|-------------|-------------------------------------|----------|
-| `genealogy` | nothing                             | Persons and labelled relationships, family-tree algorithms, GEDCOM-importable |
-| `rpg_state` | `genealogy`, `acl_rbac` (optional)  | Present campaign state: characters, factions, items, quests, locations, traits |
-| `rpg_log`   | `rpg_state`                         | Event log: encounters, combat, dialogue, interactions, transactions |
-
-`rpg_state` has no character table of its own. It widens `genealogy`'s person model, so every character is a person in the family tree. When `acl_rbac` is loaded it controls per-row visibility (GM-only NPCs, hidden quests), so `rpg_state` never stores a visibility flag itself.
-
-## Requirements
-
-- Python 3.11+
-- Node.js and pnpm (client only)
-- For the client: the framework packages checked out as siblings of this repo (`../client-framework`, `../auth`, `../zod2gql`, `../dynamic-form`). The client depends on them with `file:` paths.
-
-## Running the server
+## Running
 
 ```bash
-cd server
-python -m venv .venv
-. .venv/bin/activate
-pip install -e ".[dev]"
-python app.py
+cd server && pip install -e ".[dev]" && python app.py     # API on :2000
+cd client && pnpm install && pnpm dev                       # UI on :1109
 ```
 
-This installs the framework (`zephyrex[genealogy]~=0.0.1`) from PyPI. To work against a local framework checkout instead, run `pip install -e "../../server-framework[all]"` before the line above.
-
-The API listens on port 2000. On first boot it creates a SQLite database and seeds it.
-
-### Configuration
-
-`app.py` sets development defaults. Anything already present in the environment takes precedence.
-
-| Variable        | Default                                  |
-|-----------------|------------------------------------------|
-| `APP_NAME`      | `Zephyrex RPG`                           |
-| `DATABASE_TYPE` | `sqlite`                                 |
-| `DATABASE_NAME` | `zephyrex_rpg`                           |
-| `SEED_DATA`     | `true`                                   |
-| `JWT_SECRET`    | a fixed development value                |
-
-Set a real `JWT_SECRET` for anything other than local development. Every other framework setting (database host, email, OAuth providers) works as it does in the framework.
-
-## Running the client
-
-```bash
-cd client
-pnpm install
-pnpm dev
-```
-
-The client runs on port 1109 and talks to `http://localhost:2000`. Set `NEXT_PUBLIC_API_URI` to point it somewhere else.
-
-## Tests
-
-```bash
-cd server
-python -m pytest extensions/
-```
-
-Each extension keeps its tests next to the code (`BLL_*_test.py`, `EXT_*_test.py`).
+The client depends on the framework packages checked out as siblings (`../client-framework`,
+`../auth`, `../zod2gql`, `../dynamic-form`) through `file:` paths.
 
 ## License
 

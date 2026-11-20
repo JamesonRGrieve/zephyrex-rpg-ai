@@ -6,8 +6,8 @@ import type { ZephyrexClientExtension } from 'zephyrex';
 function RPGDashboard() {
   return (
     <div className="p-6">
-      <h1 className="text-2xl font-bold mb-4">RPG Campaign Dashboard</h1>
-      <p>Genealogy, state tracking, and session logging for your RPG campaigns.</p>
+      <h1 className="text-2xl font-bold mb-4">Zephyrex RPG AI</h1>
+      <p>AI roleplay and AI game master on the Zephyrex framework: AI characters and a GM that play inside the wiki's world and at the VTT's table.</p>
     </div>
   );
 }
@@ -23,9 +23,9 @@ function RPGSettings() {
 
 export const rpgExtension: ZephyrexClientExtension = {
   name: 'rpg',
-  displayName: 'RPG Campaign',
-  description: 'Genealogy, state tracking, and session logging',
-  serverExtension: 'rpg_state',
+  displayName: 'Zephyrex RPG AI',
+  description: 'AI characters and a GM that play inside the wiki's world and at the VTT's table',
+  serverExtension: 'genealogy',
   pages: [
     {
       path: 'rpg',
@@ -34,7 +34,7 @@ export const rpgExtension: ZephyrexClientExtension = {
   ],
   navItems: [
     {
-      title: 'RPG Campaign',
+      title: 'Zephyrex RPG AI',
       url: '/rpg',
     },
   ],

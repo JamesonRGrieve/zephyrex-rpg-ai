@@ -3,13 +3,13 @@ requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "zephyrex-rpg"
+name = "zephyrex-rpg-ai"
 version = "0.1.0"
-description = "RPG extensions for Zephyrex Framework Server — state tracking and logging"
+description = "Zephyrex RPG AI: AI characters and a GM that play inside the wiki's world and at the VTT's table"
 requires-python = ">=3.11"
 dependencies = [
-    # rpg_state widens the framework's genealogy extension. The framework's
-    # public 0.0.x releases on PyPI.
+    # AI characters are genealogy persons (ai_character.person_id). The
+    # framework's public 0.0.x releases on PyPI.
     "zephyrex[genealogy]~=0.0.1",
 ]
 
