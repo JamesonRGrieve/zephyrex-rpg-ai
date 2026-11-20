@@ -31,6 +31,8 @@ model Character {
   tags                    String   @default("[]")
   avatar                  String?
   favourite               Boolean  @default(false)
+  /// The gallery folder it sits in (A51); blank: none.
+  folder                  String   @default("")
   extensions              String   @default("{}")
   /// The character's own lorebook (a card's embedded character_book), read whenever it speaks.
   lorebookId              String?

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 /**
- * Every character: search, a tag filter (A51), favourites first, a new blank card, and SillyTavern card import (PNG or
+ * Every character: search, tag and folder filters (A51), favourites first, a new blank card, and SillyTavern card import (PNG or
  * JSON, several at once; a card's embedded lorebook becomes the character's own). On a phone the grid is two columns and the actions sit in reach.
  */
 import { Download, FileUp, Plus, Search } from 'lucide-react';
@@ -22,6 +22,8 @@ import { exportCard } from '~/features/import/exportCard';
 import { draftOf, entriesOfBook } from './CharacterEditor';
 import { writeImportedBook } from '../lore/importBook';
 import { CharacterTile } from './CharacterTile';
+import { FolderChips } from '~/components/common/FolderChips';
+import { type FolderFilter, foldersOf, inFolder } from '~/features/chat/library';
 
 /** Every tag the characters use, most used first, then by name (A51). */
 export function tagsOf(characters: readonly Pick<Character, 'tags'>[]): string[] {
@@ -50,12 +52,15 @@ export function CharacterGallery(): ReactElement {
 
   const [tag, setTag] = useState<string | null>(null);
   const tags = useMemo(() => tagsOf(list.data ?? []), [list.data]);
+  const [folder, setFolder] = useState<FolderFilter>({ kind: 'all' });
+  const folders = useMemo(() => foldersOf(list.data ?? []), [list.data]);
   const shown = useMemo(
     () =>
       (list.data ?? []).filter(
-        (character) => matchesSearch(character, query) && (tag === null || character.tags.includes(tag)),
+        (character) =>
+          matchesSearch(character, query) && (tag === null || character.tags.includes(tag)) && inFolder(character, folder),
       ),
-    [list.data, query, tag],
+    [list.data, query, tag, folder],
   );
 
   const importFiles = async (event: ChangeEvent<HTMLInputElement>) => {
@@ -166,6 +171,7 @@ export function CharacterGallery(): ReactElement {
           ))}
         </div>
       )}
+      <FolderChips folders={folders} value={folder} onChange={setFolder} />
       {list.error !== undefined && <LoadProblem what='your characters' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} />}
       {list.data !== undefined && list.data.length === 0 && (

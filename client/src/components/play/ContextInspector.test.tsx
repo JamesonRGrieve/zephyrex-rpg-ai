@@ -16,7 +16,8 @@ describe('ContextInspector', () => {
   it('shows how full the window is, and says when nothing was dropped and no lore went in', () => {
     render(<ContextInspector prompt={PROMPT} />);
     expect(screen.getByText(/About 8 of 800 tokens \(1%\)/)).toBeInTheDocument();
-    expect(screen.getByRole('img', { name: '1% of the window used' })).toBeInTheDocument();
+    // By its aria-label: getByRole computes every element's accessible name, slow in jsdom.
+    expect(screen.getByLabelText('1% of the window used')).toHaveAttribute('role', 'img');
     expect(screen.getByText(/Nothing was left out\. No lore entries went in\./)).toBeInTheDocument();
   });
 

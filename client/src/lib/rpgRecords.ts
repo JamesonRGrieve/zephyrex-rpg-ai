@@ -80,6 +80,7 @@ const CHARACTER_COLUMNS: Columns = {
   tags: jsonList('tags'),
   avatar: plain('avatar'),
   favourite: plain('favourite'),
+  folder: plain('folder'),
   extensions: jsonObject('extensions'),
   lorebook_id: plain('lorebookId'),
 };
@@ -99,6 +100,7 @@ const characterFields = {
   tags,
   avatar,
   favourite: z.boolean(),
+  folder: z.string().trim().max(LIMITS.name_characters),
   extensions,
   lorebook_id: z.string().min(1).nullable(),
 };
@@ -119,6 +121,7 @@ const characterCreate = z.object({
   tags: tags.default([]),
   avatar: avatar.default(null),
   favourite: z.boolean().default(false),
+  folder: characterFields.folder.default(''),
   extensions: extensions.default({}),
   lorebook_id: z.string().min(1).nullable().default(null),
 });

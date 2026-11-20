@@ -9,10 +9,9 @@ import { FileUp, MessageSquarePlus, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { type ChangeEvent, type ReactElement, useId, useMemo, useRef, useState } from 'react';
-import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { Badge } from 'zephyrex/ui/badge';
-import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { Input } from 'zephyrex/ui/input';
+import { FolderChips } from '~/components/common/FolderChips';
 import { chatMatches, type FolderFilter, foldersOf, inFolder, searchMessages } from '~/features/chat/library';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -82,8 +81,6 @@ export function ChatLibrary(): ReactElement {
   const shown = all
     .filter((chat) => inFolder(chat, folder) && chatMatches(chat, castNames, query))
     .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
-  const chip =
-    'h-9 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
 
   return (
     <div className='space-y-4'>
@@ -122,31 +119,7 @@ export function ChatLibrary(): ReactElement {
               onChange={(event) => setQuery(event.target.value)}
             />
           </div>
-          {folders.length > 0 && (
-            <div
-              ref={chipGroup}
-              role='radiogroup'
-              aria-label='Folder'
-              className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-1'
-            >
-              <ChoiceChip checked={folder.kind === 'all'} className={chip} onClick={() => setFolder({ kind: 'all' })}>
-                All
-              </ChoiceChip>
-              {folders.map((name) => (
-                <ChoiceChip
-                  key={name}
-                  checked={folder.kind === 'folder' && folder.name === name}
-                  className={chip}
-                  onClick={() => setFolder({ kind: 'folder', name })}
-                >
-                  {name}
-                </ChoiceChip>
-              ))}
-              <ChoiceChip checked={folder.kind === 'none'} className={chip} onClick={() => setFolder({ kind: 'none' })}>
-                No folder
-              </ChoiceChip>
-            </div>
-          )}
+          <FolderChips folders={folders} value={folder} onChange={setFolder} />
         </div>
       )}
       {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}

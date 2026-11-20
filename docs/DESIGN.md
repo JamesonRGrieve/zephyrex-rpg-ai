@@ -706,7 +706,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A45 | Reasoning folded under Thinking, never read back to the model; reasoning a model streams apart (`reasoning_content`, `reasoning`) folded in as `<think>` | |
 | A47 | Chat- and text-completion endpoints; logit bias and classifier-free guidance on presets | tokenizer choice |
 | A49 | Layouts (flat, bubbles, document) and text size, per device | themes, custom CSS |
-| A51 | Character tags (filter), favourites, search | folders |
+| A51 | Character tags, folders (filter chips shared with the chat library), favourites, search | |
 
 ## Phases
 

@@ -86,6 +86,11 @@ def _name(name: Any) -> Any:
 class CharacterChecks(PlainModel):
     """The checks a character's create and update share (fields declared by each)."""
 
+    @field_validator("folder", check_fields=False)
+    @classmethod
+    def _checked_folder(cls, value: Any) -> Any:
+        return value.strip() if isinstance(value, str) else value
+
     @field_validator("name", check_fields=False)
     @classmethod
     def _checked_name(cls, value: Any) -> Any:
@@ -143,6 +148,7 @@ class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     tags: list[str] = Field(default_factory=list, description="Tags")
     avatar: str | None = Field(None, description="The picture, as a data URL")
     favourite: bool = Field(False, description="Shown first")
+    folder: str = Field("", description="The gallery folder it sits in (blank: none)")
     extensions: dict[str, Any] = Field(default_factory=dict, description="The card's extension data")
     lorebook_id: str | None = Field(None, description="The character's own lorebook")
 
@@ -164,6 +170,7 @@ class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         tags: list[str] = Field(default_factory=list)
         avatar: str | None = None
         favourite: bool = False
+        folder: str = Field("", max_length=MAX_NAME)
         extensions: dict[str, Any] = Field(default_factory=dict)
         lorebook_id: str | None = None
 
@@ -183,6 +190,7 @@ class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         tags: list[str] | None = None
         avatar: str | None = None
         favourite: bool | None = None
+        folder: str | None = Field(None, max_length=MAX_NAME)
         extensions: dict[str, Any] | None = None
         lorebook_id: str | None = None
 

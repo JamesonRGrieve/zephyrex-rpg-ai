@@ -17,6 +17,7 @@ CREATE TABLE "Character" (
     "tags" TEXT NOT NULL DEFAULT '[]',
     "avatar" TEXT,
     "favourite" BOOLEAN NOT NULL DEFAULT false,
+    "folder" TEXT NOT NULL DEFAULT '',
     "extensions" TEXT NOT NULL DEFAULT '{}',
     "lorebookId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

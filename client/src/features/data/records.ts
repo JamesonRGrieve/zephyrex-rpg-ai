@@ -60,6 +60,7 @@ export const characterSchema = z.object({
   tags: z.array(z.string()),
   avatar: z.string().nullable(),
   favourite: z.boolean(),
+  folder: z.string(),
   extensions: z.record(z.string(), z.unknown()),
   lorebook_id: z.string().nullable(),
 });

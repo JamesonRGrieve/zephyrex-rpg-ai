@@ -101,15 +101,18 @@ class TestCharacters:
     def test_defaults_and_stale_saves(self, server: TestClient, person: Any) -> None:
         created = _create(server, person, "character", name="Ada")
         character = created.json()["character"]
-        assert {key: character[key] for key in ("description", "first_message", "alternate_greetings", "tags", "avatar", "favourite", "extensions")} == {
+        assert {key: character[key] for key in ("description", "first_message", "alternate_greetings", "tags", "avatar", "favourite", "folder", "extensions")} == {
             "description": "",
             "first_message": "",
             "alternate_greetings": [],
             "tags": [],
             "avatar": None,
             "favourite": False,
+            "folder": "",
             "extensions": {},
         }
+        # A51: a folder, trimmed.
+        assert _create(server, person, "character", name="Bram", folder="  Crew ").json()["character"]["folder"] == "Crew"
         url = f"/v1/character/{character['id']}"
         assert server.put(url, json={"character": {"name": "x"}}, headers=_headers(person)).status_code == 428
         assert _put(server, person, "character", character["id"], created.headers["ETag"], favourite=True).status_code == 200

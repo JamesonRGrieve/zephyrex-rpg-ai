@@ -12,12 +12,15 @@ import { type ReactElement, useId, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { useClient, writeProblem } from 'zephyrex';
 import { Button } from 'zephyrex/ui/button';
+import { Input } from 'zephyrex/ui/input';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { type Character, characters, chats, lorebookEntrySchema, lorebooks } from '~/features/data/records';
 import type { EntryFields } from '~/features/import/stLorebook';
 import { exportCard } from '~/features/import/exportCard';
 import { cardWithBook } from '~/features/import/characterCard';
+import { foldersOf } from '~/features/chat/library';
+import { LIMITS } from '~/contract';
 import { WriteProblem } from '../common/WriteProblem';
 import { type CharacterVoice, voiceOf, withVoice } from '~/features/speech/voice';
 import { ExpressionEditor } from './ExpressionEditor';
@@ -81,6 +84,8 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const [problem, setProblem] = useState<string | null>(null);
   const books = lorebooks.useList();
   const bookPicker = useId();
+  const folderField = useId();
+  const everyone = characters.useList();
   const [voice, setVoice] = useState<CharacterVoice | null>(null);
   const client = useClient();
 
@@ -138,6 +143,30 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
         <Button type='button' variant='ghost' className='h-11 text-destructive' onClick={deleteCharacter}>
           <Trash2 aria-hidden /> Delete
         </Button>
+      </div>
+      <div className='mb-6 grid gap-1.5'>
+        <label htmlFor={folderField} className='text-sm font-medium'>
+          Folder
+        </label>
+        <Input
+          // Remounted when the saved folder changes, so it shows what was saved.
+          key={saved.folder}
+          id={folderField}
+          list={`${folderField}-list`}
+          defaultValue={saved.folder}
+          maxLength={LIMITS.name_characters}
+          placeholder='None'
+          className='h-11 max-w-sm'
+          onBlur={(event) => {
+            const next = event.target.value.trim();
+            if (next !== saved.folder) void update(saved, { folder: next }).then(() => notify('Saved'));
+          }}
+        />
+        <datalist id={`${folderField}-list`}>
+          {foldersOf(everyone.data ?? []).map((name) => (
+            <option key={name} value={name} />
+          ))}
+        </datalist>
       </div>
       <div className='mb-6 grid gap-1.5'>
         <label htmlFor={bookPicker} className='text-sm font-medium'>

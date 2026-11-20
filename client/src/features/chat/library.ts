@@ -23,14 +23,15 @@ export function chatMatches(chat: LibraryChat, castNames: ReadonlyMap<string, st
   );
 }
 
-export function inFolder(chat: LibraryChat, filter: FolderFilter): boolean {
+/** Whether a chat (or a character, A51: anything with a folder) passes the folder filter. */
+export function inFolder(chat: Pick<LibraryChat, 'folder'>, filter: FolderFilter): boolean {
   if (filter.kind === 'all') return true;
   if (filter.kind === 'none') return chat.folder === '';
   return chat.folder === filter.name;
 }
 
 /** Every folder in use, sorted, each once. */
-export function foldersOf(chats: readonly LibraryChat[]): string[] {
+export function foldersOf(chats: readonly Pick<LibraryChat, 'folder'>[]): string[] {
   return [...new Set(chats.map((chat) => chat.folder).filter((folder) => folder !== ''))].sort((a, b) => a.localeCompare(b));
 }
 

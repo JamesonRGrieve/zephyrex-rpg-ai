@@ -58,8 +58,18 @@ describe('characters', () => {
       tags: [],
       avatar: null,
       favourite: false,
+      folder: '',
       extensions: {},
     });
+  });
+
+  it('files a card in a folder, trimmed (A51)', async () => {
+    const response = await postCharacter(
+      call('/v1/character', { method: 'POST', body: { character: { name: 'Ada', folder: '  Crew  ' } } }),
+      none,
+    );
+    expect(response.status).toBe(201);
+    expect(await response.json()).toMatchObject({ character: { folder: 'Crew' } });
   });
 
   it('refuses an avatar that is not an image data URL', async () => {
