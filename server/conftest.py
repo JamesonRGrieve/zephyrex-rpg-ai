@@ -27,3 +27,16 @@ import zephyrex.extensions  # noqa: E402
 
 if str(_extensions_dir) not in zephyrex.extensions.__path__:
     zephyrex.extensions.__path__ = [str(_extensions_dir), *zephyrex.extensions.__path__]
+
+
+import pytest  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limit_counts_between_tests() -> None:
+    """Each test starts with no sign-ins counted against the rate limits, as in the framework's own
+    conftest: every test signs in from the same test-client address, so earlier tests' sign-ins
+    (10 a minute) would refuse later ones."""
+    from zephyrex.lib.InboundSecurity import reset_rate_limit_counts
+
+    reset_rate_limit_counts()

@@ -547,6 +547,8 @@ class ChatMessageManager(AbstractBLLManager[ChatMessageModel], RouterMixin):
         kwargs.setdefault("channel", "ic")
         kwargs.setdefault("swipe_index", 0)
         kwargs.setdefault("bookmarked", False)
+        kwargs.setdefault("images", [])
+        kwargs.setdefault("x_carded", False)
         chats = ChatManager(requester_id=str(self.requester.id), model_registry=self.model_registry)
         try:
             chat = chats.get(id=kwargs["chat_id"])
@@ -788,6 +790,8 @@ class ModelEndpointManager(AbstractBLLManager[ModelEndpointModel], RouterMixin):
 
     def create(self, **kwargs: Any) -> Any:
         kwargs.setdefault("is_default", False)
+        # JSON columns get no column default: an unset list is stored as [] (as every manager here does).
+        kwargs.setdefault("roles", [])
         if kwargs["is_default"]:
             self._clear_other_defaults(None)
         return super().create(**{"has_api_key": False, **_keyed(kwargs)})
