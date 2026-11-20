@@ -21,4 +21,11 @@ describe('DeviceSettingsForm', () => {
     await userEvent.click(screen.getByRole('switch', { name: 'Show table talk in chats' }));
     expect(onChange).toHaveBeenCalledWith({ showTableTalk: false });
   });
+
+  it('turns on translating every reply', async () => {
+    const onChange = vi.fn();
+    render(<DeviceSettingsForm settings={DEFAULT_DEVICE_SETTINGS} measured='strong' onChange={onChange} />);
+    await userEvent.click(screen.getByRole('switch', { name: 'Translate replies' }));
+    expect(onChange).toHaveBeenCalledWith({ autoTranslate: true });
+  });
 });

@@ -38,7 +38,7 @@ import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
 import { type Command, COMMAND_HELP } from '~/features/chat/commands';
 import { speak, speechSupport, voiceOf } from '~/features/speech/voice';
-import { DEFAULT_USER_NAME } from '~/features/prompt/assemble';
+import { DEFAULT_USER_NAME, splitReasoning } from '~/features/prompt/assemble';
 import { expandMacros } from '~/features/prompt/macros';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
@@ -226,6 +226,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
     setLeafId(saved.id);
     void showExpression(speakerId, saved.swipes[0] ?? '');
+    autoTranslate(saved.id, saved.swipes[0] ?? '');
   };
 
   /** The speaker's sprite for how the line feels (A4), when they have sprites and this device shows them. */
@@ -260,6 +261,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         reason: error instanceof Error ? error.message : 'The translation could not be written',
       });
     }
+  };
+  /** Every new reply translated as it is written, when this device asks for it (A43): the reply, not its reasoning. */
+  const autoTranslate = (id: string, text: string) => {
+    const reply = splitReasoning(text).reply;
+    if (settings.autoTranslate && reply.trim() !== '') void translateMessage(id, reply);
   };
   const translationOf = (id: string) => {
     const found = translations.get(id);
@@ -352,6 +358,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     });
     if (settings.readAloud) readAloud(null, saved.swipes[0] ?? '');
     setLeafId(saved.id);
+    autoTranslate(saved.id, saved.swipes[0] ?? '');
   };
 
   /** A picture of the scene so far (A30), kept in the chat as a system line: never in the story. */

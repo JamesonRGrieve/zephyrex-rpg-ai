@@ -23,6 +23,8 @@ export interface DeviceSettings {
   readAloud: boolean;
   /** Show the speaker's expression sprite on a stage above the composer (A4). */
   showExpressions: boolean;
+  /** Translate each reply into this device's language as it is written (A43). */
+  autoTranslate: boolean;
 }
 
 export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
@@ -32,6 +34,7 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   textSize: 'normal',
   readAloud: false,
   showExpressions: true,
+  autoTranslate: false,
 };
 
 const oneOf = <T extends string>(options: readonly T[], value: unknown, fallback: T): T =>
@@ -56,6 +59,7 @@ export function parseDeviceSettings(text: string | null): DeviceSettings {
     chatLayout: oneOf(CHAT_LAYOUTS, Reflect.get(Object(stored), 'chatLayout'), DEFAULT_DEVICE_SETTINGS.chatLayout),
     textSize: oneOf(TEXT_SIZES, Reflect.get(Object(stored), 'textSize'), DEFAULT_DEVICE_SETTINGS.textSize),
     readAloud: Reflect.get(Object(stored), 'readAloud') === true,
+    autoTranslate: Reflect.get(Object(stored), 'autoTranslate') === true,
     showExpressions: Reflect.get(Object(stored), 'showExpressions') !== false,
   };
 }

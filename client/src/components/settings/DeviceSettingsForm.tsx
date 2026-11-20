@@ -122,6 +122,19 @@ export function DeviceSettingsForm({
       </div>
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <div>
+          <Label htmlFor={`${tableTalkId}-translate`}>Translate replies</Label>
+          <p className='text-xs text-muted-foreground'>
+            Each reply also in this device’s language, by the translation model.
+          </p>
+        </div>
+        <Switch
+          id={`${tableTalkId}-translate`}
+          checked={settings.autoTranslate}
+          onCheckedChange={(checked) => onChange({ autoTranslate: checked })}
+        />
+      </div>
+      <div className='flex min-h-11 items-center justify-between gap-3'>
+        <div>
           <Label htmlFor={`${tableTalkId}-read`}>Read replies aloud</Label>
           <p className='text-xs text-muted-foreground'>Each character in their own voice, on this device.</p>
         </div>
