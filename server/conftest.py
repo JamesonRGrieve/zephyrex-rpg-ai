@@ -16,7 +16,9 @@ _extensions_dir = Path(__file__).resolve().parent / "extensions"
 os.environ.setdefault("EXTENSIONS_PATH", str(_extensions_dir))
 os.environ.setdefault("DATABASE_TYPE", "sqlite")
 # One database per xdist worker: each worker boots its own app and seeds it.
-os.environ.setdefault("DATABASE_NAME", f"test_rpg_ai_{os.environ.get('PYTEST_XDIST_WORKER', 'main')}")
+# Assigned, never setdefault: a DATABASE_NAME already in the environment would put every xdist
+# worker on one database, which they then seed twice (intermittent "multiple ...Model" 409s).
+os.environ["DATABASE_NAME"] = f"test_rpg_ai_{os.environ.get('PYTEST_XDIST_WORKER', 'main')}"
 os.environ.setdefault("DATABASE_PATH", tempfile.mkdtemp(prefix="rpg-ai-db-"))
 os.environ.setdefault("JWT_SECRET", "test-jwt-secret-32-bytes-or-more-aaaaaa")
 os.environ.setdefault("SEED_DATA", "true")
