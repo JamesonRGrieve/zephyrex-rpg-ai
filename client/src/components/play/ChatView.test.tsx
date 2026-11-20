@@ -17,6 +17,7 @@ const message = (id: string, parent: string | null, extra: Partial<ChatMessage>)
   swipe_index: 0,
   bookmarked: false,
   images: [],
+  x_carded: false,
   ...extra,
 });
 

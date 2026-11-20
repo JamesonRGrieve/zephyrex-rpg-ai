@@ -42,6 +42,19 @@ describe('completion stream', () => {
     expect(await collect(streamOf(split))).toEqual(['Hel', 'lo']);
   });
 
+  it('keeps a character whole when its bytes are split across chunks', async () => {
+    const bytes = new TextEncoder().encode(`data: ${chunk('“Mind”')}\n\ndata: [DONE]\n\n`);
+    const cut = bytes.indexOf(0xe2) + 1; // inside the three bytes of “
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(bytes.slice(0, cut));
+        controller.enqueue(bytes.slice(cut));
+        controller.close();
+      },
+    });
+    expect(await collect(stream)).toEqual(['“Mind”']);
+  });
+
   it('finishes a stream that ends without [DONE]', async () => {
     expect(await collect(streamOf([`data: ${chunk('end')}`]))).toEqual(['end']);
   });

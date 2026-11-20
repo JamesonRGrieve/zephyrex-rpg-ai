@@ -13,6 +13,16 @@ import { useClient } from 'zephyrex';
 import { z } from 'zod';
 import { CAMPAIGN, CHAT_MODES, DATA_BANK, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SAFETY, TABLE, SELECTIVE_LOGIC, ENDPOINT_APIS, ENDPOINT_ROLES, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 
+const JSON_BODY = z.json();
+
+/**
+ * A request body as the JSON the wire carries (fields left undefined are dropped). Typed form
+ * fields hold `unknown` in places (extensions, layouts), which JSON alone can vouch for.
+ */
+export function jsonBody(value: unknown): z.infer<typeof JSON_BODY> {
+  return JSON_BODY.parse(JSON.parse(JSON.stringify(value)) as unknown);
+}
+
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
 export const characterSchema = z.object({
@@ -169,12 +179,12 @@ export function resource<T extends Versioned, Create extends object, Extra = obj
       };
       return {
         async create(fields) {
-          const saved = one(schema, singular, await client.post(path, { [singular]: fields }));
+          const saved = one(schema, singular, await client.post(path, jsonBody({ [singular]: fields })));
           await refresh(saved.id);
           return saved;
         },
         async update(seen, changes) {
-          const saved = one(schema, singular, await client.put(`${path}/${seen.id}`, { [singular]: changes }, seen));
+          const saved = one(schema, singular, await client.put(`${path}/${seen.id}`, jsonBody({ [singular]: changes }), seen));
           await refresh(saved.id);
           return saved;
         },

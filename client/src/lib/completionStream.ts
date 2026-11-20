@@ -55,5 +55,19 @@ async function* pump(reader: ReadableStreamDefaultReader<string>, carried: strin
 
 /** The text deltas of a streamed completion body, in order, until `[DONE]` or the end. */
 export function completionDeltas(body: ReadableStream<Uint8Array>): AsyncGenerator<string> {
-  return pump(body.pipeThrough(new TextDecoderStream()).getReader(), '');
+  // TextDecoder takes any buffer (a fetch body's chunks are typed ArrayBufferLike, which
+  // TextDecoderStream's types refuse); `stream: true` keeps a character split across chunks whole.
+  const decoder = new TextDecoder();
+  const text = body.pipeThrough(
+    new TransformStream<Uint8Array, string>({
+      transform(chunk, controller) {
+        controller.enqueue(decoder.decode(chunk, { stream: true }));
+      },
+      flush(controller) {
+        const rest = decoder.decode();
+        if (rest !== '') controller.enqueue(rest);
+      },
+    }),
+  );
+  return pump(text.getReader(), '');
 }

@@ -27,8 +27,9 @@ describe('device settings', () => {
   });
 
   it('round-trips through real storage', () => {
-    expect(saveDeviceSettings(window.localStorage, { tier: 'strong', showTableTalk: false })).toBe(true);
-    expect(loadDeviceSettings(window.localStorage)).toEqual({ tier: 'strong', showTableTalk: false });
+    const chosen = { ...DEFAULT_DEVICE_SETTINGS, tier: 'strong' as const, showTableTalk: false, showExpressions: false, textSize: 'large' as const };
+    expect(saveDeviceSettings(window.localStorage, chosen)).toBe(true);
+    expect(loadDeviceSettings(window.localStorage)).toEqual(chosen);
   });
 
   it('uses the measured tier unless the person chose one', () => {

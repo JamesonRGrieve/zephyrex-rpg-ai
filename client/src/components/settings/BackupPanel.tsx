@@ -13,6 +13,7 @@ import { notify } from 'zephyrex/hooks/useToast';
 import { Button } from 'zephyrex/ui/button';
 import { z } from 'zod';
 import { WriteProblem } from '~/components/common/WriteProblem';
+import { jsonBody } from '~/features/data/records';
 import { BACKUP_RESOURCES, type BackupRecord, BackupFileError, makeBackup, parentsFirst, readBackup, restoredFields } from '~/features/backup/backup';
 
 const record = z.looseObject({ id: z.string() });
@@ -52,7 +53,7 @@ export function BackupPanel(): ReactElement {
       let written = 0;
       /** One record written, its new id noted for the records that point at it. */
       const writeOne = async (spec: (typeof BACKUP_RESOURCES)[number], old: BackupRecord): Promise<void> => {
-        const answer = await client.post(`/v1/${spec.resource}`, { [spec.resource]: restoredFields(spec, old, ids) });
+        const answer = await client.post(`/v1/${spec.resource}`, jsonBody({ [spec.resource]: restoredFields(spec, old, ids) }));
         ids.get(spec.resource)?.set(old.id, record.parse(Reflect.get(Object(answer), spec.resource)).id);
         written += 1;
       };

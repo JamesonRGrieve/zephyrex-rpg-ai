@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { render, screen } from '@testing-library/react';
+import { fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { ManagedList } from './ManagedList';
@@ -19,7 +19,8 @@ describe('ManagedList', () => {
         onDelete={vi.fn()}
       />,
     );
-    await userEvent.click(screen.getByRole('button', { name: /Sam/ }));
+    // The row (its name, then its summary), not "Delete Sam".
+    await userEvent.click(screen.getByRole('button', { name: /^Sam/ }));
     expect(await screen.findByText('Editing Sam')).toBeInTheDocument();
     await userEvent.keyboard('{Escape}');
     await userEvent.click(screen.getByRole('button', { name: 'Delete Sam' }));
@@ -35,7 +36,6 @@ describe('ManagedList deletes', () => {
     vi.useFakeTimers();
     try {
       const onDelete = vi.fn();
-      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
       render(
         <ManagedList
           what='persona'
@@ -47,7 +47,8 @@ describe('ManagedList deletes', () => {
           onDelete={onDelete}
         />,
       );
-      await user.click(screen.getByRole('button', { name: 'Delete Sam' }));
+      // fireEvent: userEvent waits on its own timers, which these fake ones hold.
+      fireEvent.click(screen.getByRole('button', { name: 'Delete Sam' }));
       expect(screen.queryByRole('button', { name: /^Sam/ })).not.toBeInTheDocument();
       expect(onDelete).not.toHaveBeenCalled();
       act(() => {

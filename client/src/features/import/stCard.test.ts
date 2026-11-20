@@ -14,7 +14,7 @@ const latin1 = (value: string) => Uint8Array.from([...value].map((c) => c.charCo
 const base64Json = (value: unknown) => btoa(String.fromCharCode(...new TextEncoder().encode(JSON.stringify(value))));
 const textChunk = (keyword: string, value: string) => chunk('tEXt', latin1(`${keyword}\0${value}`));
 
-function png(...chunks: number[][]): Uint8Array {
+function png(...chunks: number[][]): Uint8Array<ArrayBuffer> {
   return Uint8Array.from([...SIGNATURE, ...chunk('IHDR', new Uint8Array(13)), ...chunks.flat(), ...chunk('IEND', new Uint8Array())]);
 }
 
