@@ -216,6 +216,22 @@ describe('the data bank', () => {
   });
 });
 
+describe('the table GM and the pause', () => {
+  it('answers table talk as the GM, and a paused table gets no story turn but still its GM', async () => {
+    const { chat, line } = await seed();
+    const question = await prisma.chatMessage.create({ data: { ...stamp(), chatId: chat.id, parentId: line.id, role: 'user', channel: 'gm', swipes: '["Can I search it?"]' } });
+    await prisma.chat.update({ where: { id: chat.id }, data: { paused: true, tableNotes: JSON.stringify([{ kind: 'house_rule', text: 'Crits explode.' }]) } });
+    const refused = await generate(call({ generate: { chat_id: chat.id, leaf_id: question.id } }));
+    expect(refused.status).toBe(409);
+    expect(await refused.json()).toMatchObject({ detail: { code: 'paused' } });
+    const table = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: question.id, mode: 'table' } }));
+    const body = (await table.json()) as { prompt: { messages: { role: string; content: string }[] } };
+    expect(body.prompt.messages[0]?.content).toContain('House rule: Crits explode.');
+    expect(body.prompt.messages.at(-1)).toEqual({ role: 'user', content: 'User: Can I search it?', tokens: expect.any(Number) });
+    expect((await generate(call({ generate: { chat_id: chat.id, leaf_id: question.id, mode: 'table' } }))).status).toBe(200);
+  });
+});
+
 describe('the prompt manager', () => {
   it('lays the system text out as the chat’s preset says, with the chat’s own system prompt', async () => {
     const { chat, line } = await seed();

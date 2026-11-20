@@ -11,7 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CHAT_MODES, DATA_BANK, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SAFETY, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CHAT_MODES, DATA_BANK, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SAFETY, TABLE, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
@@ -67,6 +67,8 @@ export const chatSchema = z.object({
   content_rating: z.enum(SAFETY.ratings).nullable(),
   lines: z.array(z.string()),
   veils: z.array(z.string()),
+  table_notes: z.array(z.object({ kind: z.enum(TABLE.note_kinds), text: z.string() })),
+  paused: z.boolean(),
 });
 export type Chat = z.infer<typeof chatSchema>;
 

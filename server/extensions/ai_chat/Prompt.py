@@ -120,6 +120,15 @@ def safety_text(safety: Mapping[str, Any] | None) -> str:
     return "\n".join([SAFETY["heading"], *kept]) if kept else ""
 
 
+TABLE = CONTRACT["table"]
+
+
+def table_notes_text(notes: Sequence[Mapping[str, Any]] | None) -> str:
+    """The table's notes as the model reads them (A11): one labelled line each, under a heading."""
+    kept = [f"{TABLE['note_labels'][note['kind']]}: {note['text'].strip()}" for note in notes or [] if note["kind"] in TABLE["note_labels"] and note["text"].strip()]
+    return "\n".join([TABLE["notes_heading"], *kept]) if kept else ""
+
+
 def _history_message(
     turn: Mapping[str, Any], speaker_id: str, names_by_id: Mapping[str, str], group: bool, user_name: str
 ) -> dict[str, str]:
@@ -157,6 +166,7 @@ def assemble_prompt(
     objective: str = "",
     data_bank: str = "",
     safety: Mapping[str, Any] | None = None,
+    table_notes: Sequence[Mapping[str, Any]] | None = None,
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -178,6 +188,7 @@ def assemble_prompt(
     texts = {
         "main": main,
         "safety": safety_text(safety),
+        "table_notes": table_notes_text(table_notes),
         "lore_before_char": sections.get("before_char", ""),
         "description": speaker["description"],
         "personality": f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",
@@ -286,4 +297,58 @@ def translate_prompt(text: str, language: str) -> list[dict[str, str]]:
         {"role": "system", "content": PROMPT["translate_prompt"].replace("{{language}}", language)},
         {"role": "user", "content": text},
     ]
+
+
+def table_gm_prompt(
+    characters: Sequence[Mapping[str, Any]],
+    persona: Mapping[str, Any] | None,
+    history: Sequence[Mapping[str, Any]],
+    context_tokens: int,
+    max_tokens: int,
+    summary: str = "",
+    safety: Mapping[str, Any] | None = None,
+    table_notes: Sequence[Mapping[str, Any]] | None = None,
+) -> Assembled:
+    """What the table GM reads to answer the players out of character (A11, A20). The system text:
+    the contract's GM prompt, the safety tools, the table notes, the summary and the last few story
+    turns (named, X-carded ones left out), for reference only. Then the table talk (``ooc`` and
+    ``gm``) as the conversation: the players' lines as the user's, named, and the GM's (a narrator on
+    the ``gm`` channel) as the assistant's. The oldest table talk is dropped to fit."""
+    user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
+    names_by_id = {character["id"]: character["name"] for character in characters}
+
+    def named(turn: Mapping[str, Any]) -> str:
+        if turn["role"] == "user":
+            return user_name
+        if turn["role"] == "character":
+            return names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
+        return NARRATOR
+
+    story = [turn for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn.get("x_carded", False)]
+    recent = [f"{named(turn)}: {turn['content']}" for turn in story[-TABLE["recent_story_turns"] :]]
+    parts = [
+        TABLE["gm_prompt"],
+        safety_text(safety),
+        table_notes_text(table_notes),
+        PROMPT["summary_prefix"] + summary if summary.strip() else "",
+        "\n".join([TABLE["recent_story_heading"], *recent]) if recent else "",
+    ]
+    system = {"role": "system", "content": "\n\n".join(part.strip() for part in parts if part.strip())}
+    talk = [
+        {"role": "assistant", "content": turn["content"]}
+        if turn["role"] == "narrator" and turn["channel"] == "gm"
+        else {"role": "user", "content": f"{named(turn)}: {turn['content']}"}
+        for turn in history
+        if turn["channel"] in ("ooc", "gm")
+    ]
+    budget = context_tokens - max_tokens - estimate_tokens(system)
+    kept = len(talk)
+    used = 0
+    for index in range(len(talk) - 1, -1, -1):
+        cost = used + estimate_tokens(talk[index])
+        if cost > budget:
+            break
+        used = cost
+        kept = index
+    return Assembled(messages=[system, *talk[kept:]], dropped=kept)
 

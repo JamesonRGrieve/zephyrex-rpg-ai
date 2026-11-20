@@ -8,7 +8,7 @@
  * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
-import { Download, Ellipsis, ScanText, Settings2, X } from 'lucide-react';
+import { Download, Ellipsis, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -33,6 +33,7 @@ import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
+import { TABLE } from '~/contract';
 import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
@@ -55,7 +56,9 @@ export function messageViews(
 ): MessageView[] {
   return branch.map((message) => {
     const character = message.speaker_character_id === null ? undefined : cast.get(message.speaker_character_id);
-    const speaker = message.role === 'user' ? (persona?.name ?? YOU) : message.role === 'character' ? (character?.name ?? NARRATOR) : NARRATOR;
+    // The table GM (a narrator on the gm channel) speaks as the GM, out of character.
+    const speaker =
+      message.role === 'user' ? (persona?.name ?? YOU) : message.role === 'character' ? (character?.name ?? NARRATOR) : message.channel === 'gm' ? TABLE.gm_name : NARRATOR;
     const avatar = message.role === 'user' ? (persona?.avatar ?? null) : (character?.avatar ?? null);
     const { siblings, index } = siblingsOf(all, message);
     return {
@@ -172,10 +175,22 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   /** Text as saved, after the regex scripts that change what is stored (A33). */
   const stored = (text: string, placement: RegexPlacement) => applyRegex(text, scripts, placement, 'stored');
 
+  /** The table GM's answer to a question on the `gm` channel (A11, A20): out of character, never in the story. */
+  const askGm = async (question: ChatMessage) => {
+    setWritingAfter({ parentId: question.id, speakerId: '' });
+    const result = await reply.write({ chat_id: chat.id, leaf_id: question.id, speaker_id: null, mode: 'table' });
+    setWritingAfter(null);
+    if (result === null || result.text.trim() === '') return;
+    const saved = await create({ chat_id: chat.id, parent_id: question.id, role: 'narrator', channel: 'gm', swipes: [result.text.trim()] });
+    setLeafId(saved.id);
+  };
+
   const send = async (text: string, channel: ComposerChannel, images: string[] = []) => {
     const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'user', channel, swipes: [channel === 'ic' ? stored(text, 'user_input') : text], images });
     setLeafId(saved.id);
-    if (channel === 'ic') await replyAfter(saved.id, [...branch, saved]);
+    if (channel === 'gm') await askGm(saved);
+    // Paused (A25): the story waits; the line is kept for when the table resumes.
+    else if (channel === 'ic' && !chat.paused) await replyAfter(saved.id, [...branch, saved]);
   };
 
   const regenerate = async (message: ChatMessage) => {
@@ -302,7 +317,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             );
           })}
         </ul>
-        <div className='flex gap-1'>
+        <div className='flex flex-wrap justify-end gap-1'>
+          <Button
+            type='button'
+            variant={chat.paused ? 'default' : 'ghost'}
+            className='h-11'
+            aria-pressed={chat.paused}
+            onClick={() => void updateChat(chat, { paused: !chat.paused }).then(() => notify(chat.paused ? 'Resumed' : 'Paused', chat.paused ? undefined : 'No story turns until you resume. The GM still answers.'))}
+          >
+            {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />} {chat.paused ? 'Resume' : 'Pause'}
+          </Button>
           <Button type='button' variant='outline' className='h-11' onClick={() => void xCardLatest()} aria-label='X-card the latest reply'>
             <X aria-hidden /> X-card
           </Button>
@@ -383,7 +407,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 id: 'writing',
                 role: 'character',
                 channel: 'ic',
-                speaker: pending?.name ?? NARRATOR,
+                speaker: pending?.name ?? (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
                 avatar: pending?.avatar ?? null,
                 text: reply.state.status === 'writing' ? reply.state.text : '',
                 swipe: { index: 0, count: 1 },
@@ -453,6 +477,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           muted_ids: chat.muted_ids,
           background: chat.background,
           objectives: chat.objectives,
+          content_rating: chat.content_rating,
+          lines: chat.lines,
+          veils: chat.veils,
+          table_notes: chat.table_notes,
         }}
         cast={chat.character_ids.flatMap((id) => {
           const character = castById.get(id);

@@ -54,6 +54,7 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
     assemble_prompt,
     estimate_tokens,
     summary_prompt,
+    table_gm_prompt,
     translate_prompt,
 )
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
@@ -222,6 +223,23 @@ class ChatChecks(PlainModel):
         # The same tag rules as a character's.
         return _tags(value)
 
+    @field_validator("table_notes", check_fields=False)
+    @classmethod
+    def _checked_table_notes(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if len(value) > LIMITS["table_notes"]:
+            raise ValueError(f"At most {LIMITS['table_notes']} table notes")
+        cleaned = []
+        for note in value:
+            text = note.get("text") if isinstance(note, dict) else None
+            if set(note) != {"kind", "text"} or note["kind"] not in CONTRACT["table"]["note_kinds"] or not isinstance(text, str):
+                raise ValueError(f"A table note is {{kind, text}}, kind one of {', '.join(CONTRACT['table']['note_kinds'])}")
+            if not text.strip() or len(text.strip()) > LIMITS["short_text_characters"]:
+                raise ValueError(f"A table note is 1 to {LIMITS['short_text_characters']} characters")
+            cleaned.append({"kind": note["kind"], "text": text.strip()})
+        return cleaned
+
     @field_validator("content_rating", check_fields=False)
     @classmethod
     def _checked_rating(cls, value: Any) -> Any:
@@ -307,6 +325,8 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     content_rating: str | None = Field(None, description="general, teen or mature (null: none set)")
     lines: list[str] = Field(default_factory=list, description="Never in the story, even off-screen")
     veils: list[str] = Field(default_factory=list, description="Only ever off-screen")
+    table_notes: list[dict[str, Any]] = Field(default_factory=list, description="House rules, pacing, tone and reminders, read every turn")
+    paused: bool = Field(False, description="No story turns until the table resumes")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
@@ -330,6 +350,8 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         content_rating: str | None = None
         lines: list[str] = Field(default_factory=list)
         veils: list[str] = Field(default_factory=list)
+        table_notes: list[dict[str, Any]] = Field(default_factory=list)
+        paused: bool = False
 
     class Update(ChatChecks, BaseModel):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -351,6 +373,8 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         content_rating: str | None = None
         lines: list[str] | None = None
         veils: list[str] | None = None
+        table_notes: list[dict[str, Any]] | None = None
+        paused: bool | None = None
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -397,6 +421,8 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("objectives", [])
         kwargs.setdefault("lines", [])
         kwargs.setdefault("veils", [])
+        kwargs.setdefault("table_notes", [])
+        kwargs.setdefault("paused", False)
         self._check_references(kwargs)
         return super().create(**kwargs)
 
@@ -1183,7 +1209,20 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             next((objective["text"] for objective in (chat.objectives or []) if not objective["done"]), ""),
             self._data_bank(chat, story_texts),
             {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
+            chat.table_notes or [],
         )
+        if body.mode == "table":
+            # The table GM (A11, A20) reads the table talk, with the story for reference only.
+            assembled = table_gm_prompt(
+                cast,
+                persona,
+                history,
+                int(sampler["context_tokens"]),
+                int(sampler["max_tokens"]),
+                chat.summary or "",
+                {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
+                chat.table_notes or [],
+            )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
@@ -1303,6 +1342,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         summary="A character's next reply, streamed",
     )
     async def generate_route(self, body: GenerateEnvelope) -> StreamingResponse:
+        # Paused (A25): no story turns until the table resumes; the table GM still answers. Checked
+        # first, so a refused turn moves no lore timer.
+        if body.generate.mode != "table":
+            try:
+                paused = bool(self._manager(ChatManager).get(id=body.generate.chat_id).paused)
+            except HTTPException:
+                paused = False  # an unknown chat is refused by _inputs, as for every route
+            if paused:
+                raise HTTPException(status_code=409, detail={"message": "The table has paused the game", "code": "paused"})
         assembled, request, _sampler, _active, _context = self._inputs(body.generate)
         client = httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS)
         try:

@@ -19,7 +19,11 @@ import { type ComposerChannel, outgoing } from '~/features/chat/outgoing';
 const CHANNELS: { value: ComposerChannel; label: string }[] = [
   { value: 'ic', label: 'Story' },
   { value: 'ooc', label: 'Table talk' },
+  { value: 'gm', label: 'Ask the GM' },
 ];
+
+const BOX_LABELS: Record<ComposerChannel, string> = { ic: 'Your next line', ooc: 'Table talk', gm: 'A question for the GM' };
+const PLACEHOLDERS: Record<ComposerChannel, string> = { ic: 'What do you say or do?', ooc: 'Talk to the table…', gm: 'Ask the GM, out of character…' };
 
 /** Whether the device's main pointer is coarse (a finger), where Enter should not send. */
 function touchFirst(): boolean {
@@ -187,15 +191,15 @@ export function Composer({
             </>
           )}
           <label htmlFor={boxId} className='sr-only'>
-            {channel === 'ic' ? 'Your next line' : 'Table talk'}
+            {BOX_LABELS[channel]}
           </label>
           <Textarea
             id={boxId}
             value={text}
             rows={1}
             maxLength={LIMITS.message_characters}
-            placeholder={channel === 'ic' ? 'What do you say or do?' : 'Talk to the table…'}
-            className={cn('max-h-40 min-h-11 resize-none [field-sizing:content]', channel === 'ooc' && 'bg-muted')}
+            placeholder={PLACEHOLDERS[channel]}
+            className={cn('max-h-40 min-h-11 resize-none [field-sizing:content]', channel !== 'ic' && 'bg-muted')}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={onKeyDown}
           />

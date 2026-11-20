@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 from zephyrex.extensions.ai_character.Contract import PROMPT_CASES_PATH  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Prompt import split_reasoning, summary_prompt, assemble_prompt, estimate_tokens, expand_macros  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Prompt import split_reasoning, summary_prompt, table_gm_prompt, assemble_prompt, estimate_tokens, expand_macros  # type: ignore[import-not-found]
 
 CASES: dict[str, Any] = json.loads(PROMPT_CASES_PATH.read_text(encoding="utf-8"))
 
@@ -31,6 +31,7 @@ def test_case(case: dict[str, Any]) -> None:
         objective=given.get("objective", ""),
         data_bank=given.get("data_bank", ""),
         safety=given.get("safety"),
+        table_notes=given.get("table_notes"),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]
@@ -61,4 +62,21 @@ def test_summary_case(case: dict[str, Any]) -> None:
 @pytest.mark.parametrize("case", CASES["reasoning_cases"], ids=[case["name"] for case in CASES["reasoning_cases"]])
 def test_reasoning_case(case: dict[str, Any]) -> None:
     assert split_reasoning(case["text"]) == (case["reasoning"], case["reply"])
+
+
+@pytest.mark.parametrize("case", CASES["table_gm_cases"], ids=[case["name"] for case in CASES["table_gm_cases"]])
+def test_table_gm_case(case: dict[str, Any]) -> None:
+    given = case["input"]
+    result = table_gm_prompt(
+        [CASES["characters"][key] for key in given["characters"]],
+        given["persona"],
+        given["history"],
+        given["context_tokens"],
+        given["max_tokens"],
+        given["summary"],
+        given["safety"],
+        given["table_notes"],
+    )
+    assert result.messages == case["messages"]
+    assert result.dropped == case["dropped"]
 

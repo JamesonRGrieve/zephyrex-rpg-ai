@@ -355,6 +355,23 @@ class TestGenerate:
         assert "Never include, even off-screen: spiders." in contents[0] and "Only ever off-screen, never described: gore." in contents[0]
         assert "Something awful." not in "\n".join(contents)
 
+    def test_the_table_gm_answers_and_a_pause_holds_the_story(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        bad = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "table_notes": [{"kind": "gossip", "text": "x"}]}}, headers=_headers(user))
+        assert bad.status_code == 422, bad.text
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], paused=True, table_notes=[{"kind": "house_rule", "text": " Crits explode. "}]).json()["chat"]
+        assert chat["table_notes"] == [{"kind": "house_rule", "text": "Crits explode."}]
+        question = _create(server, user, "chat_message", chat_id=chat["id"], role="user", channel="gm", swipes=["Can I search it?"]).json()["chat_message"]
+        refused = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": question["id"]}}, headers=_headers(user))
+        assert refused.status_code == 409 and refused.json()["detail"]["code"] == "paused"
+        RECEIVED.clear()
+        answered = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": question["id"], "mode": "table"}}, headers=_headers(user))
+        assert answered.status_code == 200, answered.text
+        sent = RECEIVED[0]["body"]["messages"]
+        assert "House rule: Crits explode." in sent[0]["content"] and sent[-1] == {"role": "user", "content": "User: Can I search it?"}
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

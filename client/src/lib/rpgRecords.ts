@@ -20,7 +20,7 @@
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAFETY, SAMPLER_RANGES, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAFETY, SAMPLER_RANGES, TABLE, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -227,6 +227,8 @@ const CHAT_COLUMNS: Columns = {
   content_rating: plain('contentRating'),
   lines: jsonList('lines'),
   veils: jsonList('veils'),
+  table_notes: jsonList('tableNotes'),
+  paused: plain('paused'),
 };
 
 const title = z.string().trim().min(1).max(LIMITS.chat_title_characters);
@@ -274,6 +276,10 @@ const chatFields = {
   content_rating: z.enum(SAFETY.ratings).nullable(),
   lines: z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.safety_items),
   veils: z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.safety_items),
+  /** The table's notes (A11): house rules, pacing, tone and reminders, read every turn. */
+  table_notes: z.array(z.object({ kind: z.enum(TABLE.note_kinds), text: z.string().trim().min(1).max(LIMITS.short_text_characters) }).strict()).max(LIMITS.table_notes),
+  /** Paused (A25): no story turns until the table resumes; the table GM still answers. */
+  paused: z.boolean(),
 };
 const chatCreate = z.object({
   title,
@@ -295,6 +301,8 @@ const chatCreate = z.object({
   content_rating: chatFields.content_rating.default(null),
   lines: chatFields.lines.default([]),
   veils: chatFields.veils.default([]),
+  table_notes: chatFields.table_notes.default([]),
+  paused: chatFields.paused.default(false),
 });
 const chatUpdate = z.object({ title, ...chatFields }).partial();
 

@@ -29,6 +29,7 @@ export const PROMPT = {
   sections: contract.prompt.sections as unknown as readonly [
     'main',
     'safety',
+    'table_notes',
     'lore_before_char',
     'description',
     'personality',
@@ -94,5 +95,11 @@ export const DATA_BANK = {
 export const SAFETY = {
   ...contract.safety,
   ratings: contract.safety.ratings as unknown as readonly ['general', 'teen', 'mature'],
+};
+
+/** The table: note kinds and the table GM's prompt (A11, A20). */
+export const TABLE = {
+  ...contract.table,
+  note_kinds: contract.table.note_kinds as unknown as readonly ['house_rule', 'pacing', 'tone', 'reminder'],
 };
 

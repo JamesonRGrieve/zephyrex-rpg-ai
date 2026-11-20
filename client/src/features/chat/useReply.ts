@@ -16,7 +16,7 @@ export interface ReplyRequest {
   leaf_id: string | null;
   speaker_id: string | null;
   /** `reply` when left out; `continue` carries on the leaf; `impersonate` writes the person's line. */
-  mode?: 'reply' | 'continue' | 'impersonate';
+  mode?: 'reply' | 'continue' | 'impersonate' | 'table';
 }
 
 export interface ReplyResult {

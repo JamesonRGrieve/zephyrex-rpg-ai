@@ -79,6 +79,8 @@ model Chat {
   contentRating String?
   lines        String   @default("[]")
   veils        String   @default("[]")
+  tableNotes   String   @default("[]")
+  paused       Boolean  @default(false)
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   updatedById  String?

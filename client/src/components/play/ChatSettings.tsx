@@ -18,6 +18,7 @@ import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { parseTags } from '~/features/chat/library';
 import { type Objective, ObjectivesEditor } from './ObjectivesEditor';
+import { type TableNoteValue, TableNotesEditor } from './TableNotesEditor';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 
 const RATING_LABELS = { general: 'General', teen: 'Teen', mature: 'Mature' } as const;
@@ -40,6 +41,7 @@ export interface ChatSettingsValue {
   content_rating: 'general' | 'teen' | 'mature' | null;
   lines: string[];
   veils: string[];
+  table_notes: TableNoteValue[];
 }
 
 /** What a chat sets of World Info's settings; the rest take the contract's defaults. */
@@ -337,6 +339,7 @@ export function ChatSettings({
               <Input id={ids.veils} value={veilsText} placeholder='torture, romance' className='h-11' onChange={(event) => setVeilsText(event.target.value)} />
             </div>
           </fieldset>
+          <TableNotesEditor value={draft.table_notes} onChange={(next) => set('table_notes', next)} />
           <ObjectivesEditor value={draft.objectives} onChange={(next) => set('objectives', next)} />
           <fieldset className='grid gap-2'>
             <legend className='text-sm font-medium'>Lorebooks</legend>

@@ -28,7 +28,7 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { PROMPT, REASONING, SAFETY } from '~/contract';
+import { PROMPT, REASONING, SAFETY, TABLE } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandMacros, type MacroNames } from './macros';
@@ -84,6 +84,20 @@ export interface PromptInput {
   data_bank?: string;
   /** The table's safety tools (A25). */
   safety?: SafetySettings;
+  /** The table's notes (A11): house rules, pacing, tone, reminders. */
+  table_notes?: readonly TableNote[];
+}
+
+export interface TableNote {
+  kind: string;
+  text: string;
+}
+
+/** The table's notes as the model reads them (A11): one labelled line each, under a heading. */
+export function tableNotesText(notes: readonly TableNote[] | undefined): string {
+  const labels: Record<string, string> = TABLE.note_labels;
+  const kept = (notes ?? []).flatMap((note) => (note.kind in labels && note.text.trim() !== '' ? [`${labels[note.kind]}: ${note.text.trim()}`] : []));
+  return kept.length === 0 ? '' : [TABLE.notes_heading, ...kept].join('\n');
 }
 
 export interface SafetySettings {
@@ -263,6 +277,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const texts: Partial<Record<PromptSectionId, string>> = {
     main: override.trim() !== '' ? override : speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
     safety: safetyText(input.safety),
+    table_notes: tableNotesText(input.table_notes),
     lore_before_char: loreSections.before_char ?? '',
     description: speaker.description,
     personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
@@ -364,5 +379,56 @@ export function translatePrompt(text: string, language: string): ModelMessage[] 
     { role: 'system', content: PROMPT.translate_prompt.replace('{{language}}', language) },
     { role: 'user', content: text },
   ];
+}
+
+/**
+ * What the table GM reads to answer the players out of character (A11, A20). The system text: the
+ * contract's GM prompt, the safety tools, the table notes, the summary and the last few story turns
+ * (named, X-carded ones left out), for reference only. Then the table talk (`ooc` and `gm`) as the
+ * conversation: the players' lines as the user's, named, and the GM's (a narrator on the `gm`
+ * channel) as the assistant's. The oldest table talk is dropped to fit.
+ */
+export function tableGmPrompt(
+  input: Pick<PromptInput, 'characters' | 'persona' | 'history' | 'context_tokens' | 'max_tokens' | 'summary' | 'safety' | 'table_notes'>,
+): AssembledPrompt {
+  const userName = input.persona?.name ?? DEFAULT_USER_NAME;
+  const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
+  const named = (turn: PromptTurn) =>
+    turn.role === 'user' ? userName : turn.role === 'character' ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR) : NARRATOR;
+  const story = new Set<string>(PROMPT.story_channels);
+  const recent = input.history
+    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
+    .slice(-TABLE.recent_story_turns)
+    .map((turn) => `${named(turn)}: ${turn.content}`);
+  const summary = input.summary ?? '';
+  const parts = [
+    TABLE.gm_prompt,
+    safetyText(input.safety),
+    tableNotesText(input.table_notes),
+    summary.trim() === '' ? '' : PROMPT.summary_prefix + summary,
+    recent.length === 0 ? '' : [TABLE.recent_story_heading, ...recent].join('\n'),
+  ];
+  const system: ModelMessage = {
+    role: 'system',
+    content: parts
+      .map((part) => part.trim())
+      .filter((part) => part !== '')
+      .join('\n\n'),
+  };
+  const talk: ModelMessage[] = input.history
+    .filter((turn) => turn.channel === 'ooc' || turn.channel === 'gm')
+    .map((turn) =>
+      turn.role === 'narrator' && turn.channel === 'gm' ? { role: 'assistant', content: turn.content } : { role: 'user', content: `${named(turn)}: ${turn.content}` },
+    );
+  const budget = input.context_tokens - input.max_tokens - estimateTokens(system);
+  let kept = talk.length;
+  let used = 0;
+  for (let index = talk.length - 1; index >= 0; index -= 1) {
+    const cost = used + estimateTokens(talk[index] as ModelMessage);
+    if (cost > budget) break;
+    used = cost;
+    kept = index;
+  }
+  return { messages: [system, ...talk.slice(kept)], dropped: kept };
 }
 

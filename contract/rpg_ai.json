@@ -39,7 +39,8 @@
     "objectives_per_chat": 50,
     "data_document_characters": 200000,
     "data_documents": 200,
-    "safety_items": 50
+    "safety_items": 50,
+    "table_notes": 50
   },
   "message_roles": [
     "user",
@@ -115,11 +116,13 @@
     "modes": [
       "reply",
       "continue",
-      "impersonate"
+      "impersonate",
+      "table"
     ],
     "sections": [
       "main",
       "safety",
+      "table_notes",
       "lore_before_char",
       "description",
       "personality",
@@ -390,5 +393,24 @@
     "lines_prefix": "Never include, even off-screen: ",
     "veils_prefix": "Only ever off-screen, never described: ",
     "heading": "Table safety (always follow):"
+  },
+  "table": {
+    "note_kinds": [
+      "house_rule",
+      "pacing",
+      "tone",
+      "reminder"
+    ],
+    "note_labels": {
+      "house_rule": "House rule",
+      "pacing": "Pacing",
+      "tone": "Tone",
+      "reminder": "Reminder"
+    },
+    "notes_heading": "Table notes (always follow):",
+    "gm_prompt": "You are the game master, talking with the players out of character, as the person running the game. Answer plainly and helpfully, in a few sentences. Never reveal what the story has not revealed, and never invent rules: say when a rule has to be checked. Never continue the story here.",
+    "recent_story_turns": 6,
+    "recent_story_heading": "The story so far, most recent last:",
+    "gm_name": "GM"
   }
 }

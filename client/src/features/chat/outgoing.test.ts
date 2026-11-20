@@ -3,6 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { outgoing } from './outgoing';
 
 describe('outgoing', () => {
+  it('asks the table GM with /gm', () => {
+    expect(outgoing('/gm can I search it?', 'ic')).toEqual({ text: 'can I search it?', channel: 'gm' });
+  });
+
   it('sends on the switch’s channel', () => {
     expect(outgoing('  I open the door. ', 'ic')).toEqual({ text: 'I open the door.', channel: 'ic' });
     expect(outgoing('brb', 'ooc')).toEqual({ text: 'brb', channel: 'ooc' });

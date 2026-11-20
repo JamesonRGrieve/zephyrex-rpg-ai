@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { type EndpointApi, type InstructTemplateId, LIMITS, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { assemblePrompt, estimateTokens, summaryPrompt, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import { type AssembledPrompt, assemblePrompt, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
@@ -37,7 +37,7 @@ const request = z.object({
   chat_id: z.string().min(1),
   leaf_id: z.string().min(1).nullable().default(null),
   speaker_id: z.string().min(1).nullable().default(null),
-  mode: z.enum(['reply', 'continue', 'impersonate']).default('reply'),
+  mode: z.enum(['reply', 'continue', 'impersonate', 'table']).default('reply'),
 });
 
 const NO_QUERY = new URLSearchParams();
@@ -66,7 +66,7 @@ export async function generationInputs(
   ownerId: string,
   body: z.infer<typeof request>,
   roll: () => number = Math.random,
-): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState; activeLore: string[]; images: string[] }> {
+): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState; activeLore: string[]; images: string[]; paused: boolean }> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
   const chatFields = chats.fields(chat) as {
@@ -83,6 +83,8 @@ export async function generationInputs(
     content_rating: string | null;
     lines: string[];
     veils: string[];
+    table_notes: TableNote[];
+    paused: boolean;
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -159,12 +161,13 @@ export async function generationInputs(
       context_tokens: sampler.context_tokens,
       max_tokens: sampler.max_tokens,
       lore,
-      mode: body.mode,
+      mode: body.mode === 'table' ? 'reply' : body.mode,
       layout: sampler.prompt_layout,
       system_prompt: chatFields.system_prompt,
       summary: chatFields.summary,
       objective: chatFields.objectives.find((one) => !one.done)?.text ?? '',
       safety: { content_rating: chatFields.content_rating, lines: chatFields.lines, veils: chatFields.veils },
+      table_notes: chatFields.table_notes,
       data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
     },
@@ -179,6 +182,7 @@ export async function generationInputs(
     loreState: lore.state,
     activeLore: lore.active,
     images,
+    paused: chatFields.paused,
   };
 }
 
@@ -254,6 +258,11 @@ function event(name: string, data: unknown): Uint8Array {
   return new TextEncoder().encode(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
+/** What the model reads for `mode`: the story prompt, or the table GM's (A11, A20). */
+function promptFor(mode: z.infer<typeof request>['mode'], prompt: PromptInput): AssembledPrompt {
+  return mode === 'table' ? tableGmPrompt(prompt) : assemblePrompt(prompt);
+}
+
 /** The request's `generate` object, or the framework's 422. */
 async function readRequest(nextRequest: NextRequest): Promise<z.infer<typeof request>> {
   const envelope = await readJsonObject(nextRequest);
@@ -272,7 +281,7 @@ export async function inspectPrompt(nextRequest: NextRequest): Promise<Response>
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
     const { prompt, sampler, activeLore } = await generationInputs(owner.id, body);
-    const assembled = assemblePrompt(prompt);
+    const assembled = promptFor(body.mode, prompt);
     const messages = assembled.messages.map((message) => ({ ...message, tokens: estimateTokens(message) }));
     return Response.json({
       prompt: {
@@ -366,12 +375,14 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, endpoint, loreState, images } = await generationInputs(owner.id, body);
-    const assembled = assemblePrompt(prompt);
+    const { prompt, sampler, endpoint, loreState, images, paused } = await generationInputs(owner.id, body);
+    // Paused (A25): no story turns until the table resumes. The table GM still answers.
+    if (paused && body.mode !== 'table') throw new ApiError(409, { message: 'The table has paused the game', code: 'paused' });
+    const assembled = promptFor(body.mode, prompt);
     // The lore timers move with the reply that read them.
     await saveLoreState(owner.id, body.chat_id, loreState);
 
-    const upstream = await askModel(endpoint, upstreamBody(endpoint, sampler, assembled.messages, body.mode, images), nextRequest.signal);
+    const upstream = await askModel(endpoint, upstreamBody(endpoint, sampler, assembled.messages, body.mode === 'table' ? 'reply' : body.mode, images), nextRequest.signal);
     const deltas = completionDeltas(upstream);
     const stream = new ReadableStream<Uint8Array>({
       async pull(controller) {

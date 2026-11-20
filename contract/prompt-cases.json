@@ -820,6 +820,60 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "table notes follow the safety tools, one labelled line each",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "table_notes": [
+          {
+            "kind": "house_rule",
+            "text": "Critical hits explode."
+          },
+          {
+            "kind": "pacing",
+            "text": " Keep scenes short. "
+          },
+          {
+            "kind": "nonsense",
+            "text": "ignored"
+          },
+          {
+            "kind": "tone",
+            "text": "  "
+          }
+        ],
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Hi."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nTable notes (always follow):\nHouse rule: Critical hits explode.\nPacing: Keep scenes short.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [
@@ -950,6 +1004,196 @@
       "text": "Just a reply.",
       "reasoning": "",
       "reply": "Just a reply."
+    }
+  ],
+  "table_gm_cases": [
+    {
+      "name": "the table GM reads the safety tools, notes, summary and recent story, and answers the table talk",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I open the crate."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "It's empty."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Awful thing.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "Can I search it again?"
+          },
+          {
+            "role": "narrator",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "Yes: roll Perception when you do."
+          },
+          {
+            "role": "user",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "And the hatch?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "summary": "They boarded the Kestrel.",
+        "safety": {
+          "content_rating": "teen",
+          "lines": [
+            "spiders"
+          ],
+          "veils": []
+        },
+        "table_notes": [
+          {
+            "kind": "house_rule",
+            "text": "Critical hits explode."
+          },
+          {
+            "kind": "pacing",
+            "text": " Keep scenes short. "
+          }
+        ]
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are the game master, talking with the players out of character, as the person running the game. Answer plainly and helpfully, in a few sentences. Never reveal what the story has not revealed, and never invent rules: say when a rule has to be checked. Never continue the story here.\n\nTable safety (always follow):\nKeep violence and peril mild, with no sexual content.\nNever include, even off-screen: spiders.\n\nTable notes (always follow):\nHouse rule: Critical hits explode.\nPacing: Keep scenes short.\n\nSummary of the story so far:\nThey boarded the Kestrel.\n\nThe story so far, most recent last:\nSam: I open the crate.\nAda: It's empty."
+        },
+        {
+          "role": "user",
+          "content": "Sam: brb"
+        },
+        {
+          "role": "user",
+          "content": "Sam: Can I search it again?"
+        },
+        {
+          "role": "assistant",
+          "content": "Yes: roll Perception when you do."
+        },
+        {
+          "role": "user",
+          "content": "Sam: And the hatch?"
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "a full window drops the oldest table talk",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I open the crate."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "It's empty."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Awful thing.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "Can I search it again?"
+          },
+          {
+            "role": "narrator",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "Yes: roll Perception when you do."
+          },
+          {
+            "role": "user",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "And the hatch?"
+          }
+        ],
+        "context_tokens": 583,
+        "max_tokens": 400,
+        "summary": "They boarded the Kestrel.",
+        "safety": {
+          "content_rating": "teen",
+          "lines": [
+            "spiders"
+          ],
+          "veils": []
+        },
+        "table_notes": [
+          {
+            "kind": "house_rule",
+            "text": "Critical hits explode."
+          },
+          {
+            "kind": "pacing",
+            "text": " Keep scenes short. "
+          }
+        ]
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are the game master, talking with the players out of character, as the person running the game. Answer plainly and helpfully, in a few sentences. Never reveal what the story has not revealed, and never invent rules: say when a rule has to be checked. Never continue the story here.\n\nTable safety (always follow):\nKeep violence and peril mild, with no sexual content.\nNever include, even off-screen: spiders.\n\nTable notes (always follow):\nHouse rule: Critical hits explode.\nPacing: Keep scenes short.\n\nSummary of the story so far:\nThey boarded the Kestrel.\n\nThe story so far, most recent last:\nSam: I open the crate.\nAda: It's empty."
+        },
+        {
+          "role": "user",
+          "content": "Sam: And the hatch?"
+        }
+      ],
+      "dropped": 3
     }
   ]
 }

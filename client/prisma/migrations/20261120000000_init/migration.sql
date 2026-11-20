@@ -60,6 +60,8 @@ CREATE TABLE "Chat" (
     "contentRating" TEXT,
     "lines" TEXT NOT NULL DEFAULT '[]',
     "veils" TEXT NOT NULL DEFAULT '[]',
+    "tableNotes" TEXT NOT NULL DEFAULT '[]',
+    "paused" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
