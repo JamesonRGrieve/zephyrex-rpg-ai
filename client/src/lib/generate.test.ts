@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { completionsUrl, generate, inspectPrompt } from './generate';
+import { completionsUrl, generate, inspectPrompt, upstreamBody } from './generate';
 
 interface Received {
   path: string;
@@ -190,5 +190,32 @@ describe('completionsUrl', () => {
     expect(completionsUrl('http://h:1/v1')).toBe('http://h:1/v1/chat/completions');
     expect(completionsUrl('http://h:1/v1//')).toBe('http://h:1/v1/chat/completions');
     expect(completionsUrl('http://h:1/v1/chat/completions')).toBe('http://h:1/v1/chat/completions');
+  });
+
+  it('points a text API at /completions, whichever path it was given', () => {
+    expect(completionsUrl('http://h:1/v1', 'text')).toBe('http://h:1/v1/completions');
+    expect(completionsUrl('http://h:1/v1/chat/completions', 'text')).toBe('http://h:1/v1/completions');
+    expect(completionsUrl('http://h:1/v1/completions', 'text')).toBe('http://h:1/v1/completions');
+  });
+});
+
+describe('upstreamBody', () => {
+  const sampler = { temperature: 0.7, top_p: 1, top_k: 0, repetition_penalty: 1, max_tokens: 100, context_tokens: 2048, stop: ['END'], prompt_layout: [] };
+  const messages = [
+    { role: 'user' as const, content: 'Hi.' },
+    { role: 'assistant' as const, content: 'Hel' },
+  ];
+
+  it('sends a chat API the messages and the preset’s stops', () => {
+    const body = upstreamBody({ base_url: 'http://h', model: 'm', api_key: '', api: 'chat', instruct_template: 'chatml' }, sampler, messages, 'reply');
+    expect(body).toMatchObject({ messages, stop: ['END'] });
+    expect(body).not.toHaveProperty('prompt');
+  });
+
+  it('sends a text API one prompt in its template, the continued reply left open, with the template’s stops too', () => {
+    const body = upstreamBody({ base_url: 'http://h', model: 'm', api_key: '', api: 'text', instruct_template: 'chatml' }, sampler, messages, 'continue');
+    expect(body.prompt).toBe('<|im_start|>user\nHi.<|im_end|>\n<|im_start|>assistant\nHel');
+    expect(body.stop).toEqual(['END', '<|im_end|>']);
+    expect(body).not.toHaveProperty('messages');
   });
 });

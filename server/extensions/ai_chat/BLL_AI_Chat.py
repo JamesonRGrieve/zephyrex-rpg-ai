@@ -20,7 +20,8 @@ Actions on ``/v1/ai_chat``:
 
 import json
 import random
-from collections.abc import AsyncIterator, Sequence
+import re
+from collections.abc import AsyncIterator, Mapping, Sequence
 from typing import Any, ClassVar
 
 import httpx
@@ -44,6 +45,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     SAMPLER_RANGES,
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import assemble_prompt, estimate_tokens  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
@@ -517,6 +519,16 @@ class EndpointChecks(PlainModel):
     def _checked_url(cls, value: Any) -> Any:
         return _base_url(value)
 
+    @field_validator("api", check_fields=False)
+    @classmethod
+    def _checked_api(cls, value: Any) -> Any:
+        return _one_of(value, CONTRACT["endpoint_apis"], "api")
+
+    @field_validator("instruct_template", check_fields=False)
+    @classmethod
+    def _checked_template(cls, value: Any) -> Any:
+        return _one_of(value, list(CONTRACT["instruct_templates"]), "instruct_template")
+
 
 class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["ModelEndpointManager"]]
@@ -524,6 +536,8 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
     base_url: str = Field(..., description="The endpoint's OpenAI-compatible address")
     model: str = Field(..., description="The model to ask")
     is_default: bool = Field(False, description="Used by chats that name no model")
+    api: str = Field("chat", description="chat (chat completions) or text (one prompt in the instruct template)")
+    instruct_template: str = Field("chatml", description="A text API's prompt markup")
     has_api_key: bool = Field(False, description="Set by the server: whether a key is stored")
     # Write-only: excluded from every serialization, kept encrypted.
     api_key: str | None = Field(None, exclude=True, description="Set by the server: the encrypted API key")
@@ -536,6 +550,8 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         model: str = Field(..., min_length=1, max_length=MAX_MODEL)
         api_key: str = Field("", max_length=MAX_KEY)
         is_default: bool = False
+        api: str = "chat"
+        instruct_template: str = "chatml"
 
     class Update(BaseModel, EndpointChecks):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -543,6 +559,8 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         model: str | None = Field(None, min_length=1, max_length=MAX_MODEL)
         api_key: str | None = Field(None, max_length=MAX_KEY)
         is_default: bool | None = None
+        api: str | None = None
+        instruct_template: str | None = None
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -617,10 +635,31 @@ class GenerateEnvelope(PlainModel):
     generate: GenerateRequest
 
 
-def completions_url(base_url: str) -> str:
-    """The endpoint's chat-completions URL: its base, with ``/chat/completions`` once."""
+def completions_url(base_url: str, api: str = "chat") -> str:
+    """The endpoint's completions URL: its base with ``/chat/completions`` (``/completions`` for a text API) once."""
     base = base_url.rstrip("/")
-    return base if base.endswith("/chat/completions") else f"{base}/chat/completions"
+    path = "/chat/completions" if api == "chat" else "/completions"
+    if base.endswith(path):
+        return base
+    return re.sub(r"/(chat/)?completions$", "", base) + path
+
+
+def upstream_body(endpoint: Any, sampler: Mapping[str, Any], messages: list[dict[str, str]], mode: str) -> dict[str, Any]:
+    """The messages for a chat API; for a text API one prompt in the endpoint's instruct template (a
+    continued reply left open), with the template's stop strings added."""
+    text = endpoint.api == "text"
+    stop = [*sampler["stop"], *(instruct_stops(endpoint.instruct_template) if text else [])]
+    return {
+        "model": endpoint.model,
+        **({"prompt": render_instruct(messages, endpoint.instruct_template, mode == "continue")} if text else {"messages": messages}),
+        "stream": True,
+        "temperature": sampler["temperature"],
+        "top_p": sampler["top_p"],
+        "top_k": sampler["top_k"],
+        "repetition_penalty": sampler["repetition_penalty"],
+        "max_tokens": sampler["max_tokens"],
+        **({"stop": stop} if stop else {}),
+    }
 
 
 def delta_of(payload: str) -> str | None:
@@ -630,7 +669,9 @@ def delta_of(payload: str) -> str | None:
         return None
     try:
         parsed = json.loads(body)
-        content = parsed["choices"][0]["delta"].get("content")
+        choice = parsed["choices"][0]
+        # A chat completion's delta, or a text completion's text.
+        content = choice["delta"].get("content") if "delta" in choice else choice.get("text")
     except (ValueError, KeyError, IndexError, TypeError, AttributeError):
         return None
     return content if isinstance(content, str) and content else None
@@ -748,19 +789,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {
-            "url": completions_url(endpoint.base_url),
+            "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-            "json": {
-                "model": endpoint.model,
-                "messages": assembled.messages,
-                "stream": True,
-                "temperature": sampler["temperature"],
-                "top_p": sampler["top_p"],
-                "top_k": sampler["top_k"],
-                "repetition_penalty": sampler["repetition_penalty"],
-                "max_tokens": sampler["max_tokens"],
-                **({"stop": sampler["stop"]} if sampler["stop"] else {}),
-            },
+            "json": upstream_body(endpoint, sampler, assembled.messages, body.mode),
         }
         return assembled, request, sampler, lore.active
 

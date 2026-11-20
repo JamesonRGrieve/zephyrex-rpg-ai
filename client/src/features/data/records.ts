@@ -11,7 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, SELECTIVE_LOGIC } from '~/contract';
+import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
@@ -95,6 +95,8 @@ export const endpointSchema = z.object({
   model: z.string(),
   is_default: z.boolean(),
   has_api_key: z.boolean(),
+  api: z.enum(ENDPOINT_APIS),
+  instruct_template: z.enum(Object.keys(INSTRUCT_TEMPLATES) as [InstructTemplateId, ...InstructTemplateId[]]),
 });
 export type ModelEndpoint = z.infer<typeof endpointSchema>;
 

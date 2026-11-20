@@ -58,3 +58,9 @@ export const DEPTH_ROLES = contract.lore.depth_roles as unknown as readonly ['sy
 export type LorePosition = (typeof LORE_POSITIONS)[number];
 export type SelectiveLogic = (typeof SELECTIVE_LOGIC)[number];
 export type DepthRole = (typeof DEPTH_ROLES)[number];
+
+/** Text-completion prompt markup (features/prompt/instruct.ts; cases in contract/instruct-cases.json). */
+export const INSTRUCT_TEMPLATES = contract.instruct_templates;
+export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;
+export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text'];
+export type EndpointApi = (typeof ENDPOINT_APIS)[number];

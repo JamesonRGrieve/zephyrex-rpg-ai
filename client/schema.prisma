@@ -126,6 +126,8 @@ model ModelEndpoint {
   model       String
   apiKey      String   @default("")
   isDefault   Boolean  @default(false)
+  api         String   @default("chat")
+  instructTemplate String @default("chatml")
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   updatedById String?

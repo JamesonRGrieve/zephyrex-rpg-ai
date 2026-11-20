@@ -20,7 +20,7 @@
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAMPLER_RANGES } from '~/contract';
+import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, PROMPT, SAMPLER_RANGES, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -528,6 +528,8 @@ const ENDPOINT_COLUMNS: Columns = {
   base_url: plain('baseUrl'),
   model: plain('model'),
   is_default: plain('isDefault'),
+  api: plain('api'),
+  instruct_template: plain('instructTemplate'),
 };
 
 const baseUrl = z
@@ -541,6 +543,9 @@ const endpointFields = {
   /** Write-only; an empty string clears it. */
   api_key: z.string().max(LIMITS.api_key_characters),
   is_default: z.boolean(),
+  /** `chat` (chat completions) or `text` (one prompt string, in the instruct template's markup). */
+  api: z.enum(ENDPOINT_APIS),
+  instruct_template: z.enum(Object.keys(INSTRUCT_TEMPLATES) as [InstructTemplateId, ...InstructTemplateId[]]),
 };
 const endpointCreate = z.object({
   name,
@@ -548,6 +553,8 @@ const endpointCreate = z.object({
   model: endpointFields.model,
   api_key: endpointFields.api_key.default(''),
   is_default: z.boolean().default(false),
+  api: endpointFields.api.default('chat'),
+  instruct_template: endpointFields.instruct_template.default('chatml'),
 });
 const endpointUpdate = z.object({ name, ...endpointFields }).partial();
 

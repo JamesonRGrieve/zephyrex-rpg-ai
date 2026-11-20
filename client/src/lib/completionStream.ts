@@ -2,7 +2,8 @@
 /**
  * Reading an OpenAI-compatible streamed chat completion (`stream: true`): server-sent events whose
  * `data:` lines carry `choices[0].delta.content`, ending with `data: [DONE]`. Ollama, llama.cpp,
- * vLLM, Bifrost and the hosted APIs all answer this way.
+ * vLLM, Bifrost and the hosted APIs all answer this way. A streamed text completion's lines carry
+ * `choices[0].text` instead, and are read the same way.
  */
 
 const DATA_PREFIX = 'data:';
@@ -19,7 +20,7 @@ export function deltaOf(payload: string): string | null {
     return null;
   }
   const choice: unknown = Reflect.get(Object(Reflect.get(Object(parsed), 'choices')), 0);
-  const content: unknown = Reflect.get(Object(Reflect.get(Object(choice), 'delta')), 'content');
+  const content: unknown = Reflect.get(Object(Reflect.get(Object(choice), 'delta')), 'content') ?? Reflect.get(Object(choice), 'text');
   return typeof content === 'string' && content !== '' ? content : null;
 }
 

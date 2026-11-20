@@ -24,6 +24,7 @@ async function collect(stream: ReadableStream<Uint8Array>): Promise<string[]> {
 describe('completion stream', () => {
   it('reads the delta text, and nothing from role-only, keep-alive or broken payloads', () => {
     expect(deltaOf(` ${chunk('Hi')}`)).toBe('Hi');
+    expect(deltaOf(JSON.stringify({ choices: [{ text: 'Hey' }] }))).toBe('Hey');
     expect(deltaOf(JSON.stringify({ choices: [{ delta: { role: 'assistant' } }] }))).toBeNull();
     expect(deltaOf('')).toBeNull();
     expect(deltaOf('{not json')).toBeNull();

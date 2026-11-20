@@ -20,10 +20,11 @@
 import type { NextRequest } from 'next/server';
 import { ApiError, apiErrorResponse, localOwner, notFound, readJsonObject, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
+import { type EndpointApi, type InstructTemplateId, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { assemblePrompt, estimateTokens, type PromptInput, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import { assemblePrompt, estimateTokens, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { prisma } from '~/lib/prisma';
@@ -38,7 +39,7 @@ const request = z.object({
 
 const NO_QUERY = new URLSearchParams();
 
-interface Sampler {
+export interface Sampler {
   temperature: number;
   top_p: number;
   top_k: number;
@@ -49,10 +50,12 @@ interface Sampler {
   prompt_layout: PromptSection[];
 }
 
-interface Endpoint {
+export interface Endpoint {
   base_url: string;
   model: string;
   api_key: string;
+  api: EndpointApi;
+  instruct_template: InstructTemplateId;
 }
 
 /** Everything a reply needs, read as the owner sees it. */
@@ -147,7 +150,13 @@ export async function generationInputs(
       system_prompt: chatFields.system_prompt,
     },
     sampler,
-    endpoint: { base_url: endpointRow.baseUrl, model: endpointRow.model, api_key: endpointRow.apiKey },
+    endpoint: {
+      base_url: endpointRow.baseUrl,
+      model: endpointRow.model,
+      api_key: endpointRow.apiKey,
+      api: endpointRow.api as EndpointApi,
+      instruct_template: endpointRow.instructTemplate as InstructTemplateId,
+    },
     loreState: lore.state,
     activeLore: lore.active,
   };
@@ -165,9 +174,30 @@ export async function saveLoreState(ownerId: string, chatId: string, state: Lore
 }
 
 /** The endpoint's chat-completions URL: its base, with `/chat/completions` once. */
-export function completionsUrl(baseUrl: string): string {
+export function completionsUrl(baseUrl: string, api: EndpointApi = 'chat'): string {
   const base = baseUrl.replace(/\/+$/, '');
-  return base.endsWith('/chat/completions') ? base : `${base}/chat/completions`;
+  const path = api === 'chat' ? '/chat/completions' : '/completions';
+  return base.endsWith(path) ? base : `${base.replace(/\/(chat\/)?completions$/, '')}${path}`;
+}
+
+/**
+ * What the model endpoint is sent: the messages for a chat API, or for a text API one prompt in
+ * the endpoint's instruct template (a continued reply left open), with its stop strings added.
+ */
+export function upstreamBody(endpoint: Endpoint, sampler: Sampler, messages: readonly ModelMessage[], mode: PromptMode): Record<string, unknown> {
+  const text = endpoint.api === 'text';
+  const stop = [...sampler.stop, ...(text ? instructStops(endpoint.instruct_template) : [])];
+  return {
+    model: endpoint.model,
+    ...(text ? { prompt: renderInstruct(messages, endpoint.instruct_template, mode === 'continue') } : { messages }),
+    stream: true,
+    temperature: sampler.temperature,
+    top_p: sampler.top_p,
+    top_k: sampler.top_k,
+    repetition_penalty: sampler.repetition_penalty,
+    max_tokens: sampler.max_tokens,
+    ...(stop.length === 0 ? {} : { stop }),
+  };
 }
 
 const SSE_HEADERS = { 'Content-Type': 'text/event-stream; charset=utf-8', 'Cache-Control': 'no-store', Connection: 'keep-alive' };
@@ -220,23 +250,13 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
     // The lore timers move with the reply that read them.
     await saveLoreState(owner.id, body.chat_id, loreState);
 
-    const upstream = await fetch(completionsUrl(endpoint.base_url), {
+    const upstream = await fetch(completionsUrl(endpoint.base_url, endpoint.api), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         ...(endpoint.api_key === '' ? {} : { Authorization: `Bearer ${endpoint.api_key}` }),
       },
-      body: JSON.stringify({
-        model: endpoint.model,
-        messages: assembled.messages,
-        stream: true,
-        temperature: sampler.temperature,
-        top_p: sampler.top_p,
-        top_k: sampler.top_k,
-        repetition_penalty: sampler.repetition_penalty,
-        max_tokens: sampler.max_tokens,
-        ...(sampler.stop.length === 0 ? {} : { stop: sampler.stop }),
-      }),
+      body: JSON.stringify(upstreamBody(endpoint, sampler, assembled.messages, body.mode)),
       signal: nextRequest.signal,
     }).catch(() => {
       throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });

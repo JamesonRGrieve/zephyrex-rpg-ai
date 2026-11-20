@@ -3,6 +3,8 @@
 /**
  * The models replies come from: any OpenAI-compatible endpoint (Ollama, llama.cpp, vLLM, a gateway
  * such as Bifrost, or a hosted API). An API key is write-only: once saved it is never shown again.
+ * A text-completion server (KoboldCpp, llama.cpp's own API) reads one prompt in an instruct
+ * template's markup (A17); a chat API takes the messages as they are.
  */
 import { type ReactElement, useId, useState } from 'react';
 import { notify } from 'zephyrex/hooks/useToast';
@@ -11,8 +13,10 @@ import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Switch } from 'zephyrex/ui/switch';
+import { ChoiceChip } from 'zephyrex/ui/choice-chip';
+import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { WriteProblem } from '~/components/common/WriteProblem';
-import { LIMITS } from '~/contract';
+import { type EndpointApi, INSTRUCT_TEMPLATES, type InstructTemplateId, LIMITS } from '~/contract';
 import { type ModelEndpoint, endpoints } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
 
@@ -30,11 +34,13 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
   const [model, setModel] = useState(endpoint?.model ?? '');
   const [apiKey, setApiKey] = useState('');
   const [isDefault, setIsDefault] = useState(endpoint?.is_default ?? false);
+  const [api, setApi] = useState<EndpointApi>(endpoint?.api ?? 'chat');
+  const [template, setTemplate] = useState<InstructTemplateId>(endpoint?.instruct_template ?? 'chatml');
   const [problem, setProblem] = useState<string | null>(null);
-  const ids = { name: useId(), url: useId(), model: useId(), key: useId(), isDefault: useId() };
+  const ids = { name: useId(), url: useId(), model: useId(), key: useId(), isDefault: useId(), api: useId(), template: useId() };
 
   const save = async () => {
-    const fields = { name: name.trim(), base_url: baseUrl.trim(), model: model.trim(), is_default: isDefault, ...(apiKey === '' ? {} : { api_key: apiKey }) };
+    const fields = { name: name.trim(), base_url: baseUrl.trim(), model: model.trim(), is_default: isDefault, api, instruct_template: template, ...(apiKey === '' ? {} : { api_key: apiKey }) };
     const failed = await writeProblem(endpoint === null ? create(fields) : update(endpoint, fields), 'Not saved');
     setProblem(failed);
     if (failed === null) {
@@ -83,6 +89,49 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           onChange={(event) => setApiKey(event.target.value)}
         />
       </div>
+      <div className='grid gap-1.5'>
+        <span id={ids.api} className='text-sm font-medium'>
+          API
+        </span>
+        <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.api} className='flex flex-wrap gap-2'>
+          {(
+            [
+              ['chat', 'Chat completions'],
+              ['text', 'Text completion'],
+            ] as const
+          ).map(([value, label]) => (
+            <ChoiceChip
+              key={value}
+              checked={api === value}
+              className='h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground'
+              onClick={() => setApi(value)}
+            >
+              {label}
+            </ChoiceChip>
+          ))}
+        </div>
+      </div>
+      {api === 'text' && (
+        <div className='grid gap-1.5'>
+          <Label htmlFor={ids.template}>Instruct template</Label>
+          <p id={`${ids.template}-hint`} className='text-xs text-muted-foreground'>
+            The markup the model was trained on. Its stop strings are added to the preset's.
+          </p>
+          <select
+            id={ids.template}
+            value={template}
+            aria-describedby={`${ids.template}-hint`}
+            className='h-11 rounded-md border bg-background px-3 text-sm'
+            onChange={(event) => setTemplate(event.target.value as InstructTemplateId)}
+          >
+            {(Object.keys(INSTRUCT_TEMPLATES) as InstructTemplateId[]).map((id) => (
+              <option key={id} value={id}>
+                {INSTRUCT_TEMPLATES[id].name}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <Label htmlFor={ids.isDefault}>Use for new chats</Label>
         <Switch id={ids.isDefault} checked={isDefault} onCheckedChange={setIsDefault} />

@@ -1,0 +1,144 @@
+{
+  "cases": [
+    {
+      "name": "chatml: every message in its markup, ending on the assistant's prefix",
+      "template": "chatml",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hello."
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        },
+        {
+          "role": "user",
+          "content": "Fix the engine?"
+        }
+      ],
+      "open_last": false,
+      "prompt": "<|im_start|>system\nYou are Ada.<|im_end|>\n<|im_start|>user\nHello.<|im_end|>\n<|im_start|>assistant\nHi.<|im_end|>\n<|im_start|>user\nFix the engine?<|im_end|>\n<|im_start|>assistant\n"
+    },
+    {
+      "name": "llama3: every message in its markup, ending on the assistant's prefix",
+      "template": "llama3",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hello."
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        },
+        {
+          "role": "user",
+          "content": "Fix the engine?"
+        }
+      ],
+      "open_last": false,
+      "prompt": "<|begin_of_text|><|start_header_id|>system<|end_header_id|>\n\nYou are Ada.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nHello.<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\nHi.<|eot_id|><|start_header_id|>user<|end_header_id|>\n\nFix the engine?<|eot_id|><|start_header_id|>assistant<|end_header_id|>\n\n"
+    },
+    {
+      "name": "alpaca: every message in its markup, ending on the assistant's prefix",
+      "template": "alpaca",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hello."
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        },
+        {
+          "role": "user",
+          "content": "Fix the engine?"
+        }
+      ],
+      "open_last": false,
+      "prompt": "You are Ada.\n\n### Instruction:\nHello.\n\n### Response:\nHi.\n\n### Instruction:\nFix the engine?\n\n### Response:\n"
+    },
+    {
+      "name": "mistral: every message in its markup, ending on the assistant's prefix",
+      "template": "mistral",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hello."
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        },
+        {
+          "role": "user",
+          "content": "Fix the engine?"
+        }
+      ],
+      "open_last": false,
+      "prompt": "<s>[INST] You are Ada. [/INST][INST] Hello. [/INST]Hi.</s>[INST] Fix the engine? [/INST]"
+    },
+    {
+      "name": "chatml continuing: the closing assistant message is left open",
+      "template": "chatml",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hello."
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        }
+      ],
+      "open_last": true,
+      "prompt": "<|im_start|>system\nYou are Ada.<|im_end|>\n<|im_start|>user\nHello.<|im_end|>\n<|im_start|>assistant\nHi."
+    },
+    {
+      "name": "continuing after a user message: the reply starts as usual",
+      "template": "alpaca",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hello."
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        },
+        {
+          "role": "user",
+          "content": "Fix the engine?"
+        }
+      ],
+      "open_last": true,
+      "prompt": "You are Ada.\n\n### Instruction:\nHello.\n\n### Response:\nHi.\n\n### Instruction:\nFix the engine?\n\n### Response:\n"
+    }
+  ]
+}

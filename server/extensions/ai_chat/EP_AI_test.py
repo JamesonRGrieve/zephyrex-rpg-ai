@@ -30,8 +30,10 @@ class FakeModel(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
         self.end_headers()
+        text_api = not self.path.endswith("/chat/completions")
         for piece in ("“Mind ", "the coolant.”"):
-            self.wfile.write(f"data: {json.dumps({'choices': [{'delta': {'content': piece}}]})}\n\n".encode())
+            choice = {"text": piece} if text_api else {"delta": {"content": piece}}
+            self.wfile.write(f"data: {json.dumps({'choices': [choice]})}\n\n".encode())
         self.wfile.write(b"data: [DONE]\n\n")
 
     def log_message(self, format: str, *args: Any) -> None:  # noqa: A002 - the stdlib's name
@@ -196,6 +198,24 @@ class TestGenerate:
         assert "Ada is an engineer." in contents[0]
         assert "I hand her the spanner." in contents
         assert "brb, coffee" not in "\n".join(contents)
+
+    def test_a_text_api_gets_one_prompt_in_its_instruct_template(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada", system_prompt="You are Ada.").json()["character"]
+        bad = _create(server, user, "model_endpoint", name="Bad", base_url=model_url, model="tiny", api="smoke")
+        assert bad.status_code == 422
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", api="text", instruct_template="alpaca", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hello."]).json()["chat_message"]
+        RECEIVED.clear()
+        response = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert response.status_code == 200, response.text
+        assert 'event: delta\ndata: {"text": "“Mind "}' in response.text
+        sent = RECEIVED[0]
+        assert sent["path"] == "/v1/completions"
+        assert sent["body"]["prompt"] == "You are Ada.\n\n### Instruction:\nHello.\n\n### Response:\n"
+        assert sent["body"]["stop"] == ["### Instruction:"]
+        assert "messages" not in sent["body"]
 
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
