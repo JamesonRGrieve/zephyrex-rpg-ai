@@ -30,6 +30,7 @@
  */
 import { PROMPT } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
+import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandMacros, type MacroNames } from './macros';
 
 export interface PromptCharacter {
@@ -73,6 +74,8 @@ export interface PromptInput {
   system_prompt?: string;
   /** The chat's rolling summary of the story so far (A19); blank leaves the section out. */
   summary?: string;
+  /** Regex scripts (A33); the prompt-only ones rewrite what the model reads of the history. */
+  regex?: readonly RegexScript[];
 }
 
 export type PromptSectionId = (typeof PROMPT.sections)[number];
@@ -231,8 +234,13 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     ...(instructions === '' ? [] : [{ role: 'system' as const, content: instructions }]),
     ...(mode === 'impersonate' ? [{ role: 'system' as const, content: expandMacros(PROMPT.impersonate_prompt, names) }] : []),
   ];
-  const history = input.history
-    .filter((turn) => story.has(turn.channel))
+  const storyTurns = input.history.filter((turn) => story.has(turn.channel));
+  // Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
+  const history = storyTurns
+    .map((turn, index) => {
+      const placement = turn.role === 'user' ? 'user_input' : turn.role === 'character' ? 'ai_output' : null;
+      return placement === null ? turn : { ...turn, content: applyRegex(turn.content, input.regex ?? [], placement, 'prompt', storyTurns.length - 1 - index) };
+    })
     .map((turn) => historyMessage(turn, speaker.id, namesById, group, names.user));
 
   const budget = input.context_tokens - input.max_tokens;

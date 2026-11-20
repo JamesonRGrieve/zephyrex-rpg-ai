@@ -27,6 +27,7 @@ def test_case(case: dict[str, Any]) -> None:
         layout=given.get("layout"),
         system_prompt=given.get("system_prompt", ""),
         summary=given.get("summary", ""),
+        regex=given.get("regex", []),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]

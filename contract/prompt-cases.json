@@ -533,6 +533,88 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "prompt-only regex scripts rewrite the history by depth; others leave it alone",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "speaker_id": "c-ada",
+        "persona": null,
+        "author_note": "",
+        "regex": [
+          {
+            "find": "/\\*[^*]*\\*/g",
+            "replace": "",
+            "placements": [
+              "user_input",
+              "ai_output"
+            ],
+            "display_only": false,
+            "prompt_only": true,
+            "min_depth": 1,
+            "max_depth": null,
+            "enabled": true
+          },
+          {
+            "find": "/coolant/g",
+            "replace": "COOLANT",
+            "placements": [
+              "user_input",
+              "ai_output"
+            ],
+            "display_only": true,
+            "prompt_only": false,
+            "min_depth": null,
+            "max_depth": null,
+            "enabled": true
+          },
+          {
+            "find": "/spanner/",
+            "replace": "wrench",
+            "placements": [
+              "user_input"
+            ],
+            "display_only": false,
+            "prompt_only": true,
+            "min_depth": null,
+            "max_depth": null,
+            "enabled": true
+          }
+        ],
+        "history": [
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "*wipes hands* Mind the coolant."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "*nods* Pass the spanner."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        {
+          "role": "assistant",
+          "content": " Mind the coolant."
+        },
+        {
+          "role": "user",
+          "content": "*nods* Pass the wrench."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

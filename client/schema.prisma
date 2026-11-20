@@ -196,3 +196,24 @@ model ChatLoreState {
   updatedAt   DateTime
   updatedById String?
 }
+
+/// A find-and-replace on chat text (SillyTavern's regex scripts), applied in `position` order.
+model RegexScript {
+  id          String   @id @default(uuid())
+  createdById String
+  name        String
+  find        String
+  replace     String   @default("")
+  placements  String   @default("[\"ai_output\"]")
+  displayOnly Boolean  @default(false)
+  promptOnly  Boolean  @default(false)
+  minDepth    Int?
+  maxDepth    Int?
+  enabled     Boolean  @default(true)
+  position    Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@index([createdById])
+}

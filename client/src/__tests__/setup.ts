@@ -40,3 +40,10 @@ if (typeof window !== 'undefined') {
     }),
   });
 }
+
+// jsdom lacks pointer capture, which Radix (the toast's Undo, Switch, sliders) calls on a press.
+if (typeof Element !== 'undefined') {
+  Element.prototype.hasPointerCapture ??= () => false;
+  Element.prototype.setPointerCapture ??= () => {};
+  Element.prototype.releasePointerCapture ??= () => {};
+}

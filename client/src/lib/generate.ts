@@ -25,6 +25,8 @@ import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import { assemblePrompt, estimateTokens, summaryPrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
+import type { RegexScript } from '~/features/chat/regex';
+import { regexScripts } from '~/lib/regexRecords';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { prisma } from '~/lib/prisma';
@@ -150,6 +152,7 @@ export async function generationInputs(
       layout: sampler.prompt_layout,
       system_prompt: chatFields.system_prompt,
       summary: chatFields.summary,
+      regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
     },
     sampler,
     endpoint: {

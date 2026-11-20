@@ -237,6 +237,23 @@ class TestGenerate:
         inspected = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"]}}, headers=_headers(user)).json()["prompt"]
         assert inspected["messages"][0]["content"].endswith("Summary of the story so far:\nThey docked.")
 
+    def test_regex_scripts_are_checked_ordered_and_rewrite_the_prompt(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        for refused in ({"find": "/(/"}, {"find": "/a/u"}, {"find": "/a/", "placements": []}, {"find": "/a/", "display_only": True, "prompt_only": True}):
+            answer = server.post("/v1/regex_script", json={"regex_script": {"name": "Bad", **refused}}, headers=_headers(user))
+            assert answer.status_code == 422, (refused, answer.text)
+        _create(server, user, "regex_script", name="Second", find="/spanner/g", replace="wrench", placements=["user_input"], prompt_only=True, position=2)
+        _create(server, user, "regex_script", name="First", find="/hand/", replace="pass", placements=["user_input"], prompt_only=True, position=1)
+        _create(server, user, "regex_script", name="Shown", find="/her/", replace="HER", placements=["user_input"], display_only=True)
+        names = [script["name"] for script in server.get("/v1/regex_script", headers=_headers(user)).json()["regex_scripts"]]
+        assert names == ["Shown", "First", "Second"]
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I hand her the spanner."]).json()["chat_message"]
+        inspected = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)).json()["prompt"]
+        assert inspected["messages"][-1]["content"] == "I pass her the wrench."
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

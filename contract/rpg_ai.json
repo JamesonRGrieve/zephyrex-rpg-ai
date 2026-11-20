@@ -27,7 +27,10 @@
     "lore_content_characters": 50000,
     "lorebooks_per_chat": 16,
     "chat_system_prompt_characters": 50000,
-    "chat_summary_characters": 50000
+    "chat_summary_characters": 50000,
+    "regex_pattern_characters": 1000,
+    "regex_replacement_characters": 50000,
+    "regex_scripts": 200
   },
   "message_roles": [
     "user",
@@ -252,5 +255,21 @@
         "[INST]"
       ]
     }
+  },
+  "regex": {
+    "placements": [
+      "user_input",
+      "ai_output"
+    ],
+    "targets": [
+      "stored",
+      "display",
+      "prompt"
+    ],
+    "flags": "gims",
+    "depth_range": [
+      0,
+      10000
+    ]
   }
 }

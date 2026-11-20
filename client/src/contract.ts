@@ -65,3 +65,10 @@ export const INSTRUCT_TEMPLATES = contract.instruct_templates;
 export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;
 export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text'];
 export type EndpointApi = (typeof ENDPOINT_APIS)[number];
+
+/** Regex scripts (features/chat/regex.ts; cases in contract/regex-cases.json). */
+export const REGEX = {
+  ...contract.regex,
+  placements: contract.regex.placements as unknown as readonly ['user_input', 'ai_output'],
+  targets: contract.regex.targets as unknown as readonly ['stored', 'display', 'prompt'],
+};

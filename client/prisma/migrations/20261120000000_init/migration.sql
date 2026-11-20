@@ -191,3 +191,25 @@ CREATE INDEX "LorebookEntry_createdById_lorebookId_idx" ON "LorebookEntry"("crea
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ChatLoreState_chatId_key" ON "ChatLoreState"("chatId");
+
+-- CreateTable
+CREATE TABLE "RegexScript" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "find" TEXT NOT NULL,
+    "replace" TEXT NOT NULL DEFAULT '',
+    "placements" TEXT NOT NULL DEFAULT '["ai_output"]',
+    "displayOnly" BOOLEAN NOT NULL DEFAULT false,
+    "promptOnly" BOOLEAN NOT NULL DEFAULT false,
+    "minDepth" INTEGER,
+    "maxDepth" INTEGER,
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "position" INTEGER NOT NULL DEFAULT 0,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "RegexScript_createdById_idx" ON "RegexScript"("createdById");

@@ -46,6 +46,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import assemble_prompt, estimate_tokens, summary_prompt  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
@@ -601,6 +602,110 @@ class ModelEndpointManager(AbstractBLLManager[ModelEndpointModel], RouterMixin):
         return updated
 
 
+# ---- regex_script ----------------------------------------------------------------------
+
+REGEX = CONTRACT["regex"]
+
+
+def _regex_find(value: Any) -> Any:
+    if value is not None and compile_find(value) is None:
+        raise ValueError("The pattern does not compile (flags: g, i, m, s)")
+    return value
+
+
+def _regex_placements(value: Any) -> Any:
+    if value is not None and (not value or len(set(value)) != len(value) or any(one not in REGEX["placements"] for one in value)):
+        raise ValueError(f"placements are one or more of {', '.join(REGEX['placements'])}, each once")
+    return value
+
+
+def _regex_depth(value: Any) -> Any:
+    low, high = REGEX["depth_range"]
+    if value is not None and not low <= value <= high:
+        raise ValueError(f"A depth is {low} to {high}")
+    return value
+
+
+class RegexChecks(PlainModel):
+    @field_validator("find", check_fields=False)
+    @classmethod
+    def _checked_find(cls, value: Any) -> Any:
+        return _regex_find(value)
+
+    @field_validator("placements", check_fields=False)
+    @classmethod
+    def _checked_placements(cls, value: Any) -> Any:
+        return _regex_placements(value)
+
+    @field_validator("min_depth", "max_depth", check_fields=False)
+    @classmethod
+    def _checked_depth(cls, value: Any) -> Any:
+        return _regex_depth(value)
+
+
+class RegexScriptModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
+    Manager: ClassVar[type["RegexScriptManager"]]
+    name: str = Field(..., description="Name")
+    find: str = Field(..., description="/pattern/flags (g, i, m, s) or a bare pattern")
+    replace: str = Field("", description="The replacement: $1, $&, {{match}}, $$")
+    placements: list[str] = Field(default_factory=lambda: ["ai_output"], description="user_input and/or ai_output")
+    display_only: bool = Field(False, description="Only as the message is shown")
+    prompt_only: bool = Field(False, description="Only as the model reads it")
+    min_depth: int | None = Field(None, description="Newest message is 0")
+    max_depth: int | None = Field(None, description="Newest message is 0")
+    enabled: bool = Field(True, description="Whether it runs")
+    position: int = Field(0, description="Scripts run in this order")
+
+    table_comment: ClassVar[str] = "Zephyrex RPG AI regex scripts"
+
+    class Create(BaseModel, RegexChecks):
+        name: str = Field(..., min_length=1, max_length=MAX_NAME)
+        find: str = Field(..., min_length=1, max_length=LIMITS["regex_pattern_characters"])
+        replace: str = Field("", max_length=LIMITS["regex_replacement_characters"])
+        placements: list[str] = Field(default_factory=lambda: ["ai_output"])
+        display_only: bool = False
+        prompt_only: bool = False
+        min_depth: int | None = None
+        max_depth: int | None = None
+        enabled: bool = True
+        position: int = Field(0, ge=0, le=LIMITS["regex_scripts"])
+
+        @model_validator(mode="after")
+        def _one_target(self) -> "RegexScriptModel.Create":
+            if self.display_only and self.prompt_only:
+                raise ValueError("A script is display-only or prompt-only, not both")
+            return self
+
+    class Update(BaseModel, RegexChecks):
+        name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
+        find: str | None = Field(None, min_length=1, max_length=LIMITS["regex_pattern_characters"])
+        replace: str | None = Field(None, max_length=LIMITS["regex_replacement_characters"])
+        placements: list[str] | None = None
+        display_only: bool | None = None
+        prompt_only: bool | None = None
+        min_depth: int | None = None
+        max_depth: int | None = None
+        enabled: bool | None = None
+        position: int | None = Field(None, ge=0, le=LIMITS["regex_scripts"])
+
+    class Search(ApplicationModel.Search):
+        name: StringSearchModel | None = None
+
+
+class RegexScriptManager(AbstractBLLManager[RegexScriptModel], RouterMixin):
+    _model = RegexScriptModel
+
+    def create(self, **kwargs: Any) -> Any:
+        for key, value in (("replace", ""), ("placements", ["ai_output"]), ("display_only", False), ("prompt_only", False), ("enabled", True), ("position", 0)):
+            kwargs.setdefault(key, value)
+        return super().create(**kwargs)
+
+    def list(self, *args: Any, **kwargs: Any) -> Any:
+        # In the order they run (as the lite edition answers).
+        rows = super().list(*args, **kwargs)
+        return sorted(rows, key=lambda row: (row.position, row.name)) if isinstance(rows, list) else rows
+
+
 # ---- generation ------------------------------------------------------------------------
 
 
@@ -803,6 +908,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             sampler["prompt_layout"] or [],
             chat.system_prompt or "",
             chat.summary or "",
+            [
+                {key: getattr(script, key) for key in ("find", "replace", "placements", "display_only", "prompt_only", "min_depth", "max_depth", "enabled")}
+                for script in self._manager(RegexScriptManager).list()
+            ],
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {

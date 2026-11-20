@@ -11,7 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CHAT_MODES, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, REGEX, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
@@ -222,3 +222,20 @@ export const lorebookEntries = resource<LorebookEntry, Fields<LorebookEntry> & {
   'lorebook_entries',
   lorebookEntrySchema,
 );
+
+export const regexScriptSchema = z.object({
+  ...versioned,
+  name: z.string(),
+  find: z.string(),
+  replace: z.string(),
+  placements: z.array(z.enum(REGEX.placements)),
+  display_only: z.boolean(),
+  prompt_only: z.boolean(),
+  min_depth: z.number().nullable(),
+  max_depth: z.number().nullable(),
+  enabled: z.boolean(),
+  position: z.number(),
+});
+export type RegexScriptRecord = z.infer<typeof regexScriptSchema>;
+export const regexScripts = resource<RegexScriptRecord, Fields<RegexScriptRecord> & { name: string; find: string }>('regex_script', 'regex_scripts', regexScriptSchema);
+

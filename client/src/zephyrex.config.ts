@@ -7,7 +7,7 @@ import { RpgAiLogo } from './brand/RpgAiLogo';
 export const HOME_PATH = '/play';
 
 /** The app's pages (matched as path prefixes); in the hosted build they need a signed-in person. */
-const APP_ROUTES = [HOME_PATH, '/characters', '/lorebooks', '/personas', '/presets', '/models', '/settings'];
+const APP_ROUTES = [HOME_PATH, '/characters', '/lorebooks', '/personas', '/presets', '/models', '/regex', '/settings'];
 
 /**
  * The build edition decides only what the back end can do, never what a page shows. The hosted
@@ -30,6 +30,7 @@ const rpgAiExtension: ZephyrexClientExtension = {
     { title: 'Personas', url: '/personas' },
     { title: 'Presets', url: '/presets' },
     { title: 'Models', url: '/models' },
+    { title: 'Regex', url: '/regex' },
     { title: 'Settings', url: '/settings' },
   ],
 };

@@ -24,9 +24,10 @@ import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
 import { type InspectedPrompt, inspectPrompt, summarizeBranch } from '~/features/chat/inspectPrompt';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
+import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
-import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets } from '~/features/data/records';
+import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, regexScripts } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
@@ -69,6 +70,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const presetList = presets.useList();
   const endpointList = endpoints.useList();
   const lorebookList = lorebooks.useList();
+  const scriptList = regexScripts.useList();
+  const scripts = scriptList.data ?? [];
   const { create, update, remove } = messages.useActions();
   const { update: updateChat } = chats.useActions();
   const reply = useReply();
@@ -114,12 +117,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await reply.write({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
-    const saved = await create({ chat_id: chat.id, parent_id: parentId, role: 'character', speaker_character_id: speakerId, swipes: [result.text] });
+    const saved = await create({ chat_id: chat.id, parent_id: parentId, role: 'character', speaker_character_id: speakerId, swipes: [stored(result.text, 'ai_output')] });
     setLeafId(saved.id);
   };
 
+  /** Text as saved, after the regex scripts that change what is stored (A33). */
+  const stored = (text: string, placement: RegexPlacement) => applyRegex(text, scripts, placement, 'stored');
+
   const send = async (text: string, channel: ComposerChannel) => {
-    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'user', channel, swipes: [text] });
+    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'user', channel, swipes: [channel === 'ic' ? stored(text, 'user_input') : text] });
     setLeafId(saved.id);
     if (channel === 'ic') await replyAfter(saved.id, [...branch, saved]);
   };
@@ -130,7 +136,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await reply.write({ chat_id: chat.id, leaf_id: message.parent_id, speaker_id: message.speaker_character_id });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
-    await update(message, { swipes: [...message.swipes, result.text], swipe_index: message.swipes.length });
+    await update(message, { swipes: [...message.swipes, stored(result.text, 'ai_output')], swipe_index: message.swipes.length });
   };
 
   /** Carries on the shown alternative of a character's message, where it stopped. */
@@ -140,7 +146,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await reply.write({ chat_id: chat.id, leaf_id: message.id, speaker_id: message.speaker_character_id, mode: 'continue' });
     setWritingAfter(null);
     if (result === null || result.text === '') return;
-    await update(message, { swipes: message.swipes.map((text, index) => (index === message.swipe_index ? `${text}${result.text}` : text)) });
+    await update(message, { swipes: message.swipes.map((text, index) => (index === message.swipe_index ? stored(`${text}${result.text}`, 'ai_output') : text)) });
   };
 
   /** The person's own next line, written by the model, for the composer. */
@@ -256,10 +262,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         {views.map((view) => {
           const message = byId(view.id);
           if (message === undefined) return null;
+          // Display-only regex scripts (A33) change how a message looks here, never what is saved.
+          const placement: RegexPlacement | null = message.role === 'user' ? 'user_input' : message.role === 'character' ? 'ai_output' : null;
+          const depth = branch.length - 1 - branch.findIndex((one) => one.id === message.id);
+          const shown = placement === null ? view : { ...view, text: applyRegex(view.text, scripts, placement, 'display', depth) };
           return (
             <li key={view.id}>
               <MessageItem
-                message={view}
+                message={shown}
                 onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
                 onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
                 onFork={(step) => fork(message, step)}

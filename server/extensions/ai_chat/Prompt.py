@@ -28,6 +28,7 @@ from typing import Any
 
 # Resolves only at runtime, through the extensions namespace path.
 from zephyrex.extensions.ai_character.Contract import PROMPT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Regex import apply_regex  # type: ignore[import-not-found]
 
 DEFAULT_USER_NAME = "User"
 NARRATOR = "Narrator"
@@ -114,6 +115,7 @@ def assemble_prompt(
     layout: Sequence[Mapping[str, Any]] | None = None,
     system_prompt: str = "",
     summary: str = "",
+    regex: Sequence[Mapping[str, Any]] = (),
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -161,9 +163,16 @@ def assemble_prompt(
     after = [{"role": "system", "content": expand_macros(instructions, names)}] if instructions else []
     if mode == "impersonate":
         after.append({"role": "system", "content": expand_macros(PROMPT["impersonate_prompt"], names)})
-    turns = [
-        _history_message(turn, speaker["id"], names_by_id, group, names["user"]) for turn in history if turn["channel"] in story
+    story_turns = [turn for turn in history if turn["channel"] in story]
+    # Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
+    placements = {"user": "user_input", "character": "ai_output"}
+    story_turns = [
+        {**turn, "content": apply_regex(turn["content"], regex, placements[turn["role"]], "prompt", len(story_turns) - 1 - index)}
+        if turn["role"] in placements
+        else turn
+        for index, turn in enumerate(story_turns)
     ]
+    turns = [_history_message(turn, speaker["id"], names_by_id, group, names["user"]) for turn in story_turns]
 
     budget = context_tokens - max_tokens
     used = sum(estimate_tokens(message) for message in [system, *after, *(message for _depth, message in inserts)])

@@ -1,0 +1,318 @@
+{
+  "cases": [
+    {
+      "name": "every match with g, groups by number",
+      "text": "Ada met Bram. Bram met Ada.",
+      "scripts": [
+        {
+          "find": "/(\\w+) met (\\w+)/g",
+          "replace": "$2 greeted $1",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "Bram greeted Ada. Ada greeted Bram."
+    },
+    {
+      "name": "without g only the first match",
+      "text": "aaa",
+      "scripts": [
+        {
+          "find": "/a/",
+          "replace": "b",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "baa"
+    },
+    {
+      "name": "case-insensitive, whole match as $& and {{match}}, $$ as a dollar",
+      "text": "Gold and GOLD",
+      "scripts": [
+        {
+          "find": "/gold/gi",
+          "replace": "[$&|{{match}}] $$5",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "[Gold|Gold] $5 and [GOLD|GOLD] $5"
+    },
+    {
+      "name": "a group the pattern lacks stays as written; $12 with one group is $1 then 2",
+      "text": "x-y",
+      "scripts": [
+        {
+          "find": "/(x)-y/",
+          "replace": "$12 $3",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "x2 $3"
+    },
+    {
+      "name": "an optional group that did not match is empty",
+      "text": "ab",
+      "scripts": [
+        {
+          "find": "/a(c)?b/",
+          "replace": "[$1]",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "[]"
+    },
+    {
+      "name": "the multiline flag anchors at each line",
+      "text": "one\ntwo",
+      "scripts": [
+        {
+          "find": "/^t.*$/m",
+          "replace": "T",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "one\nT"
+    },
+    {
+      "name": "the dot-all flag lets . match a newline",
+      "text": "one\ntwo",
+      "scripts": [
+        {
+          "find": "/one.two/s",
+          "replace": "joined",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "joined"
+    },
+    {
+      "name": "an invalid pattern or flag is skipped, the rest still run",
+      "text": "abc",
+      "scripts": [
+        {
+          "find": "/(/g",
+          "replace": "x",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        },
+        {
+          "find": "/b/y",
+          "replace": "x",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        },
+        {
+          "find": "/c/",
+          "replace": "C",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "abC"
+    },
+    {
+      "name": "only the placement and target asked for, disabled scripts skipped",
+      "text": "hello",
+      "scripts": [
+        {
+          "find": "/h/",
+          "replace": "H",
+          "placements": [
+            "user_input"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        },
+        {
+          "find": "/e/",
+          "replace": "E",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": true,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        },
+        {
+          "find": "/l/g",
+          "replace": "L",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": false
+        },
+        {
+          "find": "/o/",
+          "replace": "0",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "hell0"
+    },
+    {
+      "name": "display scripts within their depth bounds",
+      "text": "*wave*",
+      "scripts": [
+        {
+          "find": "/\\*(.+?)\\*/g",
+          "replace": "<i>$1</i>",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": true,
+          "prompt_only": false,
+          "min_depth": 1,
+          "max_depth": 3,
+          "enabled": true
+        },
+        {
+          "find": "/wave/",
+          "replace": "WAVE",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": true,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": 0,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "display",
+      "depth": 2,
+      "result": "<i>wave</i>"
+    },
+    {
+      "name": "a bare pattern without slashes",
+      "text": "cat",
+      "scripts": [
+        {
+          "find": "c(a)t",
+          "replace": "d$1g",
+          "placements": [
+            "ai_output"
+          ],
+          "display_only": false,
+          "prompt_only": false,
+          "min_depth": null,
+          "max_depth": null,
+          "enabled": true
+        }
+      ],
+      "placement": "ai_output",
+      "target": "stored",
+      "depth": null,
+      "result": "dag"
+    }
+  ]
+}
