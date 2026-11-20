@@ -9,7 +9,8 @@
  *   People sign up and in by magic link through the pages; the server writes each link to the
  *   suite's outbox (e2e/support/outbox.ts) in place of email.
  *
- * Each server has its own port and build directory, so the suite runs beside a dev server.
+ * Each server has its own port and build directory, so the suite runs beside a dev server. The model
+ * server is a stub: it streams a fixed sentence, and no model is downloaded or loaded.
  */
 import { mkdtempSync } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -20,7 +21,10 @@ import { OUTBOX } from './e2e/support/outbox';
 export const PORTS = { model: 47211, lite: 47212, server: 47213, saas: 47214 } as const;
 const host = (port: number) => `http://127.0.0.1:${port}`;
 const scratch = mkdtempSync(path.join(process.env.E2E_SCRATCH ?? tmpdir(), 'rpg-ai-e2e-'));
-const NEXT_DEV = './node_modules/.bin/next dev';
+// Production builds, each in its own build directory: two `next dev` servers from one client/
+// directory reload each other through next-env.d.ts (found by Chronos's suite).
+const NEXT = './node_modules/.bin/next';
+const serve = (port: number) => `${NEXT} build && ${NEXT} start -p ${port} -H 127.0.0.1`;
 const STARTUP_MS = 300_000;
 
 /** Where the e2e model server listens; specs add it as a model endpoint. */
@@ -83,14 +87,14 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      command: `${NEXT_DEV} -p ${PORTS.saas} -H 127.0.0.1`,
+      command: serve(PORTS.saas),
       url: `${host(PORTS.saas)}/healthz`,
       reuseExistingServer: false,
       timeout: STARTUP_MS,
       env: saas,
     },
     {
-      command: `./node_modules/.bin/prisma migrate deploy && ${NEXT_DEV} -p ${PORTS.lite} -H 127.0.0.1`,
+      command: `./node_modules/.bin/prisma migrate deploy && ${serve(PORTS.lite)}`,
       url: `${host(PORTS.lite)}/api/v1/alive`,
       reuseExistingServer: false,
       timeout: STARTUP_MS,
