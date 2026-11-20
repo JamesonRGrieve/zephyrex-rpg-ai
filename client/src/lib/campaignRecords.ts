@@ -22,6 +22,7 @@ const COLUMNS: Columns = {
   truths: jsonList('truths'),
   characters: plain('characters'),
   resolution_mode: plain('resolutionMode'),
+  gm_style: plain('gmStyle'),
 };
 
 const items = z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.campaign_list_items);
@@ -48,6 +49,7 @@ const fields = {
   truths: items,
   characters: z.string().max(LIMITS.card_field_characters),
   resolution_mode: z.enum(CAMPAIGN.resolution_modes).nullable(),
+  gm_style: z.string().max(LIMITS.card_field_characters),
 };
 const create = z.object({
   name: fields.name,
@@ -60,6 +62,7 @@ const create = z.object({
   truths: fields.truths.default([]),
   characters: fields.characters.default(''),
   resolution_mode: fields.resolution_mode.default(null),
+  gm_style: fields.gm_style.default(''),
 });
 const update = z.object(fields).partial();
 

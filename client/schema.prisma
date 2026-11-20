@@ -286,6 +286,8 @@ model Campaign {
   truths         String   @default("[]")
   characters     String   @default("")
   resolutionMode String?
+  /// How the GM runs the game (A20): read by the GM's voices only.
+  gmStyle        String   @default("")
   createdAt      DateTime @default(now())
   updatedAt      DateTime
   updatedById    String?

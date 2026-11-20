@@ -15,6 +15,7 @@ export const KESTREL: Campaign = {
   truths: ['The Guild owns every port.', 'Jump drives fail without warning.'],
   characters: 'Sam owes Ada a life debt.',
   resolution_mode: 'narrative',
+  gm_style: 'Terse and cinematic. End each scene on a question to the players.',
 };
 
 export const SABOTAGE: Scenario = {

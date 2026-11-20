@@ -1120,6 +1120,122 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "narrating with the campaign's GM style (A20): in the GM's own voice, not in the shared frame",
+      "input": {
+        "characters": [
+          "ada",
+          "bram"
+        ],
+        "speaker_id": "",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "",
+        "mode": "narrate",
+        "history": [
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "The hatch hisses open."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I step inside."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Mind the coolant."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "frame": {
+          "premise": "A heist on the Kestrel.",
+          "gm_style": "Terse and cinematic. End each scene on a question to the players."
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are the game master, narrating this story. Describe what happens next: the world, the people in it and what comes of what the characters did, in a few vivid paragraphs. Never speak, act or decide for Sam.\n\nHow you run the game, as the table asked: Terse and cinematic. End each scene on a question to the players.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
+        },
+        {
+          "role": "assistant",
+          "content": "The hatch hisses open."
+        },
+        {
+          "role": "user",
+          "content": "Sam: I step inside."
+        },
+        {
+          "role": "user",
+          "content": "Ada: Mind the coolant."
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "a character's reply reads the campaign frame but never the GM's style (A20)",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "speaker_id": "c-ada",
+        "persona": {
+          "name": "Sam",
+          "description": "{{user}} is a new deckhand."
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Welcome aboard."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where do I sleep?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "frame": {
+          "premise": "A heist on the Kestrel.",
+          "gm_style": "Terse and cinematic. End each scene on a question to the players."
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        {
+          "role": "assistant",
+          "content": "Welcome aboard."
+        },
+        {
+          "role": "user",
+          "content": "Where do I sleep?"
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [
@@ -1440,6 +1556,110 @@
         }
       ],
       "dropped": 3
+    },
+    {
+      "name": "the table GM answers in the campaign's GM style (A20)",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "I open the crate."
+          },
+          {
+            "role": "user",
+            "channel": "ooc",
+            "speaker_character_id": null,
+            "content": "brb"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "It's empty."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Awful thing.",
+            "x_carded": true
+          },
+          {
+            "role": "user",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "Can I search it again?"
+          },
+          {
+            "role": "narrator",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "Yes: roll Perception when you do."
+          },
+          {
+            "role": "user",
+            "channel": "gm",
+            "speaker_character_id": null,
+            "content": "And the hatch?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "summary": "They boarded the Kestrel.",
+        "safety": {
+          "content_rating": "teen",
+          "lines": [
+            "spiders"
+          ],
+          "veils": []
+        },
+        "table_notes": [
+          {
+            "kind": "house_rule",
+            "text": "Critical hits explode."
+          },
+          {
+            "kind": "pacing",
+            "text": " Keep scenes short. "
+          }
+        ],
+        "frame": {
+          "premise": "A heist on the Kestrel.",
+          "gm_style": "Terse and cinematic. End each scene on a question to the players."
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are the game master, talking with the players out of character, as the person running the game. Answer plainly and helpfully, in a few sentences. Never reveal what the story has not revealed, and never invent rules: say when a rule has to be checked. Never continue the story here.\n\nHow you run the game, as the table asked: Terse and cinematic. End each scene on a question to the players.\n\nTable safety (always follow):\nKeep violence and peril mild, with no sexual content.\nNever include, even off-screen: spiders.\n\nTable notes (always follow):\nHouse rule: Critical hits explode.\nPacing: Keep scenes short.\n\nSummary of the story so far:\nThey boarded the Kestrel.\n\nThe story so far, most recent last:\nSam: I open the crate.\nAda: It's empty."
+        },
+        {
+          "role": "user",
+          "content": "Sam: brb"
+        },
+        {
+          "role": "user",
+          "content": "Sam: Can I search it again?"
+        },
+        {
+          "role": "assistant",
+          "content": "Yes: roll Perception when you do."
+        },
+        {
+          "role": "user",
+          "content": "Sam: And the hatch?"
+        }
+      ],
+      "dropped": 0
     }
   ],
   "pick_cases": [

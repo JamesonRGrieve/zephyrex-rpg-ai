@@ -85,9 +85,18 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
   const [structure, setStructure] = useState<Campaign['structure']>(campaign?.structure ?? null);
   const [truths, setTruths] = useState((campaign?.truths ?? []).join('\n'));
   const [characters, setCharacters] = useState(campaign?.characters ?? '');
+  const [gmStyle, setGmStyle] = useState(campaign?.gm_style ?? '');
   const [mode, setMode] = useState<Campaign['resolution_mode']>(campaign?.resolution_mode ?? null);
   const writes = useWrites(refreshedByRecords);
-  const ids = { name: useId(), premise: useId(), genre: useId(), themes: useId(), truths: useId(), characters: useId() };
+  const ids = {
+    name: useId(),
+    premise: useId(),
+    genre: useId(),
+    themes: useId(),
+    truths: useId(),
+    characters: useId(),
+    gmStyle: useId(),
+  };
 
   const save = async () => {
     const fields = {
@@ -104,6 +113,7 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
         .filter(Boolean)
         .slice(0, LIMITS.campaign_list_items),
       characters,
+      gm_style: gmStyle.trim(),
       resolution_mode: mode,
     };
     if (await writes.run(campaign === null ? create(fields) : update(campaign, fields), 'Not saved', 'Saved')) done();
@@ -214,6 +224,21 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
           maxLength={LIMITS.card_field_characters}
           placeholder='How the characters are tied to each other and the setting, and what each player wants.'
           onChange={(event) => setCharacters(event.target.value)}
+        />
+      </div>
+      <div className='grid gap-1.5'>
+        <Label htmlFor={ids.gmStyle}>How the GM runs it</Label>
+        <p id={`${ids.gmStyle}-hint`} className='text-xs text-muted-foreground'>
+          The GM’s own voice: read when it narrates and at the table, never by the characters.
+        </p>
+        <Textarea
+          id={ids.gmStyle}
+          rows={2}
+          value={gmStyle}
+          maxLength={LIMITS.card_field_characters}
+          aria-describedby={`${ids.gmStyle}-hint`}
+          placeholder='Terse and cinematic. End each scene on a question to the players.'
+          onChange={(event) => setGmStyle(event.target.value)}
         />
       </div>
       <Pick

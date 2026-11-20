@@ -356,6 +356,7 @@ export const campaignSchema = z.object({
   truths: z.array(z.string()),
   characters: z.string(),
   resolution_mode: z.enum(CAMPAIGN.resolution_modes).nullable(),
+  gm_style: z.string(),
 });
 export type Campaign = z.infer<typeof campaignSchema>;
 export const campaigns = resource<Campaign, Fields<Campaign> & { name: string }>('campaign', 'campaigns', campaignSchema);

@@ -1425,6 +1425,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         if endpoint is None:
             raise HTTPException(status_code=409, detail={"message": "Add a model endpoint first", "code": "no_model_endpoint"})
 
+        frame = frame_of(self._manager(CampaignManager).get(id=chat.campaign_id)) if chat.campaign_id else None
         assembled = assemble_prompt(
             cast,
             speaker_id,
@@ -1446,7 +1447,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             self._data_bank(chat, story_texts),
             {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
             chat.table_notes or [],
-            frame_of(self._manager(CampaignManager).get(id=chat.campaign_id)) if chat.campaign_id else None,
+            frame,
             scenario_of(self._manager(ScenarioManager).get(id=chat.scenario_id)) if chat.scenario_id else None,
         )
         if body.mode == "table":
@@ -1460,6 +1461,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 chat.summary or "",
                 {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
                 chat.table_notes or [],
+                frame,
             )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {

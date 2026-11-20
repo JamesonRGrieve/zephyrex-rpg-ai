@@ -491,7 +491,8 @@
       "mechanical",
       "hybrid"
     ],
-    "heading": "The campaign (the table agreed to this; keep to it):"
+    "heading": "The campaign (the table agreed to this; keep to it):",
+    "gm_style_prefix": "How you run the game, as the table asked: "
   },
   "scenario": {
     "heading": "The scenario (the GM's view; reveal only what the characters find or see):",

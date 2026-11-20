@@ -282,6 +282,7 @@ CREATE TABLE "Campaign" (
     "truths" TEXT NOT NULL DEFAULT '[]',
     "characters" TEXT NOT NULL DEFAULT '',
     "resolutionMode" TEXT,
+    "gmStyle" TEXT NOT NULL DEFAULT '',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

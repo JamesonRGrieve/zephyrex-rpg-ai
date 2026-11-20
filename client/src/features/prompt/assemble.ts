@@ -168,6 +168,14 @@ export interface CampaignFrame {
   truths?: readonly string[];
   characters?: string;
   resolution_mode?: string | null;
+  /** How the GM runs the game (A20): read by the GM's own voices only, never by a character. */
+  gm_style?: string;
+}
+
+/** The campaign's GM style (A20) for narration and the table GM; nothing when there is none. */
+export function gmStyleText(frame: CampaignFrame | null | undefined): string {
+  const style = (frame?.gm_style ?? '').trim();
+  return style === '' ? '' : CAMPAIGN.gm_style_prefix + style;
 }
 
 function dialText(dial: { left: string; right: string }, value: number): string {
@@ -443,7 +451,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
       override.trim() !== ''
         ? override
         : narrating
-          ? PROMPT.narrate_prompt
+          ? [PROMPT.narrate_prompt, gmStyleText(input.frame)].filter((part) => part !== '').join('\n\n')
           : speaker.system_prompt.trim() !== ''
             ? speaker.system_prompt
             : PROMPT.default_system_prompt,
@@ -589,7 +597,7 @@ export function translatePrompt(text: string, language: string): ModelMessage[] 
 export function tableGmPrompt(
   input: Pick<
     PromptInput,
-    'characters' | 'persona' | 'history' | 'context_tokens' | 'max_tokens' | 'summary' | 'safety' | 'table_notes'
+    'characters' | 'persona' | 'history' | 'context_tokens' | 'max_tokens' | 'summary' | 'safety' | 'table_notes' | 'frame'
   >,
 ): AssembledPrompt {
   const userName = input.persona?.name ?? DEFAULT_USER_NAME;
@@ -608,6 +616,7 @@ export function tableGmPrompt(
   const summary = input.summary ?? '';
   const parts = [
     TABLE.gm_prompt,
+    gmStyleText(input.frame),
     safetyText(input.safety),
     tableNotesText(input.table_notes),
     summary.trim() === '' ? '' : PROMPT.summary_prefix + summary,

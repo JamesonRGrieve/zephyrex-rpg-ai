@@ -414,13 +414,19 @@ class TestGenerate:
         for refused in ({"dials": {"grim_hopeful": 5}}, {"pillars": {"romance": 1}}, {"structure": "spiral"}):
             answer = server.post("/v1/campaign", json={"campaign": {"name": "Bad", **refused}}, headers=_headers(user))
             assert answer.status_code == 422, (refused, answer.text)
-        campaign = _create(server, user, "campaign", name="The Kestrel", premise="Smugglers on a dying freighter.", truths=[" The Guild owns every port. "]).json()["campaign"]
+        campaign = _create(
+            server, user, "campaign", name="The Kestrel", premise="Smugglers on a dying freighter.", truths=[" The Guild owns every port. "], gm_style="Terse."
+        ).json()["campaign"]
         assert campaign["truths"] == ["The Guild owns every port."]
         stranger = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "campaign_id": "nope"}}, headers=_headers(user))
         assert stranger.status_code == 422, stranger.text
         chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], campaign_id=campaign["id"]).json()["chat"]
         prompt = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"]}}, headers=_headers(user)).json()["prompt"]
         assert "Premise: Smugglers on a dying freighter.\nSetting truths:\n- The Guild owns every port." in prompt["messages"][0]["content"]
+        # The GM style (A20) is the GM's: a character's reply never reads it, the narration does.
+        assert "Terse." not in prompt["messages"][0]["content"]
+        narration = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "mode": "narrate"}}, headers=_headers(user)).json()["prompt"]
+        assert "How you run the game, as the table asked: Terse." in narration["messages"][0]["content"]
 
     def test_a_running_scenario_is_the_gms_view(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

@@ -114,6 +114,7 @@ class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     truths: list[str] = Field(default_factory=list, description="Facts the table agrees on before play")
     characters: str = Field("", description="The characters' ties to each other and the setting, and what each player wants")
     resolution_mode: str | None = Field(None, description="narrative, mechanical or hybrid")
+    gm_style: str = Field("", description="How the GM runs the game (A20): read by the GM's voices only")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI campaign frames"
 
@@ -128,6 +129,7 @@ class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         truths: list[str] = Field(default_factory=list)
         characters: str = Field("", max_length=MAX_CARD)
         resolution_mode: str | None = None
+        gm_style: str = Field("", max_length=MAX_CARD)
 
     class Update(FrameChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -140,12 +142,13 @@ class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         truths: list[str] | None = None
         characters: str | None = Field(None, max_length=MAX_CARD)
         resolution_mode: str | None = None
+        gm_style: str | None = Field(None, max_length=MAX_CARD)
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
 
 
-FRAME_FIELDS = ("premise", "genre", "dials", "themes", "pillars", "structure", "truths", "characters", "resolution_mode")
+FRAME_FIELDS = ("premise", "genre", "dials", "themes", "pillars", "structure", "truths", "characters", "resolution_mode", "gm_style")
 
 
 class CampaignManager(AbstractBLLManager[CampaignModel], RouterMixin):

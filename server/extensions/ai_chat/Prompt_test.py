@@ -78,6 +78,7 @@ def test_table_gm_case(case: dict[str, Any]) -> None:
         given["summary"],
         given["safety"],
         given["table_notes"],
+        given.get("frame"),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]

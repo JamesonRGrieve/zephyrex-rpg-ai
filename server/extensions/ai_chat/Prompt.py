@@ -139,6 +139,13 @@ def _dial(dial: Mapping[str, str], value: int) -> str:
     return f"{'very' if abs(value) >= 2 else 'somewhat'} {side}"
 
 
+def gm_style_text(frame: Mapping[str, Any] | None) -> str:
+    """The campaign's GM style (A20), for the GM's own voices only (narration and the table GM);
+    nothing when there is none. Character replies never read it (frame_text leaves it out)."""
+    style = str((frame or {}).get("gm_style") or "").strip()
+    return CAMPAIGN["gm_style_prefix"] + style if style else ""
+
+
 def frame_text(frame: Mapping[str, Any] | None) -> str:
     """A campaign's frame as the model reads it (A57): the table's agreement, part by part; parts
     left empty are left out, and nothing when there is no frame."""
@@ -292,7 +299,7 @@ def assemble_prompt(
     if system_prompt.strip():
         main = system_prompt
     elif narrating:
-        main = PROMPT["narrate_prompt"]
+        main = "\n\n".join(part for part in (PROMPT["narrate_prompt"], gm_style_text(frame)) if part)
     else:
         main = speaker["system_prompt"] if speaker["system_prompt"].strip() else PROMPT["default_system_prompt"]
     # The narrator reads every character, in brief: each one's description with its own name filled in.
@@ -429,6 +436,7 @@ def table_gm_prompt(
     summary: str = "",
     safety: Mapping[str, Any] | None = None,
     table_notes: Sequence[Mapping[str, Any]] | None = None,
+    frame: Mapping[str, Any] | None = None,
 ) -> Assembled:
     """What the table GM reads to answer the players out of character (A11, A20). The system text:
     the contract's GM prompt, the safety tools, the table notes, the summary and the last few story
@@ -449,6 +457,7 @@ def table_gm_prompt(
     recent = [f"{named(turn)}: {turn['content']}" for turn in story[-TABLE["recent_story_turns"] :]]
     parts = [
         TABLE["gm_prompt"],
+        gm_style_text(frame),
         safety_text(safety),
         table_notes_text(table_notes),
         PROMPT["summary_prefix"] + summary if summary.strip() else "",
