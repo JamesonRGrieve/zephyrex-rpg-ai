@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 /**
- * Starting a chat: pick one character, or several for a group, and go. The chat opens on the first
- * character's greeting, with the alternate greetings as its swipes, as SillyTavern does.
+ * Starting a chat: pick one character, or several for a group, and go. The chat opens on each
+ * member's greeting in turn (a group greets as SillyTavern's group greetings do), each with its
+ * alternate greetings as swipes.
  */
 import { useRouter } from 'next/navigation';
 import { type ReactElement, useState } from 'react';
@@ -11,7 +12,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
 import { cn } from '~/lib/utils';
 import { LIMITS } from '~/contract';
-import { greetingSwipes } from '~/features/chat/turns';
+import { openingTurns } from '~/features/chat/turns';
 import { type Character, characters, chats, messages } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -48,16 +49,20 @@ export function NewChat({ open, onOpenChange }: { open: boolean; onOpenChange: (
         character_ids: picked,
         mode: cast.length > 1 ? 'group' : 'character',
       });
-      const greetings = greetingSwipes(first.first_message, first.alternate_greetings);
-      if (greetings.length > 0) {
-        await createMessage({
-          chat_id: chat.id,
-          parent_id: null,
-          role: 'character',
-          speaker_character_id: first.id,
-          swipes: greetings,
-        });
-      }
+      // Each member greets in turn (A52): one message after another, each answering the last.
+      await openingTurns(cast).reduce<Promise<string | null>>(
+        async (parent, turn) =>
+          (
+            await createMessage({
+              chat_id: chat.id,
+              parent_id: await parent,
+              role: 'character',
+              speaker_character_id: turn.speakerId,
+              swipes: turn.swipes,
+            })
+          ).id,
+        Promise.resolve(null),
+      );
       onOpenChange(false);
       setPicked([]);
       router.push(`/play/${chat.id}`);

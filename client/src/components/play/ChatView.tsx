@@ -180,6 +180,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       : (latestLeaf(all)?.id ?? null);
   const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
+  // The cast's names, for natural order (A52): a member the last story line names speaks next.
+  const castNames = new Map(chat.character_ids.map((id) => [id, castById.get(id)?.name ?? '']));
   const persona = useMemo(() => {
     const found = personaList.data ?? [];
     return found.find((one) => one.id === chat.persona_id) ?? found.find((one) => one.is_default) ?? null;
@@ -210,7 +212,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const speakerId =
       picked !== null && chat.character_ids.includes(picked)
         ? picked
-        : nextSpeaker(chat.character_ids, path, chat.muted_ids);
+        : nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames);
     setPicked(null);
     if (speakerId === null) return;
     setWritingAfter({ parentId, speakerId });
@@ -469,7 +471,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await reply.write({
       chat_id: chat.id,
       leaf_id: leaf,
-      speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids),
+      speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames),
       mode: 'impersonate',
     });
     return result?.text ?? null;
@@ -481,7 +483,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const summary = await summarizeBranch({
         chat_id: chat.id,
         leaf_id: leaf,
-        speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids),
+        speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames),
       });
       if (summary.dropped > 0) notify('The oldest turns did not fit', `${summary.dropped} were left out of the summary.`);
       return summary.text;
@@ -517,7 +519,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         await inspectPrompt({
           chat_id: chat.id,
           leaf_id: leaf,
-          speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids),
+          speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames),
         }),
       );
     } catch (error) {
@@ -779,7 +781,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             return character === undefined ? [] : [{ id, name: character.name }];
           })}
           picked={picked}
-          upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids)}
+          upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames)}
           onPick={setPicked}
         />
       )}
@@ -802,7 +804,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             channel: reply.channel,
             autoRun: reply.auto_run,
             text: expandMacros(reply.message, {
-              char: castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids) ?? '')?.name ?? NARRATOR,
+              char: castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames) ?? '')?.name ?? NARRATOR,
               user: persona?.name ?? DEFAULT_USER_NAME,
             }),
           }))}
