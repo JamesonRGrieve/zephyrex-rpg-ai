@@ -8,7 +8,7 @@
  * A reply's alternatives (swipes) and a fork's branches are paged with arrows; every action is a
  * button in reach of a thumb, and the menu holds the rest.
  */
-import { Bookmark, Brain, ChevronLeft, ChevronRight, Ellipsis, FastForward, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
+import { Bookmark, Brain, Languages, Volume2, ChevronLeft, ChevronRight, Ellipsis, FastForward, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -26,6 +26,8 @@ export interface MessageView {
   speaker: string;
   avatar: string | null;
   text: string;
+  /** Pictures sent with it (A44). */
+  images?: readonly string[];
   swipe: { index: number; count: number };
   fork: { index: number; count: number };
   bookmarked: boolean;
@@ -42,6 +44,10 @@ export interface MessageActions {
   onDelete?: () => void;
   /** Carries on the shown alternative where it stopped (offered on a character's last message). */
   onContinue?: () => void;
+  /** Reads the message aloud (A29), where the browser can speak. */
+  onSpeak?: () => void;
+  /** Translates the message for display (A43); the label names the language. */
+  onTranslate?: { label: string; run: () => void };
 }
 
 const CHANNEL_LABEL: Record<MessageView['channel'], string | null> = {
@@ -111,12 +117,29 @@ function StoryPieces({ text }: { text: string }): ReactElement {
   );
 }
 
-export function MessageItem({ message, writing = false, ...actions }: { message: MessageView; writing?: boolean } & MessageActions): ReactElement {
+/** How a chat is laid out on this device (A49): flat rows, bubbles (yours on the right), or a document. */
+export type MessageLayout = 'flat' | 'bubbles' | 'document';
+
+export function MessageItem({
+  message,
+  writing = false,
+  layout = 'flat',
+  translation,
+  ...actions
+}: {
+  message: MessageView;
+  writing?: boolean;
+  layout?: MessageLayout;
+  /** A translation to show under the text (A43): written, being written, or failed. */
+  translation?: { status: 'writing' } | { status: 'done'; text: string; onHide: () => void } | { status: 'failed'; reason: string };
+} & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   const editId = useId();
   const label = CHANNEL_LABEL[message.channel];
   const tableTalk = message.channel === 'ooc' || message.channel === 'gm';
   const lastSwipe = message.swipe.index === message.swipe.count - 1;
+  const story = !tableTalk && message.channel !== 'roll';
+  const mine = message.role === 'user';
 
   return (
     <article
@@ -127,9 +150,13 @@ export function MessageItem({ message, writing = false, ...actions }: { message:
         tableTalk && 'ml-6 rounded-lg bg-muted px-3 py-2 text-sm sm:ml-12',
         message.channel === 'roll' && 'rounded-lg border border-dashed px-3 py-2 text-sm',
         message.bookmarked && !tableTalk && 'border-l-2 border-primary pl-3',
+        layout === 'bubbles' && story && 'rounded-2xl border bg-card px-3 py-2',
+        layout === 'bubbles' && story && mine && 'ml-8 flex-row-reverse border-primary bg-accent text-accent-foreground sm:ml-16',
+        layout === 'bubbles' && story && !mine && 'mr-8 sm:mr-16',
+        layout === 'document' && 'leading-relaxed',
       )}
     >
-      {!tableTalk && (
+      {!tableTalk && layout !== 'document' && (
         <Avatar className='size-10 shrink-0'>
           {message.avatar !== null && <AvatarImage src={message.avatar} alt='' />}
           <AvatarFallback>{initials(message.speaker)}</AvatarFallback>
@@ -142,7 +169,35 @@ export function MessageItem({ message, writing = false, ...actions }: { message:
           {message.bookmarked && <Bookmark className='size-3.5 fill-primary text-primary' aria-label='Bookmarked' />}
         </header>
         {editing === null ? (
-          tableTalk ? <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{message.text}</p> : <StoryText text={message.text} writing={writing} />
+          <>
+            {tableTalk ? <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{message.text}</p> : <StoryText text={message.text} writing={writing} />}
+            {(message.images ?? []).length > 0 && (
+              <ul className='mt-2 flex flex-wrap gap-2' aria-label='Pictures'>
+                {(message.images ?? []).map((url, index) => (
+                  // Pictures have no identity beyond their place in this message.
+                  <li key={index}>
+                    <a href={url} target='_blank' rel='noreferrer' className='block'>
+                      <img src={url} alt={`Picture ${index + 1} from ${message.speaker}`} className='max-h-40 max-w-full rounded-md border object-contain' />
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {translation !== undefined && (
+              <div className='mt-2 rounded-md border-l-2 border-primary bg-muted px-3 py-2 text-sm' aria-live='polite'>
+                {translation.status === 'writing' && <p className='text-muted-foreground'>Translating…</p>}
+                {translation.status === 'failed' && <p role='alert' className='text-destructive'>{translation.reason}</p>}
+                {translation.status === 'done' && (
+                  <>
+                    <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{translation.text}</p>
+                    <button type='button' className='mt-1 min-h-11 text-xs text-muted-foreground underline' onClick={translation.onHide}>
+                      Hide translation
+                    </button>
+                  </>
+                )}
+              </div>
+            )}
+          </>
         ) : (
           <form
             className='mt-1 grid gap-2'
@@ -190,6 +245,16 @@ export function MessageItem({ message, writing = false, ...actions }: { message:
                 {actions.onEdit !== undefined && (
                   <DropdownMenuItem onSelect={() => setEditing(message.text)}>
                     <Pencil aria-hidden /> Edit
+                  </DropdownMenuItem>
+                )}
+                {actions.onTranslate !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onTranslate.run}>
+                    <Languages aria-hidden /> {actions.onTranslate.label}
+                  </DropdownMenuItem>
+                )}
+                {actions.onSpeak !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onSpeak}>
+                    <Volume2 aria-hidden /> Read aloud
                   </DropdownMenuItem>
                 )}
                 {actions.onContinue !== undefined && (

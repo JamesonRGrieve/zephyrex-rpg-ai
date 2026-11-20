@@ -20,10 +20,10 @@
 import type { NextRequest } from 'next/server';
 import { ApiError, apiErrorResponse, localOwner, notFound, readJsonObject, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { type EndpointApi, type InstructTemplateId, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
+import { type EndpointApi, type InstructTemplateId, LIMITS, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { assemblePrompt, estimateTokens, summaryPrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import { assemblePrompt, estimateTokens, summaryPrompt, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
@@ -65,7 +65,7 @@ export async function generationInputs(
   ownerId: string,
   body: z.infer<typeof request>,
   roll: () => number = Math.random,
-): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState; activeLore: string[] }> {
+): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState; activeLore: string[]; images: string[] }> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
   const chatFields = chats.fields(chat) as {
@@ -78,6 +78,7 @@ export async function generationInputs(
     lore_settings: Partial<LoreSettings>;
     system_prompt: string;
     summary: string;
+    objectives: { text: string; done: boolean }[];
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -96,12 +97,16 @@ export async function generationInputs(
 
   const messages = (await chatMessages.list(ownerId, new URLSearchParams({ chat_id: chat.id }))).map((row) => ({
     id: row.id,
-    ...(chatMessages.fields(row) as { parent_id: string | null; role: PromptTurn['role']; channel: string; speaker_character_id: string | null; swipes: string[]; swipe_index: number }),
+    ...(chatMessages.fields(row) as { parent_id: string | null; role: PromptTurn['role']; channel: string; speaker_character_id: string | null; swipes: string[]; swipe_index: number; images: string[] }),
   }));
   if (body.leaf_id !== null && !messages.some((message) => message.id === body.leaf_id)) {
     throw validationError('The leaf must be a message in the chat', 'leaf_id');
   }
-  const history: PromptTurn[] = (body.leaf_id === null ? [] : branchTo(messages, body.leaf_id)).map((message) => ({
+  const path = body.leaf_id === null ? [] : branchTo(messages, body.leaf_id);
+  // The newest line's pictures go to a vision model (A44); older ones stay in the chat only.
+  const leafMessage = path.at(-1);
+  const images = leafMessage !== undefined && leafMessage.role === 'user' && leafMessage.channel === 'ic' ? leafMessage.images : [];
+  const history: PromptTurn[] = path.map((message) => ({
     role: message.role,
     channel: message.channel,
     speaker_character_id: message.speaker_character_id,
@@ -152,6 +157,7 @@ export async function generationInputs(
       layout: sampler.prompt_layout,
       system_prompt: chatFields.system_prompt,
       summary: chatFields.summary,
+      objective: chatFields.objectives.find((one) => !one.done)?.text ?? '',
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
     },
     sampler,
@@ -164,6 +170,7 @@ export async function generationInputs(
     },
     loreState: lore.state,
     activeLore: lore.active,
+    images,
   };
 }
 
@@ -186,15 +193,29 @@ export function completionsUrl(baseUrl: string, api: EndpointApi = 'chat'): stri
 }
 
 /**
+ * The messages with `images` added to the last user message as OpenAI-style content parts (A44),
+ * for a vision model; unchanged when there are none. A text API never gets them.
+ */
+export function withImages(messages: readonly ModelMessage[], images: readonly string[]): unknown[] {
+  if (images.length === 0) return [...messages];
+  const last = messages.findLastIndex((message) => message.role === 'user');
+  return messages.map((message, index) =>
+    index === last
+      ? { role: message.role, content: [{ type: 'text', text: message.content }, ...images.map((url) => ({ type: 'image_url', image_url: { url } }))] }
+      : message,
+  );
+}
+
+/**
  * What the model endpoint is sent: the messages for a chat API, or for a text API one prompt in
  * the endpoint's instruct template (a continued reply left open), with its stop strings added.
  */
-export function upstreamBody(endpoint: Endpoint, sampler: Sampler, messages: readonly ModelMessage[], mode: PromptMode): Record<string, unknown> {
+export function upstreamBody(endpoint: Endpoint, sampler: Sampler, messages: readonly ModelMessage[], mode: PromptMode, images: readonly string[] = []): Record<string, unknown> {
   const text = endpoint.api === 'text';
   const stop = [...sampler.stop, ...(text ? instructStops(endpoint.instruct_template) : [])];
   return {
     model: endpoint.model,
-    ...(text ? { prompt: renderInstruct(messages, endpoint.instruct_template, mode === 'continue') } : { messages }),
+    ...(text ? { prompt: renderInstruct(messages, endpoint.instruct_template, mode === 'continue') } : { messages: withImages(messages, images) }),
     stream: true,
     temperature: sampler.temperature,
     top_p: sampler.top_p,
@@ -291,16 +312,44 @@ export async function summarize(nextRequest: NextRequest): Promise<Response> {
   }
 }
 
+const translateRequest = z.object({
+  chat_id: z.string().min(1),
+  text: z.string().min(1).max(LIMITS.translate_characters),
+  language: z.string().min(1).max(LIMITS.language_characters),
+});
+
+/**
+ * `POST /v1/ai_chat/translate` (A43): a message translated by the chat's model, for display only.
+ * The answer echoes the request with the translation as its text.
+ */
+export async function translate(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = translateRequest.safeParse(Reflect.get(envelope, 'translate'));
+    if (!parsed.success) throw validationError('A translate object with a chat_id, text and language is required', 'translate');
+    const asked = parsed.data;
+    const { sampler, endpoint } = await generationInputs(owner.id, { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' });
+    const stream = await askModel(endpoint, upstreamBody(endpoint, sampler, translatePrompt(asked.text, asked.language), 'reply'), nextRequest.signal);
+    const text = await collect(completionDeltas(stream)).catch(() => {
+      throw new ApiError(502, { message: 'The model stopped mid-translation', code: 'model_refused' });
+    });
+    return Response.json({ translate: { ...asked, text: text.trim() } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
 export async function generate(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, endpoint, loreState } = await generationInputs(owner.id, body);
+    const { prompt, sampler, endpoint, loreState, images } = await generationInputs(owner.id, body);
     const assembled = assemblePrompt(prompt);
     // The lore timers move with the reply that read them.
     await saveLoreState(owner.id, body.chat_id, loreState);
 
-    const upstream = await askModel(endpoint, upstreamBody(endpoint, sampler, assembled.messages, body.mode), nextRequest.signal);
+    const upstream = await askModel(endpoint, upstreamBody(endpoint, sampler, assembled.messages, body.mode, images), nextRequest.signal);
     const deltas = completionDeltas(upstream);
     const stream = new ReadableStream<Uint8Array>({
       async pull(controller) {

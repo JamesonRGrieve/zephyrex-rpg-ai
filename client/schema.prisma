@@ -71,6 +71,11 @@ model Chat {
   loreSettings String   @default("{}")
   systemPrompt String   @default("")
   summary      String   @default("")
+  tags         String   @default("[]")
+  folder       String   @default("")
+  mutedIds     String   @default("[]")
+  background   String?
+  objectives   String   @default("[]")
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   updatedById  String?
@@ -90,6 +95,7 @@ model ChatMessage {
   swipes             String   @default("[]")
   swipeIndex         Int      @default(0)
   bookmarked         Boolean  @default(false)
+  images             String   @default("[]")
   createdAt          DateTime @default(now())
   updatedAt          DateTime
   updatedById        String?

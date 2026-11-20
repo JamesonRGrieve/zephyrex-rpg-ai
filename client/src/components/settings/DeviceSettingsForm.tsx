@@ -9,7 +9,13 @@ import { Label } from 'zephyrex/ui/label';
 import { Switch } from 'zephyrex/ui/switch';
 import { cn } from '~/lib/utils';
 import type { DeviceTier } from '~/features/device/tier';
-import type { DeviceSettings, TierChoice } from '~/features/settings/deviceSettings';
+import { CHAT_LAYOUTS, type ChatLayout, type DeviceSettings, TEXT_SIZES, type TextSize, type TierChoice } from '~/features/settings/deviceSettings';
+import { chipGroup } from 'zephyrex/hooks/chipKeys';
+import { ChoiceChip } from 'zephyrex/ui/choice-chip';
+
+const LAYOUT_LABELS: Record<ChatLayout, string> = { flat: 'Flat', bubbles: 'Bubbles', document: 'Document' };
+const SIZE_LABELS: Record<TextSize, string> = { small: 'Small', normal: 'Normal', large: 'Large', larger: 'Larger' };
+const CHIP = 'h-11 rounded-full border px-4 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
 
 const TIER_OPTIONS: { value: TierChoice; label: string; hint: string }[] = [
   { value: 'auto', label: 'Automatic', hint: 'Use what this device can do' },
@@ -51,6 +57,40 @@ export function DeviceSettingsForm({
           ))}
         </div>
       </fieldset>
+      <fieldset className='grid gap-3'>
+        <legend className='text-lg font-semibold'>How chats look here</legend>
+        <div className='grid gap-2'>
+          <span id={`${tableTalkId}-layout`} className='text-sm font-medium'>
+            Layout
+          </span>
+          <div ref={chipGroup} role='radiogroup' aria-labelledby={`${tableTalkId}-layout`} className='flex flex-wrap gap-2'>
+            {CHAT_LAYOUTS.map((layout) => (
+              <ChoiceChip key={layout} checked={settings.chatLayout === layout} className={CHIP} onClick={() => onChange({ chatLayout: layout })}>
+                {LAYOUT_LABELS[layout]}
+              </ChoiceChip>
+            ))}
+          </div>
+        </div>
+        <div className='grid gap-2'>
+          <span id={`${tableTalkId}-size`} className='text-sm font-medium'>
+            Text size
+          </span>
+          <div ref={chipGroup} role='radiogroup' aria-labelledby={`${tableTalkId}-size`} className='flex flex-wrap gap-2'>
+            {TEXT_SIZES.map((size) => (
+              <ChoiceChip key={size} checked={settings.textSize === size} className={CHIP} onClick={() => onChange({ textSize: size })}>
+                {SIZE_LABELS[size]}
+              </ChoiceChip>
+            ))}
+          </div>
+        </div>
+      </fieldset>
+      <div className='flex min-h-11 items-center justify-between gap-3'>
+        <div>
+          <Label htmlFor={`${tableTalkId}-read`}>Read replies aloud</Label>
+          <p className='text-xs text-muted-foreground'>Each character in their own voice, on this device.</p>
+        </div>
+        <Switch id={`${tableTalkId}-read`} checked={settings.readAloud} onCheckedChange={(checked) => onChange({ readAloud: checked })} />
+      </div>
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <div>
           <Label htmlFor={tableTalkId}>Show table talk in chats</Label>

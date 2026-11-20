@@ -14,6 +14,7 @@ from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
+from zephyrex.extensions.ai_character.Contract import LIMITS  # type: ignore[import-not-found]
 from zephyrex.testing.factories import create_user
 
 from rpg_ai_app import create
@@ -124,7 +125,7 @@ class TestChats:
         chat = _create(server, person, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
 
         def say(parent: str | None, text: str, **extra: Any) -> Any:
-            return _create(server, person, "chat_message", chat_id=chat["id"], parent_id=parent, role="user", swipes=[text], **extra)
+            return _create(server, person, "chat_message", **{"chat_id": chat["id"], "parent_id": parent, "role": "user", "swipes": [text], **extra})
 
         root = say(None, "Hello", role="character", speaker_character_id=ada["id"]).json()["chat_message"]
         left = say(root["id"], "Left")
@@ -161,7 +162,7 @@ class TestPersonasAndEndpoints:
         _create(server, other, "persona", name="Sam", is_default=True)
         reyes = _create(server, other, "persona", name="Reyes")
         assert _put(server, other, "persona", reyes.json()["persona"]["id"], reyes.headers["ETag"], is_default=True).status_code == 200
-        listed = server.get("/v1/persona", headers=_headers(other)).json()["personas"]
+        listed = server.get("/v1/persona", headers=_headers(other)).json()["personae"]
         assert sorted((persona["name"], persona["is_default"]) for persona in listed) == [("Reyes", True), ("Sam", False)]
 
     def test_the_api_key_is_write_only(self, server: TestClient, person: Any) -> None:
@@ -169,6 +170,11 @@ class TestPersonasAndEndpoints:
         assert endpoint["has_api_key"] is True
         read = server.get(f"/v1/model_endpoint/{endpoint['id']}", headers=_headers(person))
         assert "sk-secret" not in read.text and "api_key" not in read.json()["model_endpoint"]
+        claimed = _create(server, person, "model_endpoint", name="Claims", base_url="https://api.example.com/v1", model="big", has_api_key=True).json()["model_endpoint"]
+        assert claimed["has_api_key"] is False
+        long_key = "k" * (LIMITS["api_key_characters"] + 1)
+        refused = server.post("/v1/model_endpoint", json={"model_endpoint": {"name": "Long", "base_url": "https://a.example/v1", "model": "m", "api_key": long_key}}, headers=_headers(person))
+        assert refused.status_code == 422
 
     def test_refuses_an_address_that_is_not_http(self, server: TestClient, person: Any) -> None:
         refused = server.post("/v1/model_endpoint", json={"model_endpoint": {"name": "x", "base_url": "file:///etc/passwd", "model": "m"}}, headers=_headers(person))
@@ -232,7 +238,9 @@ class TestGenerate:
         assert summarized.status_code == 200, summarized.text
         assert summarized.json()["summary"] == {"text": "“Mind the coolant.”", "dropped": 0}
         assert RECEIVED[0]["body"]["messages"][1]["content"] == "User: We dock."
-        saved = _put(server, user, "chat", chat["id"], created.headers["ETag"], summary="They docked.")
+        # The chat's version moves as messages are written to it, so the edit is made against the latest.
+        latest = server.get(f"/v1/chat/{chat['id']}", headers=_headers(user))
+        saved = _put(server, user, "chat", chat["id"], latest.headers["ETag"], summary="They docked.")
         assert saved.status_code == 200, saved.text
         inspected = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"]}}, headers=_headers(user)).json()["prompt"]
         assert inspected["messages"][0]["content"].endswith("Summary of the story so far:\nThey docked.")
@@ -262,6 +270,57 @@ class TestGenerate:
         _create(server, user, "quick_reply", label="Pause", message="Can we pause?", channel="ooc", action="fill", position=1)
         listed = server.get("/v1/quick_reply", headers=_headers(user)).json()["quick_replies"]
         assert [(row["label"], row["action"], row["channel"]) for row in listed] == [("Pause", "fill", "ooc"), ("Look", "send", "ic")]
+
+    def test_a_chat_keeps_its_tags_and_folder(self, server: TestClient) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], tags=[" heist "], folder=" Kestrel ").json()["chat"]
+        assert (chat["tags"], chat["folder"]) == (["heist"], "Kestrel")
+        refused = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "tags": [""]}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+        muted = _create(server, user, "chat", title="Group", character_ids=[ada["id"]], muted_ids=[ada["id"]]).json()["chat"]
+        assert muted["muted_ids"] == [ada["id"]]
+        stranger = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "muted_ids": ["someone-else"]}}, headers=_headers(user))
+        assert stranger.status_code == 422, stranger.text
+        pictured = _create(server, user, "chat", title="Pictured", character_ids=[ada["id"]], background="data:image/png;base64,AAAA").json()["chat"]
+        assert pictured["background"] == "data:image/png;base64,AAAA"
+        svg = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "background": "data:image/svg+xml;base64,AAAA"}}, headers=_headers(user))
+        assert svg.status_code == 422, svg.text
+
+    def test_translates_a_message_with_the_chats_model(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        RECEIVED.clear()
+        answer = server.post("/v1/ai_chat/translate", json={"translate": {"chat_id": chat["id"], "text": "Bonjour.", "language": "English"}}, headers=_headers(user))
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["translate"]["text"] == "“Mind the coolant.”"
+        assert RECEIVED[0]["body"]["messages"] == [
+            {"role": "system", "content": "Translate the user's text into English. Keep its meaning, tone, names and any *action* markup. Write only the translation."},
+            {"role": "user", "content": "Bonjour."},
+        ]
+        missing = server.post("/v1/ai_chat/translate", json={"translate": {"chat_id": "nope", "text": "x", "language": "English"}}, headers=_headers(user))
+        assert missing.status_code == 404
+
+    def test_the_newest_lines_pictures_go_to_the_model(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        picture = "data:image/png;base64,AAAA"
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["What is this?"], images=[picture]).json()["chat_message"]
+        assert line["images"] == [picture]
+        RECEIVED.clear()
+        server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert RECEIVED[0]["body"]["messages"][-1]["content"] == [
+            {"type": "text", "text": "What is this?"},
+            {"type": "image_url", "image_url": {"url": picture}},
+        ]
+        too_many = server.post(
+            "/v1/chat_message", json={"chat_message": {"chat_id": chat["id"], "role": "user", "swipes": ["x"], "images": [picture] * 5}}, headers=_headers(user)
+        )
+        assert too_many.status_code == 422, too_many.text
 
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

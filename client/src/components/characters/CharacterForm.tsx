@@ -12,8 +12,8 @@ import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { LIMITS } from '~/contract';
-import { dataUrl } from '~/features/import/stCard';
 import { initials } from './CharacterTile';
+import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 
 export interface CharacterDraft {
   name: string;
@@ -32,7 +32,6 @@ export interface CharacterDraft {
   tags: string[];
 }
 
-const AVATAR_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif'];
 
 /** Tags as typed: comma-separated, trimmed, without blanks or repeats. */
 export function parseTags(text: string): string[] {
@@ -88,10 +87,9 @@ export function CharacterForm({
 
   const takeAvatar = async (file: File | undefined) => {
     if (file === undefined) return;
-    if (!AVATAR_TYPES.includes(file.type)) return onAvatarRefused?.('A picture is a PNG, JPEG, WebP or GIF');
-    const url = dataUrl(new Uint8Array(await file.arrayBuffer()), file.type);
-    if (url.length > LIMITS.avatar_bytes) return onAvatarRefused?.('That picture is too large');
-    set('avatar', url);
+    const picture = await pictureFromFile(file);
+    if ('refused' in picture) onAvatarRefused?.(picture.refused);
+    else set('avatar', picture.url);
   };
 
   return (
@@ -111,7 +109,7 @@ export function CharacterForm({
                 <ImageUp aria-hidden /> Picture
               </label>
             </Button>
-            <input id={ids.avatar} type='file' accept={AVATAR_TYPES.join(',')} className='sr-only' onChange={(event) => void takeAvatar(event.target.files?.[0])} />
+            <input id={ids.avatar} type='file' accept={PICTURE_TYPES.join(',')} className='sr-only' onChange={(event) => void takeAvatar(event.target.files?.[0])} />
             {value.avatar !== null && (
               <Button type='button' variant='ghost' className='h-11' onClick={() => set('avatar', null)}>
                 Remove picture

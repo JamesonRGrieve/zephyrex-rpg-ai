@@ -1,13 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 /**
- * Every character: search, favourites first, a new blank card, and SillyTavern card import (PNG or
+ * Every character: search, a tag filter (A51), favourites first, a new blank card, and SillyTavern card import (PNG or
  * JSON, several at once; a card's embedded lorebook becomes the character's own). On a phone the grid is two columns and the actions sit in reach.
  */
 import { FileUp, Plus, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type ChangeEvent, type ReactElement, useId, useMemo, useRef, useState } from 'react';
+import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { notify } from 'zephyrex/hooks/useToast';
+import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
@@ -16,6 +18,13 @@ import { type Character, characters, lorebookEntries, lorebooks } from '~/featur
 import { CardError, readCardFile } from '~/features/import/stCard';
 import { writeImportedBook } from '../lore/importBook';
 import { CharacterTile } from './CharacterTile';
+
+/** Every tag the characters use, most used first, then by name (A51). */
+export function tagsOf(characters: readonly Pick<Character, 'tags'>[]): string[] {
+  const counts = new Map<string, number>();
+  for (const character of characters) for (const tag of character.tags) counts.set(tag, (counts.get(tag) ?? 0) + 1);
+  return [...counts].sort(([a, countA], [b, countB]) => countB - countA || a.localeCompare(b)).map(([tag]) => tag);
+}
 
 /** Whether `character` matches the search (name, tags, description), ignoring case. */
 export function matchesSearch(character: Pick<Character, 'name' | 'tags' | 'description'>, query: string): boolean {
@@ -34,7 +43,12 @@ export function CharacterGallery(): ReactElement {
   const fileInput = useRef<HTMLInputElement>(null);
   const searchId = useId();
 
-  const shown = useMemo(() => (list.data ?? []).filter((character) => matchesSearch(character, query)), [list.data, query]);
+  const [tag, setTag] = useState<string | null>(null);
+  const tags = useMemo(() => tagsOf(list.data ?? []), [list.data]);
+  const shown = useMemo(
+    () => (list.data ?? []).filter((character) => matchesSearch(character, query) && (tag === null || character.tags.includes(tag))),
+    [list.data, query, tag],
+  );
 
   const importFiles = async (event: ChangeEvent<HTMLInputElement>) => {
     const files = [...(event.target.files ?? [])];
@@ -78,6 +92,20 @@ export function CharacterGallery(): ReactElement {
         </Button>
         <input ref={fileInput} type='file' accept='.png,.json,image/png,application/json' multiple hidden onChange={(event) => void importFiles(event)} />
       </div>
+      {tags.length > 0 && (
+        <div ref={chipGroup} role='radiogroup' aria-label='Tag' className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-1'>
+          {[null, ...tags].map((one) => (
+            <ChoiceChip
+              key={one ?? ''}
+              checked={tag === one}
+              className='h-9 shrink-0 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground'
+              onClick={() => setTag(one)}
+            >
+              {one ?? 'All'}
+            </ChoiceChip>
+          ))}
+        </div>
+      )}
       {list.error !== undefined && <LoadProblem what='your characters' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} />}
       {list.data !== undefined && list.data.length === 0 && (
@@ -86,7 +114,7 @@ export function CharacterGallery(): ReactElement {
         </p>
       )}
       {list.data !== undefined && list.data.length > 0 && shown.length === 0 && (
-        <p className='text-muted-foreground'>No character matches “{query}”.</p>
+        <p className='text-muted-foreground'>No character matches{query.trim() === '' ? ' that tag' : ` “${query}”`}.</p>
       )}
       <ul className='grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 lg:grid-cols-3'>
         {shown.map((character) => (

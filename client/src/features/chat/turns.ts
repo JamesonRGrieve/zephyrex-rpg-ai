@@ -12,14 +12,15 @@ export interface TurnMessage extends TreeMessage {
 
 /**
  * Who replies next. Alone, the one character. In a group, the character after the last one who
- * spoke in the story, in the chat's order (a simple turn order; the decision model takes over in a
- * later phase, docs/DESIGN.md).
+ * spoke in the story, in the chat's order, skipping muted members (A52); null when all are muted.
+ * (A simple turn order; the decision model takes over in a later phase, docs/DESIGN.md.)
  */
-export function nextSpeaker(characterIds: readonly string[], branch: readonly TurnMessage[]): string | null {
+export function nextSpeaker(characterIds: readonly string[], branch: readonly TurnMessage[], muted: readonly string[] = []): string | null {
   if (characterIds.length === 0) return null;
   const last = [...branch].reverse().find((message) => message.role === 'character' && message.channel === 'ic');
   const index = last === undefined || last.speaker_character_id === null ? -1 : characterIds.indexOf(last.speaker_character_id);
-  return characterIds[(index + 1) % characterIds.length] ?? null;
+  const order = characterIds.map((_id, step) => characterIds[(index + 1 + step) % characterIds.length] as string);
+  return order.find((id) => !muted.includes(id)) ?? null;
 }
 
 /** The messages that share `message`'s parent (its alternatives at a fork), and its place among them. */

@@ -134,6 +134,7 @@ def assemble_prompt(
     system_prompt: str = "",
     summary: str = "",
     regex: Sequence[Mapping[str, Any]] = (),
+    objective: str = "",
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -177,6 +178,10 @@ def assemble_prompt(
         (insert["depth"], {"role": insert["role"], "content": expand_macros(insert["content"], names)})
         for insert in (lore or {}).get("at_depth", [])
     ]
+    if objective.strip():
+        # The chat's current task (A53), a system line at its depth.
+        task = expand_macros(PROMPT["objective_prompt"].replace("{{task}}", objective.strip()), names)
+        inserts.append((PROMPT["objective_depth"], {"role": "system", "content": task}))
     instructions = kept("post_history", speaker["post_history_instructions"])
     after = [{"role": "system", "content": expand_macros(instructions, names)}] if instructions else []
     if mode == "impersonate":
@@ -247,4 +252,12 @@ def summary_prompt(
         used = cost
         kept = index
     return Assembled(messages=[instruction, {"role": "user", "content": "\n".join(lines[kept:])}], dropped=kept)
+
+
+def translate_prompt(text: str, language: str) -> list[dict[str, str]]:
+    """What a model is asked to translate ``text`` into ``language`` (A43)."""
+    return [
+        {"role": "system", "content": PROMPT["translate_prompt"].replace("{{language}}", language)},
+        {"role": "user", "content": text},
+    ]
 

@@ -132,6 +132,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A42 | Web search injected into context | SillyTavern (extension) | ✓ | ✓ |
 | A43 | Chat translation: auto-translate input and output | SillyTavern (extension) | ✓ | ✓ |
 | A44 | Image captioning and multimodal input (send an image; a vision model describes or reads it) | SillyTavern | ✓ | ✓ |
+| A44 | Pictures sent with a line; a vision model reads the newest line's | captioning for text-only models |
 | A45 | Reasoning display: show or hide a model's thinking blocks; reasoning templates | SillyTavern | ✓ | ✓ |
 | A46 | Function and tool calling for models that support it | SillyTavern | ✓ | ✓ |
 | A47 | Text-completion and chat-completion modes; tokenizer choice; logit bias; CFG / negative prompts | SillyTavern | ✓ | ✓ |
@@ -662,6 +663,38 @@ Until (3) lands, single-player play streams over the framework's ordinary SSE.
   - accounts and multi-player tables;
   - hosted model pools with quotas;
   - the hosted decision layer, cloud media, plans.
+
+## Progress (2026-11-20)
+
+Built in both editions (lite and SaaS), each with unit tests, a story with a play test per
+component, and twin implementations held to shared case files where the server must agree. Nothing
+here has had its full gate run yet: full runs wait for a release candidate.
+
+| Row | State | Not yet |
+|---|---|---|
+| A1, A2 | Cards V1/V2/V3 in (JSON, PNG); out as PNG with the lorebook inside, or JSON | batch export |
+| A3 | Personas | |
+| A6 | Streaming, stop, regenerate, continue, impersonate | |
+| A7–A9 | Swipes, branches, edit, delete, bookmarks | tree view |
+| A10, A52 | Group chats: turn order, pick who speaks next, members left out of turns | natural order by a decision model; group greetings |
+| A11 | OOC channels kept out of the story | GM table notes (with A20) |
+| A12 | Chat library: search by title, cast or tag; folders and tags | search inside messages |
+| A13, A56 | SillyTavern chat import; branch export as JSONL or text | backups |
+| A14 | World Info, the full entry surface and activation; ST import and export | |
+| A16 | Author's note, a chat's own system prompt, the prompt manager (order, on/off, budgets) | |
+| A17 | Instruct templates for text-completion endpoints (ChatML, Llama 3, Alpaca, Mistral) | custom templates |
+| A18 | Context inspector with token estimates | |
+| A19 | Rolling summaries (asked of the chat's model, kept or edited) | recall by meaning (`ai_memories`, SaaS) |
+| A29 | Read aloud per character voice; dictation (both by the browser) | server voices |
+| A31 | A picture behind each chat | per wiki location |
+| A32, A38 | Quick replies (send or fill, story or table talk) | auto-run triggers, ST set import |
+| A33 | Regex scripts: stored, display-only, prompt-only, by depth | ST script import |
+| A36 | Installable; every screen works on a phone | |
+| A43 | Translate a message by the chat's model, for display | automatic translation of every message |
+| A45 | Reasoning folded under Thinking, never read back to the model | `reasoning_content` streams |
+| A47 | Chat- and text-completion endpoints | tokenizer choice, logit bias, CFG |
+| A49 | Layouts (flat, bubbles, document) and text size, per device | themes, custom CSS |
+| A51 | Character tags (filter), favourites, search | folders |
 
 ## Phases
 

@@ -32,7 +32,11 @@
     "regex_replacement_characters": 50000,
     "regex_scripts": 200,
     "quick_replies": 100,
-    "quick_reply_label_characters": 40
+    "quick_reply_label_characters": 40,
+    "translate_characters": 100000,
+    "language_characters": 40,
+    "images_per_message": 4,
+    "objectives_per_chat": 50
   },
   "message_roles": [
     "user",
@@ -130,7 +134,10 @@
       32768
     ],
     "summary_prefix": "Summary of the story so far:\n",
-    "summarize_prompt": "Summarize the story so far in a few short paragraphs: who is in it, where they are, what has happened and what is still unresolved. Write only the summary."
+    "summarize_prompt": "Summarize the story so far in a few short paragraphs: who is in it, where they are, what has happened and what is still unresolved. Write only the summary.",
+    "translate_prompt": "Translate the user's text into {{language}}. Keep its meaning, tone, names and any *action* markup. Write only the translation.",
+    "objective_prompt": "{{char}}'s current task: {{task}} Work toward it naturally, without stating it.",
+    "objective_depth": 2
   },
   "lore": {
     "$comment": "World Info (SillyTavern's lorebooks): how entries activate and where they go. client/src/features/lore/activate.ts and server/extensions/ai_chat/Lore.py implement it; contract/lore-cases.json holds the cases both run.",

@@ -52,6 +52,11 @@ CREATE TABLE "Chat" (
     "loreSettings" TEXT NOT NULL DEFAULT '{}',
     "systemPrompt" TEXT NOT NULL DEFAULT '',
     "summary" TEXT NOT NULL DEFAULT '',
+    "tags" TEXT NOT NULL DEFAULT '[]',
+    "folder" TEXT NOT NULL DEFAULT '',
+    "mutedIds" TEXT NOT NULL DEFAULT '[]',
+    "background" TEXT,
+    "objectives" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
@@ -69,6 +74,7 @@ CREATE TABLE "ChatMessage" (
     "swipes" TEXT NOT NULL DEFAULT '[]',
     "swipeIndex" INTEGER NOT NULL DEFAULT 0,
     "bookmarked" BOOLEAN NOT NULL DEFAULT false,
+    "images" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

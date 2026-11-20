@@ -28,3 +28,20 @@ export const TableTalk: Story = {
 };
 
 export const Writing: Story = { args: { writing: true } };
+
+/** Quick replies above the box (A32): one sends at once, one fills the box to edit. */
+export const QuickReplies: Story = {
+  args: {
+    quickReplies: [
+      { id: 'q1', label: 'Look around', text: 'I look around.', action: 'send', channel: 'ic' },
+      { id: 'q2', label: 'Pause?', text: 'Can we pause for a minute?', action: 'fill', channel: 'ooc' },
+    ],
+  },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('button', { name: 'Look around' }));
+    await expect(args.onSend).toHaveBeenCalledWith('I look around.', 'ic');
+    await userEvent.click(canvas.getByRole('button', { name: 'Pause?' }));
+    await expect(canvas.getByDisplayValue('Can we pause for a minute?')).toBeInTheDocument();
+  },
+};

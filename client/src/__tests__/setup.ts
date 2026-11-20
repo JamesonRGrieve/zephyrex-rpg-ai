@@ -47,3 +47,15 @@ if (typeof Element !== 'undefined') {
   Element.prototype.setPointerCapture ??= () => {};
   Element.prototype.releasePointerCapture ??= () => {};
 }
+
+// jsdom lacks ResizeObserver, which Radix's slider and popovers observe with.
+if (typeof window !== 'undefined' && !('ResizeObserver' in window)) {
+  Object.defineProperty(window, 'ResizeObserver', {
+    writable: true,
+    value: class {
+      observe(): void {}
+      unobserve(): void {}
+      disconnect(): void {}
+    },
+  });
+}

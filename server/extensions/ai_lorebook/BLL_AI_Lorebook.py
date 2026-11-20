@@ -86,11 +86,11 @@ class LorebookModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI lorebooks (World Info)"
 
-    class Create(BaseModel, BookChecks):
+    class Create(BookChecks, BaseModel):
         name: str = Field(..., min_length=1, max_length=MAX_NAME)
         description: str = Field("", max_length=MAX_CARD)
 
-    class Update(BaseModel, BookChecks):
+    class Update(BookChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
         description: str | None = Field(None, max_length=MAX_CARD)
 
@@ -176,7 +176,7 @@ class LorebookEntryModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI lorebook entries"
 
-    class Create(BaseModel, EntryChecks):
+    class Create(EntryChecks, BaseModel):
         lorebook_id: str = Field(..., min_length=1)
         comment: str = Field("", max_length=MAX_SHORT)
         keys: list[str] = Field(default_factory=list)
@@ -205,7 +205,7 @@ class LorebookEntryModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         character_exclude: bool = False
 
     # An entry stays in its lorebook; everything else can change.
-    class Update(BaseModel, EntryChecks):
+    class Update(EntryChecks, BaseModel):
         comment: str | None = Field(None, max_length=MAX_SHORT)
         keys: list[str] | None = None
         secondary_keys: list[str] | None = None

@@ -126,8 +126,8 @@ describe('personas', () => {
     const sam = await created<{ id: string }>(postPersona, '/v1/persona', 'persona', { name: 'Sam', is_default: true });
     const reyes = await created<{ id: string }>(postPersona, '/v1/persona', 'persona', { name: 'Reyes' });
     await putPersona(call(`/v1/persona/${reyes.record.id}`, { method: 'PUT', headers: { 'If-Match': reyes.etag }, body: { persona: { is_default: true } } }), params(reyes.record.id));
-    const list = (await (await listPersonas(call('/v1/persona'), none)).json()) as { personas: { name: string; is_default: boolean }[] };
-    expect(list.personas.map((one) => [one.name, one.is_default])).toEqual([
+    const list = (await (await listPersonas(call('/v1/persona'), none)).json()) as { personae: { name: string; is_default: boolean }[] };
+    expect(list.personae.map((one) => [one.name, one.is_default])).toEqual([
       ['Reyes', true],
       ['Sam', false],
     ]);

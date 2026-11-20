@@ -13,6 +13,12 @@ describe('turns', () => {
     expect(nextSpeaker([], [])).toBeNull();
   });
 
+  it('skips muted members in a group, and has no one when all are muted', () => {
+    const spoke = [{ id: 'm1', parent_id: null, role: 'character', channel: 'ic', speaker_character_id: 'a' }];
+    expect(nextSpeaker(['a', 'b', 'c'], spoke, ['b'])).toBe('c');
+    expect(nextSpeaker(['a', 'b'], spoke, ['a', 'b'])).toBeNull();
+  });
+
   it('ignores out-of-character lines when finding who spoke last', () => {
     expect(nextSpeaker(['a', 'b'], [said('1', 'a'), said('2', 'b', 'character', 'ooc')])).toBe('b');
   });

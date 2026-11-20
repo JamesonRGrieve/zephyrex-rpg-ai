@@ -76,6 +76,8 @@ export interface PromptInput {
   summary?: string;
   /** Regex scripts (A33); the prompt-only ones rewrite what the model reads of the history. */
   regex?: readonly RegexScript[];
+  /** The chat's current task (A53); blank for none. */
+  objective?: string;
 }
 
 export type PromptSectionId = (typeof PROMPT.sections)[number];
@@ -250,6 +252,10 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
       depth: insert.depth,
       message: { role: insert.role, content: expandMacros(insert.content, names) },
     })),
+    // The chat's current task (A53), a system line at its depth.
+    ...((input.objective ?? '').trim() === ''
+      ? []
+      : [{ depth: PROMPT.objective_depth, message: { role: 'system' as const, content: expandMacros(PROMPT.objective_prompt.replace('{{task}}', (input.objective ?? '').trim()), names) } }]),
   ];
   const mode = input.mode ?? 'reply';
   const instructions = sectionText('post_history', speaker.post_history_instructions);
@@ -319,3 +325,12 @@ export function summaryPrompt(
   }
   return { messages: [instruction, { role: 'user', content: lines.slice(kept).join('\n') }], dropped: kept };
 }
+
+/** What a model is asked to translate `text` into `language` (A43). */
+export function translatePrompt(text: string, language: string): ModelMessage[] {
+  return [
+    { role: 'system', content: PROMPT.translate_prompt.replace('{{language}}', language) },
+    { role: 'user', content: text },
+  ];
+}
+

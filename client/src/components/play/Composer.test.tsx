@@ -52,6 +52,16 @@ describe('Composer', () => {
     expect(onSend).toHaveBeenCalledTimes(1);
   });
 
+  it('attaches pictures to a story line, and sends them with it', async () => {
+    const onSend = vi.fn();
+    render(<Composer writing={false} onSend={onSend} onStop={vi.fn()} />);
+    const png = new File([new Uint8Array([1, 2, 3])], 'map.png', { type: 'image/png' });
+    await userEvent.upload(screen.getByLabelText('Attach a picture'), png);
+    expect(await screen.findByRole('img', { name: 'Attached picture 1' })).toBeInTheDocument();
+    await userEvent.type(screen.getByLabelText('Your next line'), 'What is this?{Enter}');
+    expect(onSend).toHaveBeenCalledWith('What is this?', 'ic', ['data:image/png;base64,AQID']);
+  });
+
   it('offers to stop a reply being written', async () => {
     const onStop = vi.fn();
     render(<Composer writing onSend={vi.fn()} onStop={onStop} />);

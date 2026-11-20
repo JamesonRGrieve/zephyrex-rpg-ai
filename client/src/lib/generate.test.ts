@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { completionsUrl, generate, inspectPrompt, summarize, upstreamBody } from './generate';
+import { completionsUrl, generate, inspectPrompt, summarize, translate, upstreamBody, withImages } from './generate';
 
 interface Received {
   path: string;
@@ -188,6 +188,20 @@ describe('POST /v1/ai_chat/summarize', () => {
   });
 });
 
+describe('POST /v1/ai_chat/translate', () => {
+  it('asks the chat’s model for the translation and answers with it', async () => {
+    const { chat } = await seed();
+    const response = await translate(call({ translate: { chat_id: chat.id, text: 'Bonjour.', language: 'English' } }));
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ translate: { chat_id: chat.id, text: '“Mind the coolant.”', language: 'English' } });
+    expect(received[0]?.body.messages).toEqual([
+      { role: 'system', content: "Translate the user's text into English. Keep its meaning, tone, names and any *action* markup. Write only the translation." },
+      { role: 'user', content: 'Bonjour.' },
+    ]);
+    expect((await translate(call({ translate: { chat_id: chat.id, text: '' } }))).status).toBe(422);
+  });
+});
+
 describe('the prompt manager', () => {
   it('lays the system text out as the chat’s preset says, with the chat’s own system prompt', async () => {
     const { chat, line } = await seed();
@@ -216,6 +230,22 @@ describe('completionsUrl', () => {
     expect(completionsUrl('http://h:1/v1', 'text')).toBe('http://h:1/v1/completions');
     expect(completionsUrl('http://h:1/v1/chat/completions', 'text')).toBe('http://h:1/v1/completions');
     expect(completionsUrl('http://h:1/v1/completions', 'text')).toBe('http://h:1/v1/completions');
+  });
+});
+
+describe('withImages', () => {
+  it('adds the pictures to the last user message as content parts, and leaves the rest alone', () => {
+    const messages = [
+      { role: 'system' as const, content: 'You are Ada.' },
+      { role: 'user' as const, content: 'Old line.' },
+      { role: 'assistant' as const, content: 'Hi.' },
+      { role: 'user' as const, content: 'What is this?' },
+    ];
+    expect(withImages(messages, [])).toEqual(messages);
+    expect(withImages(messages, ['data:image/png;base64,AAAA'])).toEqual([
+      ...messages.slice(0, 3),
+      { role: 'user', content: [{ type: 'text', text: 'What is this?' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] },
+    ]);
   });
 });
 

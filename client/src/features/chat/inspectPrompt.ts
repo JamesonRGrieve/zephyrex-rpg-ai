@@ -46,6 +46,34 @@ export function inspectPrompt(request: ReplyRequest): Promise<InspectedPrompt> {
   return ask(INSPECT_PATH, request, 'prompt', inspectedSchema, 'The prompt could not be read');
 }
 
+export const TRANSLATE_PATH = '/api/v1/ai_chat/translate';
+
+/** `text` translated into `language` by the chat's model (A43); nothing is saved. */
+export async function translateText(chatId: string, text: string, language: string): Promise<string> {
+  const response = await fetch(TRANSLATE_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ translate: { chat_id: chatId, text, language } }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  const translated: unknown = Reflect.get(Object(Reflect.get(Object(body), 'translate')), 'text');
+  if (!response.ok || typeof translated !== 'string') {
+    const detail: unknown = Reflect.get(Object(body), 'detail');
+    const message: unknown = typeof detail === 'string' ? detail : Reflect.get(Object(detail), 'message');
+    throw new Error(typeof message === 'string' ? message : `The translation could not be written (${response.status})`);
+  }
+  return translated;
+}
+
+/** This device's language as people name it ("French"), for the model to translate into. */
+export function deviceLanguage(locale: string = typeof navigator === 'undefined' ? 'en' : navigator.language): string {
+  try {
+    return new Intl.DisplayNames(['en'], { type: 'language' }).of(locale) ?? locale;
+  } catch {
+    return locale;
+  }
+}
+
 export function summarizeBranch(request: ReplyRequest): Promise<BranchSummary> {
   return ask(SUMMARIZE_PATH, request, 'summary', summarySchema, 'The summary could not be written');
 }

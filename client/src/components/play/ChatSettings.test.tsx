@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { LORE } from '~/contract';
 import { ChatSettings } from './ChatSettings';
 
-const VALUE = { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: [], lore_settings: {}, system_prompt: '', summary: '' };
+const VALUE = { title: 'Chat with Ada', persona_id: null, preset_id: null, endpoint_id: null, author_note: '', lorebook_ids: [], lore_settings: {}, system_prompt: '', summary: '', tags: [], folder: '', muted_ids: [], background: null, objectives: [] };
 
 describe('ChatSettings', () => {
   it('saves the lorebooks picked, World Info settings within range, and leaves blank settings out', async () => {
@@ -55,4 +55,37 @@ describe('ChatSettings', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Save' }));
     expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ summary: 'They docked at Vell. It rained.' }));
   });
+
+  it('files the chat in a folder with tags', async () => {
+    const onSave = vi.fn();
+    render(<ChatSettings open onOpenChange={vi.fn()} value={VALUE} personas={[]} presets={[]} endpoints={[]} lorebooks={[]} folders={['Kestrel']} onSave={onSave} />);
+    await userEvent.type(await screen.findByLabelText('Folder'), ' Kestrel ');
+    await userEvent.type(screen.getByLabelText('Tags'), 'heist, , Vell, heist');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ folder: 'Kestrel', tags: ['heist', 'Vell'] }));
+  });
+
+  it('leaves a group member out of the turn order', async () => {
+    const onSave = vi.fn();
+    render(
+      <ChatSettings
+        open
+        onOpenChange={vi.fn()}
+        value={VALUE}
+        personas={[]}
+        presets={[]}
+        endpoints={[]}
+        lorebooks={[]}
+        cast={[
+          { id: 'a', name: 'Ada' },
+          { id: 'b', name: 'Bram' },
+        ]}
+        onSave={onSave}
+      />,
+    );
+    await userEvent.click(await screen.findByRole('checkbox', { name: 'Bram' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ muted_ids: ['b'] }));
+  });
 });
+

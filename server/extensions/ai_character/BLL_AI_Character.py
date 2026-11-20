@@ -148,7 +148,7 @@ class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI character cards"
 
-    class Create(BaseModel, CharacterChecks):
+    class Create(CharacterChecks, BaseModel):
         name: str = Field(..., min_length=1, max_length=MAX_NAME)
         description: str = Field("", max_length=MAX_CARD)
         personality: str = Field("", max_length=MAX_CARD)
@@ -167,7 +167,7 @@ class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         extensions: dict[str, Any] = Field(default_factory=dict)
         lorebook_id: str | None = None
 
-    class Update(BaseModel, CharacterChecks):
+    class Update(CharacterChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
         description: str | None = Field(None, max_length=MAX_CARD)
         personality: str | None = Field(None, max_length=MAX_CARD)
@@ -233,13 +233,13 @@ class PersonaModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI personas"
 
-    class Create(BaseModel, PersonaChecks):
+    class Create(PersonaChecks, BaseModel):
         name: str = Field(..., min_length=1, max_length=MAX_NAME)
         description: str = Field("", max_length=MAX_PERSONA)
         avatar: str | None = None
         is_default: bool = False
 
-    class Update(BaseModel, PersonaChecks):
+    class Update(PersonaChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
         description: str | None = Field(None, max_length=MAX_PERSONA)
         avatar: str | None = None

@@ -59,6 +59,11 @@ export const chatSchema = z.object({
   lore_settings: z.record(z.string(), z.union([z.number(), z.boolean()])),
   system_prompt: z.string(),
   summary: z.string(),
+  tags: z.array(z.string()),
+  folder: z.string(),
+  muted_ids: z.array(z.string()),
+  background: z.string().nullable(),
+  objectives: z.array(z.object({ text: z.string(), done: z.boolean() })),
 });
 export type Chat = z.infer<typeof chatSchema>;
 
@@ -72,6 +77,7 @@ export const messageSchema = z.object({
   swipes: z.array(z.string()),
   swipe_index: z.number(),
   bookmarked: z.boolean(),
+  images: z.array(z.string()),
 });
 export type ChatMessage = z.infer<typeof messageSchema>;
 
@@ -169,7 +175,7 @@ export function resource<T extends Versioned, Create extends object, Extra = obj
 }
 
 export const characters = resource<Character, Fields<Character> & { name: string }>('character', 'characters', characterSchema);
-export const personas = resource<Persona, Fields<Persona> & { name: string }>('persona', 'personas', personaSchema);
+export const personas = resource<Persona, Fields<Persona> & { name: string }>('persona', 'personae', personaSchema);
 export const chats = resource<Chat, Fields<Chat> & { title: string; character_ids: string[] }>('chat', 'chats', chatSchema);
 export const messages = resource<
   ChatMessage,

@@ -18,6 +18,26 @@ describe('MessageItem', () => {
     expect(onFork).toHaveBeenCalledWith(-1);
   });
 
+  it('reads a message aloud from the menu, where offered', async () => {
+    const onSpeak = vi.fn();
+    render(<MessageItem message={ADA_REPLY} onSpeak={onSpeak} />);
+    await userEvent.click(screen.getByRole('button', { name: "More for Ada Vance's message" }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Read aloud' }));
+    expect(onSpeak).toHaveBeenCalledOnce();
+  });
+
+  it('shows a translation under the text, and hides it on request', async () => {
+    const onHide = vi.fn();
+    const { rerender } = render(<MessageItem message={ADA_REPLY} translation={{ status: 'writing' }} />);
+    expect(screen.getByText('Translating…')).toBeInTheDocument();
+    rerender(<MessageItem message={ADA_REPLY} translation={{ status: 'done', text: 'Bienvenue à bord.', onHide }} />);
+    expect(screen.getByText('Bienvenue à bord.')).toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Hide translation' }));
+    expect(onHide).toHaveBeenCalledOnce();
+    rerender(<MessageItem message={ADA_REPLY} translation={{ status: 'failed', reason: 'Add a model endpoint first' }} />);
+    expect(screen.getByRole('alert')).toHaveTextContent('Add a model endpoint first');
+  });
+
   it('folds a reply’s reasoning away under Thinking', async () => {
     render(<MessageItem message={{ ...ADA_REPLY, text: '<think>She is tired.</think>Mind the coolant.' }} />);
     expect(screen.getByText('Mind the coolant.')).toBeVisible();

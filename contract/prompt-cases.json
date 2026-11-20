@@ -658,6 +658,66 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "the chat's current task sits two turns from the end",
+      "input": {
+        "characters": [
+          "ada"
+        ],
+        "speaker_id": "c-ada",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "",
+        "objective": "  Get {{user}} to fix the coolant pump. ",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Hello."
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Hi."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Nice ship."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        {
+          "role": "user",
+          "content": "Hello."
+        },
+        {
+          "role": "system",
+          "content": "Ada's current task: Get Sam to fix the coolant pump. Work toward it naturally, without stating it."
+        },
+        {
+          "role": "assistant",
+          "content": "Hi."
+        },
+        {
+          "role": "user",
+          "content": "Nice ship."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

@@ -6,9 +6,11 @@
  * on a touch screen Enter is a new line and the send button sends. It stays above the on-screen
  * keyboard and the home indicator.
  */
-import { Send, Square, WandSparkles } from 'lucide-react';
+import { ImagePlus, Mic, MicOff, Send, Square, WandSparkles, X } from 'lucide-react';
 import { type KeyboardEvent, type ReactElement, useId, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
+import { useDictation } from '~/features/speech/useDictation';
+import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
 import { LIMITS } from '~/contract';
@@ -42,7 +44,8 @@ export function Composer({
 }: {
   writing: boolean;
   disabled?: boolean;
-  onSend: (text: string, channel: ComposerChannel) => void;
+  /** `images` (A44): pictures attached to the line, as data URLs. */
+  onSend: (text: string, channel: ComposerChannel, images?: string[]) => void;
   onStop: () => void;
   /** Writes the person's own next line for them to edit and send (Impersonate). */
   onImpersonate?: () => Promise<string | null>;
@@ -52,12 +55,29 @@ export function Composer({
   const [text, setText] = useState('');
   const [channel, setChannel] = useState<ComposerChannel>('ic');
   const boxId = useId();
+  // Dictation (A29): each finished phrase is added to what is typed.
+  const dictation = useDictation((phrase) => setText((current) => (current.trim() === '' ? phrase : `${current.trimEnd()} ${phrase}`)));
+
+  const [images, setImages] = useState<string[]>([]);
+  const [pictureProblem, setPictureProblem] = useState<string | null>(null);
+  const attachId = useId();
 
   const send = () => {
     const message = outgoing(text, channel);
     if (message === null || disabled) return;
-    onSend(message.text, message.channel);
+    if (images.length > 0 && message.channel === 'ic') onSend(message.text, message.channel, images);
+    else onSend(message.text, message.channel);
     setText('');
+    setImages([]);
+  };
+
+  /** Pictures for the line (A44): each checked as an avatar is, at most the contract's number. */
+  const attach = async (files: readonly File[]) => {
+    const pictures = await Promise.all(files.map((file) => pictureFromFile(file)));
+    const refused = pictures.find((picture) => 'refused' in picture);
+    setPictureProblem(refused !== undefined && 'refused' in refused ? refused.refused : null);
+    const urls = pictures.flatMap((picture) => ('url' in picture ? [picture.url] : []));
+    setImages((current) => [...current, ...urls].slice(0, LIMITS.images_per_message));
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
@@ -118,7 +138,54 @@ export function Composer({
             </button>
           ))}
         </div>
+        {(images.length > 0 || pictureProblem !== null) && (
+          <div className='flex flex-wrap items-center gap-2'>
+            {images.map((url, index) => (
+              // Attached pictures have no identity beyond their place in this line.
+              <div key={index} className='relative'>
+                <img src={url} alt={`Attached picture ${index + 1}`} className='size-16 rounded-md border object-cover' />
+                <button
+                  type='button'
+                  className='absolute -top-2 -right-2 flex size-7 items-center justify-center rounded-full border bg-background'
+                  aria-label={`Remove attached picture ${index + 1}`}
+                  onClick={() => setImages(images.filter((_url, at) => at !== index))}
+                >
+                  <X className='size-4' aria-hidden />
+                </button>
+              </div>
+            ))}
+            {pictureProblem !== null && (
+              <p role='alert' className='text-sm text-destructive'>
+                {pictureProblem}
+              </p>
+            )}
+          </div>
+        )}
         <div className='flex items-end gap-2'>
+          {channel === 'ic' && !writing && (
+            <>
+              <input
+                id={attachId}
+                type='file'
+                accept={PICTURE_TYPES.join(',')}
+                multiple
+                aria-label='Attach a picture'
+                className='peer sr-only'
+                disabled={disabled || images.length >= LIMITS.images_per_message}
+                onChange={(event) => {
+                  const files = [...(event.target.files ?? [])];
+                  event.target.value = '';
+                  void attach(files);
+                }}
+              />
+              <label
+                htmlFor={attachId}
+                className={cn('flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring', images.length >= LIMITS.images_per_message && 'pointer-events-none text-muted-foreground')}
+              >
+                <ImagePlus className='size-5' aria-hidden />
+              </label>
+            </>
+          )}
           <label htmlFor={boxId} className='sr-only'>
             {channel === 'ic' ? 'Your next line' : 'Table talk'}
           </label>
@@ -132,6 +199,20 @@ export function Composer({
             onChange={(event) => setText(event.target.value)}
             onKeyDown={onKeyDown}
           />
+          {dictation.supported && !writing && (
+            <Button
+              type='button'
+              size='icon'
+              variant={dictation.listening ? 'secondary' : 'ghost'}
+              className='size-11 shrink-0'
+              aria-label={dictation.listening ? 'Stop dictating' : 'Dictate'}
+              aria-pressed={dictation.listening}
+              disabled={disabled}
+              onClick={dictation.toggle}
+            >
+              {dictation.listening ? <MicOff aria-hidden /> : <Mic aria-hidden />}
+            </Button>
+          )}
           {onImpersonate !== undefined && !writing && channel === 'ic' && (
             <Button
               type='button'

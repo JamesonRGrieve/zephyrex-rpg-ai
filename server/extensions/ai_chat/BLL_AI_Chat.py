@@ -34,6 +34,8 @@ from pydantic import Field, field_validator, model_validator
 from zephyrex.extensions.ai_character.BLL_AI_Character import (  # type: ignore[import-not-found]
     CharacterManager,
     PersonaManager,
+    _avatar,
+    _tags,
     not_yours,
 )
 from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-not-found]
@@ -47,7 +49,12 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Prompt import assemble_prompt, estimate_tokens, summary_prompt  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
+    assemble_prompt,
+    estimate_tokens,
+    summary_prompt,
+    translate_prompt,
+)
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
     ChatLoreStateManager,
@@ -81,6 +88,9 @@ MAX_STOP: int = LIMITS["stop_string_characters"]
 MAX_URL: int = LIMITS["endpoint_url_characters"]
 MAX_MODEL: int = LIMITS["model_name_characters"]
 MAX_KEY: int = LIMITS["api_key_characters"]
+# The stored key is encrypted, so the schema the framework re-validates it with allows the longer
+# token; the person's own key is held to MAX_KEY by the manager before it is encrypted.
+MAX_STORED_KEY: int = MAX_KEY * 2 + 256
 MAX_BOOKS: int = LIMITS["lorebooks_per_chat"]
 LORE: dict[str, Any] = CONTRACT["lore"]
 LORE_SETTING_RANGES = {"scan_depth", "token_budget", "recursion_steps"}
@@ -205,6 +215,40 @@ class ChatChecks(PlainModel):
     def _checked_title(cls, value: Any) -> Any:
         return _title(value)
 
+    @field_validator("tags", check_fields=False)
+    @classmethod
+    def _checked_tags(cls, value: Any) -> Any:
+        # The same tag rules as a character's.
+        return _tags(value)
+
+    @field_validator("objectives", check_fields=False)
+    @classmethod
+    def _checked_objectives(cls, value: Any) -> Any:
+        if value is None:
+            return None
+        if len(value) > LIMITS["objectives_per_chat"]:
+            raise ValueError(f"At most {LIMITS['objectives_per_chat']} objectives")
+        cleaned = []
+        for objective in value:
+            text = objective.get("text") if isinstance(objective, dict) else None
+            if set(objective) != {"text", "done"} or not isinstance(text, str) or not isinstance(objective["done"], bool):
+                raise ValueError("An objective is {text, done}")
+            if not text.strip() or len(text.strip()) > LIMITS["short_text_characters"]:
+                raise ValueError(f"An objective is 1 to {LIMITS['short_text_characters']} characters")
+            cleaned.append({"text": text.strip(), "done": objective["done"]})
+        return cleaned
+
+    @field_validator("background", check_fields=False)
+    @classmethod
+    def _checked_background(cls, value: Any) -> Any:
+        # The same rules as an avatar's.
+        return _avatar(value)
+
+    @field_validator("folder", check_fields=False)
+    @classmethod
+    def _checked_folder(cls, value: Any) -> Any:
+        return value.strip() if isinstance(value, str) else value
+
     @field_validator("mode", check_fields=False)
     @classmethod
     def _checked_mode(cls, value: Any) -> Any:
@@ -239,10 +283,15 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     lore_settings: dict[str, Any] = Field(default_factory=dict, description="World Info settings")
     system_prompt: str = Field("", description="The chat's own system prompt (blank: the card's)")
     summary: str = Field("", description="The story so far, as the model reads it (A19)")
+    tags: list[str] = Field(default_factory=list, description="Tags, for finding it in the library")
+    folder: str = Field("", description="The library folder it sits in (blank: none)")
+    muted_ids: list[str] = Field(default_factory=list, description="Group members left out of the turn order")
+    background: str | None = Field(None, description="A picture behind the chat (a data URL)")
+    objectives: list[dict[str, Any]] = Field(default_factory=list, description="Its tasks in order; the first not done is put to the model")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
-    class Create(BaseModel, ChatChecks):
+    class Create(ChatChecks, BaseModel):
         title: str = Field(..., min_length=1, max_length=MAX_TITLE)
         mode: str = "character"
         character_ids: list[str] = Field(...)
@@ -254,8 +303,13 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         lore_settings: dict[str, Any] = Field(default_factory=dict)
         system_prompt: str = Field("", max_length=LIMITS["chat_system_prompt_characters"])
         summary: str = Field("", max_length=LIMITS["chat_summary_characters"])
+        tags: list[str] = Field(default_factory=list)
+        folder: str = Field("", max_length=MAX_NAME)
+        muted_ids: list[str] = Field(default_factory=list)
+        background: str | None = None
+        objectives: list[dict[str, Any]] = Field(default_factory=list)
 
-    class Update(BaseModel, ChatChecks):
+    class Update(ChatChecks, BaseModel):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
         mode: str | None = None
         character_ids: list[str] | None = None
@@ -267,6 +321,11 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         lore_settings: dict[str, Any] | None = None
         system_prompt: str | None = Field(None, max_length=LIMITS["chat_system_prompt_characters"])
         summary: str | None = Field(None, max_length=LIMITS["chat_summary_characters"])
+        tags: list[str] | None = None
+        folder: str | None = Field(None, max_length=MAX_NAME)
+        muted_ids: list[str] | None = None
+        background: str | None = None
+        objectives: list[dict[str, Any]] | None = None
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -288,6 +347,8 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
     def _check_references(self, fields: dict[str, Any]) -> None:
         for character_id in fields.get("character_ids") or []:
             self._owned(CharacterManager, character_id, "character_ids")
+        for character_id in fields.get("muted_ids") or []:
+            self._owned(CharacterManager, character_id, "muted_ids")
         for book_id in fields.get("lorebook_ids") or []:
             self._owned(LorebookManager, book_id, "lorebook_ids")
         for field, manager in (
@@ -305,6 +366,10 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("lore_settings", {})
         kwargs.setdefault("system_prompt", "")
         kwargs.setdefault("summary", "")
+        kwargs.setdefault("tags", [])
+        kwargs.setdefault("folder", "")
+        kwargs.setdefault("muted_ids", [])
+        kwargs.setdefault("objectives", [])
         self._check_references(kwargs)
         return super().create(**kwargs)
 
@@ -353,10 +418,11 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     swipes: list[str] = Field(default_factory=list, description="Its alternatives")
     swipe_index: int = Field(0, description="The alternative shown")
     bookmarked: bool = Field(False, description="Bookmarked")
+    images: list[str] = Field(default_factory=list, description="Pictures sent with it (data URLs)")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chat messages"
 
-    class Create(BaseModel, MessageChecks):
+    class Create(MessageChecks, BaseModel):
         chat_id: str = Field(..., min_length=1)
         parent_id: str | None = None
         role: str = Field(...)
@@ -365,6 +431,16 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         swipes: list[str] = Field(...)
         swipe_index: int = Field(0, ge=0)
         bookmarked: bool = False
+        images: list[str] = Field(default_factory=list)
+
+        @field_validator("images")
+        @classmethod
+        def _checked_images(cls, value: list[str]) -> list[str]:
+            if len(value) > LIMITS["images_per_message"]:
+                raise ValueError(f"At most {LIMITS['images_per_message']} pictures")
+            for image in value:
+                _avatar(image)
+            return value
 
         @model_validator(mode="after")
         def _shown_swipe_exists(self) -> "ChatMessageModel.Create":
@@ -374,7 +450,7 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
 
     # A message stays in its chat and keeps its place in the tree; what it says, and which
     # alternative shows, can change.
-    class Update(BaseModel, MessageChecks):
+    class Update(MessageChecks, BaseModel):
         channel: str | None = None
         swipes: list[str] | None = None
         swipe_index: int | None = Field(None, ge=0)
@@ -477,7 +553,7 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI sampler presets"
 
-    class Create(BaseModel, PresetChecks):
+    class Create(PresetChecks, BaseModel):
         name: str = Field(..., min_length=1, max_length=MAX_NAME)
         temperature: float = PRESET_DEFAULTS["temperature"]
         top_p: float = PRESET_DEFAULTS["top_p"]
@@ -488,7 +564,7 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         stop: list[str] = Field(default_factory=list)
         prompt_layout: list[dict[str, Any]] = Field(default_factory=list)
 
-    class Update(BaseModel, PresetChecks):
+    class Update(PresetChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
         temperature: float | None = None
         top_p: float | None = None
@@ -549,20 +625,23 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI model endpoints"
 
-    class Create(BaseModel, EndpointChecks):
+    class Create(EndpointChecks, BaseModel):
         name: str = Field(..., min_length=1, max_length=MAX_NAME)
         base_url: str = Field(..., min_length=1, max_length=MAX_URL)
         model: str = Field(..., min_length=1, max_length=MAX_MODEL)
-        api_key: str = Field("", max_length=MAX_KEY)
+        api_key: str = Field("", max_length=MAX_STORED_KEY)
+        # Set by the manager from the key, never by a client (it drops one sent).
+        has_api_key: bool = False
         is_default: bool = False
         api: str = "chat"
         instruct_template: str = "chatml"
 
-    class Update(BaseModel, EndpointChecks):
+    class Update(EndpointChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
         base_url: str | None = Field(None, min_length=1, max_length=MAX_URL)
         model: str | None = Field(None, min_length=1, max_length=MAX_MODEL)
-        api_key: str | None = Field(None, max_length=MAX_KEY)
+        api_key: str | None = Field(None, max_length=MAX_STORED_KEY)
+        has_api_key: bool | None = None
         is_default: bool | None = None
         api: str | None = None
         instruct_template: str | None = None
@@ -572,7 +651,12 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
 
 
 def _keyed(fields: dict[str, Any]) -> dict[str, Any]:
-    """The write with its API key encrypted (an empty key clears it)."""
+    """The write with its API key encrypted (an empty key clears it) and ``has_api_key`` set from
+    it; a ``has_api_key`` the client sent is dropped."""
+    fields.pop("has_api_key", None)
+    raw = fields.get("api_key")
+    if isinstance(raw, str) and len(raw) > MAX_KEY:
+        raise HTTPException(status_code=422, detail={"message": f"An API key is at most {MAX_KEY} characters", "code": "validation_error"})
     if "api_key" not in fields or fields["api_key"] is None:
         fields.pop("api_key", None)
         return fields
@@ -590,10 +674,9 @@ class ModelEndpointManager(AbstractBLLManager[ModelEndpointModel], RouterMixin):
 
     def create(self, **kwargs: Any) -> Any:
         kwargs.setdefault("is_default", False)
-        kwargs.setdefault("has_api_key", False)
         if kwargs["is_default"]:
             self._clear_other_defaults(None)
-        return super().create(**_keyed(kwargs))
+        return super().create(**{"has_api_key": False, **_keyed(kwargs)})
 
     def update(self, id: str, **kwargs: Any) -> Any:
         updated = super().update(id, **_keyed(kwargs))
@@ -658,7 +741,7 @@ class RegexScriptModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI regex scripts"
 
-    class Create(BaseModel, RegexChecks):
+    class Create(RegexChecks, BaseModel):
         name: str = Field(..., min_length=1, max_length=MAX_NAME)
         find: str = Field(..., min_length=1, max_length=LIMITS["regex_pattern_characters"])
         replace: str = Field("", max_length=LIMITS["regex_replacement_characters"])
@@ -676,7 +759,7 @@ class RegexScriptModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
                 raise ValueError("A script is display-only or prompt-only, not both")
             return self
 
-    class Update(BaseModel, RegexChecks):
+    class Update(RegexChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
         find: str | None = Field(None, min_length=1, max_length=LIMITS["regex_pattern_characters"])
         replace: str | None = Field(None, max_length=LIMITS["regex_replacement_characters"])
@@ -734,7 +817,7 @@ class QuickReplyModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI quick replies"
 
-    class Create(BaseModel, QuickReplyChecks):
+    class Create(QuickReplyChecks, BaseModel):
         label: str = Field(..., min_length=1, max_length=LIMITS["quick_reply_label_characters"])
         message: str = Field(..., min_length=1, max_length=LIMITS["message_characters"])
         action: str = "send"
@@ -742,7 +825,7 @@ class QuickReplyModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         enabled: bool = True
         position: int = Field(0, ge=0, le=LIMITS["quick_replies"])
 
-    class Update(BaseModel, QuickReplyChecks):
+    class Update(QuickReplyChecks, BaseModel):
         label: str | None = Field(None, min_length=1, max_length=LIMITS["quick_reply_label_characters"])
         message: str | None = Field(None, min_length=1, max_length=LIMITS["message_characters"])
         action: str | None = None
@@ -811,6 +894,17 @@ class SummaryEnvelope(PlainModel):
     summary: Summary
 
 
+class TranslateRequest(PlainModel):
+    chat_id: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1, max_length=LIMITS["translate_characters"])
+    #: A language as people name it ("French", "fr-CA"): the model reads it.
+    language: str = Field(..., min_length=1, max_length=LIMITS["language_characters"])
+
+
+class TranslateEnvelope(PlainModel):
+    translate: TranslateRequest
+
+
 class GenerateEnvelope(PlainModel):
     generate: GenerateRequest
 
@@ -824,14 +918,33 @@ def completions_url(base_url: str, api: str = "chat") -> str:
     return re.sub(r"/(chat/)?completions$", "", base) + path
 
 
-def upstream_body(endpoint: Any, sampler: Mapping[str, Any], messages: list[dict[str, str]], mode: str) -> dict[str, Any]:
+def with_images(messages: list[dict[str, str]], images: Sequence[str]) -> list[dict[str, Any]]:
+    """The messages with ``images`` added to the last user message as OpenAI-style content parts
+    (A44), for a vision model; unchanged when there are none."""
+    if not images:
+        return list(messages)
+    last = max((index for index, message in enumerate(messages) if message["role"] == "user"), default=-1)
+    return [
+        {
+            "role": message["role"],
+            "content": [{"type": "text", "text": message["content"]}, *({"type": "image_url", "image_url": {"url": url}} for url in images)],
+        }
+        if index == last
+        else message
+        for index, message in enumerate(messages)
+    ]
+
+
+def upstream_body(
+    endpoint: Any, sampler: Mapping[str, Any], messages: list[dict[str, str]], mode: str, images: Sequence[str] = ()
+) -> dict[str, Any]:
     """The messages for a chat API; for a text API one prompt in the endpoint's instruct template (a
     continued reply left open), with the template's stop strings added."""
     text = endpoint.api == "text"
     stop = [*sampler["stop"], *(instruct_stops(endpoint.instruct_template) if text else [])]
     return {
         "model": endpoint.model,
-        **({"prompt": render_instruct(messages, endpoint.instruct_template, mode == "continue")} if text else {"messages": messages}),
+        **({"prompt": render_instruct(messages, endpoint.instruct_template, mode == "continue")} if text else {"messages": with_images(messages, images)}),
         "stream": True,
         "temperature": sampler["temperature"],
         "top_p": sampler["top_p"],
@@ -910,6 +1023,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         messages = self._manager(ChatMessageManager).list(chat_id=chat.id)
         if body.leaf_id is not None and all(message.id != body.leaf_id for message in messages):
             raise HTTPException(status_code=422, detail={"message": "The leaf must be a message in the chat", "code": "validation_error"})
+        path = branch_to(messages, body.leaf_id) if body.leaf_id is not None else []
+        # The newest line's pictures go to a vision model (A44); older ones stay in the chat only.
+        leaf = path[-1] if path else None
+        images = list(leaf.images or []) if leaf is not None and leaf.role == "user" and leaf.channel == "ic" else []
         history = [
             {
                 "role": message.role,
@@ -917,7 +1034,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 "speaker_character_id": message.speaker_character_id,
                 "content": message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else "",
             }
-            for message in (branch_to(messages, body.leaf_id) if body.leaf_id is not None else [])
+            for message in path
         ]
 
         # World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
@@ -973,12 +1090,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 {key: getattr(script, key) for key in ("find", "replace", "placements", "display_only", "prompt_only", "min_depth", "max_depth", "enabled")}
                 for script in self._manager(RegexScriptManager).list()
             ],
+            next((objective["text"] for objective in (chat.objectives or []) if not objective["done"]), ""),
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-            "json": upstream_body(endpoint, sampler, assembled.messages, body.mode),
+            "json": upstream_body(endpoint, sampler, assembled.messages, body.mode, images),
         }
         context = {"cast": cast, "persona": persona, "history": history, "endpoint": endpoint, "key": key}
         return assembled, request, sampler, lore.active, context
@@ -1022,11 +1140,32 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # Nothing is written: the person saves the summary to the chat like any other edit.
         _assembled, _request, sampler, _active, context = self._inputs(body.generate, save_timers=False)
         asked = summary_prompt(context["cast"], context["persona"], context["history"], int(sampler["context_tokens"]), int(sampler["max_tokens"]))
+        text = await self._ask(context, sampler, asked.messages)
+        return SummaryEnvelope(summary=Summary(text=text, dropped=asked.dropped))
+
+    @custom_route(
+        method="POST",
+        path="/translate",
+        input_model=TranslateEnvelope,
+        output_model=TranslateEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="A message translated by the chat's model, for display only (A43)",
+    )
+    async def translate_route(self, body: TranslateEnvelope) -> TranslateEnvelope:
+        asked = body.translate
+        _assembled, _request, sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id), save_timers=False)
+        text = await self._ask(context, sampler, translate_prompt(asked.text, asked.language))
+        return TranslateEnvelope(translate=TranslateRequest(chat_id=asked.chat_id, text=text, language=asked.language))
+
+    async def _ask(self, context: dict[str, Any], sampler: dict[str, Any], messages: list[dict[str, str]]) -> str:
+        """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""
         endpoint, key = context["endpoint"], context["key"]
         request = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-            "json": upstream_body(endpoint, sampler, asked.messages, "reply"),
+            "json": upstream_body(endpoint, sampler, messages, "reply"),
         }
         pieces: list[str] = []
         try:
@@ -1044,7 +1183,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         pieces.append(delta)
         except httpx.HTTPError as error:
             raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
-        return SummaryEnvelope(summary=Summary(text="".join(pieces).strip(), dropped=asked.dropped))
+        return "".join(pieces).strip()
 
     @custom_route(
         method="POST",

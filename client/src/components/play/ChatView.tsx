@@ -22,20 +22,27 @@ import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
-import { type InspectedPrompt, inspectPrompt, summarizeBranch } from '~/features/chat/inspectPrompt';
+import { deviceLanguage, type InspectedPrompt, inspectPrompt, summarizeBranch, translateText } from '~/features/chat/inspectPrompt';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
+import { foldersOf } from '~/features/chat/library';
+import { speak, speechSupport, voiceOf } from '~/features/speech/voice';
 import { DEFAULT_USER_NAME } from '~/features/prompt/assemble';
 import { expandMacros } from '~/features/prompt/macros';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
+import type { TextSize } from '~/features/settings/deviceSettings';
+import { cn } from '~/lib/utils';
 import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
 import { ContextInspector } from './ContextInspector';
+import { NextSpeaker } from './NextSpeaker';
 import { MessageItem, type MessageView } from './MessageItem';
 
+/** The chat's text size on this device (A49). */
+const TEXT_SIZE_CLASS: Record<TextSize, string> = { small: 'text-sm', normal: 'text-base', large: 'text-lg', larger: 'text-xl' };
 const NARRATOR = 'Narrator';
 const YOU = 'You';
 
@@ -58,6 +65,7 @@ export function messageViews(
       speaker,
       avatar,
       text: message.swipes[message.swipe_index] ?? '',
+      images: message.images,
       swipe: { index: message.swipe_index, count: message.swipes.length },
       fork: { index, count: siblings.length },
       bookmarked: message.bookmarked,
@@ -72,6 +80,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const presetList = presets.useList();
   const endpointList = endpoints.useList();
   const lorebookList = lorebooks.useList();
+  const chatList = chats.useList();
   const scriptList = regexScripts.useList();
   const scripts = scriptList.data ?? [];
   const quickList = quickReplies.useList();
@@ -99,6 +108,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     return found.find((one) => one.id === chat.persona_id) ?? found.find((one) => one.is_default) ?? null;
   }, [personaList.data, chat.persona_id]);
   const { settings } = useDeviceSettings();
+  const [canSpeak] = useState(() => speechSupport().speak);
   const views = messageViews(branch, all, castById, persona).filter((view) => settings.showTableTalk || (view.channel !== 'ooc' && view.channel !== 'gm'));
   const writing = reply.state.status === 'writing';
 
@@ -112,23 +122,57 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   const byId = (id: string) => all.find((message) => message.id === id);
 
+  /** Who the person chose to speak next in a group (A10); null lets the cast's order decide. */
+  const [picked, setPicked] = useState<string | null>(null);
+
   /** Streams the next reply after `parentId`, then keeps it as a new message. */
   const replyAfter = async (parentId: string | null, path: readonly ChatMessage[]) => {
-    const speakerId = nextSpeaker(chat.character_ids, path);
+    // The person's pick for the next turn (A10), else the cast's order; a pick is used once.
+    const speakerId = picked !== null && chat.character_ids.includes(picked) ? picked : nextSpeaker(chat.character_ids, path, chat.muted_ids);
+    setPicked(null);
     if (speakerId === null) return;
     setWritingAfter({ parentId, speakerId });
     const result = await reply.write({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
     const saved = await create({ chat_id: chat.id, parent_id: parentId, role: 'character', speaker_character_id: speakerId, swipes: [stored(result.text, 'ai_output')] });
+    if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
     setLeafId(saved.id);
+  };
+
+  /** Translations shown under messages (A43), by message; kept only while the chat is open. */
+  const [translations, setTranslations] = useState<ReadonlyMap<string, { status: 'writing' } | { status: 'done'; text: string } | { status: 'failed'; reason: string }>>(new Map());
+  const [language] = useState(() => deviceLanguage());
+  const setTranslation = (id: string, value: { status: 'writing' } | { status: 'done'; text: string } | { status: 'failed'; reason: string } | null) =>
+    setTranslations((current) => {
+      const next = new Map(current);
+      if (value === null) next.delete(id);
+      else next.set(id, value);
+      return next;
+    });
+  const translateMessage = async (id: string, text: string) => {
+    setTranslation(id, { status: 'writing' });
+    try {
+      setTranslation(id, { status: 'done', text: await translateText(chat.id, text, language) });
+    } catch (error) {
+      setTranslation(id, { status: 'failed', reason: error instanceof Error ? error.message : 'The translation could not be written' });
+    }
+  };
+  const translationOf = (id: string) => {
+    const found = translations.get(id);
+    return found?.status === 'done' ? { ...found, onHide: () => setTranslation(id, null) } : found;
+  };
+
+  /** Reads a character's line aloud in their voice (A29). */
+  const readAloud = (characterId: string | null, text: string) => {
+    speak(text, voiceOf(castById.get(characterId ?? '')?.extensions ?? {}));
   };
 
   /** Text as saved, after the regex scripts that change what is stored (A33). */
   const stored = (text: string, placement: RegexPlacement) => applyRegex(text, scripts, placement, 'stored');
 
-  const send = async (text: string, channel: ComposerChannel) => {
-    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'user', channel, swipes: [channel === 'ic' ? stored(text, 'user_input') : text] });
+  const send = async (text: string, channel: ComposerChannel, images: string[] = []) => {
+    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'user', channel, swipes: [channel === 'ic' ? stored(text, 'user_input') : text], images });
     setLeafId(saved.id);
     if (channel === 'ic') await replyAfter(saved.id, [...branch, saved]);
   };
@@ -154,14 +198,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   /** The person's own next line, written by the model, for the composer. */
   const impersonate = async (): Promise<string | null> => {
-    const result = await reply.write({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch), mode: 'impersonate' });
+    const result = await reply.write({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids), mode: 'impersonate' });
     return result?.text ?? null;
   };
 
   /** A summary of the shown branch, for chat settings to fill in. */
   const summarize = async (): Promise<string | null> => {
     try {
-      const summary = await summarizeBranch({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch) });
+      const summary = await summarizeBranch({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids) });
       if (summary.dropped > 0) notify('The oldest turns did not fit', `${summary.dropped} were left out of the summary.`);
       return summary.text;
     } catch (error) {
@@ -173,7 +217,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const openInspector = async () => {
     setInspected('loading');
     try {
-      setInspected(await inspectPrompt({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch) }));
+      setInspected(await inspectPrompt({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids) }));
     } catch (error) {
       setInspected(null);
       notify('The prompt could not be read', error instanceof Error ? error.message : undefined);
@@ -217,8 +261,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const options = <T extends { id: string; name: string }>(rows: readonly T[] | undefined) => (rows ?? []).map(({ id, name }) => ({ id, name }));
 
   return (
-    <div className='flex min-h-[calc(100svh-4rem)] flex-col'>
-      <div className='mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 py-2'>
+    <div
+      className='flex min-h-[calc(100svh-4rem)] flex-col bg-cover bg-fixed bg-center'
+      // The chat's picture (A31) sits behind; the header and messages keep a solid background so
+      // text never depends on the picture for contrast.
+      style={chat.background === null ? undefined : { backgroundImage: `url(${JSON.stringify(chat.background)})` }}
+    >
+      <div className={cn('mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 py-2', chat.background !== null && 'rounded-b-xl bg-background')}>
         <ul className='flex min-w-0 -space-x-2' aria-label='In this chat'>
           {chat.character_ids.map((id) => {
             const character = castById.get(id);
@@ -257,7 +306,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           </DropdownMenu>
         </div>
       </div>
-      <ol className='mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4' aria-label='Chat' aria-live='polite'>
+      <ol
+        className={cn(
+          'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
+          TEXT_SIZE_CLASS[settings.textSize],
+          settings.chatLayout === 'document' && 'gap-3 font-serif',
+          chat.background !== null && 'bg-background pt-3',
+        )}
+        aria-label='Chat'
+        aria-live='polite'
+      >
         {list.data === undefined && <SkeletonRows rows={4} avatar />}
         {list.data !== undefined && views.length === 0 && writingAfter === null && (
           <li className='rounded-xl border border-dashed p-6 text-center text-muted-foreground'>Say something to begin.</li>
@@ -272,6 +330,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           return (
             <li key={view.id}>
               <MessageItem
+                layout={settings.chatLayout}
                 message={shown}
                 onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
                 onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
@@ -284,6 +343,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 }}
                 onDelete={() => deleteMessage(message)}
                 onContinue={message.role === 'character' && message.id === leaf && !writing ? () => void continueMessage(message) : undefined}
+                onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
+                onTranslate={chat.character_ids.length > 0 ? { label: `Translate into ${language}`, run: () => void translateMessage(message.id, shown.text) } : undefined}
+                translation={translationOf(message.id)}
               />
             </li>
           );
@@ -291,6 +353,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         {writingAfter !== null && (
           <li>
             <MessageItem
+              layout={settings.chatLayout}
               writing
               message={{
                 id: 'writing',
@@ -302,16 +365,28 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 swipe: { index: 0, count: 1 },
                 fork: { index: 0, count: 1 },
                 bookmarked: false,
+                images: [],
               }}
             />
           </li>
         )}
       </ol>
       <div ref={end} />
+      {chat.character_ids.length > 1 && (
+        <NextSpeaker
+          cast={chat.character_ids.flatMap((id) => {
+            const character = castById.get(id);
+            return character === undefined ? [] : [{ id, name: character.name }];
+          })}
+          picked={picked}
+          upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids)}
+          onPick={setPicked}
+        />
+      )}
       <Composer
         writing={writing}
         disabled={list.data === undefined}
-        onSend={(text, channel) => void send(text, channel)}
+        onSend={(text, channel, images) => void send(text, channel, images)}
         onStop={reply.stop}
         onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
         quickReplies={(quickList.data ?? [])
@@ -322,7 +397,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             action: reply.action,
             channel: reply.channel,
             text: expandMacros(reply.message, {
-              char: castById.get(nextSpeaker(chat.character_ids, branch) ?? '')?.name ?? NARRATOR,
+              char: castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids) ?? '')?.name ?? NARRATOR,
               user: persona?.name ?? DEFAULT_USER_NAME,
             }),
           }))}
@@ -349,7 +424,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           lore_settings: chat.lore_settings as LoreSettingsValue,
           system_prompt: chat.system_prompt,
           summary: chat.summary,
+          tags: chat.tags,
+          folder: chat.folder,
+          muted_ids: chat.muted_ids,
+          background: chat.background,
+          objectives: chat.objectives,
         }}
+        cast={chat.character_ids.flatMap((id) => {
+          const character = castById.get(id);
+          return character === undefined ? [] : [{ id, name: character.name }];
+        })}
+        folders={foldersOf(chatList.data ?? [])}
         onSummarize={summarize}
         personas={options(personaList.data)}
         presets={options(presetList.data)}

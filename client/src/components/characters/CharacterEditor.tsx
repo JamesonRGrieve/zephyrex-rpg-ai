@@ -19,6 +19,8 @@ import { exportCard } from '~/features/import/exportCard';
 import { characterBookFromEntries } from '~/features/import/stLorebook';
 import { cardToJson } from '~/features/import/stCard';
 import { WriteProblem } from '../common/WriteProblem';
+import { type CharacterVoice, voiceOf, withVoice } from '~/features/speech/voice';
+import { VoicePicker } from './VoicePicker';
 import { type CharacterDraft, CharacterForm } from './CharacterForm';
 
 export function draftOf(character: Character): CharacterDraft {
@@ -41,6 +43,7 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const [problem, setProblem] = useState<string | null>(null);
   const books = lorebooks.useList();
   const bookPicker = useId();
+  const [voice, setVoice] = useState<CharacterVoice | null>(null);
   const client = useClient();
 
   useEffect(() => {
@@ -120,6 +123,24 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
             </option>
           ))}
         </select>
+      </div>
+      <div className='mb-6 grid gap-2'>
+        <VoicePicker name={saved.name} value={voice ?? voiceOf(saved.extensions)} onChange={setVoice} />
+        {voice !== null && (
+          <Button
+            type='button'
+            variant='outline'
+            className='h-11 justify-self-start'
+            onClick={() =>
+              void update(saved, { extensions: withVoice(saved.extensions, voice) }).then(() => {
+                setVoice(null);
+                notify('Voice saved');
+              })
+            }
+          >
+            Save voice
+          </Button>
+        )}
       </div>
       <CharacterForm key={saved.id} value={draft} onChange={setDraft} onAvatarRefused={(reason) => notify('Picture not used', reason)} />
       <div className='fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 pb-safe backdrop-blur-sm md:sticky md:mt-8 md:border md:rounded-xl'>

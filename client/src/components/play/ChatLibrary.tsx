@@ -1,13 +1,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 /**
- * Every chat, the newest first, with who is in it; tap one to carry on. The install shortcut
- * "New chat" (`/play?new=1`) opens the picker straight away.
+ * Every chat, the newest first, with who is in it; tap one to carry on. Search by title, cast or
+ * tag, and filter by folder (A12). The install shortcut "New chat" (`/play?new=1`) opens the picker
+ * straight away.
  */
-import { FileUp, MessageSquarePlus, Trash2 } from 'lucide-react';
+import { FileUp, MessageSquarePlus, Search, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import { type ChangeEvent, type ReactElement, useMemo, useRef, useState } from 'react';
+import { type ChangeEvent, type ReactElement, useId, useMemo, useRef, useState } from 'react';
+import { chipGroup } from 'zephyrex/hooks/chipKeys';
+import { Badge } from 'zephyrex/ui/badge';
+import { ChoiceChip } from 'zephyrex/ui/choice-chip';
+import { Input } from 'zephyrex/ui/input';
+import { chatMatches, type FolderFilter, foldersOf, inFolder } from '~/features/chat/library';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -60,8 +66,17 @@ export function ChatLibrary(): ReactElement {
   const [picking, setPicking] = useState(params.get('new') === '1');
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
+  const [query, setQuery] = useState('');
+  const [folder, setFolder] = useState<FolderFilter>({ kind: 'all' });
+  const searchId = useId();
+  const castNames = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character.name])), [cast.data]);
+  const folders = foldersOf(list.data ?? []);
+  const all = (list.data ?? []).filter((chat) => !hidden.has(chat.id));
   // Newest first, whatever order the back end answers in.
-  const shown = [...(list.data ?? [])].filter((chat) => !hidden.has(chat.id)).sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+  const shown = all
+    .filter((chat) => inFolder(chat, folder) && chatMatches(chat, castNames, query))
+    .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+  const chip = 'h-9 rounded-full border px-3 text-sm aria-checked:border-primary aria-checked:bg-primary aria-checked:text-primary-foreground';
 
   return (
     <div className='space-y-4'>
@@ -74,12 +89,39 @@ export function ChatLibrary(): ReactElement {
         </Button>
         <input ref={fileInput} type='file' accept='.jsonl,application/jsonl,application/x-ndjson' multiple hidden onChange={(event) => void importFiles(event)} />
       </div>
+      {all.length > 0 && (
+        <div className='grid gap-2'>
+          <div className='relative'>
+            <label htmlFor={searchId} className='sr-only'>
+              Search chats
+            </label>
+            <Search className='pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground' aria-hidden />
+            <Input id={searchId} type='search' value={query} placeholder='Search by title, character or tag' className='h-11 pl-9' onChange={(event) => setQuery(event.target.value)} />
+          </div>
+          {folders.length > 0 && (
+            <div ref={chipGroup} role='radiogroup' aria-label='Folder' className='-mx-1 flex gap-2 overflow-x-auto px-1 pb-1'>
+              <ChoiceChip checked={folder.kind === 'all'} className={chip} onClick={() => setFolder({ kind: 'all' })}>
+                All
+              </ChoiceChip>
+              {folders.map((name) => (
+                <ChoiceChip key={name} checked={folder.kind === 'folder' && folder.name === name} className={chip} onClick={() => setFolder({ kind: 'folder', name })}>
+                  {name}
+                </ChoiceChip>
+              ))}
+              <ChoiceChip checked={folder.kind === 'none'} className={chip} onClick={() => setFolder({ kind: 'none' })}>
+                No folder
+              </ChoiceChip>
+            </div>
+          )}
+        </div>
+      )}
       {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} avatar />}
-      {list.data !== undefined && shown.length === 0 && (
+      {list.data !== undefined && all.length === 0 && (
         <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>No chats yet. Start one with a character.</p>
       )}
-      <ul className='divide-y rounded-xl border'>
+      {all.length > 0 && shown.length === 0 && <p className='p-4 text-center text-muted-foreground'>No chat matches.</p>}
+      <ul className={shown.length === 0 ? 'hidden' : 'divide-y rounded-xl border'}>
         {shown.map((chat) => (
           <li key={chat.id} className='relative flex items-center gap-3 p-3'>
             <div className='flex -space-x-3'>
@@ -95,7 +137,15 @@ export function ChatLibrary(): ReactElement {
             </div>
             <Link href={`/play/${chat.id}`} className='min-w-0 flex-1 after:absolute after:inset-0'>
               <span className='block truncate font-medium'>{chat.title}</span>
-              <span className='block text-xs text-muted-foreground'>{lastActive(chat.updated_at)}</span>
+              <span className='flex flex-wrap items-center gap-1 text-xs text-muted-foreground'>
+                {lastActive(chat.updated_at)}
+                {chat.folder !== '' && <span>· {chat.folder}</span>}
+                {chat.tags.map((tag) => (
+                  <Badge key={tag} variant='secondary' className='text-[0.7rem]'>
+                    {tag}
+                  </Badge>
+                ))}
+              </span>
             </Link>
             <Button
               type='button'

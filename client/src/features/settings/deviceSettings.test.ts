@@ -4,7 +4,9 @@ import { DEFAULT_DEVICE_SETTINGS, effectiveTier, loadDeviceSettings, parseDevice
 
 describe('device settings', () => {
   it('reads what was saved, and the defaults for anything unknown', () => {
-    expect(parseDeviceSettings('{"tier":"light","showTableTalk":false}')).toEqual({ tier: 'light', showTableTalk: false });
+    expect(parseDeviceSettings('{"tier":"light","showTableTalk":false}')).toEqual({ ...DEFAULT_DEVICE_SETTINGS, tier: 'light', showTableTalk: false });
+    expect(parseDeviceSettings('{"chatLayout":"document","textSize":"larger"}')).toMatchObject({ chatLayout: 'document', textSize: 'larger' });
+    expect(parseDeviceSettings('{"chatLayout":"comic","textSize":"huge"}')).toMatchObject({ chatLayout: 'flat', textSize: 'normal' });
     expect(parseDeviceSettings('{"tier":"ultra","showTableTalk":"yes"}')).toEqual(DEFAULT_DEVICE_SETTINGS);
     expect(parseDeviceSettings('not json')).toEqual(DEFAULT_DEVICE_SETTINGS);
     expect(parseDeviceSettings(null)).toEqual(DEFAULT_DEVICE_SETTINGS);

@@ -6,7 +6,7 @@
  * own picker. Opens from the side on a wide screen and from the bottom on a phone.
  */
 import { type ReactElement, useId, useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import { ImageUp, Sparkles } from 'lucide-react';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
@@ -14,6 +14,9 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { Textarea } from 'zephyrex/ui/textarea';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
 import { LIMITS, LORE } from '~/contract';
+import { parseTags } from '~/features/chat/library';
+import { type Objective, ObjectivesEditor } from './ObjectivesEditor';
+import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 
 export interface ChatSettingsValue {
   title: string;
@@ -25,6 +28,11 @@ export interface ChatSettingsValue {
   lore_settings: LoreSettingsValue;
   system_prompt: string;
   summary: string;
+  tags: string[];
+  folder: string;
+  muted_ids: string[];
+  background: string | null;
+  objectives: Objective[];
 }
 
 /** What a chat sets of World Info's settings; the rest take the contract's defaults. */
@@ -85,6 +93,8 @@ export function ChatSettings({
   presets,
   endpoints,
   lorebooks,
+  folders = [],
+  cast = [],
   onSave,
   onSummarize,
 }: {
@@ -95,6 +105,10 @@ export function ChatSettings({
   presets: readonly Option[];
   endpoints: readonly Option[];
   lorebooks: readonly Option[];
+  /** The folders other chats use, offered as suggestions. */
+  folders?: readonly string[];
+  /** The chat's characters; a group's members can be left out of the turn order (A52). */
+  cast?: readonly Option[];
   onSave: (value: ChatSettingsValue) => void;
   /** Asks the model for a summary of the branch so far (null when it could not). */
   onSummarize?: () => Promise<string | null>;
@@ -102,7 +116,9 @@ export function ChatSettings({
   const mobile = useIsMobile();
   const [draft, setDraft] = useState(value);
   const [summarizing, setSummarizing] = useState(false);
-  const ids = { title: useId(), summary: useId(), system: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
+  const [tagText, setTagText] = useState(value.tags.join(', '));
+  const [pictureProblem, setPictureProblem] = useState<string | null>(null);
+  const ids = { background: useId(), folder: useId(), folderList: useId(), tags: useId(), title: useId(), summary: useId(), system: useId(), note: useId(), scan: useId(), budget: useId(), recursion: useId() };
   const setLore = <K extends keyof LoreSettingsValue>(key: K, next: LoreSettingsValue[K]) => set('lore_settings', { ...draft.lore_settings, [key]: next });
   const loreNumber = (key: 'scan_depth' | 'token_budget' | 'recursion_steps', text: string) => {
     const [low, high] = LORE.ranges[key];
@@ -117,7 +133,10 @@ export function ChatSettings({
     <Sheet
       open={open}
       onOpenChange={(next) => {
-        if (next) setDraft(value);
+        if (next) {
+          setDraft(value);
+          setTagText(value.tags.join(', '));
+        }
         onOpenChange(next);
       }}
     >
@@ -132,13 +151,28 @@ export function ChatSettings({
             event.preventDefault();
             // Settings left empty take the contract's defaults: they are not sent.
             const loreSettings = Object.fromEntries(Object.entries(draft.lore_settings).filter(([, setting]) => setting !== undefined));
-            onSave({ ...draft, title: draft.title.trim() || value.title, lore_settings: loreSettings });
+            onSave({ ...draft, title: draft.title.trim() || value.title, lore_settings: loreSettings, tags: parseTags(tagText).slice(0, LIMITS.tags_per_record), folder: draft.folder.trim() });
             onOpenChange(false);
           }}
         >
           <div className='grid gap-1.5'>
             <Label htmlFor={ids.title}>Title</Label>
             <Input id={ids.title} value={draft.title} maxLength={LIMITS.chat_title_characters} className='h-11' onChange={(event) => set('title', event.target.value)} />
+          </div>
+          <div className='grid gap-3 sm:grid-cols-2'>
+            <div className='grid gap-1.5'>
+              <Label htmlFor={ids.folder}>Folder</Label>
+              <Input id={ids.folder} list={ids.folderList} value={draft.folder} maxLength={LIMITS.name_characters} placeholder='None' className='h-11' onChange={(event) => set('folder', event.target.value)} />
+              <datalist id={ids.folderList}>
+                {folders.map((name) => (
+                  <option key={name} value={name} />
+                ))}
+              </datalist>
+            </div>
+            <div className='grid gap-1.5'>
+              <Label htmlFor={ids.tags}>Tags</Label>
+              <Input id={ids.tags} value={tagText} placeholder='heist, Vell' className='h-11' onChange={(event) => setTagText(event.target.value)} />
+            </div>
           </div>
           <Choice label='You play as' value={draft.persona_id} options={personas} noneLabel='Your default persona' onChange={(next) => set('persona_id', next)} />
           <Choice label='Preset' value={draft.preset_id} options={presets} noneLabel='Default settings' onChange={(next) => set('preset_id', next)} />
@@ -203,6 +237,60 @@ export function ChatSettings({
               </Button>
             )}
           </div>
+          <div className='grid gap-1.5'>
+            <span className='text-sm font-medium'>Background</span>
+            <div className='flex flex-wrap items-center gap-3'>
+              {draft.background !== null && <img src={draft.background} alt='' className='h-16 w-28 rounded-md border object-cover' />}
+              <label htmlFor={ids.background} className='inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border px-4 text-sm'>
+                <ImageUp className='size-4' aria-hidden /> {draft.background === null ? 'Choose a picture' : 'Change'}
+              </label>
+              <input
+                id={ids.background}
+                type='file'
+                accept={PICTURE_TYPES.join(',')}
+                className='sr-only'
+                onChange={(event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = '';
+                  if (file === undefined) return;
+                  void pictureFromFile(file).then((picture) => {
+                    setPictureProblem('refused' in picture ? picture.refused : null);
+                    if ('url' in picture) set('background', picture.url);
+                  });
+                }}
+              />
+              {draft.background !== null && (
+                <Button type='button' variant='ghost' className='h-11' onClick={() => set('background', null)}>
+                  Remove
+                </Button>
+              )}
+            </div>
+            {pictureProblem !== null && (
+              <p role='alert' className='text-sm text-destructive'>
+                {pictureProblem}
+              </p>
+            )}
+          </div>
+          {cast.length > 1 && (
+            <fieldset className='grid gap-2'>
+              <legend className='text-sm font-medium'>Takes turns</legend>
+              <p className='text-xs text-muted-foreground'>Members left out only speak when you pick them.</p>
+              {cast.map((member) => (
+                <label key={member.id} className='flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm'>
+                  <input
+                    type='checkbox'
+                    className='size-5'
+                    checked={!draft.muted_ids.includes(member.id)}
+                    onChange={() =>
+                      set('muted_ids', draft.muted_ids.includes(member.id) ? draft.muted_ids.filter((id) => id !== member.id) : [...draft.muted_ids, member.id])
+                    }
+                  />
+                  {member.name}
+                </label>
+              ))}
+            </fieldset>
+          )}
+          <ObjectivesEditor value={draft.objectives} onChange={(next) => set('objectives', next)} />
           <fieldset className='grid gap-2'>
             <legend className='text-sm font-medium'>Lorebooks</legend>
             {lorebooks.length === 0 && <p className='text-sm text-muted-foreground'>No lorebooks yet.</p>}

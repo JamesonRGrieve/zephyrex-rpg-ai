@@ -177,7 +177,7 @@ type PersonaRow = Prisma.PersonaGetPayload<object>;
 
 export const personas: ResourceSpec<PersonaRow, z.infer<typeof personaCreate>, z.infer<typeof personaUpdate>> = {
   resource: 'persona',
-  plural: 'personas',
+  plural: 'personae', // the framework's classical plural
   modelName: 'PersonaModel',
   createSchema: personaCreate,
   updateSchema: personaUpdate,
@@ -219,6 +219,11 @@ const CHAT_COLUMNS: Columns = {
   lore_settings: jsonObject('loreSettings'),
   system_prompt: plain('systemPrompt'),
   summary: plain('summary'),
+  tags: jsonList('tags'),
+  folder: plain('folder'),
+  muted_ids: jsonList('mutedIds'),
+  background: plain('background'),
+  objectives: jsonList('objectives'),
 };
 
 const title = z.string().trim().min(1).max(LIMITS.chat_title_characters);
@@ -254,6 +259,14 @@ const chatFields = {
   lore_settings: loreSettings,
   system_prompt: z.string().max(LIMITS.chat_system_prompt_characters),
   summary: z.string().max(LIMITS.chat_summary_characters),
+  tags: z.array(z.string().trim().min(1).max(LIMITS.tag_characters)).max(LIMITS.tags_per_record),
+  folder: z.string().trim().max(LIMITS.name_characters),
+  /** Group members left out of the turn order (A52); each one of the chat's characters. */
+  muted_ids: z.array(recordId).max(LIMITS.characters_per_chat),
+  /** A picture behind the chat (A31), a data URL as an avatar is. */
+  background: avatar,
+  /** The chat's tasks, in order (A53); the first not done is put to the model. */
+  objectives: z.array(z.object({ text: z.string().trim().min(1).max(LIMITS.short_text_characters), done: z.boolean() }).strict()).max(LIMITS.objectives_per_chat),
 };
 const chatCreate = z.object({
   title,
@@ -267,6 +280,11 @@ const chatCreate = z.object({
   lore_settings: loreSettings.default({}),
   system_prompt: chatFields.system_prompt.default(''),
   summary: chatFields.summary.default(''),
+  tags: chatFields.tags.default([]),
+  folder: chatFields.folder.default(''),
+  muted_ids: chatFields.muted_ids.default([]),
+  background: avatar.default(null),
+  objectives: chatFields.objectives.default([]),
 });
 const chatUpdate = z.object({ title, ...chatFields }).partial();
 
@@ -276,6 +294,10 @@ async function checkChatReferences(ownerId: string, input: z.infer<typeof chatUp
   if (input.character_ids !== undefined) {
     const found = await prisma.character.count({ where: { ...owned, id: { in: input.character_ids } } });
     if (found !== input.character_ids.length) throw validationError('Every character must be one of yours', 'character_ids');
+  }
+  if (input.muted_ids !== undefined && input.muted_ids.length > 0) {
+    const found = await prisma.character.count({ where: { ...owned, id: { in: input.muted_ids } } });
+    if (found !== new Set(input.muted_ids).size) throw validationError('Every muted member must be one of your characters', 'muted_ids');
   }
   if (input.lorebook_ids !== undefined && input.lorebook_ids.length > 0) {
     const found = await prisma.lorebook.count({ where: { ...owned, id: { in: input.lorebook_ids } } });
@@ -338,8 +360,11 @@ const MESSAGE_COLUMNS: Columns = {
   swipes: jsonList('swipes'),
   swipe_index: plain('swipeIndex'),
   bookmarked: plain('bookmarked'),
+  images: jsonList('images'),
 };
 
+/** Pictures sent with a line (A44), data URLs as avatars are. */
+const images = z.array(avatar.unwrap()).max(LIMITS.images_per_message);
 const swipes = z.array(z.string().max(LIMITS.message_characters)).min(1).max(LIMITS.swipes_per_message);
 const messageCreate = z
   .object({
@@ -351,6 +376,7 @@ const messageCreate = z
     swipes,
     swipe_index: z.number().int().min(0).default(0),
     bookmarked: z.boolean().default(false),
+    images: images.default([]),
   })
   .refine((message) => message.swipe_index < message.swipes.length, {
     message: 'swipe_index must name one of the swipes',

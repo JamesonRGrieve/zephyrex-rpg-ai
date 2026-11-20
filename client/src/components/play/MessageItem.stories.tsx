@@ -56,3 +56,30 @@ export const WithReasoning: Story = {
   },
 };
 
+/** Bubbles: your lines on the right, in the accent colour (A49). */
+export const Bubbles: Story = {
+  args: { message: USER_LINE, layout: 'bubbles' },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByRole('article')).toHaveClass('flex-row-reverse');
+  },
+};
+
+/** Document: no portraits, the story as running text (A49). */
+export const Document: Story = {
+  args: { layout: 'document' },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).queryByText('AV')).not.toBeInTheDocument();
+  },
+};
+
+
+const hideTranslation = fn();
+
+/** A translation under the reply (A43), with a way to hide it. */
+export const Translated: Story = {
+  args: { translation: { status: 'done', text: '*s’essuie les mains* Bienvenue à bord.', onHide: hideTranslation } },
+  play: async ({ canvasElement }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Hide translation' }));
+    await expect(hideTranslation).toHaveBeenCalled();
+  },
+};
