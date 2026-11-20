@@ -1,0 +1,97 @@
+{
+  "$comment": "Zephyrex RPG AI's knowledge shared by both back ends and the UI: the self-hosted lite API (client/src/lib), the SaaS server (server/extensions) and the front end read these values from here, never their own copies. Sizes are characters, items or bytes as named. Design: docs/DESIGN.md.",
+  "limits": {
+    "name_characters": 120,
+    "short_text_characters": 300,
+    "card_field_characters": 50000,
+    "greetings_per_character": 32,
+    "tags_per_record": 32,
+    "tag_characters": 60,
+    "avatar_bytes": 2097152,
+    "extensions_bytes": 262144,
+    "persona_description_characters": 20000,
+    "chat_title_characters": 200,
+    "characters_per_chat": 16,
+    "author_note_characters": 10000,
+    "message_characters": 100000,
+    "swipes_per_message": 64,
+    "preset_stop_strings": 16,
+    "stop_string_characters": 200,
+    "endpoint_url_characters": 2048,
+    "model_name_characters": 200,
+    "api_key_characters": 512,
+    "import_bytes": 8388608
+  },
+  "message_roles": [
+    "user",
+    "character",
+    "narrator",
+    "system"
+  ],
+  "message_channels": [
+    "ic",
+    "ooc",
+    "gm",
+    "roll",
+    "system"
+  ],
+  "chat_modes": [
+    "character",
+    "group"
+  ],
+  "card_specs": {
+    "v2": {
+      "spec": "chara_card_v2",
+      "spec_version": "2.0"
+    },
+    "v3": {
+      "spec": "chara_card_v3",
+      "spec_version": "3.0"
+    }
+  },
+  "sampler_ranges": {
+    "temperature": [
+      0,
+      2
+    ],
+    "top_p": [
+      0,
+      1
+    ],
+    "top_k": [
+      0,
+      500
+    ],
+    "repetition_penalty": [
+      1,
+      2
+    ],
+    "max_tokens": [
+      1,
+      8192
+    ],
+    "context_tokens": [
+      512,
+      1048576
+    ]
+  },
+  "preset_defaults": {
+    "temperature": 0.8,
+    "top_p": 0.95,
+    "top_k": 40,
+    "repetition_penalty": 1.1,
+    "max_tokens": 400,
+    "context_tokens": 8192
+  },
+  "prompt": {
+    "default_system_prompt": "Write {{char}}'s next reply in a fictional chat between {{char}} and {{user}}. Stay in character, and write only {{char}}'s part.",
+    "author_note_depth": 4,
+    "characters_per_token": 4,
+    "message_overhead_tokens": 4,
+    "story_channels": [
+      "ic",
+      "roll"
+    ]
+  },
+  "paid_features": {}
+}

@@ -1,0 +1,230 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+'use client';
+/**
+ * The play surface: one chat's branch as a column of turns, the reply being written as it streams,
+ * and the composer pinned to the bottom. Out-of-character table talk is sent and kept like any
+ * message but never asks for a reply and never reaches the model (docs/DESIGN.md).
+ *
+ * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
+ * swipes of one message; "Branch from here" makes the next message a new fork.
+ */
+import { Settings2 } from 'lucide-react';
+import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
+import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
+import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
+import { Button } from 'zephyrex/ui/button';
+import { LoadProblem } from 'zephyrex/ui/load-problem';
+import { SkeletonRows } from 'zephyrex/ui/skeleton';
+import { useWakeLock } from '~/features/browser/useWakeLock';
+import { branchTo, latestLeaf } from '~/features/chat/branch';
+import type { ComposerChannel } from '~/features/chat/outgoing';
+import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
+import { useReply } from '~/features/chat/useReply';
+import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
+import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, messages, type Persona, personas, presets } from '~/features/data/records';
+import { initials } from '../characters/CharacterTile';
+import { ChatSettings } from './ChatSettings';
+import { Composer } from './Composer';
+import { MessageItem, type MessageView } from './MessageItem';
+
+const NARRATOR = 'Narrator';
+const YOU = 'You';
+
+/** What each turn of the branch shows: who said it, which alternative, and where it forks. */
+export function messageViews(
+  branch: readonly ChatMessage[],
+  all: readonly ChatMessage[],
+  cast: ReadonlyMap<string, Pick<Character, 'name' | 'avatar'>>,
+  persona: Pick<Persona, 'name' | 'avatar'> | null,
+): MessageView[] {
+  return branch.map((message) => {
+    const character = message.speaker_character_id === null ? undefined : cast.get(message.speaker_character_id);
+    const speaker = message.role === 'user' ? (persona?.name ?? YOU) : message.role === 'character' ? (character?.name ?? NARRATOR) : NARRATOR;
+    const avatar = message.role === 'user' ? (persona?.avatar ?? null) : (character?.avatar ?? null);
+    const { siblings, index } = siblingsOf(all, message);
+    return {
+      id: message.id,
+      role: message.role,
+      channel: message.channel,
+      speaker,
+      avatar,
+      text: message.swipes[message.swipe_index] ?? '',
+      swipe: { index: message.swipe_index, count: message.swipes.length },
+      fork: { index, count: siblings.length },
+      bookmarked: message.bookmarked,
+    };
+  });
+}
+
+function ChatSurface({ chat }: { chat: Chat }): ReactElement {
+  const list = messages.useList({ chat_id: chat.id });
+  const cast = characters.useList();
+  const personaList = personas.useList();
+  const presetList = presets.useList();
+  const endpointList = endpoints.useList();
+  const { create, update, remove } = messages.useActions();
+  const { update: updateChat } = chats.useActions();
+  const reply = useReply();
+  const [leafId, setLeafId] = useState<string | null>(null);
+  const [writingAfter, setWritingAfter] = useState<{ parentId: string | null; speakerId: string } | null>(null);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const end = useRef<HTMLDivElement>(null);
+
+  const all = useMemo(() => (list.data ?? []).filter((message) => !hidden.has(message.id)), [list.data, hidden]);
+  const leaf = leafId !== null && all.some((message) => message.id === leafId) ? leafId : (latestLeaf(all)?.id ?? null);
+  const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
+  const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
+  const persona = useMemo(() => {
+    const found = personaList.data ?? [];
+    return found.find((one) => one.id === chat.persona_id) ?? found.find((one) => one.is_default) ?? null;
+  }, [personaList.data, chat.persona_id]);
+  const { settings } = useDeviceSettings();
+  const views = messageViews(branch, all, castById, persona).filter((view) => settings.showTableTalk || (view.channel !== 'ooc' && view.channel !== 'gm'));
+  const writing = reply.state.status === 'writing';
+
+  useWakeLock(writing);
+  useEffect(() => {
+    end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+  }, [views.length, reply.state]);
+  useEffect(() => {
+    if (reply.state.status === 'failed') notify('No reply', reply.state.detail);
+  }, [reply.state]);
+
+  const byId = (id: string) => all.find((message) => message.id === id);
+
+  /** Streams the next reply after `parentId`, then keeps it as a new message. */
+  const replyAfter = async (parentId: string | null, path: readonly ChatMessage[]) => {
+    const speakerId = nextSpeaker(chat.character_ids, path);
+    if (speakerId === null) return;
+    setWritingAfter({ parentId, speakerId });
+    const result = await reply.write({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
+    setWritingAfter(null);
+    if (result === null || result.text.trim() === '') return;
+    const saved = await create({ chat_id: chat.id, parent_id: parentId, role: 'character', speaker_character_id: speakerId, swipes: [result.text] });
+    setLeafId(saved.id);
+  };
+
+  const send = async (text: string, channel: ComposerChannel) => {
+    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'user', channel, swipes: [text] });
+    setLeafId(saved.id);
+    if (channel === 'ic') await replyAfter(saved.id, [...branch, saved]);
+  };
+
+  const regenerate = async (message: ChatMessage) => {
+    if (message.speaker_character_id === null) return;
+    setWritingAfter({ parentId: message.parent_id, speakerId: message.speaker_character_id });
+    const result = await reply.write({ chat_id: chat.id, leaf_id: message.parent_id, speaker_id: message.speaker_character_id });
+    setWritingAfter(null);
+    if (result === null || result.text.trim() === '') return;
+    await update(message, { swipes: [...message.swipes, result.text], swipe_index: message.swipes.length });
+  };
+
+  const fork = (message: ChatMessage, step: -1 | 1) => {
+    const { siblings, index } = siblingsOf(all, message);
+    const target = siblings[index + step];
+    if (target !== undefined) setLeafId(latestLeaf(all, target.id)?.id ?? target.id);
+  };
+
+  const deleteMessage = (message: ChatMessage) => {
+    setHidden(new Set([...hidden, message.id]));
+    setLeafId(message.parent_id);
+    deferWithUndo(
+      'Message deleted',
+      () => void remove(message),
+      () => setHidden(new Set([...hidden].filter((id) => id !== message.id))),
+    );
+  };
+
+  if (list.error !== undefined) return <LoadProblem what='this chat' error={list.error} onRetry={() => list.mutate()} />;
+
+  const pending = writingAfter === null ? undefined : castById.get(writingAfter.speakerId);
+  const options = <T extends { id: string; name: string }>(rows: readonly T[] | undefined) => (rows ?? []).map(({ id, name }) => ({ id, name }));
+
+  return (
+    <div className='flex min-h-[calc(100svh-4rem)] flex-col'>
+      <div className='mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 py-2'>
+        <ul className='flex min-w-0 -space-x-2' aria-label='In this chat'>
+          {chat.character_ids.map((id) => {
+            const character = castById.get(id);
+            return (
+              <li key={id}>
+                <Avatar className='size-9 border-2 border-background'>
+                  {character?.avatar !== undefined && character.avatar !== null && <AvatarImage src={character.avatar} alt='' />}
+                  <AvatarFallback>{initials(character?.name ?? '?')}</AvatarFallback>
+                </Avatar>
+                <span className='sr-only'>{character?.name ?? 'A character'}</span>
+              </li>
+            );
+          })}
+        </ul>
+        <Button type='button' variant='ghost' className='h-11' onClick={() => setSettingsOpen(true)}>
+          <Settings2 aria-hidden /> Chat settings
+        </Button>
+      </div>
+      <ol className='mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4' aria-label='Chat' aria-live='polite'>
+        {list.data === undefined && <SkeletonRows rows={4} avatar />}
+        {list.data !== undefined && views.length === 0 && writingAfter === null && (
+          <li className='rounded-xl border border-dashed p-6 text-center text-muted-foreground'>Say something to begin.</li>
+        )}
+        {views.map((view) => {
+          const message = byId(view.id);
+          if (message === undefined) return null;
+          return (
+            <li key={view.id}>
+              <MessageItem
+                message={view}
+                onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
+                onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
+                onFork={(step) => fork(message, step)}
+                onEdit={(text) => void update(message, { swipes: message.swipes.map((old, index) => (index === message.swipe_index ? text : old)) })}
+                onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
+                onBranch={() => {
+                  setLeafId(message.id);
+                  notify('Branching from here', 'Your next message starts a new branch.');
+                }}
+                onDelete={() => deleteMessage(message)}
+              />
+            </li>
+          );
+        })}
+        {writingAfter !== null && (
+          <li>
+            <MessageItem
+              writing
+              message={{
+                id: 'writing',
+                role: 'character',
+                channel: 'ic',
+                speaker: pending?.name ?? NARRATOR,
+                avatar: pending?.avatar ?? null,
+                text: reply.state.status === 'writing' ? reply.state.text : '',
+                swipe: { index: 0, count: 1 },
+                fork: { index: 0, count: 1 },
+                bookmarked: false,
+              }}
+            />
+          </li>
+        )}
+      </ol>
+      <div ref={end} />
+      <Composer writing={writing} disabled={list.data === undefined} onSend={(text, channel) => void send(text, channel)} onStop={reply.stop} />
+      <ChatSettings
+        open={settingsOpen}
+        onOpenChange={setSettingsOpen}
+        value={{ title: chat.title, persona_id: chat.persona_id, preset_id: chat.preset_id, endpoint_id: chat.endpoint_id, author_note: chat.author_note }}
+        personas={options(personaList.data)}
+        presets={options(presetList.data)}
+        endpoints={options(endpointList.data)}
+        onSave={(next) => void updateChat(chat, next)}
+      />
+    </div>
+  );
+}
+
+export function ChatView({ id }: { id: string }): ReactElement {
+  const chat = chats.useOne(id);
+  if (chat.error !== undefined) return <LoadProblem what='this chat' error={chat.error} onRetry={() => chat.mutate()} />;
+  if (chat.data === undefined) return <SkeletonRows rows={4} avatar />;
+  return <ChatSurface chat={chat.data} />;
+}

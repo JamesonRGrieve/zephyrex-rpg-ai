@@ -1,0 +1,128 @@
+{
+  "$comment": "How a prompt is assembled (client/src/features/prompt/assemble.ts and the SaaS server's twin). Each case gives the input and the exact messages a model must receive. Token counts use the contract's estimate: ceil(characters / 4) + 4 per message.",
+  "characters": {
+    "ada": {
+      "id": "c-ada",
+      "name": "Ada",
+      "description": "{{char}} is a ship's engineer.",
+      "personality": "dry, kind",
+      "scenario": "{{user}} has just come aboard.",
+      "example_messages": "<START>\n{{char}}: Mind the coolant.",
+      "system_prompt": "",
+      "post_history_instructions": ""
+    },
+    "bram": {
+      "id": "c-bram",
+      "name": "Bram",
+      "description": "{{char}} is the ship's cook.",
+      "personality": "",
+      "scenario": "",
+      "example_messages": "",
+      "system_prompt": "You are {{char}}.",
+      "post_history_instructions": "Keep {{char}}'s reply under 60 words."
+    }
+  },
+  "cases": [
+    {
+      "name": "one character: the card, the persona and the turns",
+      "input": {
+        "characters": ["ada"],
+        "speaker_id": "c-ada",
+        "persona": { "name": "Sam", "description": "{{user}} is a new deckhand." },
+        "author_note": "",
+        "history": [
+          { "role": "character", "channel": "ic", "speaker_character_id": "c-ada", "content": "Welcome aboard." },
+          { "role": "user", "channel": "ic", "speaker_character_id": null, "content": "Where do I sleep?" }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        { "role": "assistant", "content": "Welcome aboard." },
+        { "role": "user", "content": "Where do I sleep?" }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "out-of-character table talk and GM whispers never enter the story; a roll does",
+      "input": {
+        "characters": ["ada"],
+        "speaker_id": "c-ada",
+        "persona": null,
+        "author_note": "",
+        "history": [
+          { "role": "user", "channel": "ooc", "speaker_character_id": null, "content": "brb, coffee" },
+          { "role": "user", "channel": "gm", "speaker_character_id": null, "content": "Make her suspicious." },
+          { "role": "user", "channel": "ic", "speaker_character_id": null, "content": "I pick the lock." },
+          { "role": "system", "channel": "roll", "speaker_character_id": null, "content": "Lockpicking: 14 against 12, success." }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        { "role": "user", "content": "I pick the lock." },
+        { "role": "system", "content": "Lockpicking: 14 against 12, success." }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "a group: other characters are named, the author's note sits four turns from the end, post-history instructions come last",
+      "input": {
+        "characters": ["ada", "bram"],
+        "speaker_id": "c-bram",
+        "persona": { "name": "Sam", "description": "" },
+        "author_note": "[{{char}} is hungry.]",
+        "history": [
+          { "role": "user", "channel": "ic", "speaker_character_id": null, "content": "One" },
+          { "role": "character", "channel": "ic", "speaker_character_id": "c-ada", "content": "Two" },
+          { "role": "character", "channel": "ic", "speaker_character_id": "c-bram", "content": "Three" },
+          { "role": "narrator", "channel": "ic", "speaker_character_id": null, "content": "Four" },
+          { "role": "user", "channel": "ic", "speaker_character_id": null, "content": "Five" }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        { "role": "system", "content": "You are Bram.\n\nBram is the ship's cook." },
+        { "role": "user", "content": "Sam: One" },
+        { "role": "system", "content": "[Bram is hungry.]" },
+        { "role": "user", "content": "Ada: Two" },
+        { "role": "assistant", "content": "Three" },
+        { "role": "user", "content": "Narrator: Four" },
+        { "role": "user", "content": "Sam: Five" },
+        { "role": "system", "content": "Keep Bram's reply under 60 words." }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "a full window drops the oldest turns and keeps the system text",
+      "input": {
+        "characters": ["bram"],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "history": [
+          { "role": "user", "channel": "ic", "speaker_character_id": null, "content": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa" },
+          { "role": "user", "channel": "ic", "speaker_character_id": null, "content": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb" },
+          { "role": "user", "channel": "ic", "speaker_character_id": null, "content": "cccccccccccccccccccccccccccccccccccccccc" }
+        ],
+        "context_tokens": 550,
+        "max_tokens": 500
+      },
+      "messages": [
+        { "role": "system", "content": "You are Bram.\n\nBram is the ship's cook." },
+        { "role": "user", "content": "cccccccccccccccccccccccccccccccccccccccc" },
+        { "role": "system", "content": "Keep Bram's reply under 60 words." }
+      ],
+      "dropped": 2
+    }
+  ]
+}

@@ -1,0 +1,89 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+'use client';
+/**
+ * Every chat, the newest first, with who is in it; tap one to carry on. The install shortcut
+ * "New chat" (`/play?new=1`) opens the picker straight away.
+ */
+import { MessageSquarePlus, Trash2 } from 'lucide-react';
+import Link from 'next/link';
+import { useSearchParams } from 'next/navigation';
+import { type ReactElement, useMemo, useState } from 'react';
+import { deferWithUndo } from 'zephyrex/hooks/useToast';
+import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
+import { Button } from 'zephyrex/ui/button';
+import { LoadProblem } from 'zephyrex/ui/load-problem';
+import { SkeletonRows } from 'zephyrex/ui/skeleton';
+import { characters, chats } from '~/features/data/records';
+import { initials } from '../characters/CharacterTile';
+import { NewChat } from './NewChat';
+
+/** "Today 14:05", "Yesterday", or the date: when a chat was last written in. */
+export function lastActive(stamp: string | null, now: Date = new Date()): string {
+  if (stamp === null) return '';
+  const when = new Date(`${stamp.replace(/\d{3}$/, '')}Z`);
+  if (Number.isNaN(when.getTime())) return '';
+  const day = (date: Date) => date.toDateString();
+  const yesterday = new Date(now.getTime() - 86_400_000);
+  if (day(when) === day(now)) return `Today ${when.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+  if (day(when) === day(yesterday)) return 'Yesterday';
+  return when.toLocaleDateString();
+}
+
+export function ChatLibrary(): ReactElement {
+  const list = chats.useList();
+  const cast = characters.useList();
+  const { remove } = chats.useActions();
+  const params = useSearchParams();
+  const [picking, setPicking] = useState(params.get('new') === '1');
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
+  const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
+  const shown = (list.data ?? []).filter((chat) => !hidden.has(chat.id));
+
+  return (
+    <div className='space-y-4'>
+      <Button type='button' className='h-11' onClick={() => setPicking(true)}>
+        <MessageSquarePlus aria-hidden /> New chat
+      </Button>
+      {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}
+      {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} avatar />}
+      {list.data !== undefined && shown.length === 0 && (
+        <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>No chats yet. Start one with a character.</p>
+      )}
+      <ul className='divide-y rounded-xl border'>
+        {shown.map((chat) => (
+          <li key={chat.id} className='relative flex items-center gap-3 p-3'>
+            <div className='flex -space-x-3'>
+              {chat.character_ids.slice(0, 3).map((id) => {
+                const character = castById.get(id);
+                return (
+                  <Avatar key={id} className='size-11 border-2 border-background'>
+                    {character !== undefined && character.avatar !== null && <AvatarImage src={character.avatar} alt='' />}
+                    <AvatarFallback>{initials(character?.name ?? '?')}</AvatarFallback>
+                  </Avatar>
+                );
+              })}
+            </div>
+            <Link href={`/play/${chat.id}`} className='min-w-0 flex-1 after:absolute after:inset-0'>
+              <span className='block truncate font-medium'>{chat.title}</span>
+              <span className='block text-xs text-muted-foreground'>{lastActive(chat.updated_at)}</span>
+            </Link>
+            <Button
+              type='button'
+              variant='ghost'
+              size='icon'
+              className='relative z-10 size-11'
+              aria-label={`Delete ${chat.title}`}
+              onClick={() => {
+                setHidden(new Set([...hidden, chat.id]));
+                deferWithUndo(`${chat.title} deleted`, () => void remove(chat), () => setHidden(new Set([...hidden].filter((id) => id !== chat.id))));
+              }}
+            >
+              <Trash2 aria-hidden />
+            </Button>
+          </li>
+        ))}
+      </ul>
+      <NewChat open={picking} onOpenChange={setPicking} />
+    </div>
+  );
+}

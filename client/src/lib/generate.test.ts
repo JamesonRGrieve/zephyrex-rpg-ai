@@ -1,0 +1,131 @@
+// @vitest-environment node
+// SPDX-License-Identifier: AGPL-3.0-or-later
+/**
+ * The generate route end to end against a real local HTTP server that answers as an
+ * OpenAI-compatible endpoint does: the reply streams through, the model receives the assembled
+ * prompt (and never the table talk), refusals come back as the framework's errors.
+ */
+import { createServer, type IncomingMessage, type Server } from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { NextRequest } from 'next/server';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { LOCAL_OWNER_ID } from '@zephyrex/lite';
+import { prisma } from '~/lib/prisma';
+import { completionsUrl, generate } from './generate';
+
+interface Received {
+  path: string;
+  authorization: string | undefined;
+  body: { model: string; stream: boolean; messages: { role: string; content: string }[] };
+}
+
+let server: Server;
+let baseUrl = '';
+const received: Received[] = [];
+let answer: 'stream' | 'refuse' = 'stream';
+
+async function readBody(request: IncomingMessage): Promise<string> {
+  const chunks: Buffer[] = [];
+  for await (const chunk of request) chunks.push(chunk as Buffer);
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+beforeAll(async () => {
+  server = createServer((request, response) => {
+    void readBody(request).then((text) => {
+      received.push({ path: request.url ?? '', authorization: request.headers.authorization, body: JSON.parse(text) as Received['body'] });
+      if (answer === 'refuse') {
+        response.writeHead(401).end('{"error":"bad key"}');
+        return;
+      }
+      response.writeHead(200, { 'Content-Type': 'text/event-stream' });
+      for (const piece of ['“Mind ', 'the coolant.”']) {
+        response.write(`data: ${JSON.stringify({ choices: [{ delta: { content: piece } }] })}\n\n`);
+      }
+      response.end('data: [DONE]\n\n');
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}/v1`;
+});
+
+afterAll(async () => {
+  await new Promise((resolve) => server.close(resolve));
+});
+
+beforeEach(async () => {
+  received.length = 0;
+  answer = 'stream';
+  await prisma.chatMessage.deleteMany();
+  await prisma.chat.deleteMany();
+  await prisma.character.deleteMany();
+  await prisma.modelEndpoint.deleteMany();
+});
+
+const stamp = () => ({ createdById: LOCAL_OWNER_ID, updatedAt: new Date() });
+
+async function seed(withEndpoint = true) {
+  const ada = await prisma.character.create({ data: { ...stamp(), name: 'Ada', description: '{{char}} is an engineer.' } });
+  if (withEndpoint) await prisma.modelEndpoint.create({ data: { ...stamp(), name: 'Local', baseUrl, model: 'tiny', apiKey: 'k-1', isDefault: true } });
+  const chat = await prisma.chat.create({ data: { ...stamp(), title: 'Chat', characterIds: JSON.stringify([ada.id]) } });
+  const ooc = await prisma.chatMessage.create({ data: { ...stamp(), chatId: chat.id, role: 'user', channel: 'ooc', swipes: '["brb, coffee"]' } });
+  const line = await prisma.chatMessage.create({ data: { ...stamp(), chatId: chat.id, parentId: ooc.id, role: 'user', swipes: '["I hand her the spanner."]' } });
+  return { ada, chat, line };
+}
+
+function call(body: unknown) {
+  return new NextRequest('http://localhost/api/v1/ai_chat/generate', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+}
+
+async function events(response: Response): Promise<string> {
+  return response.text();
+}
+
+describe('POST /v1/ai_chat/generate', () => {
+  it('streams the reply and gives the model the prompt without table talk', async () => {
+    const { chat, line } = await seed();
+    const response = await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+    expect(response.headers.get('content-type')).toContain('text/event-stream');
+    const text = await events(response);
+    expect(text).toContain('event: delta\ndata: {"text":"“Mind "}');
+    expect(text).toContain('event: done\ndata: {"dropped":0}');
+
+    expect(received).toHaveLength(1);
+    const [sent] = received;
+    expect(sent?.path).toBe('/v1/chat/completions');
+    expect(sent?.authorization).toBe('Bearer k-1');
+    expect(sent?.body).toMatchObject({ model: 'tiny', stream: true });
+    const contents = sent?.body.messages.map((message) => message.content) ?? [];
+    expect(contents[0]).toContain('Ada is an engineer.');
+    expect(contents).toContain('I hand her the spanner.');
+    expect(contents.join('\n')).not.toContain('brb, coffee');
+  });
+
+  it('asks for a model endpoint first (409)', async () => {
+    const { chat } = await seed(false);
+    const response = await generate(call({ generate: { chat_id: chat.id, leaf_id: null } }));
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({ detail: { code: 'no_model_endpoint' } });
+  });
+
+  it('answers 502 when the model refuses, 404 for an unknown chat and 422 for a bad request', async () => {
+    const { chat } = await seed();
+    answer = 'refuse';
+    expect((await generate(call({ generate: { chat_id: chat.id, leaf_id: null } }))).status).toBe(502);
+    expect((await generate(call({ generate: { chat_id: 'missing', leaf_id: null } }))).status).toBe(404);
+    expect((await generate(call({ chat_id: chat.id }))).status).toBe(422);
+    expect((await generate(call({ generate: { chat_id: chat.id, leaf_id: 'not-in-chat' } }))).status).toBe(422);
+  });
+});
+
+describe('completionsUrl', () => {
+  it('appends /chat/completions once, whatever the trailing slashes', () => {
+    expect(completionsUrl('http://h:1/v1')).toBe('http://h:1/v1/chat/completions');
+    expect(completionsUrl('http://h:1/v1//')).toBe('http://h:1/v1/chat/completions');
+    expect(completionsUrl('http://h:1/v1/chat/completions')).toBe('http://h:1/v1/chat/completions');
+  });
+});

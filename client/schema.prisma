@@ -1,0 +1,128 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+// The lite edition's records: the same resources, fields and rules as the SaaS server's
+// extensions (server/extensions/ai_character, ai_chat). Lite is one person's app with no
+// accounts, so every record belongs to the one local owner (@zephyrex/lite localOwner).
+// Lists and objects are JSON text the API validates (src/lib/rpgRecords.ts).
+
+datasource db {
+  provider = "sqlite"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+/// A character card (SillyTavern Character Card V2/V3 fields).
+model Character {
+  id                      String   @id @default(uuid())
+  createdById             String
+  name                    String
+  description             String   @default("")
+  personality             String   @default("")
+  scenario                String   @default("")
+  firstMessage            String   @default("")
+  alternateGreetings      String   @default("[]")
+  exampleMessages         String   @default("")
+  systemPrompt            String   @default("")
+  postHistoryInstructions String   @default("")
+  creatorNotes            String   @default("")
+  creator                 String   @default("")
+  characterVersion        String   @default("")
+  tags                    String   @default("[]")
+  avatar                  String?
+  favourite               Boolean  @default(false)
+  extensions              String   @default("{}")
+  createdAt               DateTime @default(now())
+  updatedAt               DateTime
+  updatedById             String?
+
+  @@index([createdById])
+}
+
+/// Who the person plays as.
+model Persona {
+  id          String   @id @default(uuid())
+  createdById String
+  name        String
+  description String   @default("")
+  avatar      String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@index([createdById])
+}
+
+/// A conversation with one character, or a group of them.
+model Chat {
+  id           String   @id @default(uuid())
+  createdById  String
+  title        String
+  mode         String   @default("character")
+  characterIds String   @default("[]")
+  personaId    String?
+  presetId     String?
+  endpointId   String?
+  authorNote   String   @default("")
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime
+  updatedById  String?
+
+  @@index([createdById])
+}
+
+/// One turn of a chat. `parentId` forms the branch tree; `swipes` are a turn's alternatives.
+model ChatMessage {
+  id                 String   @id @default(uuid())
+  createdById        String
+  chatId             String
+  parentId           String?
+  role               String
+  channel            String   @default("ic")
+  speakerCharacterId String?
+  swipes             String   @default("[]")
+  swipeIndex         Int      @default(0)
+  bookmarked         Boolean  @default(false)
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime
+  updatedById        String?
+
+  @@index([createdById, chatId])
+}
+
+/// Sampler settings for a generation.
+model GenerationPreset {
+  id                String   @id @default(uuid())
+  createdById       String
+  name              String
+  temperature       Float
+  topP              Float
+  topK              Int
+  repetitionPenalty Float
+  maxTokens         Int
+  contextTokens     Int
+  stop              String   @default("[]")
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime
+  updatedById       String?
+
+  @@index([createdById])
+}
+
+/// An OpenAI-compatible endpoint the lite edition generates through (Ollama, llama.cpp, a gateway
+/// or a hosted API). The SaaS edition uses the framework's provider instances instead.
+model ModelEndpoint {
+  id          String   @id @default(uuid())
+  createdById String
+  name        String
+  baseUrl     String
+  model       String
+  apiKey      String   @default("")
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@index([createdById])
+}

@@ -1,0 +1,46 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import type { Meta, StoryObj } from '@storybook/nextjs';
+import { expect, fn, userEvent, within } from 'storybook/test';
+import { ADA_REPLY, TABLE_TALK, USER_LINE } from './fixtures';
+import { MessageItem } from './MessageItem';
+
+const meta: Meta<typeof MessageItem> = {
+  title: 'Play/Message',
+  component: MessageItem,
+  decorators: [(Story) => <div className='max-w-2xl'>{Story()}</div>],
+  args: { message: ADA_REPLY, onSwipe: fn(), onRegenerate: fn(), onFork: fn(), onEdit: fn(), onBookmark: fn(), onBranch: fn(), onDelete: fn() },
+};
+export default meta;
+type Story = StoryObj<typeof MessageItem>;
+
+/** A character's reply: actions in italics, two alternatives to page through. */
+export const Reply: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('wipes her hands on a rag').tagName).toBe('EM');
+    await userEvent.click(canvas.getByRole('button', { name: 'Next reply' }));
+    await expect(args.onSwipe).toHaveBeenCalledWith(1);
+  },
+};
+
+/** The last alternative offers another. */
+export const LastSwipe: Story = {
+  args: { message: { ...ADA_REPLY, swipe: { index: 1, count: 2 } } },
+  play: async ({ canvasElement, args }) => {
+    await userEvent.click(within(canvasElement).getByRole('button', { name: 'Write another reply' }));
+    await expect(args.onRegenerate).toHaveBeenCalled();
+  },
+};
+
+/** A message at a fork pages between branches. */
+export const AtAFork: Story = { args: { message: USER_LINE } };
+
+/** Out-of-character table talk sits in its own lane. */
+export const TableTalk: Story = {
+  args: { message: TABLE_TALK },
+  play: async ({ canvasElement }) => {
+    await expect(within(canvasElement).getByText('Table talk')).toBeInTheDocument();
+  },
+};
+
+export const Writing: Story = { args: { message: { ...ADA_REPLY, text: '' }, writing: true } };

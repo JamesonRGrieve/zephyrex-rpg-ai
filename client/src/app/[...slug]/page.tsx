@@ -1,15 +1,15 @@
-// SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
-
+// SPDX-License-Identifier: AGPL-3.0-or-later
 import { ZephyrexRouter } from 'zephyrex';
-import { use, type ReactNode } from 'react';
+import { type ReactNode, use } from 'react';
 
-export default function CatchAll({
-  params,
-  searchParams,
-}: {
+interface CatchAllPageProps {
   params: Promise<{ slug: string[] }>;
   searchParams: Promise<Record<string, string>>;
-}): ReactNode {
-  return <ZephyrexRouter params={use(params)} searchParams={use(searchParams)} />;
+}
+
+export default function CatchAllPage({ params, searchParams }: CatchAllPageProps): ReactNode {
+  const resolvedParams = use(params);
+  const resolvedSearchParams = use(searchParams);
+  return <ZephyrexRouter params={resolvedParams} searchParams={resolvedSearchParams} />;
 }
