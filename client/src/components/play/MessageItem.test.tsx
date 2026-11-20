@@ -24,6 +24,14 @@ describe('MessageItem', () => {
     expect(screen.queryByText('S')).not.toBeInTheDocument();
   });
 
+  it('offers to continue a message from the menu', async () => {
+    const onContinue = vi.fn();
+    render(<MessageItem message={ADA_REPLY} onContinue={onContinue} />);
+    await userEvent.click(screen.getByRole('button', { name: "More for Ada Vance's message" }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Continue' }));
+    expect(onContinue).toHaveBeenCalledOnce();
+  });
+
   it('edits in place from the menu', async () => {
     const onEdit = vi.fn();
     render(<MessageItem message={USER_LINE} onEdit={onEdit} />);

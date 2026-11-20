@@ -8,23 +8,27 @@
  * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
-import { Settings2 } from 'lucide-react';
+import { ScanText, Settings2 } from 'lucide-react';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
+import { useIsMobile } from 'zephyrex/hooks/useMobile';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
+import { type InspectedPrompt, inspectPrompt } from '~/features/chat/inspectPrompt';
 import { useReply } from '~/features/chat/useReply';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
+import { ContextInspector } from './ContextInspector';
 import { MessageItem, type MessageView } from './MessageItem';
 
 const NARRATOR = 'Narrator';
@@ -69,6 +73,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [leafId, setLeafId] = useState<string | null>(null);
   const [writingAfter, setWritingAfter] = useState<{ parentId: string | null; speakerId: string } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [inspected, setInspected] = useState<InspectedPrompt | 'loading' | null>(null);
+  const mobile = useIsMobile();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const end = useRef<HTMLDivElement>(null);
 
@@ -125,6 +131,32 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     await update(message, { swipes: [...message.swipes, result.text], swipe_index: message.swipes.length });
   };
 
+  /** Carries on the shown alternative of a character's message, where it stopped. */
+  const continueMessage = async (message: ChatMessage) => {
+    if (message.speaker_character_id === null) return;
+    setWritingAfter({ parentId: message.id, speakerId: message.speaker_character_id });
+    const result = await reply.write({ chat_id: chat.id, leaf_id: message.id, speaker_id: message.speaker_character_id, mode: 'continue' });
+    setWritingAfter(null);
+    if (result === null || result.text === '') return;
+    await update(message, { swipes: message.swipes.map((text, index) => (index === message.swipe_index ? `${text}${result.text}` : text)) });
+  };
+
+  /** The person's own next line, written by the model, for the composer. */
+  const impersonate = async (): Promise<string | null> => {
+    const result = await reply.write({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch), mode: 'impersonate' });
+    return result?.text ?? null;
+  };
+
+  const openInspector = async () => {
+    setInspected('loading');
+    try {
+      setInspected(await inspectPrompt({ chat_id: chat.id, leaf_id: leaf, speaker_id: nextSpeaker(chat.character_ids, branch) }));
+    } catch (error) {
+      setInspected(null);
+      notify('The prompt could not be read', error instanceof Error ? error.message : undefined);
+    }
+  };
+
   const fork = (message: ChatMessage, step: -1 | 1) => {
     const { siblings, index } = siblingsOf(all, message);
     const target = siblings[index + step];
@@ -163,9 +195,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             );
           })}
         </ul>
-        <Button type='button' variant='ghost' className='h-11' onClick={() => setSettingsOpen(true)}>
-          <Settings2 aria-hidden /> Chat settings
-        </Button>
+        <div className='flex gap-1'>
+          <Button type='button' variant='ghost' className='h-11' onClick={() => void openInspector()}>
+            <ScanText aria-hidden /> Context
+          </Button>
+          <Button type='button' variant='ghost' className='h-11' onClick={() => setSettingsOpen(true)}>
+            <Settings2 aria-hidden /> Chat settings
+          </Button>
+        </div>
       </div>
       <ol className='mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4' aria-label='Chat' aria-live='polite'>
         {list.data === undefined && <SkeletonRows rows={4} avatar />}
@@ -189,6 +226,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   notify('Branching from here', 'Your next message starts a new branch.');
                 }}
                 onDelete={() => deleteMessage(message)}
+                onContinue={message.role === 'character' && message.id === leaf && !writing ? () => void continueMessage(message) : undefined}
               />
             </li>
           );
@@ -213,7 +251,22 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         )}
       </ol>
       <div ref={end} />
-      <Composer writing={writing} disabled={list.data === undefined} onSend={(text, channel) => void send(text, channel)} onStop={reply.stop} />
+      <Composer
+        writing={writing}
+        disabled={list.data === undefined}
+        onSend={(text, channel) => void send(text, channel)}
+        onStop={reply.stop}
+        onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
+      />
+      <Sheet open={inspected !== null} onOpenChange={(open) => !open && setInspected(null)}>
+        <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
+          <SheetHeader>
+            <SheetTitle>Context</SheetTitle>
+            <SheetDescription>What the model would read for the next reply.</SheetDescription>
+          </SheetHeader>
+          <div className='p-4'>{inspected === 'loading' ? <SkeletonRows rows={5} /> : inspected !== null && <ContextInspector prompt={inspected} />}</div>
+        </SheetContent>
+      </Sheet>
       <ChatSettings
         open={settingsOpen}
         onOpenChange={setSettingsOpen}

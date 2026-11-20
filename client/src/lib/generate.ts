@@ -3,7 +3,9 @@
  * `POST /v1/ai_chat/generate`: a character's next reply in one of the owner's chats, streamed.
  * The SaaS server answers the same request the same way through the framework's AI providers.
  *
- * Request: `{ "generate": { "chat_id", "leaf_id", "speaker_id" } }`. `leaf_id` is the branch the
+ * Request: `{ "generate": { "chat_id", "leaf_id", "speaker_id", "mode" } }`. `mode` is `reply` (the
+ * default), `continue` (carry on the character's message at `leaf_id`) or `impersonate` (the
+ * person's own next line, for the composer). `leaf_id` is the branch the
  * reply follows (null: the chat's start); `speaker_id` is who speaks (null: the chat's first
  * character).
  *
@@ -21,7 +23,7 @@ import { z } from 'zod';
 import { LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { assemblePrompt, type PromptInput, type PromptTurn } from '~/features/prompt/assemble';
+import { assemblePrompt, estimateTokens, type PromptInput, type PromptTurn } from '~/features/prompt/assemble';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { prisma } from '~/lib/prisma';
@@ -31,6 +33,7 @@ const request = z.object({
   chat_id: z.string().min(1),
   leaf_id: z.string().min(1).nullable().default(null),
   speaker_id: z.string().min(1).nullable().default(null),
+  mode: z.enum(['reply', 'continue', 'impersonate']).default('reply'),
 });
 
 const NO_QUERY = new URLSearchParams();
@@ -56,7 +59,7 @@ export async function generationInputs(
   ownerId: string,
   body: z.infer<typeof request>,
   roll: () => number = Math.random,
-): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState }> {
+): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState; activeLore: string[] }> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
   const chatFields = chats.fields(chat) as {
@@ -137,10 +140,12 @@ export async function generationInputs(
       context_tokens: sampler.context_tokens,
       max_tokens: sampler.max_tokens,
       lore,
+      mode: body.mode,
     },
     sampler,
     endpoint: { base_url: endpointRow.baseUrl, model: endpointRow.model, api_key: endpointRow.apiKey },
     loreState: lore.state,
+    activeLore: lore.active,
   };
 }
 
@@ -167,16 +172,49 @@ function event(name: string, data: unknown): Uint8Array {
   return new TextEncoder().encode(`event: ${name}\ndata: ${JSON.stringify(data)}\n\n`);
 }
 
+/** The request's `generate` object, or the framework's 422. */
+async function readRequest(nextRequest: NextRequest): Promise<z.infer<typeof request>> {
+  const envelope = await readJsonObject(nextRequest);
+  const parsed = request.safeParse(Reflect.get(envelope, 'generate'));
+  if (!parsed.success) throw validationError('A generate object with a chat_id is required', 'generate');
+  return parsed.data;
+}
+
+/**
+ * `POST /v1/ai_chat/prompt`: the context inspector (A18). Exactly what the model would be given for
+ * this request, with each message's estimated tokens, the history dropped to fit, and the lore
+ * entries that would go in. A preview: the lore timers do not move and no model is asked.
+ */
+export async function inspectPrompt(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const body = await readRequest(nextRequest);
+    const { prompt, sampler, activeLore } = await generationInputs(owner.id, body);
+    const assembled = assemblePrompt(prompt);
+    const messages = assembled.messages.map((message) => ({ ...message, tokens: estimateTokens(message) }));
+    return Response.json({
+      prompt: {
+        messages,
+        dropped: assembled.dropped,
+        tokens: messages.reduce((total, message) => total + message.tokens, 0),
+        context_tokens: sampler.context_tokens,
+        max_tokens: sampler.max_tokens,
+        active_lore: activeLore,
+      },
+    });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
 export async function generate(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
-    const envelope = await readJsonObject(nextRequest);
-    const parsed = request.safeParse(Reflect.get(envelope, 'generate'));
-    if (!parsed.success) throw validationError('A generate object with a chat_id is required', 'generate');
-    const { prompt, sampler, endpoint, loreState } = await generationInputs(owner.id, parsed.data);
+    const body = await readRequest(nextRequest);
+    const { prompt, sampler, endpoint, loreState } = await generationInputs(owner.id, body);
     const assembled = assemblePrompt(prompt);
     // The lore timers move with the reply that read them.
-    await saveLoreState(owner.id, parsed.data.chat_id, loreState);
+    await saveLoreState(owner.id, body.chat_id, loreState);
 
     const upstream = await fetch(completionsUrl(endpoint.base_url), {
       method: 'POST',

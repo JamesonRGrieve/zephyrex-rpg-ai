@@ -330,6 +330,110 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "continue: the character's last message comes after the instructions, for the model to carry on",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Is the stew ready?"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-bram",
+            "content": "Almost. It needs"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "mode": "continue"
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "Is the stew ready?"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        },
+        {
+          "role": "assistant",
+          "content": "Almost. It needs"
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "impersonate: the person's own next line is asked for at the end",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Is the stew ready?"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-bram",
+            "content": "Almost. It needs"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "mode": "impersonate"
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "Is the stew ready?"
+        },
+        {
+          "role": "assistant",
+          "content": "Almost. It needs"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        },
+        {
+          "role": "system",
+          "content": "Write Sam's next reply in this chat, in Sam's own voice. Write only Sam's part."
+        }
+      ],
+      "dropped": 0
     }
   ]
 }

@@ -96,6 +96,12 @@
     "story_channels": [
       "ic",
       "roll"
+    ],
+    "impersonate_prompt": "Write {{user}}'s next reply in this chat, in {{user}}'s own voice. Write only {{user}}'s part.",
+    "modes": [
+      "reply",
+      "continue",
+      "impersonate"
     ]
   },
   "lore": {

@@ -23,6 +23,7 @@ def test_case(case: dict[str, Any]) -> None:
         context_tokens=given["context_tokens"],
         max_tokens=given["max_tokens"],
         lore=given.get("lore"),
+        mode=given.get("mode", "reply"),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]

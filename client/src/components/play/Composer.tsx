@@ -6,7 +6,7 @@
  * on a touch screen Enter is a new line and the send button sends. It stays above the on-screen
  * keyboard and the home indicator.
  */
-import { Send, Square } from 'lucide-react';
+import { Send, Square, WandSparkles } from 'lucide-react';
 import { type KeyboardEvent, type ReactElement, useId, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
 import { Textarea } from 'zephyrex/ui/textarea';
@@ -29,11 +29,14 @@ export function Composer({
   disabled = false,
   onSend,
   onStop,
+  onImpersonate,
 }: {
   writing: boolean;
   disabled?: boolean;
   onSend: (text: string, channel: ComposerChannel) => void;
   onStop: () => void;
+  /** Writes the person's own next line for them to edit and send (Impersonate). */
+  onImpersonate?: () => Promise<string | null>;
 }): ReactElement {
   const [text, setText] = useState('');
   const [channel, setChannel] = useState<ComposerChannel>('ic');
@@ -93,6 +96,23 @@ export function Composer({
             onChange={(event) => setText(event.target.value)}
             onKeyDown={onKeyDown}
           />
+          {onImpersonate !== undefined && !writing && channel === 'ic' && (
+            <Button
+              type='button'
+              size='icon'
+              variant='ghost'
+              className='size-11 shrink-0'
+              aria-label='Write my line for me'
+              disabled={disabled}
+              onClick={() =>
+                void onImpersonate().then((line) => {
+                  if (line !== null && line.trim() !== '') setText(line.trim());
+                })
+              }
+            >
+              <WandSparkles aria-hidden />
+            </Button>
+          )}
           {writing ? (
             <Button type='button' size='icon' variant='outline' className='size-11 shrink-0' aria-label='Stop the reply' onClick={onStop}>
               <Square aria-hidden />

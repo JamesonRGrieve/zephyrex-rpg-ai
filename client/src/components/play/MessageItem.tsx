@@ -8,7 +8,7 @@
  * A reply's alternatives (swipes) and a fork's branches are paged with arrows; every action is a
  * button in reach of a thumb, and the menu holds the rest.
  */
-import { Bookmark, ChevronLeft, ChevronRight, Ellipsis, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
+import { Bookmark, ChevronLeft, ChevronRight, Ellipsis, FastForward, GitBranch, Pencil, RotateCw, Trash2 } from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -39,6 +39,8 @@ export interface MessageActions {
   onBookmark?: () => void;
   onBranch?: () => void;
   onDelete?: () => void;
+  /** Carries on the shown alternative where it stopped (offered on a character's last message). */
+  onContinue?: () => void;
 }
 
 const CHANNEL_LABEL: Record<MessageView['channel'], string | null> = {
@@ -165,6 +167,11 @@ export function MessageItem({ message, writing = false, ...actions }: { message:
                 {actions.onEdit !== undefined && (
                   <DropdownMenuItem onSelect={() => setEditing(message.text)}>
                     <Pencil aria-hidden /> Edit
+                  </DropdownMenuItem>
+                )}
+                {actions.onContinue !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onContinue}>
+                    <FastForward aria-hidden /> Continue
                   </DropdownMenuItem>
                 )}
                 {actions.onBookmark !== undefined && (

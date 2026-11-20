@@ -18,6 +18,10 @@
  *    system text, the note, the lore and the instructions always stay.
  *
  * Every card text is macro-expanded (`{{char}}`, `{{user}}`).
+ *
+ * Modes (A6): `reply` (the next character turn), `continue` (the last message is the character's
+ * own and the model carries on from it, so the post-history instructions go before it), and
+ * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
 import { PROMPT } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
@@ -56,7 +60,11 @@ export interface PromptInput {
   max_tokens: number;
   /** The active lore, from activateLore (none when the chat has no lorebooks). */
   lore?: Pick<LoreResult, 'sections' | 'at_depth'>;
+  /** What is asked for (`reply` when left out). */
+  mode?: PromptMode;
 }
+
+export type PromptMode = 'reply' | 'continue' | 'impersonate';
 
 export interface ModelMessage {
   role: 'system' | 'user' | 'assistant';
@@ -167,7 +175,11 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
       message: { role: insert.role, content: expandMacros(insert.content, names) },
     })),
   ];
-  const after = speaker.post_history_instructions.trim() === '' ? [] : [{ role: 'system' as const, content: expandMacros(speaker.post_history_instructions, names) }];
+  const mode = input.mode ?? 'reply';
+  const after: ModelMessage[] = [
+    ...(speaker.post_history_instructions.trim() === '' ? [] : [{ role: 'system' as const, content: expandMacros(speaker.post_history_instructions, names) }]),
+    ...(mode === 'impersonate' ? [{ role: 'system' as const, content: expandMacros(PROMPT.impersonate_prompt, names) }] : []),
+  ];
   const history = input.history
     .filter((turn) => story.has(turn.channel))
     .map((turn) => historyMessage(turn, speaker.id, namesById, group, names.user));
@@ -186,5 +198,11 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     kept = index;
   }
   const window = history.slice(kept);
-  return { messages: [system, ...withInserts(window, inserts), ...after], dropped: kept };
+  const placed = withInserts(window, inserts);
+  // Continuing: the last message is the one being carried on, so it comes after the instructions.
+  const last = placed.at(-1);
+  if (mode === 'continue' && last !== undefined && last.role === 'assistant') {
+    return { messages: [system, ...placed.slice(0, -1), ...after, last], dropped: kept };
+  }
+  return { messages: [system, ...placed, ...after], dropped: kept };
 }

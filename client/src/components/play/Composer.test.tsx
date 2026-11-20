@@ -23,6 +23,14 @@ describe('Composer', () => {
     expect(onSend).toHaveBeenCalledWith('pizza?', 'ooc');
   });
 
+  it('fills the box with the line Impersonate writes, for the person to edit and send', async () => {
+    const onSend = vi.fn();
+    render(<Composer writing={false} onSend={onSend} onStop={vi.fn()} onImpersonate={async () => '  I wave back.  '} />);
+    await userEvent.click(screen.getByRole('button', { name: 'Write my line for me' }));
+    expect(await screen.findByDisplayValue('I wave back.')).toBeInTheDocument();
+    expect(onSend).not.toHaveBeenCalled();
+  });
+
   it('offers to stop a reply being written', async () => {
     const onStop = vi.fn();
     render(<Composer writing onSend={vi.fn()} onStop={onStop} />);

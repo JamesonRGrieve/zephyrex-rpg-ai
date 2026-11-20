@@ -225,6 +225,23 @@ class TestGenerate:
         entry = server.post("/v1/lorebook_entry", json={"lorebook_entry": {"lorebook_id": theirs["id"], "keys": ["x"]}}, headers=_headers(person))
         assert entry.status_code == 422, entry.text
 
+    def test_the_inspector_shows_the_prompt_without_asking_the_model(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I hand her the spanner."]).json()["chat_message"]
+        RECEIVED.clear()
+        inspected = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "impersonate"}}, headers=_headers(user))
+        assert inspected.status_code == 200, inspected.text
+        prompt = inspected.json()["prompt"]
+        assert prompt["messages"][-1]["content"].startswith("Write User's next reply")
+        assert prompt["tokens"] == sum(message["tokens"] for message in prompt["messages"])
+        assert RECEIVED == []
+        assert server.get(f"/v1/chat_lore_state?chat_id={chat['id']}", headers=_headers(user)).json()["chat_lore_states"] == []
+        bad = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "mode": "sing"}}, headers=_headers(user))
+        assert bad.status_code == 422
+
     def test_asks_for_a_model_first_and_refuses_an_unknown_chat(self, server: TestClient) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

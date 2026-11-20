@@ -44,7 +44,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     SAMPLER_RANGES,
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Prompt import assemble_prompt  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Prompt import assemble_prompt, estimate_tokens  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
     ChatLoreStateManager,
@@ -553,6 +553,31 @@ class GenerateRequest(PlainModel):
     chat_id: str = Field(..., min_length=1)
     leaf_id: str | None = None
     speaker_id: str | None = None
+    mode: str = "reply"
+
+    @field_validator("mode")
+    @classmethod
+    def _checked_mode(cls, value: Any) -> Any:
+        return _one_of(value, PROMPT["modes"], "mode")
+
+
+class PromptMessage(PlainModel):
+    role: str
+    content: str
+    tokens: int
+
+
+class InspectedPrompt(PlainModel):
+    messages: list[PromptMessage]
+    dropped: int
+    tokens: int
+    context_tokens: int
+    max_tokens: int
+    active_lore: list[str]
+
+
+class InspectEnvelope(PlainModel):
+    prompt: InspectedPrompt
 
 
 class GenerateEnvelope(PlainModel):
@@ -603,7 +628,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     def _manager(self, manager: type[Any]) -> Any:
         return manager(requester_id=str(self.requester.id), model_registry=self.model_registry)
 
-    def _inputs(self, body: GenerateRequest) -> tuple[Any, dict[str, Any], dict[str, Any]]:
+    def _inputs(self, body: GenerateRequest, save_timers: bool = True) -> tuple[Any, dict[str, Any], dict[str, Any], list[str]]:
         """Everything a reply needs, read as the requester sees it (lib/generate.ts, step for step)."""
         try:
             chat = self._manager(ChatManager).get(id=body.chat_id)
@@ -659,7 +684,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         }
         speaker_name = next(character["name"] for character in cast if character["id"] == speaker_id)
         lore = activate_lore(entries, story_texts, len(story_texts), speaker_name, timers.read(chat.id), settings, random.random)
-        timers.save(chat.id, lore.state)
+        if save_timers:
+            timers.save(chat.id, lore.state)
 
         sampler: dict[str, Any] = {**PRESET_DEFAULTS, "stop": []}
         if chat.preset_id:
@@ -683,6 +709,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             int(sampler["context_tokens"]),
             int(sampler["max_tokens"]),
             {"sections": lore.sections, "at_depth": lore.at_depth},
+            body.mode,
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {
@@ -700,7 +727,32 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 **({"stop": sampler["stop"]} if sampler["stop"] else {}),
             },
         }
-        return assembled, request, sampler
+        return assembled, request, sampler, lore.active
+
+    @custom_route(
+        method="POST",
+        path="/prompt",
+        input_model=GenerateEnvelope,
+        output_model=InspectEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="What the model would be given for this request, without asking it (the context inspector)",
+    )
+    async def prompt_route(self, body: GenerateEnvelope) -> InspectEnvelope:
+        # A preview: the lore timers do not move and no model is asked.
+        assembled, _request, sampler, active = self._inputs(body.generate, save_timers=False)
+        messages = [PromptMessage(**message, tokens=estimate_tokens(message)) for message in assembled.messages]
+        return InspectEnvelope(
+            prompt=InspectedPrompt(
+                messages=messages,
+                dropped=assembled.dropped,
+                tokens=sum(message.tokens for message in messages),
+                context_tokens=int(sampler["context_tokens"]),
+                max_tokens=int(sampler["max_tokens"]),
+                active_lore=active,
+            )
+        )
 
     @custom_route(
         method="POST",
@@ -713,7 +765,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         summary="A character's next reply, streamed",
     )
     async def generate_route(self, body: GenerateEnvelope) -> StreamingResponse:
-        assembled, request, _sampler = self._inputs(body.generate)
+        assembled, request, _sampler, _active = self._inputs(body.generate)
         client = httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS)
         try:
             upstream = await client.send(client.build_request("POST", **request), stream=True)

@@ -10,6 +10,10 @@ assemblePrompt (client/src/features/prompt/assemble.ts), held to the same cases
    named when the chat has several voices.
 3. The author's note at ``author_note_depth`` messages from the end, then the speaker's
    post-history instructions last.
+Modes: ``reply`` (the next character turn), ``continue`` (the last message is the character's own and
+the model carries on, so the post-history instructions go before it) and ``impersonate`` (the
+person's own next line, asked for by the contract's instruction at the end).
+
 4. Lore (World Info, Lore.py): its sections sit around the card (``before_char``, ``after_char``),
    the examples and the author's note; its depth entries go into the history at their depth.
 5. Budget: the context window less the reply's room. Oldest history goes first; the system text,
@@ -95,6 +99,7 @@ def assemble_prompt(
     context_tokens: int,
     max_tokens: int,
     lore: Mapping[str, Any] | None = None,
+    mode: str = "reply",
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -122,6 +127,8 @@ def assemble_prompt(
         if speaker["post_history_instructions"].strip()
         else []
     )
+    if mode == "impersonate":
+        after.append({"role": "system", "content": expand_macros(PROMPT["impersonate_prompt"], names)})
     turns = [
         _history_message(turn, speaker["id"], names_by_id, group, names["user"]) for turn in history if turn["channel"] in story
     ]
@@ -141,4 +148,6 @@ def assemble_prompt(
         placed += [message for depth, message in inserts if max(0, len(window) - depth) == index]
         if index < len(window):
             placed.append(window[index])
+    if mode == "continue" and placed and placed[-1]["role"] == "assistant":
+        return Assembled(messages=[system, *placed[:-1], *after, placed[-1]], dropped=kept)
     return Assembled(messages=[system, *placed, *after], dropped=kept)

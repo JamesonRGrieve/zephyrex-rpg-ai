@@ -15,6 +15,8 @@ export interface ReplyRequest {
   chat_id: string;
   leaf_id: string | null;
   speaker_id: string | null;
+  /** `reply` when left out; `continue` carries on the leaf; `impersonate` writes the person's line. */
+  mode?: 'reply' | 'continue' | 'impersonate';
 }
 
 export interface ReplyResult {

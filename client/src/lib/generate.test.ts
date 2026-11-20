@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { completionsUrl, generate } from './generate';
+import { completionsUrl, generate, inspectPrompt } from './generate';
 
 interface Received {
   path: string;
@@ -143,6 +143,28 @@ describe('World Info in a reply', () => {
 
     const saved = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
     expect(Object.values(JSON.parse(saved?.state ?? '{}') as Record<string, { sticky_until: number }>)).toEqual([{ sticky_until: 3, cooldown_until: 0 }]);
+  });
+});
+
+describe('POST /v1/ai_chat/prompt', () => {
+  it('shows what the model would be given, with token estimates, without asking it or moving the lore timers', async () => {
+    await prisma.chatLoreState.deleteMany();
+    const { chat, line } = await seed();
+    const response = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+    expect(response.status).toBe(200);
+    const body = (await response.json()) as { prompt: { messages: { role: string; content: string; tokens: number }[]; tokens: number; dropped: number } };
+    expect(body.prompt.messages.at(-1)).toMatchObject({ role: 'user', content: 'I hand her the spanner.' });
+    expect(body.prompt.tokens).toBe(body.prompt.messages.reduce((total, message) => total + message.tokens, 0));
+    expect(received).toHaveLength(0);
+    expect(await prisma.chatLoreState.count()).toBe(0);
+  });
+
+  it('asks for the person’s own line when impersonating', async () => {
+    const { chat, line } = await seed();
+    const response = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id, mode: 'impersonate' } }));
+    const body = (await response.json()) as { prompt: { messages: { content: string }[] } };
+    expect(body.prompt.messages.at(-1)?.content).toContain("Write User's next reply");
+    expect((await inspectPrompt(call({ generate: { chat_id: chat.id, mode: 'sing' } }))).status).toBe(422);
   });
 });
 
