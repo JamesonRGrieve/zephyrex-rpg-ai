@@ -8,7 +8,7 @@
  * The chat is a tree: sending adds a child of the message shown last; a reply's alternatives are
  * swipes of one message; "Branch from here" makes the next message a new fork.
  */
-import { Download, Ellipsis, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
+import { Download, Ellipsis, GitFork, Pause, Play, ScanText, Settings2, X } from 'lucide-react';
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -19,7 +19,7 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from '
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { useWakeLock } from '~/features/browser/useWakeLock';
-import { branchTo, latestLeaf } from '~/features/chat/branch';
+import { branchTo, latestLeaf, treeRows } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
 import { deviceLanguage, type InspectedPrompt, inspectPrompt, summarizeBranch, translateText } from '~/features/chat/inspectPrompt';
@@ -38,6 +38,7 @@ import { type Character, type Chat, type ChatMessage, characters, chats, endpoin
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
+import { BranchTree } from './BranchTree';
 import { ContextInspector } from './ContextInspector';
 import { NextSpeaker } from './NextSpeaker';
 import { MessageItem, type MessageView } from './MessageItem';
@@ -94,6 +95,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [leafId, setLeafId] = useState<string | null>(null);
   const [writingAfter, setWritingAfter] = useState<{ parentId: string | null; speakerId: string } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [treeOpen, setTreeOpen] = useState(false);
   const [inspected, setInspected] = useState<InspectedPrompt | 'loading' | null>(null);
   const mobile = useIsMobile();
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
@@ -343,6 +345,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align='end'>
+              <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
+                <GitFork aria-hidden /> Every branch
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => exportBranch('jsonl')}>
                 <Download aria-hidden /> Export for SillyTavern
               </DropdownMenuItem>
@@ -450,6 +455,30 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             }),
           }))}
       />
+      <Sheet open={treeOpen} onOpenChange={setTreeOpen}>
+        <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
+          <SheetHeader>
+            <SheetTitle>Every branch</SheetTitle>
+            <SheetDescription>Choose a message to show the branch through it.</SheetDescription>
+          </SheetHeader>
+          <div className='p-4'>
+            <BranchTree
+              rows={treeRows(all, new Set(branch.map((message) => message.id))).map((row) => ({
+                id: row.message.id,
+                speaker: treeOpen ? (messageViews([row.message], all, castById, persona)[0]?.speaker ?? NARRATOR) : NARRATOR,
+                text: row.message.swipes[row.message.swipe_index] ?? '',
+                depth: row.depth,
+                onPath: row.onPath,
+                leaf: row.leaf,
+              }))}
+              onPick={(id) => {
+                setLeafId(latestLeaf(all, id)?.id ?? id);
+                setTreeOpen(false);
+              }}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
       <Sheet open={inspected !== null} onOpenChange={(open) => !open && setInspected(null)}>
         <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
           <SheetHeader>

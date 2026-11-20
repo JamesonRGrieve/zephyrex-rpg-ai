@@ -38,3 +38,32 @@ export function latestLeaf<M extends TreeMessage>(messages: readonly M[], fromId
   if (last === undefined) return fromId === null ? undefined : messages.find((message) => message.id === fromId);
   return latestLeaf(messages, last.id) ?? last;
 }
+
+export interface TreeRow<M extends TreeMessage> {
+  message: M;
+  /** How many forks deep it sits: a single line of turns stays at one depth. */
+  depth: number;
+  /** Whether it is on the branch shown. */
+  onPath: boolean;
+  /** Whether nothing follows it (where a branch ends). */
+  leaf: boolean;
+}
+
+/**
+ * The whole tree as rows, depth first in the order given, for a tree view (A8). Depth grows only at
+ * a fork, so a straight run of turns reads as one column. `messages` must be oldest first.
+ */
+export function treeRows<M extends TreeMessage>(messages: readonly M[], pathIds: ReadonlySet<string>): TreeRow<M>[] {
+  const children = new Map<string | null, M[]>();
+  for (const message of messages) children.set(message.parent_id, [...(children.get(message.parent_id) ?? []), message]);
+  const walk = (parentId: string | null, depth: number, seen: ReadonlySet<string>): TreeRow<M>[] => {
+    const under = (children.get(parentId) ?? []).filter((message) => !seen.has(message.id));
+    const childDepth = under.length > 1 ? depth + 1 : depth;
+    return under.flatMap((message) => {
+      const next = new Set(seen).add(message.id);
+      const rows = walk(message.id, childDepth, next);
+      return [{ message, depth: childDepth, onPath: pathIds.has(message.id), leaf: (children.get(message.id) ?? []).length === 0 }, ...rows];
+    });
+  };
+  return walk(null, 0, new Set());
+}

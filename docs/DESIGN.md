@@ -678,7 +678,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A1, A2 | Cards V1/V2/V3 in (JSON, PNG); out as PNG with the lorebook inside, or JSON | batch export |
 | A3 | Personas | |
 | A6 | Streaming, stop, regenerate, continue, impersonate | |
-| A7–A9 | Swipes, branches, edit, delete, bookmarks | tree view |
+| A7–A9 | Swipes, branches (with a view of every branch), edit, delete, bookmarks | moving a message |
 | A10, A52 | Group chats: turn order, pick who speaks next, members left out of turns | natural order by a decision model; group greetings |
 | A11 | OOC channels kept out of the story; table notes (house rules, pacing, tone, reminders) in every prompt | notes proposed by the GM, confirmed by a player |
 | A20 | The table GM: answers `gm` questions out of character from the safety tools, notes, summary and recent story; pause | the narrator voice and GM style (A20, phase 4) |

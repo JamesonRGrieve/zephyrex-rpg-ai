@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { branchTo, childrenOf, latestLeaf } from './branch';
+import { branchTo, treeRows, childrenOf, latestLeaf } from './branch';
 
 // a ─ b ─ c
 //      └─ d ─ e
@@ -34,3 +34,23 @@ describe('branch', () => {
     expect(latestLeaf([])).toBeUndefined();
   });
 });
+
+describe('treeRows', () => {
+  it('lists the tree depth first, deeper only at forks, marking the shown branch and its ends', () => {
+    const messages = [
+      { id: 'a', parent_id: null },
+      { id: 'b', parent_id: 'a' },
+      { id: 'c1', parent_id: 'b' },
+      { id: 'c2', parent_id: 'b' },
+      { id: 'd', parent_id: 'c2' },
+    ];
+    expect(treeRows(messages, new Set(['a', 'b', 'c2', 'd'])).map((row) => [row.message.id, row.depth, row.onPath, row.leaf])).toEqual([
+      ['a', 0, true, false],
+      ['b', 0, true, false],
+      ['c1', 1, false, true],
+      ['c2', 1, true, false],
+      ['d', 1, true, true],
+    ]);
+  });
+});
+
