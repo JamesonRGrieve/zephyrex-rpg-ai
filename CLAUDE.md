@@ -9,7 +9,7 @@ top of the Zephyrex RPG suite (wiki ← vtt ← ai).
 ## Structure
 
 ```
-server/     Python backend: zephyrex server consumer (PyPI `zephyrex[genealogy]~=0.0.1`); extensions in server/extensions/
+server/     Python backend: zephyrex server consumer (server-framework as a path source, pinned in deploy/frameworks.env); extensions in server/extensions/
 client/     Next.js frontend: zephyrex npm consumer
 docs/       SUITE.md, DESIGN.md
 ```
