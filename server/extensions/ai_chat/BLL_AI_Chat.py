@@ -19,6 +19,7 @@ Actions on ``/v1/ai_chat``:
 """
 
 import json
+import random
 from collections.abc import AsyncIterator, Sequence
 from typing import Any, ClassVar
 
@@ -42,7 +43,14 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     PRESET_DEFAULTS,
     SAMPLER_RANGES,
 )
+from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import assemble_prompt  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
+    ChatLoreStateManager,
+    LorebookEntryManager,
+    LorebookManager,
+)
 from zephyrex.lib.CustomRoute import ExposeIn, custom_route
 from zephyrex.lib.EventStream import event_stream
 from zephyrex.lib.SecretEncryption import decrypt_secret, encrypt_secret
@@ -70,6 +78,15 @@ MAX_STOP: int = LIMITS["stop_string_characters"]
 MAX_URL: int = LIMITS["endpoint_url_characters"]
 MAX_MODEL: int = LIMITS["model_name_characters"]
 MAX_KEY: int = LIMITS["api_key_characters"]
+MAX_BOOKS: int = LIMITS["lorebooks_per_chat"]
+LORE: dict[str, Any] = CONTRACT["lore"]
+LORE_SETTING_RANGES = {"scan_depth", "token_budget", "recursion_steps"}
+LORE_ENTRY_FIELDS = (
+    "id", "keys", "secondary_keys", "selective_logic", "content", "enabled", "constant", "position", "depth", "role",
+    "order", "probability", "group", "group_weight", "prioritize", "sticky", "cooldown", "delay", "exclude_recursion",
+    "prevent_recursion", "delay_until_recursion", "case_sensitive", "match_whole_words", "character_names",
+    "character_exclude",
+)
 UPSTREAM_TIMEOUT_SECONDS = 120.0
 
 
@@ -96,6 +113,31 @@ def _cast(ids: Any) -> Any:
     if len(set(ids)) != len(ids):
         raise ValueError("A character is in a chat once")
     return ids
+
+
+def _lorebook_ids(ids: Any) -> Any:
+    if ids is None:
+        return None
+    if len(ids) > MAX_BOOKS or len(set(ids)) != len(ids):
+        raise ValueError(f"At most {MAX_BOOKS} lorebooks, each once")
+    return ids
+
+
+def _lore_settings(settings: Any) -> Any:
+    """A chat's World Info settings; what it leaves out takes the contract's defaults."""
+    if settings is None:
+        return None
+    allowed = LORE_SETTING_RANGES | {"case_sensitive", "match_whole_words"}
+    if set(settings) - allowed:
+        raise ValueError(f"lore_settings takes only {', '.join(sorted(allowed))}")
+    for key in LORE_SETTING_RANGES & set(settings):
+        low, high = LORE["ranges"][key]
+        if not isinstance(settings[key], int) or not low <= settings[key] <= high:
+            raise ValueError(f"{key} is a whole number between {low} and {high}")
+    for key in {"case_sensitive", "match_whole_words"} & set(settings):
+        if not isinstance(settings[key], bool):
+            raise ValueError(f"{key} is true or false")
+    return settings
 
 
 def _swipes(swipes: Any) -> Any:
@@ -150,6 +192,16 @@ class ChatChecks(PlainModel):
     def _checked_cast(cls, value: Any) -> Any:
         return _cast(value)
 
+    @field_validator("lorebook_ids", check_fields=False)
+    @classmethod
+    def _checked_books(cls, value: Any) -> Any:
+        return _lorebook_ids(value)
+
+    @field_validator("lore_settings", check_fields=False)
+    @classmethod
+    def _checked_lore_settings(cls, value: Any) -> Any:
+        return _lore_settings(value)
+
 
 class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["ChatManager"]]
@@ -160,6 +212,8 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     preset_id: str | None = Field(None, description="Sampler settings (null: the defaults)")
     endpoint_id: str | None = Field(None, description="The model (null: the default)")
     author_note: str = Field("", description="Read close to the end of the chat")
+    lorebook_ids: list[str] = Field(default_factory=list, description="The lorebooks it reads")
+    lore_settings: dict[str, Any] = Field(default_factory=dict, description="World Info settings")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
@@ -171,6 +225,8 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         preset_id: str | None = None
         endpoint_id: str | None = None
         author_note: str = Field("", max_length=MAX_NOTE)
+        lorebook_ids: list[str] = Field(default_factory=list)
+        lore_settings: dict[str, Any] = Field(default_factory=dict)
 
     class Update(BaseModel, ChatChecks):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -180,6 +236,8 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         preset_id: str | None = None
         endpoint_id: str | None = None
         author_note: str | None = Field(None, max_length=MAX_NOTE)
+        lorebook_ids: list[str] | None = None
+        lore_settings: dict[str, Any] | None = None
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -201,6 +259,8 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
     def _check_references(self, fields: dict[str, Any]) -> None:
         for character_id in fields.get("character_ids") or []:
             self._owned(CharacterManager, character_id, "character_ids")
+        for book_id in fields.get("lorebook_ids") or []:
+            self._owned(LorebookManager, book_id, "lorebook_ids")
         for field, manager in (
             ("persona_id", PersonaManager),
             ("preset_id", GenerationPresetManager),
@@ -212,6 +272,8 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
     def create(self, **kwargs: Any) -> Any:
         kwargs.setdefault("mode", "character")
         kwargs.setdefault("author_note", "")
+        kwargs.setdefault("lorebook_ids", [])
+        kwargs.setdefault("lore_settings", {})
         self._check_references(kwargs)
         return super().create(**kwargs)
 
@@ -224,6 +286,9 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         messages = ChatMessageManager(requester_id=str(self.requester.id), model_registry=self.model_registry)
         for message in messages.list(chat_id=id):
             ChatMessageManager.delete_one(messages, message.id)
+        timers = ChatLoreStateManager(requester_id=str(self.requester.id), model_registry=self.model_registry)
+        for state in timers.list(chat_id=id):
+            timers.delete(state.id)
         super().delete(id)
 
 
@@ -547,8 +612,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
 
         characters = self._manager(CharacterManager)
         cast = []
+        own_books: list[str] = []
         for character_id in chat.character_ids or []:
             row = characters.get(id=character_id)
+            if getattr(row, "lorebook_id", None):
+                own_books.append(row.lorebook_id)
             cast.append({key: getattr(row, key) for key in ("id", "name", "description", "personality", "scenario", "example_messages", "system_prompt", "post_history_instructions")})
         speaker_id = body.speaker_id or (cast[0]["id"] if cast else None)
         if speaker_id is None or all(character["id"] != speaker_id for character in cast):
@@ -571,6 +639,28 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for message in (branch_to(messages, body.leaf_id) if body.leaf_id is not None else [])
         ]
 
+        # World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
+        story_texts = [turn["content"] for turn in history if turn["channel"] in PROMPT["story_channels"]]
+        book_ids = list(dict.fromkeys([*(chat.lorebook_ids or []), *own_books]))
+        entries_manager = self._manager(LorebookEntryManager)
+        entries = [
+            {key: getattr(row, key) for key in LORE_ENTRY_FIELDS}
+            for book_id in book_ids
+            for row in entries_manager.list(lorebook_id=book_id)
+        ]
+        timers = self._manager(ChatLoreStateManager)
+        settings = {
+            "scan_depth": LORE["defaults"]["scan_depth"],
+            "token_budget": LORE["defaults"]["token_budget"],
+            "recursion_steps": LORE["defaults"]["recursion_steps"],
+            "case_sensitive": False,
+            "match_whole_words": False,
+            **(chat.lore_settings or {}),
+        }
+        speaker_name = next(character["name"] for character in cast if character["id"] == speaker_id)
+        lore = activate_lore(entries, story_texts, len(story_texts), speaker_name, timers.read(chat.id), settings, random.random)
+        timers.save(chat.id, lore.state)
+
         sampler: dict[str, Any] = {**PRESET_DEFAULTS, "stop": []}
         if chat.preset_id:
             preset = self._manager(GenerationPresetManager).get(id=chat.preset_id)
@@ -585,7 +675,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             raise HTTPException(status_code=409, detail={"message": "Add a model endpoint first", "code": "no_model_endpoint"})
 
         assembled = assemble_prompt(
-            cast, speaker_id, persona, chat.author_note or "", history, int(sampler["context_tokens"]), int(sampler["max_tokens"])
+            cast,
+            speaker_id,
+            persona,
+            chat.author_note or "",
+            history,
+            int(sampler["context_tokens"]),
+            int(sampler["max_tokens"]),
+            {"sections": lore.sections, "at_depth": lore.at_depth},
         )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request = {

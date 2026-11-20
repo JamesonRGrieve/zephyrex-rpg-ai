@@ -12,11 +12,15 @@
  * - `generation_preset`: sampler settings, inside the contract's ranges.
  * - `model_endpoint`: an OpenAI-compatible endpoint (lite generates through it). Its API key is
  *   write-only: answers say only whether one is set.
+ *
+ * A character may have its own lorebook (`lorebook_id`), and a chat names the lorebooks it reads
+ * (`lorebook_ids`) and its World Info settings (`lore_settings`); lorebooks themselves are in
+ * loreRecords.ts.
  */
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CHAT_MODES, LIMITS, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, SAMPLER_RANGES } from '~/contract';
+import { CHAT_MODES, LIMITS, LORE, MESSAGE_CHANNELS, MESSAGE_ROLES, PRESET_DEFAULTS, SAMPLER_RANGES } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -61,6 +65,7 @@ const CHARACTER_COLUMNS: Columns = {
   avatar: plain('avatar'),
   favourite: plain('favourite'),
   extensions: jsonObject('extensions'),
+  lorebook_id: plain('lorebookId'),
 };
 
 const characterFields = {
@@ -79,6 +84,7 @@ const characterFields = {
   avatar,
   favourite: z.boolean(),
   extensions,
+  lorebook_id: z.string().min(1).nullable(),
 };
 
 const characterCreate = z.object({
@@ -98,10 +104,18 @@ const characterCreate = z.object({
   avatar: avatar.default(null),
   favourite: z.boolean().default(false),
   extensions: extensions.default({}),
+  lorebook_id: z.string().min(1).nullable().default(null),
 });
 const characterUpdate = z.object({ name, ...characterFields }).partial();
 
 type CharacterRow = Prisma.CharacterGetPayload<object>;
+
+/** A character's own lorebook must be one of the owner's. */
+async function checkCharacterLorebook(ownerId: string, lorebookId: string | null | undefined): Promise<void> {
+  if (typeof lorebookId !== 'string') return;
+  const found = await prisma.lorebook.count({ where: { createdById: ownerId, id: lorebookId } });
+  if (found === 0) throw validationError('That lorebook is not one of yours', 'lorebook_id');
+}
 
 export const characters: ResourceSpec<CharacterRow, z.infer<typeof characterCreate>, z.infer<typeof characterUpdate>> = {
   resource: 'character',
@@ -112,11 +126,15 @@ export const characters: ResourceSpec<CharacterRow, z.infer<typeof characterCrea
   list: (ownerId) =>
     prisma.character.findMany({ where: { createdById: ownerId }, orderBy: [{ favourite: 'desc' }, { name: 'asc' }] }),
   find: (id, ownerId) => prisma.character.findFirst({ where: { id, createdById: ownerId } }),
-  insert: (ownerId, input, stamp) =>
-    prisma.character.create({
+  async insert(ownerId, input, stamp) {
+    await checkCharacterLorebook(ownerId, input.lorebook_id);
+    return prisma.character.create({
       data: { createdById: ownerId, ...written(CHARACTER_COLUMNS, input, stamp) } as Prisma.CharacterUncheckedCreateInput,
-    }),
+    });
+  },
   async updateIfCurrent(id, version, input, stamp, userId) {
+    const current = await prisma.character.findUnique({ where: { id }, select: { createdById: true } });
+    if (current !== null) await checkCharacterLorebook(current.createdById, input.lorebook_id);
     const { count } = await prisma.character.updateMany({
       where: { id, updatedAt: version },
       data: written(CHARACTER_COLUMNS, input, stamp, userId) as Prisma.CharacterUncheckedUpdateManyInput,
@@ -197,6 +215,8 @@ const CHAT_COLUMNS: Columns = {
   preset_id: plain('presetId'),
   endpoint_id: plain('endpointId'),
   author_note: plain('authorNote'),
+  lorebook_ids: jsonList('lorebookIds'),
+  lore_settings: jsonObject('loreSettings'),
 };
 
 const title = z.string().trim().min(1).max(LIMITS.chat_title_characters);
@@ -205,6 +225,19 @@ const characterIds = z
   .min(1)
   .max(LIMITS.characters_per_chat)
   .refine((ids) => new Set(ids).size === ids.length, 'A character is in a chat once');
+const loreRange = (key: keyof typeof LORE.ranges) => z.number().int().min(LORE.ranges[key][0]).max(LORE.ranges[key][1]);
+/** A chat's World Info settings; what it leaves out takes the contract's defaults. */
+export const loreSettings = z
+  .object({
+    scan_depth: loreRange('scan_depth'),
+    token_budget: loreRange('token_budget'),
+    recursion_steps: loreRange('recursion_steps'),
+    case_sensitive: z.boolean(),
+    match_whole_words: z.boolean(),
+  })
+  .partial()
+  .strict();
+
 const chatFields = {
   mode: z.enum(CHAT_MODES),
   character_ids: characterIds,
@@ -212,6 +245,11 @@ const chatFields = {
   preset_id: recordId.nullable(),
   endpoint_id: recordId.nullable(),
   author_note: z.string().max(LIMITS.author_note_characters),
+  lorebook_ids: z
+    .array(recordId)
+    .max(LIMITS.lorebooks_per_chat)
+    .refine((ids) => new Set(ids).size === ids.length, 'A lorebook is in a chat once'),
+  lore_settings: loreSettings,
 };
 const chatCreate = z.object({
   title,
@@ -221,6 +259,8 @@ const chatCreate = z.object({
   preset_id: chatFields.preset_id.default(null),
   endpoint_id: chatFields.endpoint_id.default(null),
   author_note: chatFields.author_note.default(''),
+  lorebook_ids: chatFields.lorebook_ids.default([]),
+  lore_settings: loreSettings.default({}),
 });
 const chatUpdate = z.object({ title, ...chatFields }).partial();
 
@@ -230,6 +270,10 @@ async function checkChatReferences(ownerId: string, input: z.infer<typeof chatUp
   if (input.character_ids !== undefined) {
     const found = await prisma.character.count({ where: { ...owned, id: { in: input.character_ids } } });
     if (found !== input.character_ids.length) throw validationError('Every character must be one of yours', 'character_ids');
+  }
+  if (input.lorebook_ids !== undefined && input.lorebook_ids.length > 0) {
+    const found = await prisma.lorebook.count({ where: { ...owned, id: { in: input.lorebook_ids } } });
+    if (found !== input.lorebook_ids.length) throw validationError('Every lorebook must be one of yours', 'lorebook_ids');
   }
   const single: [keyof typeof input, () => Promise<number>][] = [
     ['persona_id', () => prisma.persona.count({ where: { ...owned, id: input.persona_id ?? '' } })],
@@ -268,7 +312,11 @@ export const chats: ResourceSpec<ChatRow, z.infer<typeof chatCreate>, z.infer<ty
   },
   async remove(id) {
     // A chat's messages go with it.
-    await prisma.$transaction([prisma.chatMessage.deleteMany({ where: { chatId: id } }), prisma.chat.delete({ where: { id } })]);
+    await prisma.$transaction([
+      prisma.chatMessage.deleteMany({ where: { chatId: id } }),
+      prisma.chatLoreState.deleteMany({ where: { chatId: id } }),
+      prisma.chat.delete({ where: { id } }),
+    ]);
   },
   fields: (row) => fieldsOf(CHAT_COLUMNS, row),
 };

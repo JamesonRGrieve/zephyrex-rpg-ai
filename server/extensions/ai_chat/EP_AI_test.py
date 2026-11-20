@@ -197,6 +197,34 @@ class TestGenerate:
         assert "I hand her the spanner." in contents
         assert "brb, coffee" not in "\n".join(contents)
 
+    def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        book = _create(server, user, "lorebook", name="Kestrel").json()["lorebook"]
+        _create(server, user, "lorebook_entry", lorebook_id=book["id"], keys=["spanner"], content="The Kestrel's spanners are cursed.", sticky=2)
+        _create(server, user, "lorebook_entry", lorebook_id=book["id"], keys=["coffee"], content="never: only table talk says coffee")
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], lorebook_ids=[book["id"]]).json()["chat"]
+        ooc = _create(server, user, "chat_message", chat_id=chat["id"], role="user", channel="ooc", swipes=["brb, coffee"]).json()["chat_message"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], parent_id=ooc["id"], role="user", swipes=["I hand her the spanner."]).json()["chat_message"]
+
+        RECEIVED.clear()
+        response = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert response.status_code == 200, response.text
+        system = RECEIVED[0]["body"]["messages"][0]["content"]
+        assert "The Kestrel's spanners are cursed." in system
+        assert "never: only table talk says coffee" not in system
+        timers = server.get(f"/v1/chat_lore_state?chat_id={chat['id']}", headers=_headers(user)).json()["chat_lore_states"]
+        assert [list(state["state"].values()) for state in timers] == [[{"sticky_until": 3, "cooldown_until": 0}]]
+
+    def test_refuses_a_lorebook_that_is_not_yours(self, server: TestClient, person: Any, other: Any) -> None:
+        theirs = _create(server, other, "lorebook", name="Theirs").json()["lorebook"]
+        ada = _create(server, person, "character", name="Ada").json()["character"]
+        refused = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "lorebook_ids": [theirs["id"]]}}, headers=_headers(person))
+        assert refused.status_code == 422, refused.text
+        entry = server.post("/v1/lorebook_entry", json={"lorebook_entry": {"lorebook_id": theirs["id"], "keys": ["x"]}}, headers=_headers(person))
+        assert entry.status_code == 422, entry.text
+
     def test_asks_for_a_model_first_and_refuses_an_unknown_chat(self, server: TestClient) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

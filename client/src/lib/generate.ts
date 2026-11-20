@@ -18,9 +18,11 @@
 import type { NextRequest } from 'next/server';
 import { ApiError, apiErrorResponse, localOwner, notFound, readJsonObject, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { PRESET_DEFAULTS } from '~/contract';
+import { LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
+import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import { assemblePrompt, type PromptInput, type PromptTurn } from '~/features/prompt/assemble';
+import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { prisma } from '~/lib/prisma';
 import { chatMessages, chats, characters, endpoints, personas, presets } from '~/lib/rpgRecords';
@@ -53,10 +55,19 @@ interface Endpoint {
 export async function generationInputs(
   ownerId: string,
   body: z.infer<typeof request>,
-): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint }> {
+  roll: () => number = Math.random,
+): Promise<{ prompt: PromptInput; sampler: Sampler; endpoint: Endpoint; loreState: LoreState }> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
-  const chatFields = chats.fields(chat) as { character_ids: string[]; persona_id: string | null; preset_id: string | null; endpoint_id: string | null; author_note: string };
+  const chatFields = chats.fields(chat) as {
+    character_ids: string[];
+    persona_id: string | null;
+    preset_id: string | null;
+    endpoint_id: string | null;
+    author_note: string;
+    lorebook_ids: string[];
+    lore_settings: Partial<LoreSettings>;
+  };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
   const ordered = chatFields.character_ids.flatMap((id) => cast.filter((character) => character.id === id));
@@ -86,6 +97,25 @@ export async function generationInputs(
     content: message.swipes[message.swipe_index] ?? '',
   }));
 
+  // World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
+  const story = new Set<string>(PROMPT.story_channels);
+  const storyTexts = history.filter((turn) => story.has(turn.channel)).map((turn) => turn.content);
+  const bookIds = [...new Set([...chatFields.lorebook_ids, ...ordered.flatMap((row) => (row.lorebookId === null ? [] : [row.lorebookId]))])];
+  const entryRows = bookIds.length === 0 ? [] : await prisma.lorebookEntry.findMany({ where: { createdById: ownerId, lorebookId: { in: bookIds } } });
+  const entries = entryRows.map((row) => ({ id: row.id, ...(lorebookEntries.fields(row) as Omit<LoreEntry, 'id'>) }));
+  const stateRow = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
+  const priorState: LoreState = stateRow === null ? {} : (JSON.parse(stateRow.state) as LoreState);
+  const settings: LoreSettings = {
+    scan_depth: LORE.defaults.scan_depth,
+    token_budget: LORE.defaults.token_budget,
+    recursion_steps: LORE.defaults.recursion_steps,
+    case_sensitive: false,
+    match_whole_words: false,
+    ...chatFields.lore_settings,
+  };
+  const speakerName = promptCharacters.find((character) => character.id === speakerId)?.name ?? '';
+  const lore = activateLore(entries, storyTexts, storyTexts.length, speakerName, priorState, settings, roll);
+
   const presetRow = chatFields.preset_id === null ? null : await presets.find(chatFields.preset_id, ownerId);
   const sampler: Sampler = presetRow === null ? { ...PRESET_DEFAULTS, stop: [] } : (presets.fields(presetRow) as unknown as Sampler);
 
@@ -106,10 +136,23 @@ export async function generationInputs(
       history,
       context_tokens: sampler.context_tokens,
       max_tokens: sampler.max_tokens,
+      lore,
     },
     sampler,
     endpoint: { base_url: endpointRow.baseUrl, model: endpointRow.model, api_key: endpointRow.apiKey },
+    loreState: lore.state,
   };
+}
+
+/** A chat's lore timers, kept beside the chat so writing them never makes its version stale. */
+export async function saveLoreState(ownerId: string, chatId: string, state: LoreState): Promise<void> {
+  const text = JSON.stringify(state);
+  const stamp = new Date();
+  await prisma.chatLoreState.upsert({
+    where: { chatId },
+    create: { createdById: ownerId, chatId, state: text, updatedAt: stamp },
+    update: { state: text, updatedAt: stamp },
+  });
 }
 
 /** The endpoint's chat-completions URL: its base, with `/chat/completions` once. */
@@ -130,8 +173,10 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
     const envelope = await readJsonObject(nextRequest);
     const parsed = request.safeParse(Reflect.get(envelope, 'generate'));
     if (!parsed.success) throw validationError('A generate object with a chat_id is required', 'generate');
-    const { prompt, sampler, endpoint } = await generationInputs(owner.id, parsed.data);
+    const { prompt, sampler, endpoint, loreState } = await generationInputs(owner.id, parsed.data);
     const assembled = assemblePrompt(prompt);
+    // The lore timers move with the reply that read them.
+    await saveLoreState(owner.id, parsed.data.chat_id, loreState);
 
     const upstream = await fetch(completionsUrl(endpoint.base_url), {
       method: 'POST',

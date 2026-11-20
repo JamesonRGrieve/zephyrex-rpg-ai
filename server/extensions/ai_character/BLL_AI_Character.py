@@ -144,6 +144,7 @@ class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     avatar: str | None = Field(None, description="The picture, as a data URL")
     favourite: bool = Field(False, description="Shown first")
     extensions: dict[str, Any] = Field(default_factory=dict, description="The card's extension data")
+    lorebook_id: str | None = Field(None, description="The character's own lorebook")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI character cards"
 
@@ -164,6 +165,7 @@ class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         avatar: str | None = None
         favourite: bool = False
         extensions: dict[str, Any] = Field(default_factory=dict)
+        lorebook_id: str | None = None
 
     class Update(BaseModel, CharacterChecks):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -182,6 +184,7 @@ class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         avatar: str | None = None
         favourite: bool | None = None
         extensions: dict[str, Any] | None = None
+        lorebook_id: str | None = None
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -195,7 +198,23 @@ class CharacterManager(AbstractBLLManager[CharacterModel], RouterMixin):
         kwargs.setdefault("alternate_greetings", [])
         kwargs.setdefault("tags", [])
         kwargs.setdefault("extensions", {})
+        self._check_lorebook(kwargs.get("lorebook_id"))
         return super().create(**kwargs)
+
+    def update(self, id: str, **kwargs: Any) -> Any:
+        self._check_lorebook(kwargs.get("lorebook_id"))
+        return super().update(id, **kwargs)
+
+    def _check_lorebook(self, lorebook_id: str | None) -> None:
+        """A character's own lorebook must be one of the requester's."""
+        if lorebook_id is None:
+            return
+        from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import LorebookManager  # type: ignore[import-not-found]
+
+        try:
+            LorebookManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(id=lorebook_id)
+        except HTTPException as error:
+            raise not_yours("lorebook_id") from error
 
     def list(self, *args: Any, **kwargs: Any) -> Any:
         # Favourites first, then by name: the order the gallery shows (and the lite edition answers).

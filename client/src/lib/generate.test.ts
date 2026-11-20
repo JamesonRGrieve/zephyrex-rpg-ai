@@ -122,6 +122,30 @@ describe('POST /v1/ai_chat/generate', () => {
   });
 });
 
+describe('World Info in a reply', () => {
+  it('gives the model the entries the branch activates, and keeps a sticky entry’s timer', async () => {
+    await prisma.lorebookEntry.deleteMany();
+    await prisma.lorebook.deleteMany();
+    await prisma.chatLoreState.deleteMany();
+    const { chat, line } = await seed();
+    const book = await prisma.lorebook.create({ data: { ...stamp(), name: 'Kestrel' } });
+    await prisma.lorebookEntry.create({
+      data: { ...stamp(), lorebookId: book.id, keys: '["spanner"]', content: 'The Kestrel’s spanners are cursed.', sticky: 2 },
+    });
+    await prisma.lorebookEntry.create({ data: { ...stamp(), lorebookId: book.id, keys: '["coffee"]', content: 'never: only table talk says coffee' } });
+    await prisma.chat.update({ where: { id: chat.id }, data: { lorebookIds: JSON.stringify([book.id]) } });
+
+    const response = await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+    await events(response);
+    const system = received[0]?.body.messages[0]?.content ?? '';
+    expect(system).toContain('The Kestrel’s spanners are cursed.');
+    expect(system).not.toContain('never: only table talk says coffee');
+
+    const saved = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
+    expect(Object.values(JSON.parse(saved?.state ?? '{}') as Record<string, { sticky_until: number }>)).toEqual([{ sticky_until: 3, cooldown_until: 0 }]);
+  });
+});
+
 describe('completionsUrl', () => {
   it('appends /chat/completions once, whatever the trailing slashes', () => {
     expect(completionsUrl('http://h:1/v1')).toBe('http://h:1/v1/chat/completions');

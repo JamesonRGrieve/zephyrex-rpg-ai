@@ -18,6 +18,7 @@ CREATE TABLE "Character" (
     "avatar" TEXT,
     "favourite" BOOLEAN NOT NULL DEFAULT false,
     "extensions" TEXT NOT NULL DEFAULT '{}',
+    "lorebookId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
@@ -47,6 +48,8 @@ CREATE TABLE "Chat" (
     "presetId" TEXT,
     "endpointId" TEXT,
     "authorNote" TEXT NOT NULL DEFAULT '',
+    "lorebookIds" TEXT NOT NULL DEFAULT '[]',
+    "loreSettings" TEXT NOT NULL DEFAULT '{}',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
@@ -100,6 +103,63 @@ CREATE TABLE "ModelEndpoint" (
     "updatedById" TEXT
 );
 
+-- CreateTable
+CREATE TABLE "Lorebook" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "description" TEXT NOT NULL DEFAULT '',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateTable
+CREATE TABLE "LorebookEntry" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "lorebookId" TEXT NOT NULL,
+    "comment" TEXT NOT NULL DEFAULT '',
+    "keys" TEXT NOT NULL DEFAULT '[]',
+    "secondaryKeys" TEXT NOT NULL DEFAULT '[]',
+    "selectiveLogic" TEXT NOT NULL DEFAULT 'and_any',
+    "content" TEXT NOT NULL DEFAULT '',
+    "enabled" BOOLEAN NOT NULL DEFAULT true,
+    "constant" BOOLEAN NOT NULL DEFAULT false,
+    "position" TEXT NOT NULL DEFAULT 'after_char',
+    "depth" INTEGER NOT NULL DEFAULT 4,
+    "role" TEXT NOT NULL DEFAULT 'system',
+    "order" INTEGER NOT NULL DEFAULT 100,
+    "probability" INTEGER NOT NULL DEFAULT 100,
+    "inclusionGroup" TEXT NOT NULL DEFAULT '',
+    "groupWeight" INTEGER NOT NULL DEFAULT 100,
+    "prioritize" BOOLEAN NOT NULL DEFAULT false,
+    "sticky" INTEGER NOT NULL DEFAULT 0,
+    "cooldown" INTEGER NOT NULL DEFAULT 0,
+    "delay" INTEGER NOT NULL DEFAULT 0,
+    "excludeRecursion" BOOLEAN NOT NULL DEFAULT false,
+    "preventRecursion" BOOLEAN NOT NULL DEFAULT false,
+    "delayUntilRecursion" BOOLEAN NOT NULL DEFAULT false,
+    "caseSensitive" BOOLEAN,
+    "matchWholeWords" BOOLEAN,
+    "characterNames" TEXT NOT NULL DEFAULT '[]',
+    "characterExclude" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateTable
+CREATE TABLE "ChatLoreState" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "chatId" TEXT NOT NULL,
+    "state" TEXT NOT NULL DEFAULT '{}',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
 -- CreateIndex
 CREATE INDEX "Character_createdById_idx" ON "Character"("createdById");
 
@@ -117,3 +177,12 @@ CREATE INDEX "GenerationPreset_createdById_idx" ON "GenerationPreset"("createdBy
 
 -- CreateIndex
 CREATE INDEX "ModelEndpoint_createdById_idx" ON "ModelEndpoint"("createdById");
+
+-- CreateIndex
+CREATE INDEX "Lorebook_createdById_idx" ON "Lorebook"("createdById");
+
+-- CreateIndex
+CREATE INDEX "LorebookEntry_createdById_lorebookId_idx" ON "LorebookEntry"("createdById", "lorebookId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ChatLoreState_chatId_key" ON "ChatLoreState"("chatId");

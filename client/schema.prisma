@@ -32,6 +32,8 @@ model Character {
   avatar                  String?
   favourite               Boolean  @default(false)
   extensions              String   @default("{}")
+  /// The character's own lorebook (a card's embedded character_book), read whenever it speaks.
+  lorebookId              String?
   createdAt               DateTime @default(now())
   updatedAt               DateTime
   updatedById             String?
@@ -65,6 +67,8 @@ model Chat {
   presetId     String?
   endpointId   String?
   authorNote   String   @default("")
+  lorebookIds  String   @default("[]")
+  loreSettings String   @default("{}")
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   updatedById  String?
@@ -125,4 +129,65 @@ model ModelEndpoint {
   updatedById String?
 
   @@index([createdById])
+}
+
+/// A lorebook (SillyTavern's World Info): entries that enter the prompt when their keys appear.
+model Lorebook {
+  id          String   @id @default(uuid())
+  createdById String
+  name        String
+  description String   @default("")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@index([createdById])
+}
+
+/// One World Info entry: when it activates, what it says, and where it goes.
+model LorebookEntry {
+  id                  String   @id @default(uuid())
+  createdById         String
+  lorebookId          String
+  comment             String   @default("")
+  keys                String   @default("[]")
+  secondaryKeys       String   @default("[]")
+  selectiveLogic      String   @default("and_any")
+  content             String   @default("")
+  enabled             Boolean  @default(true)
+  constant            Boolean  @default(false)
+  position            String   @default("after_char")
+  depth               Int      @default(4)
+  role                String   @default("system")
+  order               Int      @default(100)
+  probability         Int      @default(100)
+  inclusionGroup      String   @default("")
+  groupWeight         Int      @default(100)
+  prioritize          Boolean  @default(false)
+  sticky              Int      @default(0)
+  cooldown            Int      @default(0)
+  delay               Int      @default(0)
+  excludeRecursion    Boolean  @default(false)
+  preventRecursion    Boolean  @default(false)
+  delayUntilRecursion Boolean  @default(false)
+  caseSensitive       Boolean?
+  matchWholeWords     Boolean?
+  characterNames      String   @default("[]")
+  characterExclude    Boolean  @default(false)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime
+  updatedById         String?
+
+  @@index([createdById, lorebookId])
+}
+
+/// A chat's lore timers (sticky and cooldown), written by generation; one per chat.
+model ChatLoreState {
+  id          String   @id @default(uuid())
+  createdById String
+  chatId      String   @unique
+  state       String   @default("{}")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
 }

@@ -15,6 +15,8 @@ export interface Capabilities {
   loaded: boolean;
   /** Character cards and personas. */
   characters: boolean;
+  /** Lorebooks (World Info). */
+  lorebooks: boolean;
   /** Chats and generation. */
   chats: boolean;
   /** Accounts: the same records on every device the person signs in on. */
@@ -29,6 +31,7 @@ export function capabilitiesOf(names: ReadonlySet<string>, loaded: boolean): Cap
   return {
     loaded,
     characters: names.has('ai_character'),
+    lorebooks: names.has('ai_lorebook'),
     chats: names.has('ai_chat'),
     accounts: names.has('auth_session'),
     world: names.has('rpg_log') || names.has('world_narrative'),

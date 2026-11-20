@@ -27,9 +27,9 @@ os.environ.setdefault("APP_CORS_ALLOWED_ORIGINS", "http://localhost:1109")
 os.environ.setdefault("TRUSTED_PROXIES", "127.0.0.1/32,::1/128")
 
 # From the framework: auth_session and auth_magic_link (sign-in by email link), email to send
-# those links, genealogy (a character can be a person in the world). ai_character and ai_chat
-# (this repo) add what only Zephyrex RPG AI needs.
-EXTENSIONS = "auth_session,auth_magic_link,email,genealogy,ai_character,ai_chat"
+# those links, genealogy (a character can be a person in the world). ai_lorebook, ai_character and
+# ai_chat (this repo) add what only Zephyrex RPG AI needs.
+EXTENSIONS = "auth_session,auth_magic_link,email,genealogy,ai_lorebook,ai_character,ai_chat"
 EXTENSIONS_PATH = "./extensions"
 SERVER_PORT = int(os.environ.get("RPG_AI_SERVER_PORT", "2000"))
 # Loopback only: browsers reach the server through the client's /api proxy on the same host.
