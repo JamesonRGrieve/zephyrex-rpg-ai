@@ -142,6 +142,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A49 | UI customisation: themes, custom CSS, layout modes (bubble, document, VN), font scale, avatar style | SillyTavern | ✓ | ✓ |
 | A50 | Multi-user accounts on one install, with per-user data and an admin | SillyTavern | ✓ | ✓ |
 | A53 | Objectives: the first not done is the character's current task | the model ticking tasks off itself |
+| A63–A66 | The campaign's resolution mode in every prompt and in view in the chat's header | rules-as-written resolution through the VTT |
 | A57, A58 | Campaign frames (premise, genre, tone dials, themes, pillars, structure, truths, characters, resolution) read every turn by a chat in the campaign; the brief for players | session zero as a guided flow; linking a wiki campaign |
 | A59–A61 | Scenarios as moving parts (cast, places, clocks, secrets with clues, beats, endings); a chat runs one and the model reads the GM's view every turn; play state at the table; files in and out | the GM's abilities moving the state itself (decide); drafting a scenario by model or from the wiki; rehearsal (A62, SaaS) |
 | A51 | Character tags, folders and favourites; welcome screen with recents | SillyTavern | ✓ | ✓ |
@@ -685,7 +686,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A11 | OOC channels kept out of the story; table notes (house rules, pacing, tone, reminders) in every prompt | notes proposed by the GM, confirmed by a player |
 | A20 | The table GM: answers `gm` questions out of character from the safety tools, notes, summary and recent story; pause | the narrator voice and GM style (A20, phase 4) |
 | A12 | Chat library: search by title, cast or tag; folders and tags | search inside messages |
-| A13, A56 | SillyTavern chat import; branch export as JSONL or text | backups |
+| A13, A56 | SillyTavern chat import; branch export as JSONL or text; a backup of everything as one file, restored beside what is there | |
 | A14 | World Info, the full entry surface and activation; ST import and export | |
 | A16 | Author's note, a chat's own system prompt, the prompt manager (order, on/off, budgets) | |
 | A17 | Instruct templates for text-completion endpoints (ChatML, Llama 3, Alpaca, Mistral) | custom templates |

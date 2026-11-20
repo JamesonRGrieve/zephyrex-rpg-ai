@@ -2,9 +2,15 @@
 'use client';
 import type { ReactElement } from 'react';
 import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
+import { BackupPanel } from './BackupPanel';
 import { DeviceSettingsForm } from './DeviceSettingsForm';
 
 export function SettingsPanel(): ReactElement {
   const { settings, measured, change } = useDeviceSettings();
-  return <DeviceSettingsForm settings={settings} measured={measured} onChange={change} />;
+  return (
+    <div className='grid gap-10'>
+      <DeviceSettingsForm settings={settings} measured={measured} onChange={change} />
+      <BackupPanel />
+    </div>
+  );
 }

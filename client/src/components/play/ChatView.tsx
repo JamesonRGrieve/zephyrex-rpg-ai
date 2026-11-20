@@ -12,6 +12,7 @@ import { Clock3, Download, Ellipsis, GitFork, Pause, Play, ScanText, Settings2, 
 import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
+import { Badge } from 'zephyrex/ui/badge';
 import { Button } from 'zephyrex/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from 'zephyrex/ui/dropdown-menu';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
@@ -46,6 +47,13 @@ import { MessageItem, type MessageView } from './MessageItem';
 
 /** The chat's text size on this device (A49). */
 const TEXT_SIZE_CLASS: Record<TextSize, string> = { small: 'text-sm', normal: 'text-base', large: 'text-lg', larger: 'text-xl' };
+/** The campaign's resolution mode (A63–A66), named in the header. */
+const MODE_LABELS = { narrative: 'Narrative', mechanical: 'Rules as written', hybrid: 'Hybrid' } as const;
+const MODE_HINTS = {
+  narrative: 'the story decides; rolls only at real stakes',
+  mechanical: 'the rules decide every action they cover',
+  hybrid: 'rules for some scenes, story for others',
+} as const;
 const NARRATOR = 'Narrator';
 const YOU = 'You';
 
@@ -89,6 +97,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const chatList = chats.useList();
   const campaignList = campaigns.useList();
   const scenarioList = scenarios.useList();
+  const campaign = campaignList.data?.find((one) => one.id === chat.campaign_id);
   const running = scenarioList.data?.find((one) => one.id === chat.scenario_id);
   const { update: updateScenario } = scenarios.useActions();
   const [scenarioOpen, setScenarioOpen] = useState(false);
@@ -311,6 +320,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       style={chat.background === null ? undefined : { backgroundImage: `url(${JSON.stringify(chat.background)})` }}
     >
       <div className={cn('mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 py-2', chat.background !== null && 'rounded-b-xl bg-background')}>
+        {campaign?.resolution_mode != null && (
+          // The mode in force, always in view (A66).
+          <Badge variant='outline' className='shrink-0' title={`${campaign.name}: ${MODE_HINTS[campaign.resolution_mode]}`}>
+            {MODE_LABELS[campaign.resolution_mode]}
+          </Badge>
+        )}
         <ul className='flex min-w-0 -space-x-2' aria-label='In this chat'>
           {chat.character_ids.map((id) => {
             const character = castById.get(id);
