@@ -1233,6 +1233,50 @@ def delta_of(payload: str) -> str | None:
     return content if isinstance(content, str) and content else None
 
 
+def pieces_of(payload: str) -> tuple[str, str]:
+    """What one ``data:`` payload carries: (reasoning a model streams apart (A45), answer text)."""
+    body = payload.strip()
+    if not body or body == "[DONE]":
+        return "", ""
+    try:
+        delta = json.loads(body)["choices"][0].get("delta") or {}
+        # DeepSeek, llama.cpp and vLLM name it reasoning_content; OpenRouter, reasoning.
+        reasoning = delta.get("reasoning_content") if delta.get("reasoning_content") is not None else delta.get("reasoning")
+    except (ValueError, KeyError, IndexError, TypeError, AttributeError):
+        reasoning = None
+    return (reasoning if isinstance(reasoning, str) else ""), (delta_of(payload) or "")
+
+
+class ReasoningJoiner:
+    """Folds reasoning a model streams apart (A45) into the text as the contract's first reasoning
+    pair, so the reply is read, stored and split like any other reasoning (lib/completionStream.ts)."""
+
+    def __init__(self) -> None:
+        self.open, self.close = CONTRACT["reasoning"]["pairs"][0]
+        self.inside = False
+
+    def take(self, payload: str) -> str | None:
+        reasoning, content = pieces_of(payload)
+        out = ""
+        if reasoning:
+            if not self.inside:
+                out += self.open
+            self.inside = True
+            out += reasoning
+        if content:
+            if self.inside:
+                out += self.close
+            self.inside = False
+            out += content
+        return out or None
+
+    def end(self) -> str | None:
+        if not self.inside:
+            return None
+        self.inside = False
+        return str(self.close)
+
+
 def frame(name: str, data: dict[str, Any]) -> str:
     return f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -1568,6 +1612,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             "json": upstream_body(endpoint, sampler, messages, "reply"),
         }
         pieces: list[str] = []
+        joiner = ReasoningJoiner()
         try:
             async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client, client.stream("POST", **request) as upstream:
                 if upstream.status_code >= 400:
@@ -1578,9 +1623,12 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     payload = line[len("data:") :]
                     if payload.strip() == "[DONE]":
                         break
-                    delta = delta_of(payload)
+                    delta = joiner.take(payload)
                     if delta is not None:
                         pieces.append(delta)
+                closing = joiner.end()
+                if closing is not None:
+                    pieces.append(closing)
         except httpx.HTTPError as error:
             raise HTTPException(status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}) from error
         return "".join(pieces).strip()
@@ -1618,6 +1666,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             raise HTTPException(status_code=502, detail={"message": f"The model endpoint answered {upstream.status_code}", "code": "model_refused"})
 
         async def events() -> AsyncIterator[str]:
+            joiner = ReasoningJoiner()
             try:
                 async for line in upstream.aiter_lines():
                     if not line.startswith("data:"):
@@ -1625,9 +1674,12 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     payload = line[len("data:") :]
                     if payload.strip() == "[DONE]":
                         break
-                    delta = delta_of(payload)
+                    delta = joiner.take(payload)
                     if delta is not None:
                         yield frame("delta", {"text": delta})
+                closing = joiner.end()
+                if closing is not None:
+                    yield frame("delta", {"text": closing})
                 yield frame("done", {"dropped": assembled.dropped})
             except httpx.HTTPError:
                 yield frame("error", {"detail": "The model stopped mid-reply"})

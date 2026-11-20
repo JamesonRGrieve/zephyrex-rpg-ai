@@ -703,7 +703,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A33 | Regex scripts: stored, display-only, prompt-only, by depth; SillyTavern scripts read in | |
 | A36 | Installable; every screen works on a phone | |
 | A43 | Translate a message by the chat's model, for display | automatic translation of every message |
-| A45 | Reasoning folded under Thinking, never read back to the model | `reasoning_content` streams |
+| A45 | Reasoning folded under Thinking, never read back to the model; reasoning a model streams apart (`reasoning_content`, `reasoning`) folded in as `<think>` | |
 | A47 | Chat- and text-completion endpoints; logit bias and classifier-free guidance on presets | tokenizer choice |
 | A49 | Layouts (flat, bubbles, document) and text size, per device | themes, custom CSS |
 | A51 | Character tags (filter), favourites, search | folders |

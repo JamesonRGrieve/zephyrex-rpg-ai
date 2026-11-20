@@ -6,6 +6,8 @@
  * `choices[0].text` instead, and are read the same way.
  */
 
+import { REASONING } from '~/contract';
+
 const DATA_PREFIX = 'data:';
 const DONE = '[DONE]';
 
@@ -20,8 +22,59 @@ export function deltaOf(payload: string): string | null {
     return null;
   }
   const choice: unknown = Reflect.get(Object(Reflect.get(Object(parsed), 'choices')), 0);
-  const content: unknown = Reflect.get(Object(Reflect.get(Object(choice), 'delta')), 'content') ?? Reflect.get(Object(choice), 'text');
+  const content: unknown =
+    Reflect.get(Object(Reflect.get(Object(choice), 'delta')), 'content') ?? Reflect.get(Object(choice), 'text');
   return typeof content === 'string' && content !== '' ? content : null;
+}
+
+/** What one `data:` payload carries: answer text, and reasoning a model streams apart (A45). */
+export function piecesOf(payload: string): { reasoning: string; content: string } {
+  const body = payload.trim();
+  if (body === '' || body === DONE) return { reasoning: '', content: '' };
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(body);
+  } catch {
+    return { reasoning: '', content: '' };
+  }
+  const choice: unknown = Reflect.get(Object(Reflect.get(Object(parsed), 'choices')), 0);
+  const delta: unknown = Reflect.get(Object(choice), 'delta');
+  // DeepSeek, llama.cpp and vLLM name it reasoning_content; OpenRouter, reasoning.
+  const reasoning: unknown = Reflect.get(Object(delta), 'reasoning_content') ?? Reflect.get(Object(delta), 'reasoning');
+  const content = deltaOf(payload);
+  return { reasoning: typeof reasoning === 'string' ? reasoning : '', content: content ?? '' };
+}
+
+/**
+ * Folds reasoning a model streams apart (A45) into the text as the contract's first reasoning pair
+ * (`<think>…</think>`), so the reply is read, stored and split like any other reasoning. `take`
+ * answers what a payload adds; `end` closes a pair the stream left open.
+ */
+export function reasoningJoiner(): { take: (payload: string) => string | null; end: () => string | null } {
+  const [open, close] = REASONING.pairs[0] as [string, string];
+  let inside = false;
+  return {
+    take(payload) {
+      const { reasoning, content } = piecesOf(payload);
+      let out = '';
+      if (reasoning !== '') {
+        if (!inside) out += open;
+        inside = true;
+        out += reasoning;
+      }
+      if (content !== '') {
+        if (inside) out += close;
+        inside = false;
+        out += content;
+      }
+      return out === '' ? null : out;
+    },
+    end() {
+      if (!inside) return null;
+      inside = false;
+      return close;
+    },
+  };
 }
 
 /**
@@ -41,16 +94,25 @@ export function isDone(payload: string): boolean {
 }
 
 /** The deltas in the stream from here on: one chunk at a time, carrying any partial line over. */
-async function* pump(reader: ReadableStreamDefaultReader<string>, carried: string): AsyncGenerator<string> {
+async function* pump(
+  reader: ReadableStreamDefaultReader<string>,
+  carried: string,
+  joiner: ReturnType<typeof reasoningJoiner>,
+): AsyncGenerator<string> {
   const { done, value } = await reader.read();
   const { payloads, rest } = takeDataLines(carried + (done ? '\n' : value));
   const end = payloads.findIndex(isDone);
   for (const payload of end === -1 ? payloads : payloads.slice(0, end)) {
-    const delta = deltaOf(payload);
+    const delta = joiner.take(payload);
     if (delta !== null) yield delta;
   }
-  if (end !== -1) await reader.cancel();
-  else if (!done) yield* pump(reader, rest);
+  if (end !== -1 || done) {
+    const closing = joiner.end();
+    if (closing !== null) yield closing;
+    if (end !== -1) await reader.cancel();
+    return;
+  }
+  yield* pump(reader, rest, joiner);
 }
 
 /** The text deltas of a streamed completion body, in order, until `[DONE]` or the end. */
@@ -69,5 +131,5 @@ export function completionDeltas(body: ReadableStream<Uint8Array>): AsyncGenerat
       },
     }),
   );
-  return pump(text.getReader(), '');
+  return pump(text.getReader(), '', reasoningJoiner());
 }

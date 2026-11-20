@@ -1614,5 +1614,49 @@
       },
       "prompt": "A red nebula over the Kestrel."
     }
+  ],
+  "stream_cases": [
+    {
+      "name": "content alone passes through",
+      "payloads": [
+        "{\"choices\": [{\"delta\": {\"role\": \"assistant\"}}]}",
+        "{\"choices\": [{\"delta\": {\"content\": \"Mind \"}}]}",
+        "{\"choices\": [{\"delta\": {\"content\": \"the coolant.\"}}]}"
+      ],
+      "text": "Mind the coolant."
+    },
+    {
+      "name": "reasoning_content is wrapped, closed when the answer starts",
+      "payloads": [
+        "{\"choices\": [{\"delta\": {\"reasoning_content\": \"She is \"}}]}",
+        "{\"choices\": [{\"delta\": {\"reasoning_content\": \"worried.\"}}]}",
+        "{\"choices\": [{\"delta\": {\"content\": \"Mind it.\"}}]}"
+      ],
+      "text": "<think>She is worried.</think>Mind it."
+    },
+    {
+      "name": "OpenRouter's reasoning is read the same way",
+      "payloads": [
+        "{\"choices\": [{\"delta\": {\"reasoning\": \"Hm.\"}}]}",
+        "{\"choices\": [{\"delta\": {\"content\": \"Yes.\"}}]}"
+      ],
+      "text": "<think>Hm.</think>Yes."
+    },
+    {
+      "name": "a stream that ends while reasoning is closed",
+      "payloads": [
+        "{\"choices\": [{\"delta\": {\"reasoning_content\": \"Still thinking\"}}]}"
+      ],
+      "text": "<think>Still thinking</think>"
+    },
+    {
+      "name": "a text completion's text, and junk lines, as before",
+      "payloads": [
+        "{\"choices\": [{\"text\": \"Hi\"}]}",
+        "not json",
+        " "
+      ],
+      "text": "Hi"
+    }
   ]
 }

@@ -1,7 +1,8 @@
 // @vitest-environment node
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { completionDeltas, deltaOf, isDone, takeDataLines } from './completionStream';
+import cases from '../../../contract/prompt-cases.json';
+import { completionDeltas, deltaOf, isDone, reasoningJoiner, takeDataLines } from './completionStream';
 
 const chunk = (content: string) => JSON.stringify({ choices: [{ delta: { content } }] });
 
@@ -57,5 +58,17 @@ describe('completion stream', () => {
 
   it('finishes a stream that ends without [DONE]', async () => {
     expect(await collect(streamOf([`data: ${chunk('end')}`]))).toEqual(['end']);
+  });
+});
+
+describe('reasoning streamed apart (A45; contract/prompt-cases.json stream_cases)', () => {
+  it.each(cases.stream_cases)('$name', ({ payloads, text }) => {
+    const joiner = reasoningJoiner();
+    expect(payloads.map((payload) => joiner.take(payload) ?? '').join('') + (joiner.end() ?? '')).toBe(text);
+  });
+
+  it('closes the reasoning a stream ended inside', async () => {
+    const thinking = JSON.stringify({ choices: [{ delta: { reasoning_content: 'Hm.' } }] });
+    expect((await collect(streamOf([`data: ${thinking}\n\ndata: [DONE]\n\n`]))).join('')).toBe('<think>Hm.</think>');
   });
 });
