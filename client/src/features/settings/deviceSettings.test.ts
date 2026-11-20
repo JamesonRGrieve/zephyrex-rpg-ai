@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import {
+  CUSTOM_CSS_LIMIT,
   DEFAULT_DEVICE_SETTINGS,
   effectiveTier,
   loadDeviceSettings,
@@ -52,6 +53,13 @@ describe('device settings', () => {
     };
     expect(saveDeviceSettings(window.localStorage, chosen)).toBe(true);
     expect(loadDeviceSettings(window.localStorage)).toEqual(chosen);
+  });
+
+  it('keeps the person’s own CSS as text, cut at the limit', () => {
+    expect(parseDeviceSettings('{"customCss":".mes { color: red; }"}').customCss).toBe('.mes { color: red; }');
+    expect(parseDeviceSettings('{"customCss":42}').customCss).toBe('');
+    const long = JSON.stringify({ customCss: 'a'.repeat(CUSTOM_CSS_LIMIT + 5) });
+    expect(parseDeviceSettings(long).customCss).toHaveLength(CUSTOM_CSS_LIMIT);
   });
 
   it('uses the measured tier unless the person chose one', () => {

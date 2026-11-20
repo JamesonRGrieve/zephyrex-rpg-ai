@@ -2,7 +2,7 @@
 /**
  * Settings that belong to this device, not to the person's records: how much the device should do
  * (the tier, docs/SUITE.md Mobile and PWA), whether table talk shows in the story column, and how
- * the chat looks here (A49: its layout and text size). Kept in
+ * the chat looks here (A49: its layout, text size and the person's own CSS). Kept in
  * the browser's storage, read through guards: a private window or blocked storage gives the defaults.
  */
 import type { DeviceTier } from '~/features/device/tier';
@@ -25,6 +25,16 @@ export interface DeviceSettings {
   showExpressions: boolean;
   /** Translate each reply into this device's language as it is written (A43). */
   autoTranslate: boolean;
+  /** The person's own stylesheet over the theme (A49), applied on this device only. */
+  customCss: string;
+}
+
+/** The most custom CSS kept: a stylesheet, not a store for anything else. */
+export const CUSTOM_CSS_LIMIT = 20_000;
+
+/** Custom CSS as kept: a string, cut at the limit. */
+export function customCssOf(value: unknown): string {
+  return typeof value === 'string' ? value.slice(0, CUSTOM_CSS_LIMIT) : '';
 }
 
 export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
@@ -35,6 +45,7 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   readAloud: false,
   showExpressions: true,
   autoTranslate: false,
+  customCss: '',
 };
 
 const oneOf = <T extends string>(options: readonly T[], value: unknown, fallback: T): T =>
@@ -61,6 +72,7 @@ export function parseDeviceSettings(text: string | null): DeviceSettings {
     readAloud: Reflect.get(Object(stored), 'readAloud') === true,
     autoTranslate: Reflect.get(Object(stored), 'autoTranslate') === true,
     showExpressions: Reflect.get(Object(stored), 'showExpressions') !== false,
+    customCss: customCssOf(Reflect.get(Object(stored), 'customCss')),
   };
 }
 

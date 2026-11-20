@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import { ZephyrexApp } from 'zephyrex';
 import { SidebarContext } from 'zephyrex/components/appwrapper/src/SidebarContext';
 import { SidebarMain } from 'zephyrex/components/appwrapper/src/SidebarMain';
+import { CustomStyle } from '~/components/settings/CustomCss';
 import config from '~/zephyrex.config';
 
 /**
@@ -16,6 +17,7 @@ export function Providers({ children }: { children: ReactNode }): ReactNode {
       <SidebarMain side='left' />
       {children}
       <SidebarContext side='right' />
+      <CustomStyle />
     </ZephyrexApp>
   );
 }
