@@ -28,7 +28,7 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { PROMPT, REASONING, SAFETY, TABLE } from '~/contract';
+import { CAMPAIGN, PROMPT, REASONING, SAFETY, TABLE } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandMacros, type MacroNames } from './macros';
@@ -86,6 +86,59 @@ export interface PromptInput {
   safety?: SafetySettings;
   /** The table's notes (A11): house rules, pacing, tone, reminders. */
   table_notes?: readonly TableNote[];
+  /** The campaign's frame (A57), when the chat belongs to a campaign. */
+  frame?: CampaignFrame | null;
+}
+
+export interface CampaignFrame {
+  premise?: string;
+  genre?: string;
+  dials?: Readonly<Record<string, number>>;
+  themes?: readonly string[];
+  pillars?: Readonly<Record<string, number>>;
+  structure?: string | null;
+  truths?: readonly string[];
+  characters?: string;
+  resolution_mode?: string | null;
+}
+
+function dialText(dial: { left: string; right: string }, value: number): string {
+  if (value === 0) return '';
+  return `${Math.abs(value) >= 2 ? 'very' : 'somewhat'} ${value < 0 ? dial.left : dial.right}`;
+}
+
+/**
+ * A campaign's frame as the model reads it (A57): the table's agreement, part by part; parts left
+ * empty are left out, and nothing when there is no frame.
+ */
+export function frameText(frame: CampaignFrame | null | undefined): string {
+  if (frame === null || frame === undefined) return '';
+  const dials = frame.dials ?? {};
+  const tone = CAMPAIGN.dials.map((dial) => dialText(dial, Math.trunc(dials[dial.id] ?? 0)));
+  const pillars = frame.pillars ?? {};
+  const weights = CAMPAIGN.pillars.flatMap((pillar) => {
+    const weight = Math.trunc(pillars[pillar] ?? 0);
+    return weight > 0 ? [`${pillar} (${CAMPAIGN.pillar_words[weight]})`] : [];
+  });
+  const themes = (frame.themes ?? []).map((theme) => theme.trim()).filter(Boolean);
+  const truths = (frame.truths ?? []).map((truth) => truth.trim()).filter(Boolean);
+  const structures: Record<string, string> = CAMPAIGN.structure_words;
+  const modes: readonly string[] = CAMPAIGN.resolution_modes;
+  const premise = (frame.premise ?? '').trim();
+  const genre = (frame.genre ?? '').trim();
+  const characters = (frame.characters ?? '').trim();
+  const lines = [
+    premise === '' ? '' : `Premise: ${premise}`,
+    genre === '' ? '' : `Genre: ${genre}`,
+    tone.some(Boolean) ? `Tone: ${tone.filter(Boolean).join('; ')}.` : '',
+    themes.length === 0 ? '' : `Themes: ${themes.join('; ')}.`,
+    weights.length === 0 ? '' : `Weight of play: ${weights.join(', ')}.`,
+    frame.structure != null && frame.structure in structures ? `Structure: ${structures[frame.structure]}.` : '',
+    truths.length === 0 ? '' : `Setting truths:\n${truths.map((truth) => `- ${truth}`).join('\n')}`,
+    characters === '' ? '' : `The characters: ${characters}`,
+    frame.resolution_mode != null && modes.includes(frame.resolution_mode) ? `Resolution: ${frame.resolution_mode}.` : '',
+  ].filter((line) => line !== '');
+  return lines.length === 0 ? '' : [CAMPAIGN.heading, ...lines].join('\n');
 }
 
 export interface TableNote {
@@ -278,6 +331,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     main: override.trim() !== '' ? override : speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
     safety: safetyText(input.safety),
     table_notes: tableNotesText(input.table_notes),
+    campaign: frameText(input.frame),
     lore_before_char: loreSections.before_char ?? '',
     description: speaker.description,
     personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,

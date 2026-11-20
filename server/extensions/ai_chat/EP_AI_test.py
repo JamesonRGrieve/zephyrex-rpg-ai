@@ -372,6 +372,21 @@ class TestGenerate:
         sent = RECEIVED[0]["body"]["messages"]
         assert "House rule: Crits explode." in sent[0]["content"] and sent[-1] == {"role": "user", "content": "User: Can I search it?"}
 
+    def test_a_chats_campaign_frame_reaches_the_model(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        for refused in ({"dials": {"grim_hopeful": 5}}, {"pillars": {"romance": 1}}, {"structure": "spiral"}):
+            answer = server.post("/v1/campaign", json={"campaign": {"name": "Bad", **refused}}, headers=_headers(user))
+            assert answer.status_code == 422, (refused, answer.text)
+        campaign = _create(server, user, "campaign", name="The Kestrel", premise="Smugglers on a dying freighter.", truths=[" The Guild owns every port. "]).json()["campaign"]
+        assert campaign["truths"] == ["The Guild owns every port."]
+        stranger = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "campaign_id": "nope"}}, headers=_headers(user))
+        assert stranger.status_code == 422, stranger.text
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], campaign_id=campaign["id"]).json()["chat"]
+        prompt = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"]}}, headers=_headers(user)).json()["prompt"]
+        assert "Premise: Smugglers on a dying freighter.\nSetting truths:\n- The Guild owns every port." in prompt["messages"][0]["content"]
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

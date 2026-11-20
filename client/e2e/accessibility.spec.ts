@@ -12,7 +12,7 @@ import { seedChat } from './support/seed';
 
 const STANDARDS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const VISITOR_PAGES = ['/', '/user', '/docs/privacy'];
-const APP_PAGES = ['/play', '/characters', '/lorebooks', '/data-bank', '/personas', '/presets', '/models', '/regex', '/quick-replies', '/settings'];
+const APP_PAGES = ['/play', '/campaigns', '/characters', '/lorebooks', '/data-bank', '/personas', '/presets', '/models', '/regex', '/quick-replies', '/settings'];
 /** One load, network idle and an axe pass per page; a flat limit runs out on a loaded runner. */
 const PER_PAGE_MS = 20_000;
 const SIGN_IN_MS = 30_000;

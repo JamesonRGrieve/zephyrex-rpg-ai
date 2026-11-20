@@ -129,6 +129,43 @@ def table_notes_text(notes: Sequence[Mapping[str, Any]] | None) -> str:
     return "\n".join([TABLE["notes_heading"], *kept]) if kept else ""
 
 
+CAMPAIGN = CONTRACT["campaign"]
+
+
+def _dial(dial: Mapping[str, str], value: int) -> str:
+    if value == 0:
+        return ""
+    side = dial["left"] if value < 0 else dial["right"]
+    return f"{'very' if abs(value) >= 2 else 'somewhat'} {side}"
+
+
+def frame_text(frame: Mapping[str, Any] | None) -> str:
+    """A campaign's frame as the model reads it (A57): the table's agreement, part by part; parts
+    left empty are left out, and nothing when there is no frame."""
+    if not frame:
+        return ""
+    dials = frame.get("dials") or {}
+    tone = [_dial(dial, int(dials.get(dial["id"], 0))) for dial in CAMPAIGN["dials"]]
+    pillars = frame.get("pillars") or {}
+    weights = [f"{pillar} ({CAMPAIGN['pillar_words'][int(pillars[pillar])]})" for pillar in CAMPAIGN["pillars"] if int(pillars.get(pillar, 0)) > 0]
+    themes = [theme.strip() for theme in frame.get("themes") or [] if theme.strip()]
+    truths = [truth.strip() for truth in frame.get("truths") or [] if truth.strip()]
+    structure = frame.get("structure")
+    lines = [
+        f"Premise: {frame['premise'].strip()}" if (frame.get("premise") or "").strip() else "",
+        f"Genre: {frame['genre'].strip()}" if (frame.get("genre") or "").strip() else "",
+        "Tone: " + "; ".join(part for part in tone if part) + "." if any(tone) else "",
+        "Themes: " + "; ".join(themes) + "." if themes else "",
+        "Weight of play: " + ", ".join(weights) + "." if weights else "",
+        f"Structure: {CAMPAIGN['structure_words'][structure]}." if structure in CAMPAIGN["structure_words"] else "",
+        "Setting truths:\n" + "\n".join(f"- {truth}" for truth in truths) if truths else "",
+        f"The characters: {frame['characters'].strip()}" if (frame.get("characters") or "").strip() else "",
+        f"Resolution: {frame['resolution_mode']}." if frame.get("resolution_mode") in CAMPAIGN["resolution_modes"] else "",
+    ]
+    kept = [line for line in lines if line]
+    return "\n".join([CAMPAIGN["heading"], *kept]) if kept else ""
+
+
 def _history_message(
     turn: Mapping[str, Any], speaker_id: str, names_by_id: Mapping[str, str], group: bool, user_name: str
 ) -> dict[str, str]:
@@ -167,6 +204,7 @@ def assemble_prompt(
     data_bank: str = "",
     safety: Mapping[str, Any] | None = None,
     table_notes: Sequence[Mapping[str, Any]] | None = None,
+    frame: Mapping[str, Any] | None = None,
 ) -> Assembled:
     speaker = next((character for character in characters if character["id"] == speaker_id), None)
     if speaker is None:
@@ -189,6 +227,7 @@ def assemble_prompt(
         "main": main,
         "safety": safety_text(safety),
         "table_notes": table_notes_text(table_notes),
+        "campaign": frame_text(frame),
         "lore_before_char": sections.get("before_char", ""),
         "description": speaker["description"],
         "personality": f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",

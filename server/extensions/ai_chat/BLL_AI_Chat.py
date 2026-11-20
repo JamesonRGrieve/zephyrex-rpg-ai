@@ -47,6 +47,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     SAMPLER_RANGES,
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import CampaignManager, frame_of  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
@@ -326,6 +327,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     lines: list[str] = Field(default_factory=list, description="Never in the story, even off-screen")
     veils: list[str] = Field(default_factory=list, description="Only ever off-screen")
     table_notes: list[dict[str, Any]] = Field(default_factory=list, description="House rules, pacing, tone and reminders, read every turn")
+    campaign_id: str | None = Field(None, description="The campaign it belongs to; its frame is read every turn")
     paused: bool = Field(False, description="No story turns until the table resumes")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
@@ -352,6 +354,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         veils: list[str] = Field(default_factory=list)
         table_notes: list[dict[str, Any]] = Field(default_factory=list)
         paused: bool = False
+        campaign_id: str | None = None
 
     class Update(ChatChecks, BaseModel):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -375,6 +378,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         veils: list[str] | None = None
         table_notes: list[dict[str, Any]] | None = None
         paused: bool | None = None
+        campaign_id: str | None = None
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -404,6 +408,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
             ("persona_id", PersonaManager),
             ("preset_id", GenerationPresetManager),
             ("endpoint_id", ModelEndpointManager),
+            ("campaign_id", CampaignManager),
         ):
             if fields.get(field) is not None:
                 self._owned(manager, fields[field], field)
@@ -1210,6 +1215,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             self._data_bank(chat, story_texts),
             {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
             chat.table_notes or [],
+            frame_of(self._manager(CampaignManager).get(id=chat.campaign_id)) if chat.campaign_id else None,
         )
         if body.mode == "table":
             # The table GM (A11, A20) reads the table talk, with the story for reference only.

@@ -62,6 +62,7 @@ CREATE TABLE "Chat" (
     "veils" TEXT NOT NULL DEFAULT '[]',
     "tableNotes" TEXT NOT NULL DEFAULT '[]',
     "paused" BOOLEAN NOT NULL DEFAULT false,
+    "campaignId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
@@ -259,4 +260,26 @@ CREATE TABLE "DataDocument" (
 
 -- CreateIndex
 CREATE INDEX "DataDocument_createdById_idx" ON "DataDocument"("createdById");
+
+-- CreateTable
+CREATE TABLE "Campaign" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "premise" TEXT NOT NULL DEFAULT '',
+    "genre" TEXT NOT NULL DEFAULT '',
+    "dials" TEXT NOT NULL DEFAULT '{}',
+    "themes" TEXT NOT NULL DEFAULT '[]',
+    "pillars" TEXT NOT NULL DEFAULT '{}',
+    "structure" TEXT,
+    "truths" TEXT NOT NULL DEFAULT '[]',
+    "characters" TEXT NOT NULL DEFAULT '',
+    "resolutionMode" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "Campaign_createdById_idx" ON "Campaign"("createdById");
 

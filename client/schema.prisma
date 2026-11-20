@@ -81,6 +81,7 @@ model Chat {
   veils        String   @default("[]")
   tableNotes   String   @default("[]")
   paused       Boolean  @default(false)
+  campaignId   String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime
   updatedById  String?
@@ -258,6 +259,27 @@ model DataDocument {
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   updatedById String?
+
+  @@index([createdById])
+}
+
+/// A campaign's frame: the table's agreement about what kind of game it is (A57).
+model Campaign {
+  id             String   @id @default(uuid())
+  createdById    String
+  name           String
+  premise        String   @default("")
+  genre          String   @default("")
+  dials          String   @default("{}")
+  themes         String   @default("[]")
+  pillars        String   @default("{}")
+  structure      String?
+  truths         String   @default("[]")
+  characters     String   @default("")
+  resolutionMode String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime
+  updatedById    String?
 
   @@index([createdById])
 }

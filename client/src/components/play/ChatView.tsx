@@ -34,7 +34,7 @@ import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
 import { TABLE } from '~/contract';
-import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts } from '~/features/data/records';
+import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts, campaigns } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
@@ -86,6 +86,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const endpointList = endpoints.useList();
   const lorebookList = lorebooks.useList();
   const chatList = chats.useList();
+  const campaignList = campaigns.useList();
   const scriptList = regexScripts.useList();
   const scripts = scriptList.data ?? [];
   const quickList = quickReplies.useList();
@@ -510,7 +511,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           lines: chat.lines,
           veils: chat.veils,
           table_notes: chat.table_notes,
+          campaign_id: chat.campaign_id,
         }}
+        campaigns={(campaignList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}
         cast={chat.character_ids.flatMap((id) => {
           const character = castById.get(id);
           return character === undefined ? [] : [{ id, name: character.name }];

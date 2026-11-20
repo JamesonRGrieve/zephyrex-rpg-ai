@@ -874,6 +874,70 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "the campaign frame sits after the table notes, each part only when set",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "frame": {
+          "premise": " Smugglers on a dying freighter. ",
+          "genre": "space opera",
+          "dials": {
+            "grim_hopeful": -1,
+            "serious_comic": 0,
+            "grounded_fantastic": 2,
+            "slow_pulpy": 1
+          },
+          "themes": [
+            "loyalty",
+            " ",
+            "the cost of freedom"
+          ],
+          "pillars": {
+            "combat": 1,
+            "exploration": 3,
+            "social": 2,
+            "mystery": 0
+          },
+          "structure": "episodic",
+          "truths": [
+            "The Guild owns every port.",
+            " "
+          ],
+          "characters": "Sam owes Ada a life debt.",
+          "resolution_mode": "narrative"
+        },
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Hi."
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: Smugglers on a dying freighter.\nGenre: space opera\nTone: somewhat grim; very fantastic; somewhat pulpy.\nThemes: loyalty; the cost of freedom.\nWeight of play: combat (light), exploration (heavy), social (regular).\nStructure: episodic.\nSetting truths:\n- The Guild owns every port.\nThe characters: Sam owes Ada a life debt.\nResolution: narrative.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

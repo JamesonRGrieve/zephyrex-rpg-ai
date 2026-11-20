@@ -19,6 +19,8 @@ export interface Capabilities {
   lorebooks: boolean;
   /** Chats and generation. */
   chats: boolean;
+  /** Campaign frames (A57). */
+  campaigns: boolean;
   /** Accounts: the same records on every device the person signs in on. */
   accounts: boolean;
   /** The world (zephyrex-rpg-wiki's extensions). */
@@ -33,6 +35,7 @@ export function capabilitiesOf(names: ReadonlySet<string>, loaded: boolean): Cap
     characters: names.has('ai_character'),
     lorebooks: names.has('ai_lorebook'),
     chats: names.has('ai_chat'),
+    campaigns: names.has('ai_campaign'),
     accounts: names.has('auth_session'),
     world: names.has('rpg_log') || names.has('world_narrative'),
     table: names.has('rpg_state') || names.has('rpg_scene'),

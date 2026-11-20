@@ -23,11 +23,12 @@ import { z } from 'zod';
 import { type EndpointApi, type InstructTemplateId, LIMITS, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { type AssembledPrompt, assemblePrompt, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import { type AssembledPrompt, assemblePrompt, type CampaignFrame, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
 import { dataBankText } from '~/features/chat/dataBank';
+import { campaigns } from '~/lib/campaignRecords';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { prisma } from '~/lib/prisma';
@@ -85,6 +86,7 @@ export async function generationInputs(
     veils: string[];
     table_notes: TableNote[];
     paused: boolean;
+    campaign_id: string | null;
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -168,6 +170,7 @@ export async function generationInputs(
       objective: chatFields.objectives.find((one) => !one.done)?.text ?? '',
       safety: { content_rating: chatFields.content_rating, lines: chatFields.lines, veils: chatFields.veils },
       table_notes: chatFields.table_notes,
+      frame: chatFields.campaign_id === null ? null : await campaignFrame(ownerId, chatFields.campaign_id),
       data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
     },
@@ -184,6 +187,12 @@ export async function generationInputs(
     images,
     paused: chatFields.paused,
   };
+}
+
+/** A chat's campaign frame (A57), as frameText reads it; none when the campaign is gone. */
+async function campaignFrame(ownerId: string, campaignId: string): Promise<CampaignFrame | null> {
+  const row = await campaigns.find(campaignId, ownerId);
+  return row === null ? null : (campaigns.fields(row) as unknown as CampaignFrame);
 }
 
 /** The data bank's documents for a chat (A41): everyone's, the chat's own and its cast's. */

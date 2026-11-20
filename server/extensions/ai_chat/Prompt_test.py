@@ -32,6 +32,7 @@ def test_case(case: dict[str, Any]) -> None:
         data_bank=given.get("data_bank", ""),
         safety=given.get("safety"),
         table_notes=given.get("table_notes"),
+        frame=given.get("frame"),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]

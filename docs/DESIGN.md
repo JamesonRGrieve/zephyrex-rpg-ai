@@ -142,6 +142,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A49 | UI customisation: themes, custom CSS, layout modes (bubble, document, VN), font scale, avatar style | SillyTavern | ✓ | ✓ |
 | A50 | Multi-user accounts on one install, with per-user data and an admin | SillyTavern | ✓ | ✓ |
 | A53 | Objectives: the first not done is the character's current task | the model ticking tasks off itself |
+| A57, A58 | Campaign frames (premise, genre, tone dials, themes, pillars, structure, truths, characters, resolution) read every turn by a chat in the campaign; the brief for players | session zero as a guided flow; linking a wiki campaign |
 | A51 | Character tags, folders and favourites; welcome screen with recents | SillyTavern | ✓ | ✓ |
 | A52 | Group greetings; `/sendas` a group member; group member muting and join modes | SillyTavern | ✓ | ✓ |
 | A53 | Objectives and tasks for a character, tracked across a chat | SillyTavern (extension) | ✓ | ✓ |

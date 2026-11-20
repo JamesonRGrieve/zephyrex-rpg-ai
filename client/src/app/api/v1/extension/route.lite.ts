@@ -22,6 +22,12 @@ export const LITE_EXTENSIONS = [
     description: 'World Info: lorebooks and their entries',
   },
   {
+    id: 'lite-ai_campaign',
+    name: 'ai_campaign',
+    friendly_name: 'Campaigns',
+    description: 'Campaign frames: the table’s agreement, read every turn',
+  },
+  {
     id: 'lite-ai_chat',
     name: 'ai_chat',
     friendly_name: 'Chats',

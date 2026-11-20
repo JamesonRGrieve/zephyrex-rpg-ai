@@ -40,7 +40,8 @@
     "data_document_characters": 200000,
     "data_documents": 200,
     "safety_items": 50,
-    "table_notes": 50
+    "table_notes": 50,
+    "campaign_list_items": 30
   },
   "message_roles": [
     "user",
@@ -123,6 +124,7 @@
       "main",
       "safety",
       "table_notes",
+      "campaign",
       "lore_before_char",
       "description",
       "personality",
@@ -412,5 +414,67 @@
     "recent_story_turns": 6,
     "recent_story_heading": "The story so far, most recent last:",
     "gm_name": "GM"
+  },
+  "campaign": {
+    "dials": [
+      {
+        "id": "grim_hopeful",
+        "left": "grim",
+        "right": "hopeful"
+      },
+      {
+        "id": "serious_comic",
+        "left": "serious",
+        "right": "comic"
+      },
+      {
+        "id": "grounded_fantastic",
+        "left": "grounded",
+        "right": "fantastic"
+      },
+      {
+        "id": "slow_pulpy",
+        "left": "slow-burn",
+        "right": "pulpy"
+      }
+    ],
+    "dial_range": [
+      -2,
+      2
+    ],
+    "pillars": [
+      "combat",
+      "exploration",
+      "social",
+      "mystery"
+    ],
+    "pillar_range": [
+      0,
+      3
+    ],
+    "pillar_words": [
+      "none",
+      "light",
+      "regular",
+      "heavy"
+    ],
+    "structures": [
+      "sandbox",
+      "linear",
+      "episodic",
+      "one_shot"
+    ],
+    "structure_words": {
+      "sandbox": "a sandbox",
+      "linear": "a linear story",
+      "episodic": "episodic",
+      "one_shot": "a one-shot"
+    },
+    "resolution_modes": [
+      "narrative",
+      "mechanical",
+      "hybrid"
+    ],
+    "heading": "The campaign (the table agreed to this; keep to it):"
   }
 }

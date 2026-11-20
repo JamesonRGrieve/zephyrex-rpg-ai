@@ -11,7 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { CHAT_MODES, DATA_BANK, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SAFETY, TABLE, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
+import { CAMPAIGN, CHAT_MODES, DATA_BANK, DEPTH_ROLES, LORE_POSITIONS, MESSAGE_CHANNELS, MESSAGE_ROLES, PROMPT, QUICK_REPLY, REGEX, SAFETY, TABLE, SELECTIVE_LOGIC, ENDPOINT_APIS, INSTRUCT_TEMPLATES, type InstructTemplateId } from '~/contract';
 
 const versioned = { id: z.string(), created_at: z.string(), updated_at: z.string().nullable() };
 
@@ -69,6 +69,7 @@ export const chatSchema = z.object({
   veils: z.array(z.string()),
   table_notes: z.array(z.object({ kind: z.enum(TABLE.note_kinds), text: z.string() })),
   paused: z.boolean(),
+  campaign_id: z.string().nullable(),
 });
 export type Chat = z.infer<typeof chatSchema>;
 
@@ -272,4 +273,20 @@ export const dataDocumentSchema = z.object({
 });
 export type DataDocument = z.infer<typeof dataDocumentSchema>;
 export const dataDocuments = resource<DataDocument, Fields<DataDocument> & { name: string; text: string }>('data_document', 'data_documents', dataDocumentSchema);
+
+export const campaignSchema = z.object({
+  ...versioned,
+  name: z.string(),
+  premise: z.string(),
+  genre: z.string(),
+  dials: z.record(z.string(), z.number()),
+  themes: z.array(z.string()),
+  pillars: z.record(z.string(), z.number()),
+  structure: z.enum(CAMPAIGN.structures).nullable(),
+  truths: z.array(z.string()),
+  characters: z.string(),
+  resolution_mode: z.enum(CAMPAIGN.resolution_modes).nullable(),
+});
+export type Campaign = z.infer<typeof campaignSchema>;
+export const campaigns = resource<Campaign, Fields<Campaign> & { name: string }>('campaign', 'campaigns', campaignSchema);
 

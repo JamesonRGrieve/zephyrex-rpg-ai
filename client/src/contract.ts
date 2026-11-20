@@ -30,6 +30,7 @@ export const PROMPT = {
     'main',
     'safety',
     'table_notes',
+    'campaign',
     'lore_before_char',
     'description',
     'personality',
@@ -101,5 +102,13 @@ export const SAFETY = {
 export const TABLE = {
   ...contract.table,
   note_kinds: contract.table.note_kinds as unknown as readonly ['house_rule', 'pacing', 'tone', 'reminder'],
+};
+
+/** Campaign framing (A57): tone dials, pillars, structures and resolution modes. */
+export const CAMPAIGN = {
+  ...contract.campaign,
+  pillars: contract.campaign.pillars as unknown as readonly ['combat', 'exploration', 'social', 'mystery'],
+  structures: contract.campaign.structures as unknown as readonly ['sandbox', 'linear', 'episodic', 'one_shot'],
+  resolution_modes: contract.campaign.resolution_modes as unknown as readonly ['narrative', 'mechanical', 'hybrid'],
 };
 
