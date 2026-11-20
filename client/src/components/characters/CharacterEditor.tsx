@@ -15,9 +15,9 @@ import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { type Character, characters, chats, lorebookEntrySchema, lorebooks } from '~/features/data/records';
+import type { EntryFields } from '~/features/import/stLorebook';
 import { exportCard } from '~/features/import/exportCard';
-import { characterBookFromEntries } from '~/features/import/stLorebook';
-import { cardToJson } from '~/features/import/stCard';
+import { cardWithBook } from '~/features/import/characterCard';
 import { WriteProblem } from '../common/WriteProblem';
 import { type CharacterVoice, voiceOf, withVoice } from '~/features/speech/voice';
 import { ExpressionEditor } from './ExpressionEditor';
@@ -27,6 +27,12 @@ import { type CharacterDraft, CharacterForm } from './CharacterForm';
 export function draftOf(character: Character): CharacterDraft {
   const { name, avatar, description, personality, scenario, first_message, alternate_greetings, example_messages, system_prompt, post_history_instructions, creator_notes, creator, character_version, tags } = character;
   return { name, avatar, description, personality, scenario, first_message, alternate_greetings, example_messages, system_prompt, post_history_instructions, creator_notes, creator, character_version, tags };
+}
+
+/** A lorebook's entries, read as the signed-in person sees them. */
+export function entriesOfBook(client: ReturnType<typeof useClient>, lorebookId: string): Promise<EntryFields[]> {
+  const path = `/v1/lorebook_entry?${new URLSearchParams({ lorebook_id: lorebookId }).toString()}`;
+  return client.list(path, 'lorebook_entries', lorebookEntrySchema);
 }
 
 /** Whether the draft differs from what was opened. */
@@ -70,13 +76,8 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
 
   /** The card, with the character's lorebook as its character_book, as a PNG card or JSON. */
   const exportThis = async () => {
-    const card = cardToJson({ ...draft, extensions: saved.extensions });
     const book = (books.data ?? []).find((one) => one.id === saved.lorebook_id);
-    if (book !== undefined) {
-      const path = `/v1/lorebook_entry?${new URLSearchParams({ lorebook_id: book.id }).toString()}`;
-      const entries = await client.list(path, 'lorebook_entries', lorebookEntrySchema);
-      Reflect.set(Object(card.data), 'character_book', characterBookFromEntries(book, entries));
-    }
+    const card = await cardWithBook({ ...draft, extensions: saved.extensions }, book, () => entriesOfBook(client, book?.id ?? ''));
     await exportCard(saved.name, draft.avatar, card);
   };
 

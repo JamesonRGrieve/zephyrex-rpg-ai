@@ -15,14 +15,32 @@ import { EXPRESSION } from '~/contract';
 import { characterExpressions } from '~/features/data/records';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 
-export function ExpressionEditor({ characterId, name }: { characterId: string; name: string }): ReactElement {
-  const list = characterExpressions.useList({ character_id: characterId });
-  const { create, remove } = characterExpressions.useActions();
+export interface Sprite {
+  id: string;
+  label: string;
+  image: string;
+}
+
+/**
+ * The sprites and the way to add one (a feeling's name, then its picture) or remove one with undo.
+ * `onAdd` answers the problem that kept it from being saved, or null.
+ */
+export function ExpressionSprites({
+  name,
+  sprites,
+  onAdd,
+  onRemove,
+}: {
+  name: string;
+  sprites: readonly Sprite[];
+  onAdd: (label: string, image: string) => Promise<string | null>;
+  onRemove: (sprite: Sprite) => void;
+}): ReactElement {
   const [label, setLabel] = useState('');
   const [problem, setProblem] = useState<string | null>(null);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const ids = { label: useId(), file: useId() };
-  const sprites = (list.data ?? []).filter((sprite) => !hidden.has(sprite.id));
+  const shown = sprites.filter((sprite) => !hidden.has(sprite.id));
 
   const add = async (file: File | undefined) => {
     if (file === undefined) return;
@@ -31,21 +49,18 @@ export function ExpressionEditor({ characterId, name }: { characterId: string; n
       setProblem(picture.refused);
       return;
     }
-    const failed = await writeProblem(create({ character_id: characterId, label: label.trim(), image: picture.url }), 'Not saved');
+    const failed = await onAdd(label.trim(), picture.url);
     setProblem(failed);
-    if (failed === null) {
-      notify('Sprite added');
-      setLabel('');
-    }
+    if (failed === null) setLabel('');
   };
 
   return (
     <fieldset className='grid gap-3 rounded-lg border p-3'>
       <legend className='px-1 text-sm font-medium'>Expressions</legend>
       <p className='text-xs text-muted-foreground'>A picture of {name} for each feeling. In a chat, the one that fits each line is shown.</p>
-      {sprites.length > 0 && (
-        <ul className='flex flex-wrap gap-3'>
-          {sprites.map((sprite) => (
+      {shown.length > 0 && (
+        <ul className='flex flex-wrap gap-3' aria-label='Sprites'>
+          {shown.map((sprite) => (
             <li key={sprite.id} className='grid justify-items-center gap-1'>
               <img src={sprite.image} alt={`${name}, ${sprite.label}`} className='size-20 rounded-md border object-cover' />
               <span className='text-xs'>{sprite.label}</span>
@@ -57,7 +72,11 @@ export function ExpressionEditor({ characterId, name }: { characterId: string; n
                 aria-label={`Remove the ${sprite.label} sprite`}
                 onClick={() => {
                   setHidden(new Set([...hidden, sprite.id]));
-                  deferWithUndo(`${sprite.label} sprite removed`, () => void remove(sprite), () => setHidden(new Set([...hidden].filter((id) => id !== sprite.id))));
+                  deferWithUndo(
+                    `${sprite.label} sprite removed`,
+                    () => onRemove(sprite),
+                    () => setHidden((now) => new Set([...now].filter((id) => id !== sprite.id))),
+                  );
                 }}
               >
                 <Trash2 aria-hidden />
@@ -77,7 +96,7 @@ export function ExpressionEditor({ characterId, name }: { characterId: string; n
           accept={PICTURE_TYPES.join(',')}
           aria-label='Choose a sprite picture'
           className='peer sr-only'
-          disabled={label.trim() === '' || sprites.length >= EXPRESSION.per_character}
+          disabled={label.trim() === '' || shown.length >= EXPRESSION.per_character}
           onChange={(event) => {
             const file = event.target.files?.[0];
             event.target.value = '';
@@ -93,5 +112,26 @@ export function ExpressionEditor({ characterId, name }: { characterId: string; n
       </div>
       <WriteProblem problem={problem} />
     </fieldset>
+  );
+}
+
+/** The character's sprites, read and written as records. */
+export function ExpressionEditor({ characterId, name }: { characterId: string; name: string }): ReactElement {
+  const list = characterExpressions.useList({ character_id: characterId });
+  const { create, remove } = characterExpressions.useActions();
+  return (
+    <ExpressionSprites
+      name={name}
+      sprites={list.data ?? []}
+      onAdd={async (label, image) => {
+        const failed = await writeProblem(create({ character_id: characterId, label, image }), 'Not saved');
+        if (failed === null) notify('Sprite added');
+        return failed;
+      }}
+      onRemove={(sprite) => {
+        const row = (list.data ?? []).find((one) => one.id === sprite.id);
+        if (row !== undefined) void remove(row);
+      }}
+    />
   );
 }

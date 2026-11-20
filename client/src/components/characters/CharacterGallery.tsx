@@ -4,11 +4,12 @@
  * Every character: search, a tag filter (A51), favourites first, a new blank card, and SillyTavern card import (PNG or
  * JSON, several at once; a card's embedded lorebook becomes the character's own). On a phone the grid is two columns and the actions sit in reach.
  */
-import { FileUp, Plus, Search } from 'lucide-react';
+import { Download, FileUp, Plus, Search } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type ChangeEvent, type ReactElement, useId, useMemo, useRef, useState } from 'react';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { notify } from 'zephyrex/hooks/useToast';
+import { useClient } from 'zephyrex';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
@@ -16,6 +17,9 @@ import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { type Character, characters, lorebookEntries, lorebooks } from '~/features/data/records';
 import { CardError, readCardFile } from '~/features/import/stCard';
+import { cardWithBook } from '~/features/import/characterCard';
+import { exportCard } from '~/features/import/exportCard';
+import { draftOf, entriesOfBook } from './CharacterEditor';
 import { writeImportedBook } from '../lore/importBook';
 import { CharacterTile } from './CharacterTile';
 
@@ -37,6 +41,7 @@ export function CharacterGallery(): ReactElement {
   const list = characters.useList();
   const { create, update } = characters.useActions();
   const { create: createBook } = lorebooks.useActions();
+  const books = lorebooks.useList();
   const { create: createEntry } = lorebookEntries.useActions();
   const router = useRouter();
   const [query, setQuery] = useState('');
@@ -69,6 +74,25 @@ export function CharacterGallery(): ReactElement {
     if (failed.length > 0) notify('Some cards were not imported', failed.join('\n'));
   };
 
+  /** Batch export (A2): every character shown (the search and tag pick which), each as its own card file. */
+  const client = useClient();
+  const [exporting, setExporting] = useState(false);
+  const exportShown = async () => {
+    setExporting(true);
+    try {
+      for (const character of shown) {
+        const book = (books.data ?? []).find((one) => one.id === character.lorebook_id);
+        const card = await cardWithBook({ ...draftOf(character), extensions: character.extensions }, book, () => entriesOfBook(client, book?.id ?? ''));
+        await exportCard(character.name, character.avatar, card);
+      }
+      notify(shown.length === 1 ? 'Card exported' : `${shown.length} cards exported`);
+    } catch {
+      notify('Not every card was exported', 'Try again, or export the rest one at a time.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   const createBlank = async () => {
     const created = await create({ name: 'New character' });
     router.push(`/characters/${created.id}`);
@@ -86,6 +110,9 @@ export function CharacterGallery(): ReactElement {
         </div>
         <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
           <FileUp aria-hidden /> Import cards
+        </Button>
+        <Button type='button' variant='outline' className='h-11' disabled={exporting || shown.length === 0} onClick={() => void exportShown()}>
+          <Download aria-hidden /> {shown.length === (list.data ?? []).length ? 'Export all' : `Export ${shown.length} shown`}
         </Button>
         <Button type='button' className='h-11' onClick={() => void createBlank()}>
           <Plus aria-hidden /> New character
