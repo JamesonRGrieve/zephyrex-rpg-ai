@@ -6,10 +6,12 @@
  */
 import { type ReactElement, useId, useState } from 'react';
 import { notify } from 'zephyrex/hooks/useToast';
+import { writeProblem } from 'zephyrex';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Switch } from 'zephyrex/ui/switch';
+import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS } from '~/contract';
 import { type ModelEndpoint, endpoints } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
@@ -28,16 +30,16 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
   const [model, setModel] = useState(endpoint?.model ?? '');
   const [apiKey, setApiKey] = useState('');
   const [isDefault, setIsDefault] = useState(endpoint?.is_default ?? false);
+  const [problem, setProblem] = useState<string | null>(null);
   const ids = { name: useId(), url: useId(), model: useId(), key: useId(), isDefault: useId() };
 
   const save = async () => {
     const fields = { name: name.trim(), base_url: baseUrl.trim(), model: model.trim(), is_default: isDefault, ...(apiKey === '' ? {} : { api_key: apiKey }) };
-    try {
-      if (endpoint === null) await create(fields);
-      else await update(endpoint, fields);
+    const failed = await writeProblem(endpoint === null ? create(fields) : update(endpoint, fields), 'Not saved');
+    setProblem(failed);
+    if (failed === null) {
+      notify('Saved');
       done();
-    } catch (error) {
-      notify('Not saved', error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -85,6 +87,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
         <Label htmlFor={ids.isDefault}>Use for new chats</Label>
         <Switch id={ids.isDefault} checked={isDefault} onCheckedChange={setIsDefault} />
       </div>
+      <WriteProblem problem={problem} />
       <Button type='submit' className='h-11' disabled={name.trim() === '' || baseUrl.trim() === '' || model.trim() === ''}>
         Save
       </Button>

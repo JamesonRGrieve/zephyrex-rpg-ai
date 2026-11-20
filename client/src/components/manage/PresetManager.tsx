@@ -3,10 +3,12 @@
 /** Sampler presets: each setting within the contract's range, with the defaults one tap away. */
 import { type ReactElement, useId, useState } from 'react';
 import { notify } from 'zephyrex/hooks/useToast';
+import { writeProblem } from 'zephyrex';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Slider } from 'zephyrex/ui/slider';
+import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, PRESET_DEFAULTS, SAMPLER_RANGES, type SamplerSetting } from '~/contract';
 import { type Preset, presets } from '~/features/data/records';
 import { ManagedList } from './ManagedList';
@@ -65,16 +67,16 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
   const [name, setName] = useState(preset?.name ?? '');
   const [values, setValues] = useState<Samplers>(() => samplersOf(preset ?? PRESET_DEFAULTS));
   const [stops, setStops] = useState((preset?.stop ?? []).join('\n'));
+  const [problem, setProblem] = useState<string | null>(null);
   const ids = { name: useId(), stops: useId() };
 
   const save = async () => {
     const fields = { name: name.trim(), ...values, stop: parseStops(stops) };
-    try {
-      if (preset === null) await create(fields);
-      else await update(preset, fields);
+    const failed = await writeProblem(preset === null ? create(fields) : update(preset, fields), 'Not saved');
+    setProblem(failed);
+    if (failed === null) {
+      notify('Saved');
       done();
-    } catch (error) {
-      notify('Not saved', error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -100,6 +102,7 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
         </p>
         <textarea id={ids.stops} rows={3} value={stops} aria-describedby={`${ids.stops}-hint`} className='rounded-md border bg-background p-2 text-sm' onChange={(event) => setStops(event.target.value)} />
       </div>
+      <WriteProblem problem={problem} />
       <div className='flex gap-2'>
         <Button type='submit' className='h-11 flex-1' disabled={name.trim() === ''}>
           Save

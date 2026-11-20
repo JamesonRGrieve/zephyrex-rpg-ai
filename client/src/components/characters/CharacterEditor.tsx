@@ -9,11 +9,13 @@ import { Download, MessageSquarePlus, Save, Trash2 } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type ReactElement, useEffect, useId, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
+import { writeProblem } from 'zephyrex';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { type Character, characters, chats, lorebooks } from '~/features/data/records';
 import { cardToJson } from '~/features/import/stCard';
+import { WriteProblem } from '../common/WriteProblem';
 import { type CharacterDraft, CharacterForm } from './CharacterForm';
 
 export function draftOf(character: Character): CharacterDraft {
@@ -40,6 +42,7 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const router = useRouter();
   const [draft, setDraft] = useState<CharacterDraft | null>(null);
   const [saving, setSaving] = useState(false);
+  const [problem, setProblem] = useState<string | null>(null);
   const books = lorebooks.useList();
   const bookPicker = useId();
 
@@ -54,15 +57,14 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
 
   const save = async () => {
     setSaving(true);
-    try {
-      const next = await update(saved, { ...draft, name: draft.name.trim() || saved.name });
-      setDraft(draftOf(next));
+    const writing = update(saved, { ...draft, name: draft.name.trim() || saved.name });
+    const failed = await writeProblem(writing, 'Not saved');
+    setProblem(failed);
+    if (failed === null) {
+      setDraft(draftOf(await writing));
       notify('Saved');
-    } catch (error) {
-      notify('Not saved', error instanceof Error ? error.message : undefined);
-    } finally {
-      setSaving(false);
     }
+    setSaving(false);
   };
 
   const startChat = async () => {
@@ -112,6 +114,9 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
       </div>
       <CharacterForm key={saved.id} value={draft} onChange={setDraft} onAvatarRefused={(reason) => notify('Picture not used', reason)} />
       <div className='fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 pb-safe backdrop-blur-sm md:sticky md:mt-8 md:border md:rounded-xl'>
+        <div className='mx-auto max-w-3xl px-4 pt-3'>
+          <WriteProblem problem={problem} />
+        </div>
         <div className='mx-auto flex max-w-3xl items-center justify-end gap-3 px-4 pt-3 md:pb-3'>
           <span className='text-sm text-muted-foreground' role='status'>
             {changed ? 'Unsaved changes' : 'All changes saved'}

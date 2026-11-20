@@ -27,3 +27,35 @@ describe('ManagedList', () => {
     expect(screen.getByText('None yet.')).toBeInTheDocument();
   });
 });
+
+describe('ManagedList deletes', () => {
+  it('deletes only once the undo window has passed (fake timers)', async () => {
+    const { act } = await import('@testing-library/react');
+    const { UNDO_MS } = await import('zephyrex/hooks/useToast');
+    vi.useFakeTimers();
+    try {
+      const onDelete = vi.fn();
+      const user = userEvent.setup({ advanceTimers: vi.advanceTimersByTime });
+      render(
+        <ManagedList
+          what='persona'
+          rows={[{ id: 'p1', name: 'Sam' }]}
+          summary={() => 'summary'}
+          newLabel='New persona'
+          emptyText='None yet.'
+          editor={() => null}
+          onDelete={onDelete}
+        />,
+      );
+      await user.click(screen.getByRole('button', { name: 'Delete Sam' }));
+      expect(screen.queryByRole('button', { name: /^Sam/ })).not.toBeInTheDocument();
+      expect(onDelete).not.toHaveBeenCalled();
+      act(() => {
+        vi.advanceTimersByTime(UNDO_MS);
+      });
+      expect(onDelete).toHaveBeenCalledWith({ id: 'p1', name: 'Sam' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+});

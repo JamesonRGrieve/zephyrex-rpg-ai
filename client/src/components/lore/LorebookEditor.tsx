@@ -9,6 +9,7 @@ import { Download, Plus, Search, Trash2 } from 'lucide-react';
 import { type ReactElement, useId, useMemo, useState } from 'react';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
+import { writeProblem } from 'zephyrex';
 import { Badge } from 'zephyrex/ui/badge';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
@@ -17,6 +18,7 @@ import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { Switch } from 'zephyrex/ui/switch';
+import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS } from '~/contract';
 import { type Lorebook, type LorebookEntry, lorebookEntries, lorebooks } from '~/features/data/records';
 import { type EntryFields, lorebookToJson } from '~/features/import/stLorebook';
@@ -86,6 +88,7 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
   const [editing, setEditing] = useState<{ entry: LorebookEntry | null; draft: EntryFields } | null>(null);
   const [hidden, setHidden] = useState<ReadonlySet<string>>(new Set());
   const searchId = useId();
+  const [problem, setProblem] = useState<string | null>(null);
 
   const shown = useMemo(
     () => (entries.data ?? []).filter((entry) => !hidden.has(entry.id) && entryMatches(entry, query)),
@@ -98,12 +101,14 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
 
   const save = async () => {
     if (editing === null) return;
-    try {
-      if (editing.entry === null) await create({ ...editing.draft, lorebook_id: current.id });
-      else await update(editing.entry, editing.draft);
+    const failed = await writeProblem(
+      editing.entry === null ? create({ ...editing.draft, lorebook_id: current.id }) : update(editing.entry, editing.draft),
+      'Not saved',
+    );
+    setProblem(failed);
+    if (failed === null) {
+      notify('Saved');
       setEditing(null);
-    } catch (error) {
-      notify('Not saved', error instanceof Error ? error.message : undefined);
     }
   };
 
@@ -157,7 +162,15 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
           </li>
         ))}
       </ul>
-      <Sheet open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+      <Sheet
+        open={editing !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setEditing(null);
+            setProblem(null);
+          }
+        }}
+      >
         <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'>
           <SheetHeader>
             <SheetTitle>{editing?.entry === null ? 'New entry' : 'Edit entry'}</SheetTitle>
@@ -172,6 +185,7 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
               }}
             >
               <EntryForm value={editing.draft} onChange={(draft) => setEditing({ ...editing, draft })} />
+              <WriteProblem problem={problem} />
               <Button type='submit' className='h-11'>
                 Save entry
               </Button>
