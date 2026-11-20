@@ -86,6 +86,13 @@ export function DeviceSettingsForm({
       </fieldset>
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <div>
+          <Label htmlFor={`${tableTalkId}-sprites`}>Show expressions</Label>
+          <p className='text-xs text-muted-foreground'>A character’s sprite for how their line feels, when they have sprites.</p>
+        </div>
+        <Switch id={`${tableTalkId}-sprites`} checked={settings.showExpressions} onCheckedChange={(checked) => onChange({ showExpressions: checked })} />
+      </div>
+      <div className='flex min-h-11 items-center justify-between gap-3'>
+        <div>
           <Label htmlFor={`${tableTalkId}-read`}>Read replies aloud</Label>
           <p className='text-xs text-muted-foreground'>Each character in their own voice, on this device.</p>
         </div>

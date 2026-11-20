@@ -16,7 +16,7 @@ from pydantic import BaseModel as PlainModel
 from pydantic import Field, field_validator
 
 # Resolves only at runtime, through the extensions namespace path.
-from zephyrex.extensions.ai_character.Contract import LIMITS  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_character.Contract import CONTRACT, LIMITS  # type: ignore[import-not-found]
 from zephyrex.logic.AbstractLogicManager import (
     AbstractBLLManager,
     ApplicationModel,
@@ -281,3 +281,81 @@ def not_yours(field: str) -> HTTPException:
         status_code=422,
         detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": [field], "msg": f"That {field} is not one of yours"}]},
     )
+
+
+# ---- character_expression --------------------------------------------------------------
+
+EXPRESSION: dict[str, Any] = CONTRACT["expression"]
+_LABEL = re.compile(r"^[^\W_][\w -]*$")
+
+
+def _expression_label(value: Any) -> Any:
+    if value is None:
+        return None
+    stripped = str(value).strip()
+    if not stripped or len(stripped) > EXPRESSION["label_characters"] or not _LABEL.match(stripped) or "_" in stripped:
+        raise ValueError("A label is a word or two")
+    return stripped
+
+
+class ExpressionChecks(PlainModel):
+    @field_validator("label", check_fields=False)
+    @classmethod
+    def _checked_label(cls, value: Any) -> Any:
+        return _expression_label(value)
+
+    @field_validator("image", check_fields=False)
+    @classmethod
+    def _checked_image(cls, value: Any) -> Any:
+        return _avatar(value)
+
+
+class CharacterExpressionModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
+    Manager: ClassVar[type["CharacterExpressionManager"]]
+    character_id: str = Field(..., description="The character it shows")
+    label: str = Field(..., description="The feeling it shows (joy, anger, …)")
+    image: str = Field(..., description="The sprite (a data URL)")
+
+    table_comment: ClassVar[str] = "Zephyrex RPG AI expression sprites"
+
+    class Create(ExpressionChecks, BaseModel):
+        character_id: str = Field(..., min_length=1)
+        label: str = Field(..., min_length=1, max_length=EXPRESSION["label_characters"])
+        image: str = Field(..., min_length=1)
+
+    class Update(ExpressionChecks, BaseModel):
+        label: str | None = Field(None, min_length=1, max_length=EXPRESSION["label_characters"])
+        image: str | None = None
+
+    class Search(ApplicationModel.Search):
+        character_id: StringSearchModel | None = None
+
+
+class CharacterExpressionManager(AbstractBLLManager[CharacterExpressionModel], RouterMixin):
+    _model = CharacterExpressionModel
+
+    def _refuse(self, field: str, message: str) -> HTTPException:
+        return HTTPException(status_code=422, detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": [field], "msg": message}]})
+
+    def create(self, **kwargs: Any) -> Any:
+        try:
+            CharacterManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(id=kwargs["character_id"])
+        except HTTPException as error:
+            raise not_yours("character_id") from error
+        existing = super().list(character_id=kwargs["character_id"])
+        if len(existing) >= EXPRESSION["per_character"]:
+            raise self._refuse("character_id", f"At most {EXPRESSION['per_character']} sprites a character")
+        if any(row.label == kwargs["label"] for row in existing):
+            raise self._refuse("label", "That character already has a sprite for this label")
+        return super().create(**kwargs)
+
+    def update(self, id: str, **kwargs: Any) -> Any:
+        if kwargs.get("label") is not None:
+            row = self.get(id=id)
+            if any(other.label == kwargs["label"] and other.id != id for other in super().list(character_id=row.character_id)):
+                raise self._refuse("label", "That character already has a sprite for this label")
+        return super().update(id, **kwargs)
+
+    def list(self, *args: Any, **kwargs: Any) -> Any:
+        rows = super().list(*args, **kwargs)
+        return sorted(rows, key=lambda row: row.label) if isinstance(rows, list) else rows

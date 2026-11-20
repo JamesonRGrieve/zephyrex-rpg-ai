@@ -11,7 +11,7 @@ import { NextRequest } from 'next/server';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { completionsUrl, generate, inspectPrompt, modelsUrl, ping, summarize, translate, upstreamBody, withImages } from './generate';
+import { completionsUrl, expression, generate, inspectPrompt, modelsUrl, ping, summarize, translate, upstreamBody, withImages } from './generate';
 
 interface Received {
   path: string;
@@ -287,6 +287,24 @@ describe('withImages', () => {
       ...messages.slice(0, 3),
       { role: 'user', content: [{ type: 'text', text: 'What is this?' }, { type: 'image_url', image_url: { url: 'data:image/png;base64,AAAA' } }] },
     ]);
+  });
+});
+
+describe('POST /v1/ai_chat/expression (A4)', () => {
+  it('names no sprite for a character without any, without asking a model', async () => {
+    const { ada, chat } = await seed();
+    const response = await expression(call({ expression: { chat_id: chat.id, character_id: ada.id, text: 'Hello.' } }));
+    expect(await response.json()).toEqual({ expression: { label: null } });
+    expect(received).toHaveLength(0);
+  });
+
+  it('asks the model to choose among the character’s own labels, and keeps to them', async () => {
+    const { ada, chat } = await seed();
+    for (const label of ['joy', 'anger']) await prisma.characterExpression.create({ data: { ...stamp(), characterId: ada.id, label, image: 'data:image/png;base64,AAAA' } });
+    const response = await expression(call({ expression: { chat_id: chat.id, character_id: ada.id, text: '*grins* We made it!' } }));
+    // The stub model answers “Mind the coolant.”: no label, so none is invented.
+    expect(await response.json()).toEqual({ expression: { label: null } });
+    expect(received.at(-1)?.body.messages[0]?.content).toContain('Words: anger, joy');
   });
 });
 

@@ -21,9 +21,11 @@ export interface DeviceSettings {
   textSize: TextSize;
   /** Read each character's reply aloud when it is written (A29). */
   readAloud: boolean;
+  /** Show the speaker's expression sprite on a stage above the composer (A4). */
+  showExpressions: boolean;
 }
 
-export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = { tier: 'auto', showTableTalk: true, chatLayout: 'flat', textSize: 'normal', readAloud: false };
+export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = { tier: 'auto', showTableTalk: true, chatLayout: 'flat', textSize: 'normal', readAloud: false, showExpressions: true };
 
 const oneOf = <T extends string>(options: readonly T[], value: unknown, fallback: T): T => (options.includes(value as T) ? (value as T) : fallback);
 
@@ -46,6 +48,7 @@ export function parseDeviceSettings(text: string | null): DeviceSettings {
     chatLayout: oneOf(CHAT_LAYOUTS, Reflect.get(Object(stored), 'chatLayout'), DEFAULT_DEVICE_SETTINGS.chatLayout),
     textSize: oneOf(TEXT_SIZES, Reflect.get(Object(stored), 'textSize'), DEFAULT_DEVICE_SETTINGS.textSize),
     readAloud: Reflect.get(Object(stored), 'readAloud') === true,
+    showExpressions: Reflect.get(Object(stored), 'showExpressions') !== false,
   };
 }
 

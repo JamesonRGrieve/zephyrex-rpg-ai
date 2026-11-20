@@ -312,3 +312,17 @@ model Scenario {
   @@index([createdById])
 }
 
+/// A character's picture for one expression (A4), shown when a line has that feeling.
+model CharacterExpression {
+  id          String   @id @default(uuid())
+  createdById String
+  characterId String
+  label       String
+  image       String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@index([createdById, characterId])
+}
+

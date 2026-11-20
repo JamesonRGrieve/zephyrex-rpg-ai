@@ -314,3 +314,11 @@ export const scenarioSchema = z.object({
 export type Scenario = z.infer<typeof scenarioSchema>;
 export const scenarios = resource<Scenario, Fields<Scenario> & { name: string }>('scenario', 'scenarios', scenarioSchema);
 
+export const characterExpressionSchema = z.object({ ...versioned, character_id: z.string(), label: z.string(), image: z.string() });
+export type CharacterExpression = z.infer<typeof characterExpressionSchema>;
+export const characterExpressions = resource<CharacterExpression, Fields<CharacterExpression> & { character_id: string; label: string; image: string }>(
+  'character_expression',
+  'character_expressions',
+  characterExpressionSchema,
+);
+

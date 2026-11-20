@@ -28,7 +28,7 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { CAMPAIGN, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
+import { CAMPAIGN, EXPRESSION, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandMacros, type MacroNames } from './macros';
@@ -564,3 +564,21 @@ export function tableGmPrompt(
   return { messages: [system, ...talk.slice(kept)], dropped: kept };
 }
 
+
+/** What a model is asked to name a line's feeling (A4), choosing only from `options`. */
+export function expressionPrompt(line: string, options: readonly string[]): ModelMessage[] {
+  return [
+    { role: 'system', content: EXPRESSION.prompt.replace('{{options}}', options.join(', ')) },
+    { role: 'user', content: line },
+  ];
+}
+
+/**
+ * The option a decision model's answer names: the first option, in the answer's order, whose word
+ * appears in it (ignoring case); none when it names none. A model never invents one.
+ */
+export function pickOption(answer: string, options: readonly string[]): string | null {
+  const byWord = new Map(options.map((option) => [option.toLowerCase(), option]));
+  const word = (answer.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).find((one) => byWord.has(one));
+  return word === undefined ? null : (byWord.get(word) ?? null);
+}

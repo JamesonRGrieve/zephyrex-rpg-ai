@@ -122,3 +122,6 @@ export const CAMPAIGN = {
 /** Scenario modeling (A59–A61): clocks, clues and the GM's view of a running scenario. */
 export const SCENARIO = contract.scenario;
 
+/** Expression sprites (A4): how a line's feeling is asked for, and the labels' limits. */
+export const EXPRESSION = contract.expression;
+

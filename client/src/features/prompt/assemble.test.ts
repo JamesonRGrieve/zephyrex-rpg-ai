@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/prompt-cases.json';
-import { assemblePrompt, estimateTokens, type PromptCharacter, type PromptInput, splitReasoning, summaryPrompt, tableGmPrompt } from './assemble';
+import { assemblePrompt, estimateTokens, type PromptCharacter, type PromptInput, splitReasoning, summaryPrompt, tableGmPrompt, expressionPrompt, pickOption } from './assemble';
 
 type CaseInput = Omit<PromptInput, 'characters'> & { characters: (keyof typeof cases.characters)[] };
 
@@ -56,6 +56,17 @@ describe('tableGmPrompt (contract/prompt-cases.json table_gm_cases)', () => {
     const result = tableGmPrompt({ ...given, characters: given.characters.map((key) => CHARACTERS[key] as PromptCharacter) });
     expect(result.messages).toEqual(messages);
     expect(result.dropped).toBe(dropped);
+  });
+});
+
+describe('pickOption and expressionPrompt (contract/prompt-cases.json)', () => {
+  it.each(cases.pick_cases)('$name', ({ answer, options, picked }) => {
+    expect(pickOption(answer, options)).toBe(picked);
+  });
+
+  it('asks for one word from the options', () => {
+    const { line, options, messages } = cases.expression_prompt_case;
+    expect(expressionPrompt(line, options)).toEqual(messages);
   });
 });
 

@@ -23,7 +23,7 @@ import { z } from 'zod';
 import { type EndpointApi, type EndpointRole, type InstructTemplateId, LIMITS, LORE, PRESET_DEFAULTS, PROMPT } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
-import { type AssembledPrompt, assemblePrompt, type CampaignFrame, type ScenarioView, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
+import { type AssembledPrompt, assemblePrompt, type CampaignFrame, expressionPrompt, pickOption, type ScenarioView, splitReasoning, estimateTokens, summaryPrompt, tableGmPrompt, type TableNote, translatePrompt, type ModelMessage, type PromptInput, type PromptMode, type PromptSection, type PromptTurn } from '~/features/prompt/assemble';
 import { instructStops, renderInstruct } from '~/features/prompt/instruct';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
@@ -451,6 +451,32 @@ export async function ping(nextRequest: NextRequest): Promise<Response> {
         detail: answer.ok ? (ids === null ? 'Answered, without a model list' : `${ids.length} models offered`) : `Answered ${answer.status}`,
       },
     });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const expressionRequest = z.object({ chat_id: z.string().min(1), character_id: z.string().min(1), text: z.string().min(1).max(LIMITS.message_characters) });
+
+/**
+ * `POST /v1/ai_chat/expression` (A4): which of a character's sprites fits a line. The chat's model
+ * (the one serving summaries, when there is one) chooses from the character's own labels, as a
+ * decision model does: it never names one that is not there. `{ "expression": { "label" } }`, the
+ * label null when the character has no sprites or the model named none.
+ */
+export async function expression(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = expressionRequest.safeParse(Reflect.get(envelope, 'expression'));
+    if (!parsed.success) throw validationError('An expression object with a chat_id, character_id and text is required', 'expression');
+    const asked = parsed.data;
+    const labels = (await prisma.characterExpression.findMany({ where: { createdById: owner.id, characterId: asked.character_id }, orderBy: { label: 'asc' } })).map((row) => row.label);
+    if (labels.length === 0) return Response.json({ expression: { label: null } });
+    const { sampler, endpoint } = await generationInputs(owner.id, { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply' }, Math.random, 'summary');
+    const stream = await askModel(endpoint, upstreamBody(endpoint, { ...sampler, max_tokens: 8 }, expressionPrompt(splitReasoning(asked.text).reply, labels), 'reply'), nextRequest.signal);
+    const answer = await collect(completionDeltas(stream)).catch(() => '');
+    return Response.json({ expression: { label: pickOption(answer, labels) } });
   } catch (error) {
     return apiErrorResponse(error);
   }

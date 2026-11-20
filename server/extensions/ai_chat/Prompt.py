@@ -473,3 +473,22 @@ def table_gm_prompt(
         kept = index
     return Assembled(messages=[system, *talk[kept:]], dropped=kept)
 
+
+
+EXPRESSION = CONTRACT["expression"]
+
+
+def expression_prompt(line: str, options: Sequence[str]) -> list[dict[str, str]]:
+    """What a model is asked to name a line's feeling (A4), choosing only from ``options``."""
+    return [
+        {"role": "system", "content": EXPRESSION["prompt"].replace("{{options}}", ", ".join(options))},
+        {"role": "user", "content": line},
+    ]
+
+
+def pick_option(answer: str, options: Sequence[str]) -> str | None:
+    """The option a decision model's answer names: the first option, in the answer's order, whose
+    word appears in it (ignoring case); none when it names none. A model never invents one."""
+    words = re.findall(r"[^\W_]+", answer.lower())
+    by_word = {option.lower(): option for option in options}
+    return next((by_word[word] for word in words if word in by_word), None)

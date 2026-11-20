@@ -24,7 +24,7 @@ import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf, treeRows } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
-import { deviceLanguage, type InspectedPrompt, inspectPrompt, summarizeBranch, translateText } from '~/features/chat/inspectPrompt';
+import { deviceLanguage, expressionFor, type InspectedPrompt, inspectPrompt, summarizeBranch, translateText } from '~/features/chat/inspectPrompt';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
@@ -36,7 +36,7 @@ import { useDeviceSettings } from '~/features/settings/useDeviceSettings';
 import type { TextSize } from '~/features/settings/deviceSettings';
 import { cn } from '~/lib/utils';
 import { TABLE } from '~/contract';
-import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts, campaigns, scenarios } from '~/features/data/records';
+import { type Character, type Chat, type ChatMessage, characters, chats, endpoints, lorebooks, messages, type Persona, personas, presets, quickReplies, regexScripts, campaigns, scenarios, characterExpressions } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
@@ -100,6 +100,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const chatList = chats.useList();
   const campaignList = campaigns.useList();
   const scenarioList = scenarios.useList();
+  const spriteList = characterExpressions.useList();
+  const sprites = spriteList.data ?? [];
+  const [stage, setStage] = useState<{ characterId: string; label: string } | null>(null);
+  const staged = stage === null ? undefined : sprites.find((sprite) => sprite.character_id === stage.characterId && sprite.label === stage.label);
   const campaign = campaignList.data?.find((one) => one.id === chat.campaign_id);
   const running = scenarioList.data?.find((one) => one.id === chat.scenario_id);
   const { update: updateScenario } = scenarios.useActions();
@@ -164,6 +168,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const saved = await create({ chat_id: chat.id, parent_id: parentId, role: 'character', speaker_character_id: speakerId, swipes: [stored(result.text, 'ai_output')] });
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
     setLeafId(saved.id);
+    void showExpression(speakerId, saved.swipes[0] ?? '');
+  };
+
+  /** The speaker's sprite for how the line feels (A4), when they have sprites and this device shows them. */
+  const showExpression = async (characterId: string, text: string) => {
+    if (!settings.showExpressions || !sprites.some((sprite) => sprite.character_id === characterId)) return;
+    const label = await expressionFor(chat.id, characterId, text).catch(() => null);
+    setStage(label === null ? null : { characterId, label });
   };
 
   /** Translations shown under messages (A43), by message; kept only while the chat is open. */
@@ -471,6 +483,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         )}
       </ol>
       <div ref={end} />
+      {staged !== undefined && settings.showExpressions && (
+        // The stage (A4): the latest speaker, as their line feels.
+        <figure className='mx-auto flex w-full max-w-3xl items-end justify-center px-3'>
+          <img src={staged.image} alt={`${castById.get(staged.character_id)?.name ?? 'The speaker'}, ${staged.label}`} className='max-h-48 rounded-lg object-contain' />
+        </figure>
+      )}
       {chat.character_ids.length > 1 && (
         <NextSpeaker
           cast={chat.character_ids.flatMap((id) => {

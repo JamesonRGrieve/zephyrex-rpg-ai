@@ -65,6 +65,18 @@ export async function translateText(chatId: string, text: string, language: stri
   return translated;
 }
 
+/** Which of a character's sprites fits a line (A4); null when none does or none exists. */
+export async function expressionFor(chatId: string, characterId: string, text: string): Promise<string | null> {
+  const response = await fetch('/api/v1/ai_chat/expression', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ expression: { chat_id: chatId, character_id: characterId, text } }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  const label: unknown = Reflect.get(Object(Reflect.get(Object(body), 'expression')), 'label');
+  return response.ok && typeof label === 'string' ? label : null;
+}
+
 /** This device's language as people name it ("French"), for the model to translate into. */
 export function deviceLanguage(locale: string = typeof navigator === 'undefined' ? 'en' : navigator.language): string {
   try {

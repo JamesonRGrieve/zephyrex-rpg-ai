@@ -469,6 +469,23 @@ class TestGenerate:
         server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
         assert {key: RECEIVED[0]["body"][key] for key in ("logit_bias", "negative_prompt", "guidance_scale")} == {"logit_bias": {"50256": -100}, "negative_prompt": "purple prose", "guidance_scale": 1.5}
 
+    def test_a_sprite_is_chosen_only_from_the_characters_own_labels(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        none = server.post("/v1/ai_chat/expression", json={"expression": {"chat_id": chat["id"], "character_id": ada["id"], "text": "Hi."}}, headers=_headers(user))
+        assert none.json() == {"expression": {"label": None}}
+        picture = "data:image/png;base64,AAAA"
+        _create(server, user, "character_expression", character_id=ada["id"], label="joy", image=picture)
+        twice = server.post("/v1/character_expression", json={"character_expression": {"character_id": ada["id"], "label": "joy", "image": picture}}, headers=_headers(user))
+        assert twice.status_code == 422, twice.text
+        RECEIVED.clear()
+        chosen = server.post("/v1/ai_chat/expression", json={"expression": {"chat_id": chat["id"], "character_id": ada["id"], "text": "We made it!"}}, headers=_headers(user))
+        # The stub model answers with no label, so none is invented.
+        assert chosen.json() == {"expression": {"label": None}}
+        assert "Words: joy" in RECEIVED[0]["body"]["messages"][0]["content"]
+
     def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

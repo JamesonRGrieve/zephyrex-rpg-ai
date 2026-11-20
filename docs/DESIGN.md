@@ -86,6 +86,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A4 | Expression sprites and visual-novel mode (expression chosen by a decision model) | SillyTavern | ✓ | ✓ |
 | A5 | Character linked to a wiki person: card fields filled from the entity; canon edits flow both ways | ours | ✓ | ✓ |
 | **Chat** |
+| A4 | Expression sprites: a picture per feeling; the model picks which fits each line from the character's own labels only (a decision model's rule), shown on a stage | a visual-novel layout; a dedicated decision model (framework decide) |
 | A6 | Streaming replies; stop; continue; regenerate; impersonate | SillyTavern | ✓ | ✓ |
 | A7 | Swipes (alternative replies per turn), kept and browsable | SillyTavern | ✓ | ✓ |
 | A8 | Branches and checkpoints: fork from any message, tree view | SillyTavern | ✓ | ✓ |

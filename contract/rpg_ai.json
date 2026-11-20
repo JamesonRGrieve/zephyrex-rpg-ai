@@ -515,5 +515,10 @@
       1,
       5
     ]
+  },
+  "expression": {
+    "prompt": "Which one of these words best names the feeling in the line below? Answer with one word from the list and nothing else.\nWords: {{options}}",
+    "label_characters": 40,
+    "per_character": 40
   }
 }

@@ -312,3 +312,18 @@ CREATE TABLE "Scenario" (
 -- CreateIndex
 CREATE INDEX "Scenario_createdById_idx" ON "Scenario"("createdById");
 
+-- CreateTable
+CREATE TABLE "CharacterExpression" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "characterId" TEXT NOT NULL,
+    "label" TEXT NOT NULL,
+    "image" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "CharacterExpression_createdById_characterId_idx" ON "CharacterExpression"("createdById", "characterId");
+

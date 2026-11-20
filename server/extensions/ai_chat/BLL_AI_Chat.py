@@ -33,6 +33,7 @@ from pydantic import Field, field_validator, model_validator
 
 # Resolve only at runtime, through the extensions namespace path.
 from zephyrex.extensions.ai_character.BLL_AI_Character import (  # type: ignore[import-not-found]
+    CharacterExpressionManager,
     CharacterManager,
     PersonaManager,
     _avatar,
@@ -60,6 +61,9 @@ from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[impor
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     assemble_prompt,
     estimate_tokens,
+    expression_prompt,
+    pick_option,
+    split_reasoning,
     summary_prompt,
     table_gm_prompt,
     translate_prompt,
@@ -1074,6 +1078,24 @@ class TranslateEnvelope(PlainModel):
     translate: TranslateRequest
 
 
+class ExpressionRequest(PlainModel):
+    chat_id: str = Field(..., min_length=1)
+    character_id: str = Field(..., min_length=1)
+    text: str = Field(..., min_length=1, max_length=LIMITS["message_characters"])
+
+
+class ExpressionRequestEnvelope(PlainModel):
+    expression: ExpressionRequest
+
+
+class Expression(PlainModel):
+    label: str | None
+
+
+class ExpressionEnvelope(PlainModel):
+    expression: Expression
+
+
 class PingRequest(PlainModel):
     endpoint_id: str = Field(..., min_length=1)
 
@@ -1435,6 +1457,28 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         ok = answer.status_code < 400
         detail = ("Answered, without a model list" if ids is None else f"{len(ids)} models offered") if ok else f"Answered {answer.status_code}"
         return PingEnvelope(ping=Ping(ok=ok, latency_ms=latency, status=answer.status_code, has_model=None if ids is None else endpoint.model in ids, detail=detail))
+
+    @custom_route(
+        method="POST",
+        path="/expression",
+        input_model=ExpressionRequestEnvelope,
+        output_model=ExpressionEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Which of a character's sprites fits a line, chosen only from its own labels (A4)",
+    )
+    async def expression_route(self, body: ExpressionRequestEnvelope) -> ExpressionEnvelope:
+        asked = body.expression
+        labels = [row.label for row in self._manager(CharacterExpressionManager).list(character_id=asked.character_id)]
+        if not labels:
+            return ExpressionEnvelope(expression=Expression(label=None))
+        _assembled, _request, sampler, _active, context = self._inputs(GenerateRequest(chat_id=asked.chat_id), save_timers=False, purpose="summary")
+        try:
+            answer = await self._ask(context, {**sampler, "max_tokens": 8}, expression_prompt(split_reasoning(asked.text)[1], labels))
+        except HTTPException:
+            answer = ""
+        return ExpressionEnvelope(expression=Expression(label=pick_option(answer, labels)))
 
     async def _ask(self, context: dict[str, Any], sampler: dict[str, Any], messages: list[dict[str, str]]) -> str:
         """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""
