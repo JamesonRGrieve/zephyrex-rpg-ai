@@ -32,9 +32,11 @@ import { Button } from 'zephyrex/ui/button';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from 'zephyrex/ui/dropdown-menu';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
+import { textAndCode } from '~/features/chat/codeBlocks';
 import { roleplayPieces } from '~/features/chat/roleplayText';
 import { splitReasoning } from '~/features/prompt/assemble';
 import { initials } from '../characters/CharacterTile';
+import { CodeRunner } from './CodeRunner';
 
 export interface MessageView {
   id: string;
@@ -141,10 +143,19 @@ function Reasoning({ text, writing }: { text: string; writing: boolean }): React
 
 function StoryText({ text, writing = false }: { text: string; writing?: boolean }): ReactElement {
   const { reasoning, reply } = splitReasoning(text);
+  const parts = textAndCode(reply);
   return (
     <>
       {reasoning !== '' && <Reasoning text={reasoning} writing={writing && reply === ''} />}
-      <StoryPieces text={reply} />
+      {parts.length === 0 && <StoryPieces text={reply} />}
+      {parts.map((part, index) =>
+        // Parts have no identity beyond their place in this message.
+        part.kind === 'code' ? (
+          <CodeRunner key={index} language={part.language} code={part.code} />
+        ) : (
+          <StoryPieces key={index} text={part.text} />
+        ),
+      )}
     </>
   );
 }
