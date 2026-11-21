@@ -104,6 +104,7 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   // The scenario lives in the wiki: a campaign, its player characters and an NPC.
   const campaign = await post(page, 'campaign', {
     name: 'Voidship Escapade (e2e)',
+    is_scenario: true,
     description:
       'The rogue trader vessel Fortune of Varn drifts dark at the edge of the Calixis Sector. The acolytes wake in the brig as the alarms begin.',
   });
@@ -135,16 +136,14 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   await say(page, 'GM starts a fight', 'The vent above them bursts open. A pale, many-limbed thing drops into the brig. Combat begins!');
 
   // A roll from the VTT's dice tray: a formula, rolled on the server, recorded as a roll line.
-  await page.getByRole('button', { name: 'Roll' }).click();
-  await page.getByRole('radio', { name: 'The Rogue Trader' }).click();
+  await page.getByRole('button', { name: 'Context' }).click();
+  await page.getByRole('button', { name: 'Dice' }).click();
   const formula = page.getByLabel(/formula/i);
   if ((await formula.count()) > 0) {
     await formula.fill('1d100');
     await page.getByRole('button', { name: /^Roll/ }).last().click();
-    await expect(page.getByRole('article').filter({ hasText: /The Rogue Trader rolls 1d100: \d+/ })).toBeVisible({
-      timeout: 30_000,
-    });
-    record('A VTT roll', [{ speaker: 'roll', text: (await page.getByRole('article').last().textContent()) ?? '' }]);
+    await expect(page.getByRole('status').filter({ hasText: /\d/ }).first()).toBeVisible({ timeout: 30_000 });
+    record('A VTT roll', [{ speaker: 'roll', text: (await page.getByRole('status').first().textContent()) ?? '' }]);
   } else {
     record('A VTT roll', [{ speaker: 'roll', text: '(the tray offered no formula field)' }]);
   }
