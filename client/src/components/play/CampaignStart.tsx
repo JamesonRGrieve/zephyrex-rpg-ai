@@ -101,7 +101,15 @@ export const START_STEPS = [
 ] as const;
 
 /** The start's progress: the step under way and a bar; the copy creeps while the server works. */
-export function StartProgress({ step, creep, detail = null }: { step: number; creep: number; detail?: string | null }): ReactElement {
+export function StartProgress({
+  step,
+  creep,
+  detail = null,
+}: {
+  step: number;
+  creep: number;
+  detail?: string | null;
+}): ReactElement {
   const share = 100 / START_STEPS.length;
   const percent = Math.min(99, Math.round(step * share + creep * share));
   return (
@@ -268,7 +276,8 @@ export function remapChoice(choice: StartChoice, idMap: Readonly<Record<string, 
 
 export function CampaignStart({ campaignId, onStarted }: { campaignId: string; onStarted: () => void }): ReactElement {
   const campaign = worlds.useOne(campaignId);
-  const cast = useCast(campaignId);
+  // Only the scenario's own people (and, as the wiki adds them, its setting's pregens): no cards.
+  const cast = useCast(campaignId, { cards: false });
   const notes = journals.useList({ campaign_id: campaignId });
   const { create: createChat } = chats.useActions();
   const { create: createMessage } = messages.useActions();
@@ -306,7 +315,10 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
    * drive the bar (done of total, and the step) until it is done or failed. A server that still
    * answers synchronously (the campaign and id map at once) is taken as done.
    */
-  const copyScenario = async (scenarioId: string, name: string): Promise<{ campaign: { id: string }; id_map: Record<string, string> }> => {
+  const copyScenario = async (
+    scenarioId: string,
+    name: string,
+  ): Promise<{ campaign: { id: string }; id_map: Record<string, string> }> => {
     const answer = Object(await client.post(`/v1/campaign/${scenarioId}/instantiate`, { instantiate: { name } }));
     const done = instantiated.safeParse(answer);
     if (done.success) return done.data;

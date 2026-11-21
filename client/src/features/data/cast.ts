@@ -21,7 +21,9 @@ import { type Character, characters } from './records';
 export const PARTY_TAG = 'PC';
 
 /** A wiki person as a cast member: name, summary and the party tag; the card fields stay empty. */
-export function personAsCast(person: Pick<Person, 'id' | 'name' | 'description' | 'kind' | 'created_at' | 'updated_at'>): Character {
+export function personAsCast(
+  person: Pick<Person, 'id' | 'name' | 'description' | 'kind' | 'created_at' | 'updated_at'>,
+): Character {
   return {
     id: person.id,
     created_at: person.created_at,
@@ -103,14 +105,24 @@ export function mergeCast(persons: readonly Character[], cards: readonly Charact
  * The cast to pick from and to show: the wiki's persons (of one campaign when `campaignId` is
  * given) and the remaining cards. Loading until both lists have answered.
  */
-export function useCast(campaignId?: string | null): Pick<SWRResponse<Character[], Error>, 'data' | 'error' | 'isLoading'> {
-  const personList = people.useList(campaignId === undefined || campaignId === null ? undefined : { campaign_id: campaignId });
+export function useCast(
+  campaignId?: string | null,
+  /**
+   * Whether the old character cards join the wiki's persons. Never for a campaign's start (the
+   * operator, 2026-11-21: 40k cards were offered on a D&D scenario): only that campaign's people.
+   */
+  { cards = true }: { cards?: boolean } = {},
+): Pick<SWRResponse<Character[], Error>, 'data' | 'error' | 'isLoading'> {
+  const personList = people.useList(
+    campaignId === undefined || campaignId === null ? undefined : { campaign_id: campaignId },
+  );
   const cardList = characters.useList();
+  const cardData = cards ? cardList.data : [];
   const persons = useMemo(() => (personList.data ?? []).filter((person) => !person.is_template), [personList.data]);
   const pictures = usePictures(persons.map((person) => person.id));
   const data = useMemo(
     () =>
-      personList.data === undefined && cardList.data === undefined
+      personList.data === undefined && cardData === undefined
         ? undefined
         : mergeCast(
             persons.map((person) => {
@@ -118,9 +130,13 @@ export function useCast(campaignId?: string | null): Pick<SWRResponse<Character[
               // The picker's line under the name: the wiki's one-line description.
               return { ...personAsCast(person), avatar: look?.picture ?? null, folder: look?.line ?? '' };
             }),
-            cardList.data ?? [],
+            cardData ?? [],
           ),
-    [personList.data, cardList.data, persons, pictures],
+    [personList.data, cardData, persons, pictures],
   );
-  return { data, error: personList.error ?? cardList.error, isLoading: personList.isLoading || cardList.isLoading };
+  return {
+    data,
+    error: personList.error ?? (cards ? cardList.error : undefined),
+    isLoading: personList.isLoading || (cards && cardList.isLoading),
+  };
 }
