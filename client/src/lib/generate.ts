@@ -34,6 +34,7 @@ import {
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { aiCast, playedPersona, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
+import { groupStops } from '~/features/chat/group';
 import { personaBooks, personaFor } from '~/features/prompt/personaPick';
 import type { Persona as PersonaRecord } from '~/features/data/records';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
@@ -322,6 +323,25 @@ export async function generationInputs(
     (endpointRow.customTemplateId === null ? null : await ownTemplate(ownerId, endpointRow.customTemplateId)) ??
     (await activatedTemplate(ownerId, endpointRow.model)) ??
     (endpointRow.instructTemplate as InstructTemplateId);
+  // Group stop strings (features/chat/group.ts): a reply ends where it starts another speaker's line.
+  const guarded: Sampler =
+    purpose === 'reply'
+      ? {
+          ...sampler,
+          stop: [
+            ...new Set([
+              ...sampler.stop,
+              ...groupStops(
+                body.mode,
+                // Writing the person's own line, no character is speaking.
+                body.mode === 'impersonate' ? '' : speakerName,
+                aiCharacters.map((character) => character.name),
+                persona?.name ?? DEFAULT_USER_NAME,
+              ),
+            ]),
+          ],
+        }
+      : sampler;
   return {
     prompt: {
       characters: aiCharacters,
@@ -356,7 +376,7 @@ export async function generationInputs(
           }),
       macros: macroContext(chat.id, path, promptCharacters, speakerId, persona, endpointRow.model, chatFields.variables),
     },
-    sampler,
+    sampler: guarded,
     endpoint: {
       base_url: endpointRow.baseUrl,
       model: endpointRow.model,

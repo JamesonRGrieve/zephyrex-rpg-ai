@@ -60,6 +60,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
 )
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Group import group_stops  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-found]
     active_template,
     instruct_stops,
@@ -2277,6 +2278,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 chat.table_notes or [],
                 frame,
             )
+        if purpose == "reply":
+            # Group stop strings (Group.py): a reply ends where it starts another speaker's line.
+            stops = group_stops(
+                body.mode,
+                "" if body.mode == "impersonate" else speaker_name,
+                [character["name"] for character in cast],
+                persona["name"] if persona is not None else DEFAULT_USER_NAME,
+            )
+            sampler = {**sampler, "stop": list(dict.fromkeys([*sampler["stop"], *stops]))}
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         # "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.
         # Anthropic's and Google's own APIs (audit gap 8) take no pictures yet.

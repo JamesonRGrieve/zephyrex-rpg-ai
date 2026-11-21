@@ -329,7 +329,8 @@ class TestGenerate:
         sent = RECEIVED[0]
         assert sent["path"] == "/v1/completions"
         assert sent["body"]["prompt"] == "You are Ada.\n\n### Instruction:\nHello.\n\n### Response:\n"
-        assert sent["body"]["stop"] == ["### Instruction:"]
+        # The person's name ends the reply too (the group guards, Group.py), then the template's own stops.
+        assert sent["body"]["stop"] == ["\nUser:", "### Instruction:"]
         assert "messages" not in sent["body"]
 
     def test_summarizes_the_branch_and_reads_the_summary_back_into_the_prompt(self, server: TestClient, model_url: str) -> None:
