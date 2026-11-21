@@ -1373,9 +1373,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             type='button'
             variant='ghost'
             className='h-11 max-sm:w-11 max-sm:px-0'
+            aria-label='Inspect the prompt'
             onClick={() => void openInspector()}
           >
-            <ScanText aria-hidden /> <span className='max-sm:sr-only'>Context</span>
+            <ScanText aria-hidden /> <span className='max-sm:sr-only'>Prompt</span>
           </Button>
           <Button
             type='button'
