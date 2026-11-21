@@ -27,7 +27,7 @@ import {
   X,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Badge } from 'zephyrex/ui/badge';
@@ -129,6 +129,8 @@ import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments } from '~/features/chat/voiceGuard';
 import { mapStep, worldTick } from '~/features/chat/mapStep';
 import { mutate as globalMutate } from 'swr';
+import { createPortal } from 'react-dom';
+import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
 import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -156,6 +158,8 @@ const NARRATOR = 'Narrator';
 const MAX_FACES = 4;
 /** The pending turn is the narrator's (A20), not a character's. */
 const NARRATOR_TURN = 'narrator';
+/** The app bar's slot is there from the first render: nothing to listen for. */
+const noSubscription = () => () => undefined;
 const YOU = 'You';
 /** The chat commands a script may run (the rest are STscript's own). */
 const SCRIPT_ACTIONS: ReadonlySet<string> = new Set([
@@ -793,6 +797,21 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * the story ("I apologize… let me continue") is written once more with that span forbidden, and every
    * reply is cut back to its last complete sentence, so a cut-off never reaches the story.
    */
+  // The chat's controls live in the app bar (the operator, 2026-11-21: "A lot of it should be in the
+  // app bar. The scenario name isn't important in-game"); without one, a sticky bar of their own.
+  const appBar = useSyncExternalStore(
+    noSubscription,
+    () => document.getElementById(APP_BAR_ACTIONS),
+    () => null,
+  );
+  const inAppBar = (controls: ReactElement) =>
+    appBar !== null ? (
+      createPortal(<div className='flex min-w-0 items-center justify-end gap-1'>{controls}</div>, appBar)
+    ) : (
+      <div className='sticky top-12 z-20 mx-auto flex w-full max-w-3xl flex-wrap items-center justify-end gap-1 bg-background/95 px-3 py-2 backdrop-blur'>
+        {controls}
+      </div>
+    );
   const streamText = reply.state.status === 'writing' ? reply.state.text : '';
   const streamParts = (() => {
     if (writingAfter?.speakerId !== NARRATOR_TURN || streamText === '')
@@ -1279,238 +1298,174 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         // text never depends on the picture for contrast.
         style={background === null ? undefined : { backgroundImage: `url(${JSON.stringify(background)})` }}
       >
-        <div
-          className={cn(
-            // It wraps: when the buttons need the room, they take a second row rather than covering the title.
-            // Sticky under the app bar (3rem): Context and Map stay in reach however long the story
-            // gets (the operator, 2026-11-21: "I still don't have any right context menu at all").
-            'sticky top-12 z-20 mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 bg-background/95 px-3 py-2 backdrop-blur',
-            background !== null && 'rounded-b-xl',
-          )}
-        >
-          {campaign?.resolution_mode != null && (
-            // The mode in force, always in view (A66).
-            <Badge
-              variant='outline'
-              className='shrink-0'
-              title={`${campaign.name}: ${MODE_HINTS[campaign.resolution_mode]}`}
-            >
-              {MODE_LABELS[campaign.resolution_mode]}
-            </Badge>
-          )}
-          {/* Who is in it and what it's called, so the page says which chat this is (the audit found only
-            the avatars, with the title nowhere). The page's h1 stays "Chat" for the outline. */}
-          <div className='flex min-w-0 flex-1 basis-48 items-center gap-2 overflow-hidden'>
-            {/* At most four faces, then "+n": a full party never spills over the top bar's buttons. */}
-            <ul className='flex shrink-0 -space-x-2' aria-label='In this chat'>
-              {chat.character_ids.slice(0, MAX_FACES).map((id) => {
-                const character = castById.get(id);
-                return (
-                  <li key={id}>
-                    <Avatar className='size-9 border-2 border-background'>
-                      {character?.avatar !== undefined && character.avatar !== null && (
-                        <AvatarImage src={character.avatar} alt='' />
-                      )}
-                      <AvatarFallback>{initials(character?.name ?? '?')}</AvatarFallback>
-                    </Avatar>
-                    <span className='sr-only'>{character?.name ?? 'A character'}</span>
-                  </li>
-                );
-              })}
-              {chat.character_ids.length > MAX_FACES && (
-                <li className='flex size-9 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium'>
-                  <span aria-hidden>+{chat.character_ids.length - MAX_FACES}</span>
-                  <span className='sr-only'>
-                    {chat.character_ids
-                      .slice(MAX_FACES)
-                      .map((id) => castById.get(id)?.name ?? 'A character')
-                      .join(', ')}
-                  </span>
-                </li>
+        {inAppBar(
+          <>
+            {campaign?.resolution_mode != null && (
+              // The mode in force, always in view (A66).
+              <Badge
+                variant='outline'
+                className='shrink-0'
+                title={`${campaign.name}: ${MODE_HINTS[campaign.resolution_mode]}`}
+              >
+                {MODE_LABELS[campaign.resolution_mode]}
+              </Badge>
+            )}
+            {/* Wraps inside the screen on a phone: never wider than the bar (the audit's 780 px phone). */}
+            <div className='flex max-w-full min-w-0 flex-wrap justify-end gap-1'>
+              {play.isCampaign && (
+                // The seat hot-swaps at any time: the GM or any character (docs/DESIGN.md, The play model).
+                <SeatPicker
+                  seat={play.playingId}
+                  party={chat.character_ids.flatMap((id) => {
+                    const character = castById.get(id);
+                    return character === undefined
+                      ? []
+                      : [
+                          {
+                            id,
+                            name: character.name,
+                            avatar: character.avatar,
+                            pc: character.tags.includes(PARTY_TAG),
+                            line: character.folder,
+                          },
+                        ];
+                  })}
+                  everyone={(cast.data ?? []).map((character) => ({
+                    id: character.id,
+                    name: character.name,
+                    avatar: character.avatar,
+                    pc: character.tags.includes(PARTY_TAG),
+                    line: character.folder,
+                  }))}
+                  onChange={(next) => {
+                    setSeatSaving(true);
+                    void play
+                      .setSeat(next, (id) => castById.get(id)?.tags.includes(PARTY_TAG) ?? false)
+                      .catch((error: unknown) =>
+                        notify('The seat was not changed', error instanceof Error ? error.message : undefined),
+                      )
+                      .finally(() => setSeatSaving(false));
+                  }}
+                />
               )}
-            </ul>
-            <p className='min-w-0 truncate font-medium' title={chat.title}>
-              {chat.title}
-              {play.current !== null && (
-                <span className='ml-2 text-xs font-normal text-muted-foreground'>{sessionName(play.current)}</span>
-              )}
-            </p>
-          </div>
-          {/* Wraps inside the screen on a phone: never wider than the bar (the audit's 780 px phone). */}
-          <div className='flex max-w-full min-w-0 flex-wrap justify-end gap-1'>
-            {play.isCampaign && (
-              // The seat hot-swaps at any time: the GM or any character (docs/DESIGN.md, The play model).
-              <SeatPicker
-                seat={play.playingId}
-                party={chat.character_ids.flatMap((id) => {
-                  const character = castById.get(id);
-                  return character === undefined
-                    ? []
-                    : [
-                        {
-                          id,
-                          name: character.name,
-                          avatar: character.avatar,
-                          pc: character.tags.includes(PARTY_TAG),
-                          line: character.folder,
-                        },
-                      ];
-                })}
-                everyone={(cast.data ?? []).map((character) => ({
-                  id: character.id,
-                  name: character.name,
-                  avatar: character.avatar,
-                  pc: character.tags.includes(PARTY_TAG),
-                  line: character.folder,
-                }))}
-                onChange={(next) => {
-                  setSeatSaving(true);
-                  void play
-                    .setSeat(next, (id) => castById.get(id)?.tags.includes(PARTY_TAG) ?? false)
-                    .catch((error: unknown) =>
-                      notify('The seat was not changed', error instanceof Error ? error.message : undefined),
-                    )
-                    .finally(() => setSeatSaving(false));
-                }}
-              />
-            )}
-            {play.isCampaign && (
-              // Chat and map swap in one tap (the operator, 2026-11-21), from both views.
-              <Button
-                type='button'
-                variant='ghost'
-                className='h-11 max-sm:w-11 max-sm:px-0'
-                aria-pressed={view === 'map'}
-                aria-label={view === 'map' ? 'Back to the chat' : 'Show the map'}
-                onClick={() => setView(view === 'map' ? 'chat' : 'map')}
-              >
-                {view === 'map' ? (
-                  <MessagesSquare aria-hidden className='size-4' />
-                ) : (
-                  <MapIcon aria-hidden className='size-4' />
-                )}
-                <span className='max-sm:sr-only'>{view === 'map' ? 'Chat' : 'Map'}</span>
-              </Button>
-            )}
-            {play.isCampaign && (
-              // Every piece of context lives in the right-hand panel (the operator, 2026-11-21).
-              <Button
-                type='button'
-                variant='ghost'
-                className='h-11 max-sm:w-11 max-sm:px-0'
-                aria-label='Context'
-                onClick={() => setContextOpen(true)}
-              >
-                <PanelRight aria-hidden className='size-4' />
-                <span className='max-sm:sr-only'>Context</span>
-              </Button>
-            )}
-            <Button
-              type='button'
-              variant={chat.paused ? 'default' : 'ghost'}
-              className='h-11 max-sm:w-11 max-sm:px-0'
-              aria-pressed={chat.paused}
-              onClick={() =>
-                void updateChat(chat, { paused: !chat.paused }).then(() =>
-                  notify(
-                    chat.paused ? 'Resumed' : 'Paused',
-                    chat.paused ? undefined : 'No story turns until you resume. The GM still answers.',
-                  ),
-                )
-              }
-            >
-              {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />}
-              <span className='max-sm:sr-only'>{chat.paused ? 'Resume' : 'Pause'}</span>
-            </Button>
-            <Button
-              type='button'
-              variant='outline'
-              className='h-11 max-sm:w-11 max-sm:px-0'
-              onClick={() => void xCardLatest()}
-              aria-label='X-card the latest reply'
-            >
-              <X aria-hidden /> <span className='max-sm:sr-only'>X-card</span>
-            </Button>
-            {running !== undefined && (
-              <Button
-                type='button'
-                variant='ghost'
-                className='h-11 max-sm:w-11 max-sm:px-0'
-                onClick={() => setScenarioOpen(true)}
-              >
-                <Clock3 aria-hidden /> <span className='max-sm:sr-only'>Scenario</span>
-              </Button>
-            )}
-            <Button
-              type='button'
-              variant='ghost'
-              className='h-11 max-sm:w-11 max-sm:px-0'
-              aria-label='Inspect the prompt'
-              onClick={() => void openInspector()}
-            >
-              <ScanText aria-hidden /> <span className='max-sm:sr-only'>Prompt</span>
-            </Button>
-            <Button
-              type='button'
-              variant='ghost'
-              className='h-11 max-sm:w-11 max-sm:px-0'
-              onClick={() => setSettingsOpen(true)}
-            >
-              <Settings2 aria-hidden /> <span className='max-sm:sr-only'>Chat settings</span>
-            </Button>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button type='button' variant='ghost' size='icon' className='size-11' aria-label='More for this chat'>
-                  <Ellipsis aria-hidden />
+              {play.isCampaign && (
+                // Chat and map swap in one tap (the operator, 2026-11-21), from both views.
+                <Button
+                  type='button'
+                  variant='ghost'
+                  className='h-11 max-sm:w-11 max-sm:px-0'
+                  aria-pressed={view === 'map'}
+                  aria-label={view === 'map' ? 'Back to the chat' : 'Show the map'}
+                  onClick={() => setView(view === 'map' ? 'chat' : 'map')}
+                >
+                  {view === 'map' ? (
+                    <MessagesSquare aria-hidden className='size-4' />
+                  ) : (
+                    <MapIcon aria-hidden className='size-4' />
+                  )}
+                  <span className='max-sm:sr-only'>{view === 'map' ? 'Chat' : 'Map'}</span>
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align='end'>
-                <DropdownMenuItem disabled={drawing || chat.character_ids.length === 0} onSelect={() => void drawScene()}>
-                  <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setNamesOpen(true)}>
-                  <BookOpen aria-hidden /> Names without lore
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
-                  <GitFork aria-hidden /> Every branch
-                </DropdownMenuItem>
-                {play.isCampaign ? (
-                  // A save point: the session's summary, then the next session (and A24's report into the wiki).
+              )}
+              {play.isCampaign && (
+                // Every piece of context lives in the right-hand panel (the operator, 2026-11-21).
+                <Button
+                  type='button'
+                  variant='ghost'
+                  className='h-11 max-sm:w-11 max-sm:px-0'
+                  aria-label='Context'
+                  onClick={() => setContextOpen(true)}
+                >
+                  <PanelRight aria-hidden className='size-4' />
+                  <span className='max-sm:sr-only'>Context</span>
+                </Button>
+              )}
+              <Button
+                type='button'
+                variant='outline'
+                className='h-11 max-sm:w-11 max-sm:px-0'
+                onClick={() => void xCardLatest()}
+                aria-label='X-card the latest reply'
+              >
+                <X aria-hidden /> <span className='max-sm:sr-only'>X-card</span>
+              </Button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button type='button' variant='ghost' size='icon' className='size-11' aria-label='More for this chat'>
+                    <Ellipsis aria-hidden />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align='end'>
+                  {/* The app bar keeps only what play needs at hand; the rest is here (the operator, 2026-11-21). */}
+                  <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+                    <Settings2 aria-hidden /> Chat settings
+                  </DropdownMenuItem>
                   <DropdownMenuItem
-                    disabled={play.ending || endSession.ending}
                     onSelect={() =>
-                      void play.endSession(branch.at(-1) ?? null).then((marker) => {
-                        if (marker !== null) setLeafId(marker);
-                        if (endSession.available) void endSession.end();
-                      })
+                      void updateChat(chat, { paused: !chat.paused }).then(() =>
+                        notify(
+                          chat.paused ? 'Resumed' : 'Paused',
+                          chat.paused ? undefined : 'No story turns until you resume. The GM still answers.',
+                        ),
+                      )
                     }
                   >
-                    <Flag aria-hidden /> {play.ending ? 'Ending the session…' : 'End session'}
+                    {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />} {chat.paused ? 'Resume' : 'Pause'}
                   </DropdownMenuItem>
-                ) : (
-                  endSession.available && (
-                    // A24: the session's report into the linked wiki campaign's log.
-                    <DropdownMenuItem disabled={endSession.ending} onSelect={() => void endSession.end()}>
-                      <Flag aria-hidden /> {endSession.ending ? 'Writing the session report…' : 'End session'}
+                  {running !== undefined && (
+                    <DropdownMenuItem onSelect={() => setScenarioOpen(true)}>
+                      <Clock3 aria-hidden /> Scenario
                     </DropdownMenuItem>
-                  )
-                )}
-                <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
-                  <Download aria-hidden /> Export for SillyTavern
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void exportBranch('text')}>
-                  <Download aria-hidden /> Export as text
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void exportBranch('epub')}>
-                  <BookOpen aria-hidden /> Export as a book (EPUB)
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void exportBranch('epub', true)}>
-                  <BookOpen aria-hidden /> Export as an illustrated book
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-        </div>
+                  )}
+                  <DropdownMenuItem onSelect={() => void openInspector()}>
+                    <ScanText aria-hidden /> Inspect the prompt
+                  </DropdownMenuItem>
+                  <DropdownMenuItem disabled={drawing || chat.character_ids.length === 0} onSelect={() => void drawScene()}>
+                    <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setNamesOpen(true)}>
+                    <BookOpen aria-hidden /> Names without lore
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
+                    <GitFork aria-hidden /> Every branch
+                  </DropdownMenuItem>
+                  {play.isCampaign ? (
+                    // A save point: the session's summary, then the next session (and A24's report into the wiki).
+                    <DropdownMenuItem
+                      disabled={play.ending || endSession.ending}
+                      onSelect={() =>
+                        void play.endSession(branch.at(-1) ?? null).then((marker) => {
+                          if (marker !== null) setLeafId(marker);
+                          if (endSession.available) void endSession.end();
+                        })
+                      }
+                    >
+                      <Flag aria-hidden /> {play.ending ? 'Ending the session…' : 'End session'}
+                    </DropdownMenuItem>
+                  ) : (
+                    endSession.available && (
+                      // A24: the session's report into the linked wiki campaign's log.
+                      <DropdownMenuItem disabled={endSession.ending} onSelect={() => void endSession.end()}>
+                        <Flag aria-hidden /> {endSession.ending ? 'Writing the session report…' : 'End session'}
+                      </DropdownMenuItem>
+                    )
+                  )}
+                  <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
+                    <Download aria-hidden /> Export for SillyTavern
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void exportBranch('text')}>
+                    <Download aria-hidden /> Export as text
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void exportBranch('epub')}>
+                    <BookOpen aria-hidden /> Export as a book (EPUB)
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => void exportBranch('epub', true)}>
+                    <BookOpen aria-hidden /> Export as an illustrated book
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            </div>
+          </>,
+        )}
         {endSession.problem !== null && (
           <p role='alert' className='mx-auto w-full max-w-3xl px-3 pb-3 text-sm text-destructive'>
             {endSession.problem}
