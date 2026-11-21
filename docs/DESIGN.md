@@ -67,6 +67,21 @@ Campaign play is not chats. "The concept of chats should not exist. It should be
 
 Outcomes are decided separately: the [resolution mode](#narrative-and-mechanical-modes).
 
+### Settings and systems (the operator, 2026-11-21)
+
+Scenarios and campaigns sit inside a **setting**, and each setting offers the **systems** that can
+play in it.
+
+| Thing | What it is | Examples |
+|---|---|---|
+| **Setting** | The universe a scenario takes place in: its canon (what every character in it would know), tone and vocabulary. It encloses scenarios, and through them campaigns. A setting's canon is what the red canon notice is checked against. | Warhammer 40,000; Warhammer Age of Sigmar; Warhammer Fantasy; Dungeons & Dragons; Fallout; Modern |
+| **System** | A mechanical rule set for a setting: how actions resolve (checks, combat, damage, advancement). A setting has several; a campaign chooses one. | For Warhammer 40,000: the FFG lines (Dark Heresy, Rogue Trader, Deathwatch, Black Crusade, Only War), Wrath & Glory, Imperium Maledictum |
+
+- **A campaign's system defines its mechanics when the game is mechanical**, and is ignored when it is narrative: it follows the [resolution mode](#narrative-and-mechanical-modes) (narrative, mechanical or hybrid; hybrid uses the system only at real stakes).
+- **Mechanics are never invented by a model** (this repo's rule): the system's rolls, checks and state changes go through the VTT's rules engine (zephyrex-vtt's rpg_systems), which knows each system; rpg-ai names the campaign's system and asks it.
+- A scenario names its setting; a campaign names its system (from its setting's). Solenne and Dunmarch are Warhammer 40,000 scenarios; their campaigns choose Dark Heresy 2e.
+- Settings and systems are shared with the suite (the wiki's worlds and the VTT's systems), reached through their APIs, never re-defined here.
+
 ### Canon warnings (the operator, 2026-11-21)
 
 Whoever writes a line, a player or the GM (person or AI), it is checked against canon:
@@ -812,6 +827,7 @@ Each phase ends with polished, finished UI for what it covers, not a scaffold.
 ## Decisions for the operator
 
 - **2026-11-21, play model:** scenarios (framings), campaigns (save states that rewind or fork, each with its own party), sessions (segments that compact and summarize); the seat hot-swaps to the GM or any character; one-on-one chats move to a sandbox section. See [The play model](#the-play-model-the-operator-2026-11-21).
+- **2026-11-21, settings and systems:** settings (Warhammer 40,000, Age of Sigmar, Fantasy, D&D, Fallout, Modern…) enclose scenarios and campaigns; each has mechanical systems (for 40k: the FFG lines, Wrath & Glory, Imperium Maledictum) that define mechanics for mechanical games and are ignored for narrative ones. See [Settings and systems](#settings-and-systems-the-operator-2026-11-21).
 - **2026-11-21, campaign pages on a phone** must be reworked (the operator: the campaign view on mobile is unacceptable).
 
 These are architecture and placement, so they are asked, never defaulted. They are routed
