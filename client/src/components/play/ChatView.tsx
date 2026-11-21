@@ -1319,12 +1319,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 onForkCampaign={
                   play.isCampaign
                     ? () =>
-                        void play.fork(message, branch).then((id) => {
-                          if (id !== null) {
-                            notify('Forked', 'A new campaign goes on from that line.');
-                            router.push(`/play/${id}`);
-                          }
-                        })
+                        void play
+                          .fork(message, branch)
+                          .then((id) => {
+                            if (id !== null) {
+                              notify('Forked', 'A new campaign goes on from that line.');
+                              router.push(`/play/${id}`);
+                            }
+                          })
+                          .catch((error: unknown) =>
+                            notify('The campaign was not forked', error instanceof Error ? error.message : String(error)),
+                          )
                     : undefined
                 }
                 onDelete={() => deleteMessage(message)}

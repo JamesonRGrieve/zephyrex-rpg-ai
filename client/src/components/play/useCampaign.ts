@@ -56,8 +56,8 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
   const playingId = play?.playing_id ?? null;
 
   /** The chat as saved now: a line written since this page read it moved its version on (If-Match). */
-  const freshChat = async (): Promise<Chat> =>
-    chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${chat.id}`)), 'chat'));
+  const freshChat = async (id: string = chat.id): Promise<Chat> =>
+    chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${id}`)), 'chat'));
 
   /**
    * Takes a seat. An NPC taken over joins the party while played: when the seat moves off a
@@ -116,9 +116,15 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
   const fork = async (at: ChatMessage, path: readonly ChatMessage[]): Promise<string | null> => {
     const upTo = path.slice(0, path.findIndex((message) => message.id === at.id) + 1);
     if (upTo.length === 0) return null;
+    // Everyone who speaks in the copied story is in the cast while it is copied (an NPC taken
+    // over and since left the party still has lines there); the party is restored after.
+    const speakers = upTo.flatMap((message) =>
+      message.speaker_character_id === null ? [] : [message.speaker_character_id],
+    );
+    const copyingCast = [...new Set([...chat.character_ids, ...speakers])];
     const copy = await createChat({
       title: `${chat.title} (fork)`.slice(0, 200),
-      character_ids: chat.character_ids,
+      character_ids: copyingCast,
       mode: chat.mode,
       seat: chat.seat,
       persona_id: chat.persona_id,
@@ -160,6 +166,8 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
     }
     if (kept.length === 0)
       await createSession({ chat_id: copy.id, number: 1, start_message_id: ids.get(upTo[0]?.id ?? '') ?? '' });
+    if (copyingCast.length !== chat.character_ids.length)
+      await updateChat(await freshChat(copy.id), { character_ids: chat.character_ids, mode: chat.mode });
     return copy.id;
   };
 

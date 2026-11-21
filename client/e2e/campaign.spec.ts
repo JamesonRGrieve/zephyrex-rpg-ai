@@ -74,6 +74,10 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
   await expect(page.getByRole('button', { name: 'Stop the reply' })).toHaveCount(0);
   await seat(page, 'Massen');
   await expect(page.getByRole('list', { name: 'In this chat' })).toContainText('Massen');
+  await page.getByLabel('Your next line').fill('Welcome to Solenne, acolytes.');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.getByRole('article', { name: 'Massen' }).filter({ hasText: 'Welcome to Solenne' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Stop the reply' })).toHaveCount(0);
   // An NPC joins the party only while played: leaving his seat, Massen leaves the party.
   await seat(page, null);
   await expect(page.getByRole('list', { name: 'In this chat' })).not.toContainText('Massen');
@@ -83,11 +87,14 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
   await page.getByRole('menuitem', { name: 'End session' }).click();
   await expect(page.getByText('Session 2').first()).toBeVisible();
 
-  // Fork a new campaign from the opening line.
+  // Fork a new campaign from Massen's line: his line is copied though he has left the party,
+  // and the fork's party is the campaign's.
   const chatUrl = page.url();
-  const opening = page.getByRole('article', { name: 'Narrator' }).first();
-  await opening.getByRole('button', { name: /More for/ }).click();
+  const welcome = page.getByRole('article', { name: 'Massen' }).filter({ hasText: 'Welcome to Solenne' });
+  await welcome.getByRole('button', { name: /More for/ }).click();
   await page.getByRole('menuitem', { name: 'Fork a new campaign from here' }).click();
   await expect(page).not.toHaveURL(chatUrl);
   await expect(page.getByRole('article', { name: 'Narrator' }).first()).toContainText('The ship leaves the warp.');
+  await expect(page.getByRole('article', { name: 'Massen' }).filter({ hasText: 'Welcome to Solenne' })).toBeVisible();
+  await expect(page.getByRole('list', { name: 'In this chat' })).not.toContainText('Massen');
 });
