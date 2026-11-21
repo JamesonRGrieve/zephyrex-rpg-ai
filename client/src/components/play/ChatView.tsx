@@ -815,7 +815,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       chat_id: chat.id,
       parent_id: leaf,
       // In the GM's seat, the person's story line is the GM's narration; the AI party reads it so.
-      role: chat.seat === 'gm' && channel === 'ic' ? 'narrator' : 'user',
+      // In a character's seat (a campaign), it is that character's line: shown and read as theirs.
+      ...(channel === 'ic' && play.isCampaign && play.playingId !== null
+        ? { role: 'character' as const, speaker_character_id: play.playingId }
+        : { role: chat.seat === 'gm' && channel === 'ic' ? ('narrator' as const) : ('user' as const) }),
       channel,
       swipes: [channel === 'ic' ? stored(text, 'user_input') : text],
       images,
@@ -1105,7 +1108,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 name: character.name,
                 avatar: character.avatar,
               }))}
-              onChange={(next) => void play.setSeat(next)}
+              onChange={(next) =>
+                void play
+                  .setSeat(next)
+                  .catch((error: unknown) =>
+                    notify('The seat was not changed', error instanceof Error ? error.message : undefined),
+                  )
+              }
             />
           )}
           <Button

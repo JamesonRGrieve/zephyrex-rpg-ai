@@ -12,11 +12,12 @@
  *   branch. **Fork** copies the story up to a line into a new campaign of the same scenario.
  */
 import { useMemo, useState } from 'react';
+import { useClient } from 'zephyrex';
 import { notify } from 'zephyrex/hooks/useToast';
 import { aiCast, sessionStartIndex } from '~/features/chat/play';
 import { summarizeBranch } from '~/features/chat/inspectPrompt';
 import { type CampaignPlay, type ChatSession, campaignPlays, chatSessions, sessionName } from '~/features/data/playRecords';
-import { type Chat, type ChatMessage, chats, messages } from '~/features/data/records';
+import { type Chat, type ChatMessage, chatSchema, chats, messages } from '~/features/data/records';
 
 export interface CampaignState {
   /** Whether this chat is a campaign (else a sandbox chat). */
@@ -43,6 +44,7 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
   const { update: updateChat, create: createChat } = chats.useActions();
   const { create: createMessage } = messages.useActions();
   const [ending, setEnding] = useState(false);
+  const client = useClient();
 
   const play = plays.data?.[0] ?? null;
   const sessions = useMemo(() => sessionList.data ?? [], [sessionList.data]);
@@ -53,14 +55,19 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
       .sort((a, b) => b.number - a.number)[0] ?? null;
   const playingId = play?.playing_id ?? null;
 
+  /** The chat as saved now: a line written since this page read it moved its version on (If-Match). */
+  const freshChat = async (): Promise<Chat> =>
+    chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${chat.id}`)), 'chat'));
+
   const setSeat = async (next: string | null) => {
     if (play === null) return;
     await updatePlay(play, { playing_id: next });
+    const current = await freshChat();
     // One write to the chat: the seat, and a character from outside the party joining it while played.
-    const joins = next !== null && !chat.character_ids.includes(next);
-    await updateChat(chat, {
+    const joins = next !== null && !current.character_ids.includes(next);
+    await updateChat(current, {
       seat: next === null ? 'gm' : 'player',
-      ...(joins ? { character_ids: [...chat.character_ids, next], mode: 'group' as const } : {}),
+      ...(joins ? { character_ids: [...current.character_ids, next], mode: 'group' as const } : {}),
     });
   };
 

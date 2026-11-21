@@ -65,6 +65,13 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
 
   // Any seat at any time: a party member, then an NPC from outside the party.
   await seat(page, 'Gus Veridan');
+  // In Gus's seat, the line is Gus's, and the round ends with the AI GM's narration.
+  const narrations = await page.getByRole('article', { name: 'Narrator' }).count();
+  await page.getByLabel('Your next line').fill('I check the auspex for other ships.');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.getByRole('article', { name: 'Gus Veridan' }).filter({ hasText: 'I check the auspex' })).toBeVisible();
+  await expect.poll(() => page.getByRole('article', { name: 'Narrator' }).count()).toBeGreaterThan(narrations);
+  await expect(page.getByRole('button', { name: 'Stop the reply' })).toHaveCount(0);
   await seat(page, 'Massen');
   await seat(page, null);
 
