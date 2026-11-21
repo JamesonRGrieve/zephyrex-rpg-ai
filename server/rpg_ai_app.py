@@ -65,7 +65,7 @@ _WIKI = [
     "rpg_core",
 ]
 # rpg_dice depends on rpg_modules (VTT da7c8fa: a module's traits count only where it is enabled).
-_VTT = ["rpg_systems", "rpg_traits", "rpg_modules", "rpg_dice", "rpg_scene", "rpg_table"]
+_VTT = ["rpg_systems", "rpg_traits", "rpg_modules", "rpg_dice", "rpg_scene", "rpg_table", "rpg_combat"]
 _AI = ["ai_lorebook", "ai_character", "ai_campaign", "ai_chat"]
 EXTENSIONS = ",".join(_FRAMEWORK + _WIKI + _VTT + _AI)
 # Sign-in through the operator's identity provider (Authentik; ai_chat/SignIn.py), when one is
