@@ -17,6 +17,25 @@ import { NewChat } from '~/components/play/NewChat';
 import { chats } from '~/features/data/records';
 import { groupScenarios, taggedWith, useScenarios } from '~/features/data/scenarios';
 
+const PROVENANCE: Record<string, { label: string; className: string }> = {
+  homebrew: { label: 'Homebrew', className: 'border-sky-600 text-sky-700 dark:border-sky-400 dark:text-sky-300' },
+  official: { label: 'Official', className: 'border-amber-600 text-amber-700 dark:border-amber-400 dark:text-amber-300' },
+  adapted: { label: 'Adapted', className: 'border-violet-600 text-violet-700 dark:border-violet-400 dark:text-violet-300' },
+};
+
+/** Where a scenario comes from (the operator, 2026-11-21: "can't tell what's homebrew"). */
+function Provenance({ kind, source }: { kind: string; source: string | null }): ReactElement {
+  const shown = PROVENANCE[kind] ?? PROVENANCE.homebrew;
+  return (
+    <span
+      title={source ?? undefined}
+      className={`shrink-0 rounded-full border px-2 text-xs font-medium ${shown?.className ?? ''}`}
+    >
+      {shown?.label}
+    </span>
+  );
+}
+
 /** A setting's or scenario's page in the wiki (the operator, 2026-11-21: a wiki icon beside its name). */
 function WikiLink({ href, name }: { href: string; name: string }): ReactElement {
   return (
@@ -106,7 +125,10 @@ export function CampaignManager(): ReactElement {
                         className='flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-lg p-3 text-left hover:bg-muted'
                       >
                         <span className='min-w-0 flex-1'>
-                          <span className='block truncate font-medium'>{scenario.name}</span>
+                          <span className='flex min-w-0 items-center gap-2'>
+                            <span className='truncate font-medium'>{scenario.name}</span>
+                            <Provenance kind={scenario.provenance ?? 'homebrew'} source={scenario.source ?? null} />
+                          </span>
                           {scenario.description !== null && scenario.description !== '' && (
                             <span className='line-clamp-2 text-sm text-muted-foreground'>{scenario.description}</span>
                           )}

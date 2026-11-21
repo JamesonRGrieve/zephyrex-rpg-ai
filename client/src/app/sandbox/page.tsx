@@ -6,7 +6,7 @@ import { ChatLibrary } from '~/components/play/ChatLibrary';
 /** One-on-one and group roleplay (SillyTavern's chats), apart from campaigns (the operator, 2026-11-21). */
 export default function SandboxPage(): ReactNode {
   return (
-    <AppPage title='Sandbox' heading='Sandbox chats' width='medium'>
+    <AppPage title='Roleplay Sandbox' heading='Roleplay Sandbox' width='medium'>
       {/* The library reads the URL's ?new=1 (the install shortcut). */}
       <Suspense>
         <ChatLibrary kind='sandbox' />

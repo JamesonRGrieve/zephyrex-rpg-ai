@@ -21,10 +21,10 @@ export interface CanonNoticeValue {
 export const CanonOff = createContext<(() => void) | null>(null);
 
 export function CanonNotice({ notice, className }: { notice: CanonNoticeValue; className?: string }): ReactElement | null {
+  const turnOff = useContext(CanonOff);
   if (notice.level === 'none') return null;
   const red = notice.level === 'red';
   const Icon = red ? OctagonAlert : TriangleAlert;
-  const turnOff = useContext(CanonOff);
   return (
     <p
       role='status'

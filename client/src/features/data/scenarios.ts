@@ -16,6 +16,9 @@ const scenarioSchema = z.object({
   setting_id: z.string().nullish(),
   game_system_id: z.string().nullish(),
   is_scenario: z.boolean().nullish(),
+  /** Where it comes from (the wiki's provenance): homebrew, official or adapted, and the source. */
+  provenance: z.string().nullish(),
+  source: z.string().nullish(),
   scenario_id: z.string().nullish(),
 });
 export type Scenario = z.infer<typeof scenarioSchema> & { tags?: string[] };

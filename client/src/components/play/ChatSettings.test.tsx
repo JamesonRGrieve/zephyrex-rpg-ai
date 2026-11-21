@@ -8,6 +8,7 @@ import { ChatSettings } from './ChatSettings';
 const VALUE = {
   title: 'Chat with Ada',
   canon_checks: true,
+  narrator_style: {},
   persona_id: null,
   preset_id: null,
   endpoint_id: null,

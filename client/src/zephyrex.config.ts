@@ -53,12 +53,19 @@ const rpgAiExtension: ZephyrexClientExtension = {
     // (people, places, lore, files) is the wiki's Worlds; one-on-one chats are the sandbox, last.
     // Characters, lorebooks, the data bank and personas are retired (the wiki owns them).
     { title: 'Campaigns', url: HOME_PATH },
-    { title: 'Presets', url: '/presets' },
-    { title: 'Models', url: '/models' },
-    { title: 'Regex', url: '/regex' },
-    { title: 'Quick replies', url: '/quick-replies' },
-    { title: 'Settings', url: '/settings' },
-    { title: 'Sandbox', url: '/sandbox' },
+    { title: 'Roleplay Sandbox', url: '/sandbox' },
+    // The AI's tuning (the operator, 2026-11-21: not main navigation): under the app's settings.
+    {
+      title: 'App settings',
+      url: '/settings',
+      children: [
+        { title: 'General', url: '/settings' },
+        { title: 'Models', url: '/models' },
+        { title: 'Presets', url: '/presets' },
+        { title: 'Regex', url: '/regex' },
+        { title: 'Quick replies', url: '/quick-replies' },
+      ],
+    },
   ],
 };
 

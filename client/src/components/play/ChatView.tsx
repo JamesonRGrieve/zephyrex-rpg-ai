@@ -121,6 +121,7 @@ import type { CanonNoticeValue } from './CanonNotice';
 import { PARTY_TAG, useCast } from '~/features/data/cast';
 import { CanonOff } from './CanonNotice';
 import { RollSheet } from './RollSheet';
+import type { NarratorStyle } from '~/features/models/narratorStyle';
 import { SheetPanel } from './SheetPanel';
 import { ContextPanel } from './ContextPanel';
 import { MapView } from './MapView';
@@ -1824,6 +1825,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           objectives: chat.objectives,
           content_rating: chat.content_rating,
           canon_checks: chat.canon_checks !== false,
+          narrator_style: chat.narrator_style as NarratorStyle,
           seat: chat.seat,
           lines: chat.lines,
           veils: chat.veils,

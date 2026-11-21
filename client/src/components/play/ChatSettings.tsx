@@ -14,7 +14,8 @@ import { Label } from 'zephyrex/ui/label';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
-import { LIMITS, LORE, SAFETY } from '~/contract';
+import type { NarratorStyle } from '~/features/models/narratorStyle';
+import { LIMITS, LORE, NARRATOR_STYLE, SAFETY } from '~/contract';
 import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { parseTags } from '~/features/chat/library';
@@ -35,6 +36,8 @@ export interface ChatSettingsValue {
   title: string;
   /** Canon warnings for this campaign (off for a campaign that breaks canon on purpose). */
   canon_checks: boolean;
+  /** The narrator's style: each slider 0–1, or absent/null for "any" (features/models/narratorStyle). */
+  narrator_style: NarratorStyle;
   persona_id: string | null;
   preset_id: string | null;
   endpoint_id: string | null;
@@ -483,6 +486,47 @@ export function ChatSettings({
           {cast.length > 1 && (
             <GroupModes value={draft.group_settings ?? {}} onChange={(next) => set('group_settings', next)} />
           )}
+          <fieldset className='grid gap-3 rounded-lg border p-3'>
+            <legend className='px-1 text-sm font-medium'>Narrator style</legend>
+            <p className='text-xs text-muted-foreground'>
+              The narrator&apos;s model is picked by its reputation for these, and tuned to them. Spice and darkness stay
+              within the content rating.
+            </p>
+            {NARRATOR_STYLE.sliders.map((slider) => {
+              const value = draft.narrator_style[slider];
+              const any = value === undefined || value === null;
+              return (
+                <div key={slider} className='grid gap-1'>
+                  <div className='flex items-center justify-between gap-2 text-sm'>
+                    <span className='capitalize'>{slider}</span>
+                    <label className='flex min-h-11 items-center gap-2 text-xs text-muted-foreground'>
+                      <input
+                        type='checkbox'
+                        className='size-4'
+                        checked={any}
+                        onChange={(event) =>
+                          set('narrator_style', { ...draft.narrator_style, [slider]: event.target.checked ? null : 0.5 })
+                        }
+                      />
+                      Any
+                    </label>
+                  </div>
+                  <input
+                    type='range'
+                    min={0}
+                    max={1}
+                    step={0.1}
+                    aria-label={slider}
+                    disabled={any}
+                    value={any ? 0.5 : value}
+                    onChange={(event) =>
+                      set('narrator_style', { ...draft.narrator_style, [slider]: Number(event.target.value) })
+                    }
+                  />
+                </div>
+              );
+            })}
+          </fieldset>
           <fieldset className='grid gap-3 rounded-lg border p-3'>
             <legend className='px-1 text-sm font-medium'>Table safety</legend>
             <label className='flex min-h-11 items-center gap-2 text-sm'>
