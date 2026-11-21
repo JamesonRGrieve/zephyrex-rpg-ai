@@ -75,9 +75,13 @@ export function dataBankText(documents: readonly string[], story: readonly strin
  * campaign's documents (campaign_documents: journals, lore and each entry's whole text), their texts
  * in name order, then id, so retrieval's ties break the same way everywhere. Empty texts drop out.
  */
-export function wikiDocumentTexts(documents: readonly { id: string; name: string; text: string }[]): string[] {
+export function wikiDocumentTexts(
+  documents: readonly { id: string; name: string; text: string; gm_only?: boolean }[],
+  gm: boolean,
+): string[] {
+  // GM secrets (E): a GM-only document reaches only the GM's prompts.
   return [...documents]
-    .filter((document) => document.text.trim() !== '')
+    .filter((document) => document.text.trim() !== '' && (gm || document.gm_only !== true))
     .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
     .map((document) => document.text);
 }

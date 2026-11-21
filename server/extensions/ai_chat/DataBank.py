@@ -70,8 +70,13 @@ def data_bank_text(documents: Sequence[str], story: Sequence[str]) -> str:
     return BANK["prefix"] + "\n\n".join(found) if found else ""
 
 
-def wiki_document_texts(documents: Sequence[Mapping[str, Any]]) -> list[str]:
+def wiki_document_texts(documents: Sequence[Mapping[str, Any]], gm: bool) -> list[str]:
     """The data bank's documents from the wiki (the composed suite, mapping item 4): the chat's wiki
-    campaign's documents, their texts in name order, then id; empty texts drop out."""
-    kept = [document for document in documents if str(document.get("text") or "").strip()]
+    campaign's documents, their texts in name order, then id; empty texts drop out, and a GM-only
+    document reaches only the GM's prompts (E)."""
+    kept = [
+        document
+        for document in documents
+        if str(document.get("text") or "").strip() and (gm or not document.get("gm_only"))
+    ]
     return [str(document["text"]) for document in sorted(kept, key=lambda d: (str(d["name"]), str(d["id"])))]

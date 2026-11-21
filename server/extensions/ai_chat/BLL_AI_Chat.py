@@ -2413,7 +2413,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 for script in self._manager(RegexScriptManager).list()
             ],
             next((objective["text"] for objective in (chat.objectives or []) if not objective["done"]), ""),
-            self._data_bank(chat, story_texts),
+            self._data_bank(chat, story_texts, body.mode in ("narrate", "table")),
             {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
             chat.table_notes or [],
             frame,
@@ -2572,13 +2572,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         text = await self._ask(context, sampler, translate_prompt(asked.text, asked.language))
         return TranslateEnvelope(translate=TranslateRequest(chat_id=asked.chat_id, text=text, language=asked.language))
 
-    def _data_bank(self, chat: Any, story: list[str]) -> str:
+    def _data_bank(self, chat: Any, story: list[str], gm: bool) -> str:
         """The data bank's notes for this turn (A41), from the wiki (the composed suite, mapping item 4):
         the chat's wiki campaign's documents, through the wiki's campaign_documents ability."""
         wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
         documents = campaign_documents(self.model_registry, str(self.requester.id), wiki)
         # The extension modules are imported by the framework at run time, so mypy sees them as Any.
-        text: str = data_bank_text(wiki_document_texts(documents), story)
+        text: str = data_bank_text(wiki_document_texts(documents, gm), story)
         return text
 
     @custom_route(

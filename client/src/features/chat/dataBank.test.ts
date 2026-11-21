@@ -12,7 +12,7 @@ describe('the data bank (contract/databank-cases.json, shared with the server)',
 });
 
 describe('the data bank from the wiki (contract/databank-cases.json wiki_cases, shared with the server)', () => {
-  it.each(cases.wiki_cases)('$name', ({ documents, texts }) => {
-    expect(wikiDocumentTexts(documents)).toEqual(texts);
+  it.each(cases.wiki_cases)('$name', ({ documents, gm, texts }) => {
+    expect(wikiDocumentTexts(documents, gm)).toEqual(texts);
   });
 });

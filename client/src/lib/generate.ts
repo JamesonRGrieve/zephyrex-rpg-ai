@@ -374,7 +374,10 @@ export async function generationInputs(
       scenario: chatFields.scenario_id === null ? null : await runningScenario(ownerId, chatFields.scenario_id),
       // The data bank from the wiki (mapping item 4): the campaign's documents.
       data_bank: dataBankText(
-        wikiDocumentTexts(wikiCampaign === null ? [] : await world.documents(wikiCampaign)),
+        wikiDocumentTexts(
+          wikiCampaign === null ? [] : await world.documents(wikiCampaign),
+          body.mode === 'narrate' || body.mode === 'table',
+        ),
         storyTexts,
       ),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),

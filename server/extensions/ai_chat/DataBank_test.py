@@ -30,4 +30,4 @@ def test_the_shared_cases(case: dict[str, Any]) -> None:
 
 @pytest.mark.parametrize("case", WIKI_CASES, ids=[case["name"] for case in WIKI_CASES])
 def test_the_data_bank_from_the_wiki(case: dict[str, Any]) -> None:
-    assert wiki_document_texts(case["documents"]) == case["texts"]
+    assert wiki_document_texts(case["documents"], case["gm"]) == case["texts"]

@@ -117,7 +117,7 @@
   ],
   "wiki_cases": [
     {
-      "name": "name order, then id; empty texts drop out (mapping item 4)",
+      "name": "name order, then id; empty texts and GM-only documents drop out for a character's voice (mapping item 4, E)",
       "documents": [
         {
           "id": "j2",
@@ -142,13 +142,64 @@
           "kind": "faction",
           "name": "Arbites",
           "text": "  "
+        },
+        {
+          "id": "t1",
+          "kind": "journal",
+          "name": "Truth of the Logs",
+          "text": "Calloway erased them.",
+          "gm_only": true
         }
       ],
       "texts": [
         "A hive world.",
         "Vey arrived.",
         "The hive burned."
-      ]
+      ],
+      "gm": false
+    },
+    {
+      "name": "the GM's prompts keep GM-only documents (E)",
+      "documents": [
+        {
+          "id": "j2",
+          "kind": "journal",
+          "name": "Session 2",
+          "text": "The hive burned."
+        },
+        {
+          "id": "l1",
+          "kind": "location",
+          "name": "Hive Solenne",
+          "text": "A hive world."
+        },
+        {
+          "id": "j1",
+          "kind": "journal",
+          "name": "Session 2",
+          "text": "Vey arrived."
+        },
+        {
+          "id": "x",
+          "kind": "faction",
+          "name": "Arbites",
+          "text": "  "
+        },
+        {
+          "id": "t1",
+          "kind": "journal",
+          "name": "Truth of the Logs",
+          "text": "Calloway erased them.",
+          "gm_only": true
+        }
+      ],
+      "texts": [
+        "A hive world.",
+        "Vey arrived.",
+        "The hive burned.",
+        "Calloway erased them."
+      ],
+      "gm": true
     }
   ]
 }
