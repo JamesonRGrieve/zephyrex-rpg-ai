@@ -20,6 +20,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Ellipsis,
+  EyeOff,
   FastForward,
   GitBranch,
   Pencil,
@@ -49,6 +50,8 @@ export interface MessageView {
   images?: readonly string[];
   /** X-carded by the table (A25): shown as such, never read by the model. */
   xCarded?: boolean;
+  /** Hidden by the person (/hide, audit gap 10): still shown, never read by the model. */
+  hidden?: boolean;
   swipe: { index: number; count: number };
   fork: { index: number; count: number };
   bookmarked: boolean;
@@ -71,6 +74,8 @@ export interface MessageActions {
   onDelete?: () => void;
   /** The X-card (A25): takes the message out of the story, or puts it back. */
   onXCard?: () => void;
+  /** Hides the message from the model, or shows it to the model again (gap 10). */
+  onHide?: () => void;
   /** Carries on the shown alternative where it stopped (offered on a character's last message). */
   onContinue?: () => void;
   /** Reads the message aloud (A29), where the browser can speak. */
@@ -233,7 +238,7 @@ export function MessageItem({
 
   return (
     <article
-      aria-label={`${message.speaker}${label === null ? '' : `, ${label.toLowerCase()}`}`}
+      aria-label={`${message.speaker}${label === null ? '' : `, ${label.toLowerCase()}`}${message.hidden === true ? ', hidden from the model' : ''}`}
       aria-busy={writing}
       className={cn(
         'group flex gap-3',
@@ -247,6 +252,7 @@ export function MessageItem({
           'ml-8 flex-row-reverse border-primary bg-accent text-accent-foreground sm:ml-16',
         layout === 'bubbles' && story && !mine && 'mr-8 sm:mr-16',
         layout === 'document' && 'leading-relaxed',
+        message.hidden === true && 'opacity-60',
       )}
     >
       {!tableTalk && layout !== 'document' && (
@@ -258,6 +264,11 @@ export function MessageItem({
       <div className='min-w-0 flex-1'>
         <header className='flex flex-wrap items-center gap-x-2'>
           <span className={cn('font-semibold', tableTalk && 'text-xs')}>{message.speaker}</span>
+          {message.hidden === true && (
+            <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>
+              <EyeOff className='size-3' aria-hidden /> Hidden from the model
+            </span>
+          )}
           {label !== null && <span className='text-xs text-muted-foreground'>{label}</span>}
           {message.bookmarked && <Bookmark className='size-3.5 fill-primary text-primary' aria-label='Bookmarked' />}
         </header>
@@ -404,6 +415,11 @@ export function MessageItem({
                 {actions.onContinue !== undefined && (
                   <DropdownMenuItem onSelect={actions.onContinue}>
                     <FastForward aria-hidden /> Continue
+                  </DropdownMenuItem>
+                )}
+                {actions.onHide !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onHide}>
+                    <EyeOff aria-hidden /> {message.hidden === true ? 'Show to the model' : 'Hide from the model'}
                   </DropdownMenuItem>
                 )}
                 {actions.onXCard !== undefined && (

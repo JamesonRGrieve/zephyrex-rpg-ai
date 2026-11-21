@@ -65,6 +65,14 @@ import { dataBankText } from '~/features/chat/dataBank';
 import { type StoryLine, storyLines } from '~/features/memory/memory';
 import { memoriesFor, type Speaker } from '~/lib/memory';
 import { samplerParams, type SamplerValues } from '~/features/prompt/samplers';
+import {
+  isNativeApi,
+  type NativeApi,
+  nativeModelIds,
+  nativeModelsRequest,
+  nativeRequest,
+  openAiPayload,
+} from '~/features/models/nativeApis';
 import { campaigns, scenarios } from '~/lib/campaignRecords';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
@@ -191,6 +199,7 @@ export async function generationInputs(
       swipe_index: number;
       images: string[];
       x_carded: boolean;
+      hidden: boolean;
     }),
   }));
   if (body.leaf_id !== null && !messages.some((message) => message.id === body.leaf_id)) {
@@ -207,12 +216,15 @@ export async function generationInputs(
     speaker_character_id: message.speaker_character_id,
     content: message.swipes[message.swipe_index] ?? '',
     x_carded: message.x_carded,
+    hidden: message.hidden,
   }));
 
   // World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
   const story = new Set<string>(PROMPT.story_channels);
   // What lore and the data bank scan: the story, less what the table X-carded (A25).
-  const storyTexts = history.filter((turn) => story.has(turn.channel) && turn.x_carded !== true).map((turn) => turn.content);
+  const storyTexts = history
+    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
+    .map((turn) => turn.content);
   const bookIds = [
     ...new Set([...chatFields.lorebook_ids, ...ordered.flatMap((row) => (row.lorebookId === null ? [] : [row.lorebookId]))]),
   ];
@@ -324,6 +336,7 @@ export async function generationInputs(
         speaker_character_id: message.speaker_character_id,
         content: message.swipes[message.swipe_index] ?? '',
         x_carded: message.x_carded,
+        hidden: message.hidden,
       })),
       persona?.name ?? DEFAULT_USER_NAME,
       new Map(promptCharacters.map((character) => [character.id, character.name])),
@@ -507,7 +520,7 @@ export function upstreamBody(
     model: endpoint.model,
     ...(text
       ? { prompt: renderInstruct(messages, endpoint.instruct_template, mode === 'continue') }
-      : { messages: withImages(messages, images) }),
+      : { messages: withImages(messages, isNativeApi(endpoint.api) ? [] : images) }),
     stream: true,
     temperature: sampler.temperature,
     top_p: sampler.top_p,
@@ -660,13 +673,15 @@ async function askModel(
   signal: AbortSignal,
 ): Promise<ReadableStream<Uint8Array>> {
   if (endpoint.api === 'horde') return askHorde(endpoint, body, signal);
-  const upstream = await fetch(completionsUrl(endpoint.base_url, endpoint.api), {
+  // Anthropic's and Google's own APIs (audit gap 8): asked in their shape, read back as OpenAI's.
+  const native = isNativeApi(endpoint.api) ? nativeRequest(endpoint.api, endpoint.base_url, endpoint.api_key, body) : null;
+  const upstream = await fetch(native?.url ?? completionsUrl(endpoint.base_url, endpoint.api), {
     method: 'POST',
-    headers: {
+    headers: native?.headers ?? {
       'Content-Type': 'application/json',
       ...(endpoint.api_key === '' ? {} : { Authorization: `Bearer ${endpoint.api_key}` }),
     },
-    body: JSON.stringify(body),
+    body: JSON.stringify(native?.json ?? body),
     signal,
   }).catch(() => {
     throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });
@@ -674,7 +689,33 @@ async function askModel(
   if (!upstream.ok || upstream.body === null) {
     throw new ApiError(502, { message: `The model endpoint answered ${upstream.status}`, code: 'model_refused' });
   }
-  return upstream.body;
+  return isNativeApi(endpoint.api) ? asOpenAiStream(upstream.body, endpoint.api) : upstream.body;
+}
+
+/** A native API's server-sent events as OpenAI chunk events (audit gap 8), for the one stream reader. */
+function asOpenAiStream(body: ReadableStream<Uint8Array>, api: NativeApi): ReadableStream<Uint8Array> {
+  const decoder = new TextDecoder();
+  const encoder = new TextEncoder();
+  let carried = '';
+  const rewrite = (lines: string[]) =>
+    lines.flatMap((line) => {
+      if (!line.startsWith('data:')) return [];
+      const chunk = openAiPayload(api, line.slice('data:'.length));
+      return chunk === null ? [] : [`data: ${chunk}\n\n`];
+    });
+  return body.pipeThrough(
+    new TransformStream<Uint8Array, Uint8Array>({
+      transform(piece, controller) {
+        const lines = (carried + decoder.decode(piece, { stream: true })).split(/\r?\n/);
+        carried = lines.pop() ?? '';
+        for (const out of rewrite(lines)) controller.enqueue(encoder.encode(out));
+      },
+      flush(controller) {
+        for (const out of rewrite([carried + decoder.decode()])) controller.enqueue(encoder.encode(out));
+        controller.enqueue(encoder.encode('data: [DONE]\n\n'));
+      },
+    }),
+  );
 }
 
 /** Every delta of a stream, joined. */
@@ -763,8 +804,10 @@ export async function ping(nextRequest: NextRequest): Promise<Response> {
     const row = await endpoints.find(parsed.data.endpoint_id, owner.id);
     if (row === null) throw notFound(endpoints.modelName);
     const started = Date.now();
-    const answer = await fetch(modelsUrl(row.baseUrl), {
-      headers: row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` },
+    // Anthropic's and Google's own APIs (audit gap 8) list their models in their own shape.
+    const native = isNativeApi(row.api) ? nativeModelsRequest(row.api, row.baseUrl, row.apiKey) : null;
+    const answer = await fetch(native?.url ?? modelsUrl(row.baseUrl), {
+      headers: native?.headers ?? (row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` }),
       signal: AbortSignal.any([nextRequest.signal, AbortSignal.timeout(PING_TIMEOUT_MS)]),
     }).catch(() => null);
     const latency = Date.now() - started;
@@ -774,11 +817,13 @@ export async function ping(nextRequest: NextRequest): Promise<Response> {
       });
     const body: unknown = await answer.json().catch(() => null);
     const listed: unknown = Reflect.get(Object(body), 'data');
-    const ids = Array.isArray(listed)
-      ? listed.flatMap((model) =>
-          typeof Reflect.get(Object(model), 'id') === 'string' ? [String(Reflect.get(Object(model), 'id'))] : [],
-        )
-      : null;
+    const ids = isNativeApi(row.api)
+      ? nativeModelIds(row.api, body)
+      : Array.isArray(listed)
+        ? listed.flatMap((model) =>
+            typeof Reflect.get(Object(model), 'id') === 'string' ? [String(Reflect.get(Object(model), 'id'))] : [],
+          )
+        : null;
     return Response.json({
       ping: {
         ok: answer.ok,

@@ -129,6 +129,7 @@ export const messageSchema = z.object({
   bookmarked: z.boolean(),
   images: z.array(z.string()),
   x_carded: z.boolean(),
+  hidden: z.boolean().optional(),
 });
 export type ChatMessage = z.infer<typeof messageSchema>;
 

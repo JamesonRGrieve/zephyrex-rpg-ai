@@ -196,6 +196,8 @@ const SCRIPT_COMMANDS = new Set([
   'swipes-count',
   'swipes-swipe',
   'del',
+  'hide',
+  'unhide',
   'rand',
   'input',
   'buttons',

@@ -1,0 +1,307 @@
+{
+  "$comment": "Native APIs (audit gap 8): cases both twins run (client/src/features/models/nativeApis.test.ts, server/extensions/ai_chat/NativeApis_test.py). The opening turn is the contract's native_apis.opening.",
+  "request_cases": [
+    {
+      "name": "Anthropic: leading system messages as its system, a later one joins the person's turn, the last assistant turn is the reply's start; temperature capped, top-P 1 and top-K 0 left out, OpenAI-only fields dropped",
+      "api": "anthropic",
+      "base_url": "https://api.anthropic.com/v1/",
+      "api_key": "k-1",
+      "body": {
+        "model": "M",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are Ada."
+          },
+          {
+            "role": "system",
+            "content": "Be brief."
+          },
+          {
+            "role": "user",
+            "content": "Hi."
+          },
+          {
+            "role": "system",
+            "content": "Remember the coolant."
+          },
+          {
+            "role": "assistant",
+            "content": "*nods*"
+          }
+        ],
+        "stream": true,
+        "temperature": 1.4,
+        "top_p": 1,
+        "top_k": 0,
+        "max_tokens": 300,
+        "stop": ["</s>"],
+        "logit_bias": {
+          "1": 5
+        },
+        "min_p": 0.05
+      },
+      "request": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "headers": {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01",
+          "x-api-key": "k-1"
+        },
+        "json": {
+          "model": "M",
+          "system": "You are Ada.\n\nBe brief.",
+          "messages": [
+            {
+              "role": "user",
+              "content": "Hi.\n\nRemember the coolant."
+            },
+            {
+              "role": "assistant",
+              "content": "*nods*"
+            }
+          ],
+          "max_tokens": 300,
+          "stream": true,
+          "temperature": 1,
+          "stop_sequences": ["</s>"]
+        }
+      }
+    },
+    {
+      "name": "Gemini: system instruction, the model's turns as model, its generation config",
+      "api": "google",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta/chat/completions",
+      "api_key": "g-1",
+      "body": {
+        "model": "M",
+        "messages": [
+          {
+            "role": "system",
+            "content": "You are Ada."
+          },
+          {
+            "role": "system",
+            "content": "Be brief."
+          },
+          {
+            "role": "user",
+            "content": "Hi."
+          },
+          {
+            "role": "system",
+            "content": "Remember the coolant."
+          },
+          {
+            "role": "assistant",
+            "content": "*nods*"
+          }
+        ],
+        "stream": true,
+        "temperature": 1.4,
+        "top_p": 1,
+        "top_k": 0,
+        "max_tokens": 300,
+        "stop": ["</s>"],
+        "logit_bias": {
+          "1": 5
+        },
+        "min_p": 0.05
+      },
+      "request": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/M:streamGenerateContent?alt=sse",
+        "headers": {
+          "Content-Type": "application/json",
+          "x-goog-api-key": "g-1"
+        },
+        "json": {
+          "systemInstruction": {
+            "parts": [
+              {
+                "text": "You are Ada.\n\nBe brief."
+              }
+            ]
+          },
+          "contents": [
+            {
+              "role": "user",
+              "parts": [
+                {
+                  "text": "Hi.\n\nRemember the coolant."
+                }
+              ]
+            },
+            {
+              "role": "model",
+              "parts": [
+                {
+                  "text": "*nods*"
+                }
+              ]
+            }
+          ],
+          "generationConfig": {
+            "temperature": 1.4,
+            "topP": 1,
+            "maxOutputTokens": 300,
+            "stopSequences": ["</s>"]
+          }
+        }
+      }
+    },
+    {
+      "name": "a conversation that doesn't open on the person's turn gets the opening; no key, no key header; the default reply length",
+      "api": "anthropic",
+      "base_url": "http://h:1/v1",
+      "api_key": "",
+      "body": {
+        "model": "M",
+        "messages": [
+          {
+            "role": "system",
+            "content": "S"
+          },
+          {
+            "role": "assistant",
+            "content": "Hello."
+          }
+        ]
+      },
+      "request": {
+        "url": "http://h:1/v1/messages",
+        "headers": {
+          "Content-Type": "application/json",
+          "anthropic-version": "2023-06-01"
+        },
+        "json": {
+          "model": "M",
+          "system": "S",
+          "messages": [
+            {
+              "role": "user",
+              "content": "(The story begins.)"
+            },
+            {
+              "role": "assistant",
+              "content": "Hello."
+            }
+          ],
+          "max_tokens": 1024,
+          "stream": true
+        }
+      }
+    }
+  ],
+  "delta_cases": [
+    {
+      "name": "Anthropic: text",
+      "api": "anthropic",
+      "payload": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"Aye\"}}",
+      "delta": {
+        "content": "Aye"
+      }
+    },
+    {
+      "name": "Anthropic: thinking as reasoning",
+      "api": "anthropic",
+      "payload": "{\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"hm\"}}",
+      "delta": {
+        "reasoning_content": "hm"
+      }
+    },
+    {
+      "name": "Anthropic: other events add nothing",
+      "api": "anthropic",
+      "payload": "{\"type\":\"message_start\",\"message\":{}}",
+      "delta": null
+    },
+    {
+      "name": "not JSON adds nothing",
+      "api": "anthropic",
+      "payload": "ping",
+      "delta": null
+    },
+    {
+      "name": "Gemini: text parts joined",
+      "api": "google",
+      "payload": "{\"candidates\":[{\"content\":{\"role\":\"model\",\"parts\":[{\"text\":\"Ay\"},{\"text\":\"e\"}]}}]}",
+      "delta": {
+        "content": "Aye"
+      }
+    },
+    {
+      "name": "Gemini: a thought part as reasoning",
+      "api": "google",
+      "payload": "{\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"hm\",\"thought\":true},{\"text\":\"Aye\"}]}}]}",
+      "delta": {
+        "content": "Aye",
+        "reasoning_content": "hm"
+      }
+    },
+    {
+      "name": "Gemini: no candidates adds nothing",
+      "api": "google",
+      "payload": "{\"usageMetadata\":{}}",
+      "delta": null
+    }
+  ],
+  "models_cases": [
+    {
+      "name": "Anthropic's model list",
+      "api": "anthropic",
+      "base_url": "https://api.anthropic.com/v1",
+      "api_key": "k",
+      "request": {
+        "url": "https://api.anthropic.com/v1/models",
+        "headers": {
+          "anthropic-version": "2023-06-01",
+          "x-api-key": "k"
+        }
+      },
+      "answer": {
+        "data": [
+          {
+            "id": "claude-x",
+            "type": "model"
+          },
+          {
+            "type": "model"
+          }
+        ]
+      },
+      "ids": ["claude-x"]
+    },
+    {
+      "name": "Gemini's model list, the prefix dropped",
+      "api": "google",
+      "base_url": "https://generativelanguage.googleapis.com/v1beta",
+      "api_key": "",
+      "request": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models",
+        "headers": {}
+      },
+      "answer": {
+        "models": [
+          {
+            "name": "models/gemini-x"
+          }
+        ]
+      },
+      "ids": ["gemini-x"]
+    },
+    {
+      "name": "not a model list",
+      "api": "google",
+      "base_url": "http://h",
+      "api_key": "",
+      "request": {
+        "url": "http://h/models",
+        "headers": {}
+      },
+      "answer": {
+        "error": "no"
+      },
+      "ids": null
+    }
+  ]
+}

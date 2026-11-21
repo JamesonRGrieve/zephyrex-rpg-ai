@@ -56,6 +56,7 @@ import { ScriptPrompt } from './ScriptPrompt';
 import { TalkingSprite } from './TalkingSprite';
 import { illustrationPoints, type StoryLine, storyEpub, storyLines } from '~/features/export/epub';
 import { runScript } from '~/features/chat/stscript';
+import { toggled } from '~/features/chat/hide';
 import { deleteCount, messagesText } from '~/features/chat/scriptMessages';
 import { sameVariables } from '~/features/chat/variables';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
@@ -139,6 +140,8 @@ const SCRIPT_ACTIONS: ReadonlySet<string> = new Set([
   'swipes-count',
   'swipes-swipe',
   'del',
+  'hide',
+  'unhide',
   'sendas',
   'narrate',
   'continue',
@@ -189,6 +192,7 @@ export function messageViews(
       text: message.swipes[message.swipe_index] ?? '',
       images: message.images,
       xCarded: message.x_carded,
+      hidden: message.hidden,
       swipe: { index: message.swipe_index, count: message.swipes.length },
       fork: { index, count: siblings.length },
       bookmarked: message.bookmarked,
@@ -533,6 +537,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           const last = lastReply();
           const saved = await update(last, { swipe_index: (last.swipe_index + 1) % last.swipes.length });
           path = [...path.slice(0, -1), saved];
+          return undefined;
+        }
+        if (name === 'hide' || name === 'unhide') {
+          // As SillyTavern's: the lines a range names stay on screen, out of (or back in) the prompt.
+          const hidden = name === 'hide';
+          for (const message of toggled(path, text, hidden)) {
+            const saved = await update(message, { hidden });
+            path = path.map((one) => (one.id === saved.id ? saved : one));
+          }
           return undefined;
         }
         if (name === 'del') {
@@ -1208,6 +1221,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 }}
                 onDelete={() => deleteMessage(message)}
                 onXCard={() => void update(message, { x_carded: !message.x_carded })}
+                onHide={() => void update(message, { hidden: !message.hidden })}
                 onContinue={
                   message.role === 'character' && message.id === leaf && !writing
                     ? () => void continueMessage(message)

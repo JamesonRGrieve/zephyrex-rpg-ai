@@ -58,9 +58,7 @@
     {
       "name": "one character: the card, the persona and the turns",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -103,9 +101,7 @@
     {
       "name": "out-of-character table talk and GM whispers never enter the story; a roll does",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "",
@@ -157,10 +153,7 @@
     {
       "name": "a group: other characters are named, the author's note sits four turns from the end, post-history instructions come last",
       "input": {
-        "characters": [
-          "ada",
-          "bram"
-        ],
+        "characters": ["ada", "bram"],
         "speaker_id": "c-bram",
         "persona": {
           "name": "Sam",
@@ -241,9 +234,7 @@
     {
       "name": "a full window drops the oldest turns and keeps the system text",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -289,9 +280,7 @@
     {
       "name": "lore around the card, the examples and the author's note, and at a depth with its role",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "[Tense.]",
@@ -366,9 +355,7 @@
     {
       "name": "continue: the character's last message comes after the instructions and the continue nudge, for the model to carry on",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": {
           "name": "Sam",
@@ -420,9 +407,7 @@
     {
       "name": "impersonate: the person's own next line is asked for at the end",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": {
           "name": "Sam",
@@ -474,9 +459,7 @@
     {
       "name": "the prompt manager: the chat's system prompt, sections reordered, turned off and cut to their budget",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -540,9 +523,7 @@
     {
       "name": "a summary goes in as its own section, before the author's note",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "",
@@ -573,9 +554,7 @@
     {
       "name": "prompt-only regex scripts rewrite the history by depth; others leave it alone",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "",
@@ -583,10 +562,7 @@
           {
             "find": "/\\*[^*]*\\*/g",
             "replace": "",
-            "placements": [
-              "user_input",
-              "ai_output"
-            ],
+            "placements": ["user_input", "ai_output"],
             "display_only": false,
             "prompt_only": true,
             "min_depth": 1,
@@ -596,10 +572,7 @@
           {
             "find": "/coolant/g",
             "replace": "COOLANT",
-            "placements": [
-              "user_input",
-              "ai_output"
-            ],
+            "placements": ["user_input", "ai_output"],
             "display_only": true,
             "prompt_only": false,
             "min_depth": null,
@@ -609,9 +582,7 @@
           {
             "find": "/spanner/",
             "replace": "wrench",
-            "placements": [
-              "user_input"
-            ],
+            "placements": ["user_input"],
             "display_only": false,
             "prompt_only": true,
             "min_depth": null,
@@ -655,10 +626,7 @@
     {
       "name": "reasoning blocks are never read back to the model, the speaker's or another's",
       "input": {
-        "characters": [
-          "ada",
-          "bram"
-        ],
+        "characters": ["ada", "bram"],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "",
@@ -698,9 +666,7 @@
     {
       "name": "the chat's current task sits two turns from the end",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -758,9 +724,7 @@
     {
       "name": "the data bank's notes sit after the examples' lore and before the summary",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -796,9 +760,7 @@
     {
       "name": "a context template's story string (audit gap 4) stands in for the card's sections, its chat start closing it, and every turn named",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -839,9 +801,7 @@
     {
       "name": "the person's own prompts (audit gap 3): one in the system message at its place, one at a depth, one turned off",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -917,9 +877,7 @@
     {
       "name": "start reply with (audit gap 3): the reply's opening is the last message, its macros filled",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -965,9 +923,7 @@
     {
       "name": "start reply with, turned off, adds nothing",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1009,9 +965,7 @@
     {
       "name": "SillyTavern's macros filled through the whole prompt, the variables carried along (audit gap 1)",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1056,9 +1010,7 @@
     {
       "name": "recalled memories (A19) sit after the data bank's notes and before the summary",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1095,22 +1047,14 @@
     {
       "name": "the table's safety tools follow the system prompt, and an X-carded turn is never read",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
         "safety": {
           "content_rating": "teen",
-          "lines": [
-            "harm to children",
-            " "
-          ],
-          "veils": [
-            "torture",
-            "romance"
-          ]
+          "lines": ["harm to children", " "],
+          "veils": ["torture", "romance"]
         },
         "history": [
           {
@@ -1159,9 +1103,7 @@
     {
       "name": "table notes follow the safety tools, one labelled line each",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1213,9 +1155,7 @@
     {
       "name": "the campaign frame sits after the table notes, each part only when set",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1228,11 +1168,7 @@
             "grounded_fantastic": 2,
             "slow_pulpy": 1
           },
-          "themes": [
-            "loyalty",
-            " ",
-            "the cost of freedom"
-          ],
+          "themes": ["loyalty", " ", "the cost of freedom"],
           "pillars": {
             "combat": 1,
             "exploration": 3,
@@ -1240,10 +1176,7 @@
             "mystery": 0
           },
           "structure": "episodic",
-          "truths": [
-            "The Guild owns every port.",
-            " "
-          ],
+          "truths": ["The Guild owns every port.", " "],
           "characters": "Sam owes Ada a life debt.",
           "resolution_mode": "narrative"
         },
@@ -1277,9 +1210,7 @@
     {
       "name": "the running scenario is the GM's view: clocks near full flagged, clues found or not, beats to come",
       "input": {
-        "characters": [
-          "bram"
-        ],
+        "characters": ["bram"],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1306,11 +1237,7 @@
               "agenda": "x"
             }
           ],
-          "places": [
-            "the engine room",
-            "bay two",
-            " "
-          ],
+          "places": ["the engine room", "bay two", " "],
           "clocks": [
             {
               "name": "The pump fails",
@@ -1361,10 +1288,7 @@
               "done": false
             }
           ],
-          "outcomes": [
-            "Reyes is caught",
-            " "
-          ]
+          "outcomes": ["Reyes is caught", " "]
         },
         "history": [
           {
@@ -1396,10 +1320,7 @@
     {
       "name": "narrating, the GM speaks: every character named and described in brief, its own narration as its voice",
       "input": {
-        "characters": [
-          "ada",
-          "bram"
-        ],
+        "characters": ["ada", "bram"],
         "speaker_id": "",
         "persona": {
           "name": "Sam",
@@ -1459,10 +1380,7 @@
     {
       "name": "narrating with the campaign's GM style (A20): in the GM's own voice, not in the shared frame",
       "input": {
-        "characters": [
-          "ada",
-          "bram"
-        ],
+        "characters": ["ada", "bram"],
         "speaker_id": "",
         "persona": {
           "name": "Sam",
@@ -1526,9 +1444,7 @@
     {
       "name": "a character's reply reads the campaign frame but never the GM's style (A20)",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -1575,9 +1491,7 @@
     {
       "name": "the speaker's Character's Note (V2 depth_prompt) sits at its depth with its role, macros filled (gap 7)",
       "input": {
-        "characters": [
-          "cass"
-        ],
+        "characters": ["cass"],
         "speaker_id": "c-cass",
         "persona": {
           "name": "Sam",
@@ -1634,9 +1548,7 @@
     {
       "name": "a Character's Note without depth or role takes SillyTavern's defaults (depth 4, system) and follows the author's note there (gap 7)",
       "input": {
-        "characters": [
-          "dara"
-        ],
+        "characters": ["dara"],
         "speaker_id": "c-dara",
         "persona": {
           "name": "Sam",
@@ -1713,15 +1625,67 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "a hidden line stays in the chat but out of what the model reads (/hide, gap 10)",
+      "input": {
+        "characters": ["cass"],
+        "speaker_id": "c-cass",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "One"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-cass",
+            "content": "Two",
+            "hidden": true
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Three"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Cass.\n\nCass is the pilot."
+        },
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "system",
+          "content": "[Cass hides a limp.]"
+        },
+        {
+          "role": "user",
+          "content": "Three"
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [
     {
       "name": "the instruction, then every story turn named, table talk left out",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -1770,9 +1734,7 @@
     {
       "name": "a long branch keeps its newest turns",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -1849,9 +1811,7 @@
     {
       "name": "the table GM reads the safety tools, notes, summary and recent story, and answers the table talk",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -1906,9 +1866,7 @@
         "summary": "They boarded the Kestrel.",
         "safety": {
           "content_rating": "teen",
-          "lines": [
-            "spiders"
-          ],
+          "lines": ["spiders"],
           "veils": []
         },
         "table_notes": [
@@ -1949,9 +1907,7 @@
     {
       "name": "a full window drops the oldest table talk",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2006,9 +1962,7 @@
         "summary": "They boarded the Kestrel.",
         "safety": {
           "content_rating": "teen",
-          "lines": [
-            "spiders"
-          ],
+          "lines": ["spiders"],
           "veils": []
         },
         "table_notes": [
@@ -2033,9 +1987,7 @@
     {
       "name": "the table GM answers in the campaign's GM style (A20)",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2090,9 +2042,7 @@
         "summary": "They boarded the Kestrel.",
         "safety": {
           "content_rating": "teen",
-          "lines": [
-            "spiders"
-          ],
+          "lines": ["spiders"],
           "veils": []
         },
         "table_notes": [
@@ -2139,56 +2089,31 @@
     {
       "name": "the first named option, ignoring case",
       "answer": "Anger, mostly. Not joy.",
-      "options": [
-        "Joy",
-        "anger",
-        "fear",
-        "neutral"
-      ],
+      "options": ["Joy", "anger", "fear", "neutral"],
       "picked": "anger"
     },
     {
       "name": "a word inside a sentence",
       "answer": "I think this is fear",
-      "options": [
-        "Joy",
-        "anger",
-        "fear",
-        "neutral"
-      ],
+      "options": ["Joy", "anger", "fear", "neutral"],
       "picked": "fear"
     },
     {
       "name": "no option named",
       "answer": "Hmm.",
-      "options": [
-        "Joy",
-        "anger",
-        "fear",
-        "neutral"
-      ],
+      "options": ["Joy", "anger", "fear", "neutral"],
       "picked": null
     },
     {
       "name": "an option only inside a longer word does not count",
       "answer": "joyful",
-      "options": [
-        "Joy",
-        "anger",
-        "fear",
-        "neutral"
-      ],
+      "options": ["Joy", "anger", "fear", "neutral"],
       "picked": null
     }
   ],
   "expression_prompt_case": {
     "line": "*grins* We made it!",
-    "options": [
-      "Joy",
-      "anger",
-      "fear",
-      "neutral"
-    ],
+    "options": ["Joy", "anger", "fear", "neutral"],
     "messages": [
       {
         "role": "system",
@@ -2204,9 +2129,7 @@
     {
       "name": "the last story turns as a scene, named, without reasoning, table talk or X-carded turns",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2257,9 +2180,7 @@
     {
       "name": "the person's own words, when given",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2344,11 +2265,7 @@
     },
     {
       "name": "a text completion's text, and junk lines, as before",
-      "payloads": [
-        "{\"choices\": [{\"text\": \"Hi\"}]}",
-        "not json",
-        " "
-      ],
+      "payloads": ["{\"choices\": [{\"text\": \"Hi\"}]}", "not json", " "],
       "text": "Hi"
     }
   ],
@@ -2394,9 +2311,7 @@
     {
       "name": "the chat's scenario is the place",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2449,9 +2364,7 @@
     {
       "name": "no scenario: the last story turns",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2504,9 +2417,7 @@
     {
       "name": "the person's own words instead",
       "input": {
-        "characters": [
-          "ada"
-        ],
+        "characters": ["ada"],
         "persona": {
           "name": "Sam",
           "description": ""

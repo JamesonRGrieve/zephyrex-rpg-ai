@@ -186,6 +186,8 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
               ['chat', 'Chat completions'],
               ['text', 'Text completion'],
               ['horde', 'AI Horde'],
+              ['anthropic', 'Anthropic (Claude)'],
+              ['google', 'Google (Gemini)'],
               ['searxng', 'Web search: SearXNG'],
               ['brave', 'Web search: Brave'],
             ] as const
@@ -208,6 +210,14 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
         <p className='text-xs text-muted-foreground'>
           AI Horde (aihorde.net/api) shares volunteers’ models: a reply is queued, so it can take a while. Without a key it
           goes in anonymously, at the back of the queue.
+        </p>
+      )}
+      {(api === 'anthropic' || api === 'google') && (
+        <p className='text-xs text-muted-foreground'>
+          {api === 'anthropic'
+            ? 'Anthropic’s own Messages API: the address is https://api.anthropic.com/v1, the model a Claude model’s id.'
+            : 'Google’s own Gemini API: the address is https://generativelanguage.googleapis.com/v1beta, the model a Gemini model’s id.'}{' '}
+          Temperature, top-P, top-K, the reply’s length and stop strings are sent; the other samplers aren’t.
         </p>
       )}
       {(api === 'text' || api === 'horde') && (

@@ -109,6 +109,7 @@ model ChatMessage {
   bookmarked         Boolean  @default(false)
   images             String   @default("[]")
   xCarded            Boolean  @default(false)
+  hidden             Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime
   updatedById        String?

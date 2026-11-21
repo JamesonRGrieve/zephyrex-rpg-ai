@@ -433,6 +433,7 @@ const MESSAGE_COLUMNS: Columns = {
   bookmarked: plain('bookmarked'),
   images: jsonList('images'),
   x_carded: plain('xCarded'),
+  hidden: plain('hidden'),
 };
 
 /** Pictures sent with a line (A44), data URLs as avatars are. */
@@ -464,6 +465,8 @@ const messageUpdate = z
     bookmarked: z.boolean(),
     /** The X-card (A25): kept in the chat, never read by the model. */
     x_carded: z.boolean(),
+    /** Hidden by the person (/hide, audit gap 10): kept on screen, never read by the model. */
+    hidden: z.boolean(),
   })
   .partial();
 

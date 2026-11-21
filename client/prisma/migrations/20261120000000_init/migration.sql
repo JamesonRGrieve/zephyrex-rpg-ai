@@ -86,6 +86,7 @@ CREATE TABLE "ChatMessage" (
     "bookmarked" BOOLEAN NOT NULL DEFAULT false,
     "images" TEXT NOT NULL DEFAULT '[]',
     "xCarded" BOOLEAN NOT NULL DEFAULT false,
+    "hidden" BOOLEAN NOT NULL DEFAULT false,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

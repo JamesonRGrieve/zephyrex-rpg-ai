@@ -358,6 +358,11 @@ def scenario_text(scenario: Mapping[str, Any] | None) -> str:
     return "\n".join([SCENARIO["heading"], *kept]) if kept else ""
 
 
+def _read(turn: Mapping[str, Any]) -> bool:
+    """Whether the model reads a turn: neither X-carded (A25) nor hidden by the person (/hide, gap 10)."""
+    return not turn.get("x_carded", False) and not turn.get("hidden", False)
+
+
 def character_note(character: Mapping[str, Any]) -> dict[str, Any] | None:
     """The Character's Note (SillyTavern's depth prompt, V2 ``extensions.depth_prompt``).
 
@@ -574,7 +579,7 @@ def assemble_prompt(
     if prefill:
         after.append({"role": "assistant", "content": prefill})
     # An X-carded turn (A25) stays in the chat but out of what the model reads.
-    story_turns = [turn for turn in history if turn["channel"] in story and not turn.get("x_carded", False)]
+    story_turns = [turn for turn in history if turn["channel"] in story and _read(turn)]
     # Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
     placements = {"user": "user_input", "character": "ai_output"}
     story_turns = [
@@ -643,7 +648,7 @@ def summary_prompt(
     names_by_id = {character["id"]: character["name"] for character in characters}
     lines = []
     for turn in history:
-        if turn["channel"] not in PROMPT["story_channels"] or turn.get("x_carded", False):
+        if turn["channel"] not in PROMPT["story_channels"] or not _read(turn):
             continue
         if turn["role"] == "user":
             name = user_name
@@ -700,9 +705,7 @@ def table_gm_prompt(
             return names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
         return NARRATOR
 
-    story = [
-        turn for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn.get("x_carded", False)
-    ]
+    story = [turn for turn in history if turn["channel"] in PROMPT["story_channels"] and _read(turn)]
     recent = [f"{named(turn)}: {turn['content']}" for turn in story[-TABLE["recent_story_turns"] :]]
     parts = [
         TABLE["gm_prompt"],
@@ -767,9 +770,7 @@ def scene_picture_prompt(
         return asked.strip()[: PICTURE["prompt_characters"]]
     user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
     names_by_id = {character["id"]: character["name"] for character in characters}
-    story = [
-        turn for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn.get("x_carded", False)
-    ]
+    story = [turn for turn in history if turn["channel"] in PROMPT["story_channels"] and _read(turn)]
 
     def named(turn: Mapping[str, Any]) -> str:
         if turn["role"] == "user":

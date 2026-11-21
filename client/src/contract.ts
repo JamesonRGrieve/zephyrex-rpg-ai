@@ -95,7 +95,9 @@ export const SAMPLERS = {
 /** Text-completion prompt markup (features/prompt/instruct.ts; cases in contract/instruct-cases.json). */
 export const INSTRUCT_TEMPLATES = contract.instruct_templates;
 export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;
-export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text', 'horde'];
+export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text', 'horde', 'anthropic', 'google'];
+/** Native APIs (audit gap 8): how Anthropic's and Google's are asked (cases in contract/native-api-cases.json). */
+export const NATIVE_APIS = contract.native_apis;
 /** A person's own instruct template (A17): its fields and their limits. */
 export const INSTRUCT_CUSTOM = contract.instruct_custom;
 /** AI Horde (A48): where a text job is submitted and polled, and how long to wait. */

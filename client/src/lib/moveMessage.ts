@@ -15,7 +15,17 @@ import { prisma } from '~/lib/prisma';
 const moveRequest = z.object({ message_id: z.string().min(1) });
 
 /** The columns of what a message is, as against where it sits in the tree. */
-const MOVED = ['role', 'channel', 'speakerCharacterId', 'swipes', 'swipeIndex', 'bookmarked', 'images', 'xCarded'] as const;
+const MOVED = [
+  'role',
+  'channel',
+  'speakerCharacterId',
+  'swipes',
+  'swipeIndex',
+  'bookmarked',
+  'images',
+  'xCarded',
+  'hidden',
+] as const;
 
 export async function move(nextRequest: NextRequest): Promise<Response> {
   try {

@@ -84,6 +84,8 @@ export interface PromptTurn {
   content: string;
   /** Set when the table X-carded it (A25): kept in the chat, never read by the model. */
   x_carded?: boolean;
+  /** Hidden by the person (/hide, audit gap 10): on screen, never read. */
+  hidden?: boolean;
 }
 
 export interface PromptInput {
@@ -725,7 +727,9 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     ...(prefill === '' ? [] : [{ role: 'assistant' as const, content: prefill }]),
   ];
   // An X-carded turn (A25) stays in the chat but out of what the model reads.
-  const storyTurns = input.history.filter((turn) => story.has(turn.channel) && turn.x_carded !== true);
+  const storyTurns = input.history.filter(
+    (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
+  );
   // Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
   const history = storyTurns
     .map((turn, index) => {
@@ -781,7 +785,7 @@ export function summaryPrompt(
   const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
   const story = new Set<string>(PROMPT.story_channels);
   const lines = input.history
-    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
+    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
     .map((turn) => {
       const name =
         turn.role === 'user'
@@ -836,7 +840,7 @@ export function tableGmPrompt(
         : NARRATOR;
   const story = new Set<string>(PROMPT.story_channels);
   const recent = input.history
-    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
+    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
     .slice(-TABLE.recent_story_turns)
     .map((turn) => `${named(turn)}: ${turn.content}`);
   const summary = input.summary ?? '';
@@ -910,7 +914,7 @@ export function scenePicturePrompt(input: Pick<PromptInput, 'characters' | 'pers
         ? (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR)
         : NARRATOR;
   const scene = input.history
-    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true)
+    .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
     .slice(-PICTURE.scene_turns)
     .map((turn) => `${named(turn)}: ${splitReasoning(turn.content).reply}`)
     .join(' ');

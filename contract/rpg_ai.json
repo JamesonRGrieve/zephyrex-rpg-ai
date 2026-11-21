@@ -45,23 +45,9 @@
     "chat_variables": 200,
     "variable_value_characters": 10000
   },
-  "message_roles": [
-    "user",
-    "character",
-    "narrator",
-    "system"
-  ],
-  "message_channels": [
-    "ic",
-    "ooc",
-    "gm",
-    "roll",
-    "system"
-  ],
-  "chat_modes": [
-    "character",
-    "group"
-  ],
+  "message_roles": ["user", "character", "narrator", "system"],
+  "message_channels": ["ic", "ooc", "gm", "roll", "system"],
+  "chat_modes": ["character", "group"],
   "chat_seats": ["player", "gm"],
   "card_specs": {
     "v2": {
@@ -74,30 +60,12 @@
     }
   },
   "sampler_ranges": {
-    "temperature": [
-      0,
-      2
-    ],
-    "top_p": [
-      0,
-      1
-    ],
-    "top_k": [
-      0,
-      500
-    ],
-    "repetition_penalty": [
-      1,
-      2
-    ],
-    "max_tokens": [
-      1,
-      8192
-    ],
-    "context_tokens": [
-      512,
-      1048576
-    ]
+    "temperature": [0, 2],
+    "top_p": [0, 1],
+    "top_k": [0, 500],
+    "repetition_penalty": [1, 2],
+    "max_tokens": [1, 8192],
+    "context_tokens": [512, 1048576]
   },
   "preset_defaults": {
     "temperature": 0.8,
@@ -112,21 +80,12 @@
     "author_note_depth": 4,
     "characters_per_token": 4,
     "message_overhead_tokens": 4,
-    "story_channels": [
-      "ic",
-      "roll"
-    ],
+    "story_channels": ["ic", "roll"],
     "impersonate_prompt": "Write {{user}}'s next reply in this chat, in {{user}}'s own voice. Write only {{user}}'s part.",
     "continue_nudge": "[Continue your last message without repeating its original content.]",
     "own_prompts": 20,
     "own_prompt_depth": 1000,
-    "modes": [
-      "reply",
-      "continue",
-      "impersonate",
-      "table",
-      "narrate"
-    ],
+    "modes": ["reply", "continue", "impersonate", "table", "narrate"],
     "sections": [
       "main",
       "safety",
@@ -148,10 +107,7 @@
       "author_note",
       "post_history"
     ],
-    "section_token_range": [
-      1,
-      32768
-    ],
+    "section_token_range": [1, 32768],
     "summary_prefix": "Summary of the story so far:\n",
     "summarize_prompt": "Summarize the story so far in a few short paragraphs: who is in it, where they are, what has happened and what is still unresolved. Write only the summary.",
     "translate_prompt": "Translate the user's text into {{language}}. Keep its meaning, tone, names and any *action* markup. Write only the translation.",
@@ -172,17 +128,8 @@
       "after_an",
       "at_depth"
     ],
-    "selective_logic": [
-      "and_any",
-      "not_all",
-      "not_any",
-      "and_all"
-    ],
-    "depth_roles": [
-      "system",
-      "user",
-      "assistant"
-    ],
+    "selective_logic": ["and_any", "not_all", "not_any", "and_all"],
+    "depth_roles": ["system", "user", "assistant"],
     "defaults": {
       "scan_depth": 4,
       "token_budget": 1024,
@@ -193,46 +140,24 @@
       "group_weight": 100
     },
     "ranges": {
-      "scan_depth": [
-        0,
-        1000
-      ],
-      "token_budget": [
-        0,
-        1048576
-      ],
-      "recursion_steps": [
-        0,
-        10
-      ],
-      "depth": [
-        0,
-        1000
-      ],
-      "order": [
-        -100000,
-        100000
-      ],
-      "probability": [
-        0,
-        100
-      ],
-      "group_weight": [
-        1,
-        10000
-      ],
-      "timed": [
-        0,
-        1000
-      ]
+      "scan_depth": [0, 1000],
+      "token_budget": [0, 1048576],
+      "recursion_steps": [0, 10],
+      "depth": [0, 1000],
+      "order": [-100000, 100000],
+      "probability": [0, 100],
+      "group_weight": [1, 10000],
+      "timed": [0, 1000]
     }
   },
   "paid_features": {},
-  "endpoint_apis": [
-    "chat",
-    "text",
-    "horde"
-  ],
+  "endpoint_apis": ["chat", "text", "horde", "anthropic", "google"],
+  "native_apis": {
+    "$comment": "Native APIs (audit gap 8): Anthropic's Messages API and Google's Gemini API, asked from the same chat messages as an OpenAI-compatible endpoint and read back as its stream (features/models/nativeApis.ts, ai_chat/NativeApis.py; cases in contract/native-api-cases.json). A conversation must open on the person's turn: when it doesn't, `opening` is that turn.",
+    "anthropic_version": "2023-06-01",
+    "anthropic_temperature_max": 1,
+    "opening": "(The story begins.)"
+  },
   "instruct_templates": {
     "chatml": {
       "name": "ChatML",
@@ -243,9 +168,7 @@
       "user_suffix": "<|im_end|>\n",
       "assistant_prefix": "<|im_start|>assistant\n",
       "assistant_suffix": "<|im_end|>\n",
-      "stop": [
-        "<|im_end|>"
-      ]
+      "stop": ["<|im_end|>"]
     },
     "llama3": {
       "name": "Llama 3",
@@ -256,9 +179,7 @@
       "user_suffix": "<|eot_id|>",
       "assistant_prefix": "<|start_header_id|>assistant<|end_header_id|>\n\n",
       "assistant_suffix": "<|eot_id|>",
-      "stop": [
-        "<|eot_id|>"
-      ]
+      "stop": ["<|eot_id|>"]
     },
     "alpaca": {
       "name": "Alpaca",
@@ -269,9 +190,7 @@
       "user_suffix": "\n\n",
       "assistant_prefix": "### Response:\n",
       "assistant_suffix": "\n\n",
-      "stop": [
-        "### Instruction:"
-      ]
+      "stop": ["### Instruction:"]
     },
     "mistral": {
       "name": "Mistral",
@@ -282,64 +201,28 @@
       "user_suffix": " [/INST]",
       "assistant_prefix": "",
       "assistant_suffix": "</s>",
-      "stop": [
-        "</s>",
-        "[INST]"
-      ]
+      "stop": ["</s>", "[INST]"]
     }
   },
   "regex": {
-    "placements": [
-      "user_input",
-      "ai_output"
-    ],
-    "targets": [
-      "stored",
-      "display",
-      "prompt"
-    ],
+    "placements": ["user_input", "ai_output"],
+    "targets": ["stored", "display", "prompt"],
     "flags": "gims",
-    "depth_range": [
-      0,
-      10000
-    ]
+    "depth_range": [0, 10000]
   },
   "reasoning": {
     "pairs": [
-      [
-        "<think>",
-        "</think>"
-      ],
-      [
-        "<thinking>",
-        "</thinking>"
-      ],
-      [
-        "<reasoning>",
-        "</reasoning>"
-      ]
+      ["<think>", "</think>"],
+      ["<thinking>", "</thinking>"],
+      ["<reasoning>", "</reasoning>"]
     ]
   },
   "quick_reply": {
-    "actions": [
-      "send",
-      "fill"
-    ],
-    "channels": [
-      "ic",
-      "ooc"
-    ],
-    "auto_runs": [
-      "none",
-      "chat_open",
-      "after_send",
-      "after_reply"
-    ],
+    "actions": ["send", "fill"],
+    "channels": ["ic", "ooc"],
+    "auto_runs": ["none", "chat_open", "after_send", "after_reply"],
     "$auto_run_comment": "A quick reply may run by itself (A38): when a chat opens, after the person sends, or after each reply. Only none and chat_open may send: a send after a send or a reply would ask the model again and run again, without end. The others fill the composer.",
-    "sending_auto_runs": [
-      "none",
-      "chat_open"
-    ]
+    "sending_auto_runs": ["none", "chat_open"]
   },
   "data_bank": {
     "chunk_characters": 800,
@@ -399,18 +282,10 @@
       "i'm",
       "don't"
     ],
-    "scopes": [
-      "global",
-      "chat",
-      "character"
-    ]
+    "scopes": ["global", "chat", "character"]
   },
   "safety": {
-    "ratings": [
-      "general",
-      "teen",
-      "mature"
-    ],
+    "ratings": ["general", "teen", "mature"],
     "rating_text": {
       "general": "Keep everything suitable for all ages.",
       "teen": "Keep violence and peril mild, with no sexual content.",
@@ -421,12 +296,7 @@
     "heading": "Table safety (always follow):"
   },
   "table": {
-    "note_kinds": [
-      "house_rule",
-      "pacing",
-      "tone",
-      "reminder"
-    ],
+    "note_kinds": ["house_rule", "pacing", "tone", "reminder"],
     "note_labels": {
       "house_rule": "House rule",
       "pacing": "Pacing",
@@ -464,52 +334,24 @@
         "right": "pulpy"
       }
     ],
-    "dial_range": [
-      -2,
-      2
-    ],
-    "pillars": [
-      "combat",
-      "exploration",
-      "social",
-      "mystery"
-    ],
-    "pillar_range": [
-      0,
-      3
-    ],
-    "pillar_words": [
-      "none",
-      "light",
-      "regular",
-      "heavy"
-    ],
-    "structures": [
-      "sandbox",
-      "linear",
-      "episodic",
-      "one_shot"
-    ],
+    "dial_range": [-2, 2],
+    "pillars": ["combat", "exploration", "social", "mystery"],
+    "pillar_range": [0, 3],
+    "pillar_words": ["none", "light", "regular", "heavy"],
+    "structures": ["sandbox", "linear", "episodic", "one_shot"],
     "structure_words": {
       "sandbox": "a sandbox",
       "linear": "a linear story",
       "episodic": "episodic",
       "one_shot": "a one-shot"
     },
-    "resolution_modes": [
-      "narrative",
-      "mechanical",
-      "hybrid"
-    ],
+    "resolution_modes": ["narrative", "mechanical", "hybrid"],
     "heading": "The campaign (the table agreed to this; keep to it):",
     "gm_style_prefix": "How you run the game, as the table asked: "
   },
   "scenario": {
     "heading": "The scenario (the GM's view; reveal only what the characters find or see):",
-    "clock_segment_range": [
-      2,
-      12
-    ],
+    "clock_segment_range": [2, 12],
     "close_segments": 1,
     "limits": {
       "cast": 20,
@@ -547,501 +389,270 @@
       {
         "name": "min_p",
         "kind": "number",
-        "range": [
-          0,
-          1
-        ],
+        "range": [0, 1],
         "neutral": 0,
-        "wire": [
-          "min_p"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["min_p"],
+        "apis": ["text", "horde"],
         "group": "truncation"
       },
       {
         "name": "typical_p",
         "kind": "number",
-        "range": [
-          0,
-          1
-        ],
+        "range": [0, 1],
         "neutral": 1,
-        "wire": [
-          "typical_p",
-          "typical"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["typical_p", "typical"],
+        "apis": ["text", "horde"],
         "group": "truncation"
       },
       {
         "name": "top_a",
         "kind": "number",
-        "range": [
-          0,
-          1
-        ],
+        "range": [0, 1],
         "neutral": 0,
-        "wire": [
-          "top_a"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["top_a"],
+        "apis": ["text", "horde"],
         "group": "truncation"
       },
       {
         "name": "tfs",
         "kind": "number",
-        "range": [
-          0,
-          1
-        ],
+        "range": [0, 1],
         "neutral": 1,
-        "wire": [
-          "tfs",
-          "tfs_z"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["tfs", "tfs_z"],
+        "apis": ["text", "horde"],
         "group": "truncation"
       },
       {
         "name": "top_n_sigma",
         "kind": "number",
-        "range": [
-          0,
-          10
-        ],
+        "range": [0, 10],
         "neutral": 0,
-        "wire": [
-          "top_n_sigma",
-          "nsigma"
-        ],
-        "apis": [
-          "text"
-        ],
+        "wire": ["top_n_sigma", "nsigma"],
+        "apis": ["text"],
         "group": "truncation"
       },
       {
         "name": "epsilon_cutoff",
         "kind": "number",
-        "range": [
-          0,
-          9
-        ],
+        "range": [0, 9],
         "neutral": 0,
-        "wire": [
-          "epsilon_cutoff"
-        ],
-        "apis": [
-          "text"
-        ],
+        "wire": ["epsilon_cutoff"],
+        "apis": ["text"],
         "group": "truncation"
       },
       {
         "name": "eta_cutoff",
         "kind": "number",
-        "range": [
-          0,
-          20
-        ],
+        "range": [0, 20],
         "neutral": 0,
-        "wire": [
-          "eta_cutoff"
-        ],
-        "apis": [
-          "text"
-        ],
+        "wire": ["eta_cutoff"],
+        "apis": ["text"],
         "group": "truncation"
       },
       {
         "name": "presence_penalty",
         "kind": "number",
-        "range": [
-          -2,
-          2
-        ],
+        "range": [-2, 2],
         "neutral": 0,
-        "wire": [
-          "presence_penalty"
-        ],
-        "apis": [
-          "chat",
-          "text"
-        ],
+        "wire": ["presence_penalty"],
+        "apis": ["chat", "text"],
         "group": "penalties"
       },
       {
         "name": "frequency_penalty",
         "kind": "number",
-        "range": [
-          -2,
-          2
-        ],
+        "range": [-2, 2],
         "neutral": 0,
-        "wire": [
-          "frequency_penalty"
-        ],
-        "apis": [
-          "chat",
-          "text"
-        ],
+        "wire": ["frequency_penalty"],
+        "apis": ["chat", "text"],
         "group": "penalties"
       },
       {
         "name": "repetition_penalty_range",
         "kind": "integer",
-        "range": [
-          0,
-          65536
-        ],
+        "range": [0, 65536],
         "neutral": 0,
-        "wire": [
-          "repetition_penalty_range",
-          "rep_pen_range",
-          "repeat_last_n"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["repetition_penalty_range", "rep_pen_range", "repeat_last_n"],
+        "apis": ["text", "horde"],
         "group": "penalties"
       },
       {
         "name": "repetition_penalty_slope",
         "kind": "number",
-        "range": [
-          0,
-          10
-        ],
+        "range": [0, 10],
         "neutral": 1,
-        "wire": [
-          "rep_pen_slope"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["rep_pen_slope"],
+        "apis": ["text", "horde"],
         "group": "penalties"
       },
       {
         "name": "dry_multiplier",
         "kind": "number",
-        "range": [
-          0,
-          5
-        ],
+        "range": [0, 5],
         "neutral": 0,
-        "wire": [
-          "dry_multiplier"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["dry_multiplier"],
+        "apis": ["text", "horde"],
         "group": "dry_xtc"
       },
       {
         "name": "dry_base",
         "kind": "number",
-        "range": [
-          1,
-          4
-        ],
+        "range": [1, 4],
         "neutral": 1.75,
-        "wire": [
-          "dry_base"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["dry_base"],
+        "apis": ["text", "horde"],
         "group": "dry_xtc",
         "requires": "dry_multiplier"
       },
       {
         "name": "dry_allowed_length",
         "kind": "integer",
-        "range": [
-          0,
-          20
-        ],
+        "range": [0, 20],
         "neutral": 2,
-        "wire": [
-          "dry_allowed_length"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["dry_allowed_length"],
+        "apis": ["text", "horde"],
         "group": "dry_xtc",
         "requires": "dry_multiplier"
       },
       {
         "name": "dry_penalty_last_n",
         "kind": "integer",
-        "range": [
-          0,
-          65536
-        ],
+        "range": [0, 65536],
         "neutral": 0,
-        "wire": [
-          "dry_penalty_last_n"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["dry_penalty_last_n"],
+        "apis": ["text", "horde"],
         "group": "dry_xtc",
         "requires": "dry_multiplier"
       },
       {
         "name": "dry_sequence_breakers",
         "kind": "strings",
-        "range": [
-          0,
-          32
-        ],
+        "range": [0, 32],
         "neutral": [],
-        "wire": [
-          "dry_sequence_breakers"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["dry_sequence_breakers"],
+        "apis": ["text", "horde"],
         "group": "dry_xtc",
         "requires": "dry_multiplier"
       },
       {
         "name": "xtc_probability",
         "kind": "number",
-        "range": [
-          0,
-          1
-        ],
+        "range": [0, 1],
         "neutral": 0,
-        "wire": [
-          "xtc_probability"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["xtc_probability"],
+        "apis": ["text", "horde"],
         "group": "dry_xtc"
       },
       {
         "name": "xtc_threshold",
         "kind": "number",
-        "range": [
-          0,
-          0.5
-        ],
+        "range": [0, 0.5],
         "neutral": 0.1,
-        "wire": [
-          "xtc_threshold"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["xtc_threshold"],
+        "apis": ["text", "horde"],
         "group": "dry_xtc",
         "requires": "xtc_probability"
       },
       {
         "name": "mirostat_mode",
         "kind": "integer",
-        "range": [
-          0,
-          2
-        ],
+        "range": [0, 2],
         "neutral": 0,
-        "wire": [
-          "mirostat_mode",
-          "mirostat"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["mirostat_mode", "mirostat"],
+        "apis": ["text", "horde"],
         "group": "mirostat"
       },
       {
         "name": "mirostat_tau",
         "kind": "number",
-        "range": [
-          0,
-          20
-        ],
+        "range": [0, 20],
         "neutral": 5,
-        "wire": [
-          "mirostat_tau"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["mirostat_tau"],
+        "apis": ["text", "horde"],
         "group": "mirostat",
         "requires": "mirostat_mode"
       },
       {
         "name": "mirostat_eta",
         "kind": "number",
-        "range": [
-          0,
-          1
-        ],
+        "range": [0, 1],
         "neutral": 0.1,
-        "wire": [
-          "mirostat_eta"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["mirostat_eta"],
+        "apis": ["text", "horde"],
         "group": "mirostat",
         "requires": "mirostat_mode"
       },
       {
         "name": "dynatemp_range",
         "kind": "number",
-        "range": [
-          0,
-          5
-        ],
+        "range": [0, 5],
         "neutral": 0,
-        "wire": [
-          "dynatemp_range"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["dynatemp_range"],
+        "apis": ["text", "horde"],
         "group": "dynamic_temperature"
       },
       {
         "name": "dynatemp_exponent",
         "kind": "number",
-        "range": [
-          0.01,
-          10
-        ],
+        "range": [0.01, 10],
         "neutral": 1,
-        "wire": [
-          "dynatemp_exponent"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["dynatemp_exponent"],
+        "apis": ["text", "horde"],
         "group": "dynamic_temperature",
         "requires": "dynatemp_range"
       },
       {
         "name": "smoothing_factor",
         "kind": "number",
-        "range": [
-          0,
-          10
-        ],
+        "range": [0, 10],
         "neutral": 0,
-        "wire": [
-          "smoothing_factor"
-        ],
-        "apis": [
-          "text",
-          "horde"
-        ],
+        "wire": ["smoothing_factor"],
+        "apis": ["text", "horde"],
         "group": "other"
       },
       {
         "name": "smoothing_curve",
         "kind": "number",
-        "range": [
-          1,
-          10
-        ],
+        "range": [1, 10],
         "neutral": 1,
-        "wire": [
-          "smoothing_curve"
-        ],
-        "apis": [
-          "text"
-        ],
+        "wire": ["smoothing_curve"],
+        "apis": ["text"],
         "group": "other",
         "requires": "smoothing_factor"
       },
       {
         "name": "seed",
         "kind": "integer",
-        "range": [
-          -1,
-          2147483647
-        ],
+        "range": [-1, 2147483647],
         "neutral": -1,
-        "wire": [
-          "seed"
-        ],
-        "apis": [
-          "chat",
-          "text"
-        ],
+        "wire": ["seed"],
+        "apis": ["chat", "text"],
         "group": "other"
       },
       {
         "name": "banned_strings",
         "kind": "strings",
-        "range": [
-          0,
-          64
-        ],
+        "range": [0, 64],
         "neutral": [],
-        "wire": [
-          "banned_strings",
-          "banned_tokens"
-        ],
-        "apis": [
-          "text"
-        ],
+        "wire": ["banned_strings", "banned_tokens"],
+        "apis": ["text"],
         "group": "other"
       },
       {
         "name": "sampler_order",
         "kind": "strings",
-        "range": [
-          0,
-          16
-        ],
+        "range": [0, 16],
         "neutral": [],
-        "wire": [
-          "samplers"
-        ],
-        "apis": [
-          "text"
-        ],
+        "wire": ["samplers"],
+        "apis": ["text"],
         "group": "other"
       }
     ]
   },
   "sampler_extras": {
-    "logit_bias_range": [
-      -100,
-      100
-    ],
+    "logit_bias_range": [-100, 100],
     "logit_bias_entries": 50,
-    "guidance_scale_range": [
-      1,
-      5
-    ]
+    "guidance_scale_range": [1, 5]
   },
   "expression": {
     "prompt": "Which one of these words best names the feeling in the line below? Answer with one word from the list and nothing else.\nWords: {{options}}",
@@ -1056,11 +667,7 @@
     "caption": "A picture of the scene.",
     "portrait_prefix": "A portrait of ",
     "background_prefix": "A wide background illustration of this place, with no people in it: ",
-    "kinds": [
-      "scene",
-      "portrait",
-      "background"
-    ],
+    "kinds": ["scene", "portrait", "background"],
     "sizes": [
       "256x256",
       "512x512",
@@ -1078,10 +685,7 @@
     "text_characters": 4096,
     "voice_characters": 64,
     "default_voice": "alloy",
-    "speed_range": [
-      0.25,
-      4
-    ],
+    "speed_range": [0.25, 4],
     "format": "mp3",
     "audio_bytes": 6000000
   },
@@ -1125,8 +729,5 @@
     "story_characters": 10000,
     "activation_regex_characters": 200
   },
-  "search_apis": [
-    "searxng",
-    "brave"
-  ]
+  "search_apis": ["searxng", "brave"]
 }

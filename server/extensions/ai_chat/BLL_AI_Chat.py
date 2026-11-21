@@ -633,6 +633,7 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     bookmarked: bool = Field(False, description="Bookmarked")
     images: list[str] = Field(default_factory=list, description="Pictures sent with it (data URLs)")
     x_carded: bool = Field(False, description="X-carded by the table: kept, never read by the model")
+    hidden: bool = Field(False, description="Hidden by the person (/hide): kept on screen, never read by the model")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chat messages"
 
@@ -670,6 +671,7 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         swipe_index: int | None = Field(None, ge=0)
         bookmarked: bool | None = None
         x_carded: bool | None = None
+        hidden: bool | None = None
 
     class Search(ApplicationModel.Search):
         chat_id: StringSearchModel | None = None
@@ -694,6 +696,7 @@ class ChatMessageManager(AbstractBLLManager[ChatMessageModel], RouterMixin):
         kwargs.setdefault("bookmarked", False)
         kwargs.setdefault("images", [])
         kwargs.setdefault("x_carded", False)
+        kwargs.setdefault("hidden", False)
         chats = ChatManager(requester_id=str(self.requester.id), model_registry=self.model_registry)
         try:
             chat = chats.get(id=kwargs["chat_id"])
@@ -1491,7 +1494,7 @@ class MovedEnvelope(PlainModel):
 
 
 # What a message is, as against where it sits in the tree: what moving it up swaps with its parent (A9).
-MOVED_FIELDS = ("role", "channel", "speaker_character_id", "swipes", "swipe_index", "bookmarked", "images", "x_carded")
+MOVED_FIELDS = ("role", "channel", "speaker_character_id", "swipes", "swipe_index", "bookmarked", "images", "x_carded", "hidden")
 
 
 class PictureRequest(PlainModel):
@@ -1959,6 +1962,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     "speaker_character_id": message.speaker_character_id,
                     "content": message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else "",
                     "x_carded": bool(getattr(message, "x_carded", False)),
+                    "hidden": bool(getattr(message, "hidden", False)),
                 }
                 for message in branch_to(messages, body.leaf_id)
             ],
@@ -2053,6 +2057,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 "speaker_character_id": message.speaker_character_id,
                 "content": message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else "",
                 "x_carded": bool(getattr(message, "x_carded", False)),
+                "hidden": bool(getattr(message, "hidden", False)),
             }
             for message in path
         ]
@@ -2060,7 +2065,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
         # What lore and the data bank scan: the story, less what the table X-carded (A25).
         story_texts = [
-            turn["content"] for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"]
+            turn["content"] for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"] and not turn["hidden"]
         ]
         book_ids = list(dict.fromkeys([*(chat.lorebook_ids or []), *own_books]))
         entries_manager = self._manager(LorebookEntryManager)
