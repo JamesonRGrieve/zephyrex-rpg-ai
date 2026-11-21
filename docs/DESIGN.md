@@ -53,18 +53,27 @@ branching, group chats, extensions. Its gaps are what this product fills:
    modeled as moving parts (clocks, clues, agendas) and rehearsed before play, and play that
    is as loose or as rules-tight as the table chooses.
 
-## Ways to play
+## The play model (the operator, 2026-11-21)
 
-| Way to play | Who plays | Who runs the world |
-|---|---|---|
-| **Character chat** | You, as your persona | One AI character (SillyTavern classic) |
-| **Group chat** | You | Several AI characters, turn-taking by the `next_speaker` decision |
-| **AI GM campaign** | One or more humans, each with a PC | The GM agent, with NPC agents for major NPCs |
-| **AI party** | A human GM | AI characters as player characters |
-| **GM assistant** | A human GM running a table | The AI supplies NPC voices, roll outcomes, recaps and "what do they know" answers on request |
+Campaign play is not chats. "The concept of chats should not exist. It should be sessions."
 
-Every way to play runs on the same conversation and agent machinery, and differs only in seats
-and grants. How outcomes are decided is separate: the [resolution mode](#narrative-and-mechanical-modes).
+| Thing | What it is |
+|---|---|
+| **Scenario** | A campaign framing: the world and the premise to play in (Solenne, Dunmarch). It holds the frame (premise, genre, tone, themes, truths, the GM's style), the cast of characters, the lorebooks, the opening situation, and the GM's prep (clocks, secrets with their clues, beats, outcomes). Today's campaign frame (A57) and scenario (A60) records merge into it. |
+| **Campaign** | A save state of a scenario: one playthrough with its own **party** of playable characters. Campaigns of the same scenario can have different parties. A campaign can be **rewound** (back to an earlier moment, with what came after kept as a branch to return to) or **forked** (copied up to a moment into a new campaign that goes its own way): either, at the person's choice. |
+| **Session** | A segment of a campaign's story, "save points, essentially": each starts where the last ended. A session's end is where the story so far is compacted and summarized (the session report, A24), so later sessions read the summary, not every line. |
+| **Seat** | Who the person is right now, **hot-swappable at any time** within a session: the GM, or **any character at all**. An NPC the person takes over joins the party while played. The AI pilots everyone else: the party members who speak up, and the GM's narration when the person isn't the GM. No separate chat or session per role. |
+| **One-on-one roleplay** | SillyTavern's character chat and group chat stay, as **sandbox** play: their own section at the bottom of the navigation, apart from scenarios and campaigns. |
+
+Outcomes are decided separately: the [resolution mode](#narrative-and-mechanical-modes).
+
+### Mapping onto what exists
+
+- A campaign's story is one tree of messages, as a chat's is now: swipes and branches carry over. Rewind moves the campaign's head back to a message; fork copies the path to that message into a new campaign.
+- A session records where it starts and ends in that tree, its summary and report. Starting a session compacts the earlier ones into their summaries.
+- The seat is the campaign's current seat (today's chat `seat`, A20, plus the character the person plays), changed from the session's top bar at any time; turns are decided by the seat (features/chat/seat).
+- A campaign's party is its list of characters (today's chat cast); an NPC taken over is added for as long as it's played.
+- Sandbox chats keep today's chat records unchanged.
 
 ## Feature parity matrix: full parity
 
@@ -572,8 +581,10 @@ The context inspector (A18) shows exactly this per turn.
 | Path | What it is |
 |---|---|
 | `/` | Landing: hero with a live sample scene, the OOC lane and the why panel visible; SillyTavern comparison; pricing; FAQ. |
-| `/play` | Library: your chats and campaigns, newest first, with portraits and last line. |
-| `/play/[conversation]` | **The play surface** (below). |
+| `/scenarios`, `/scenarios/[id]` | Scenarios (the framings: Solenne, Dunmarch): each one's brief, cast, lore and prep, and its campaigns. *Start a campaign* picks the party. |
+| `/campaigns/[id]` | A campaign: its party, its sessions (newest first, each with its summary), rewind and fork. *Play* opens the current session. |
+| `/campaigns/[id]/sessions/[sid]` | **The play surface** (below), for one session; the seat picker is in its top bar. |
+| `/sandbox` | One-on-one and group roleplay (SillyTavern's chats), at the bottom of the navigation. |
 | `/characters`, `/characters/[id]` | Card gallery; card editor with every V2/V3 field, greetings, examples, sprites, voice, and "link to a wiki person". |
 | `/personas` | Your personas. |
 | `/lorebooks`, `/lorebooks/[id]` | Lorebook list and entry editor (the full field surface), with "generate from the world". |
@@ -612,6 +623,7 @@ The context inspector (A18) shows exactly this per turn.
   - the combat HUD (initiative, turn, HP bars);
   - your sheet;
   - table notes.
+- **Seat picker** (top bar): the GM or any character; changing it takes effect on the next turn.
 - **Top bar:** the campaign, the scene, the players present, the GM state (thinking,
   waiting, paused), and a small model-status dot that opens the role and server breakdown.
 - **On a phone:** the drawers become bottom sheets, and the composer stays pinned.
@@ -784,6 +796,9 @@ Each phase ends with polished, finished UI for what it covers, not a scaffold.
      runner (A37–A56).
 
 ## Decisions for the operator
+
+- **2026-11-21, play model:** scenarios (framings), campaigns (save states that rewind or fork, each with its own party), sessions (segments that compact and summarize); the seat hot-swaps to the GM or any character; one-on-one chats move to a sandbox section. See [The play model](#the-play-model-the-operator-2026-11-21).
+- **2026-11-21, campaign pages on a phone** must be reworked (the operator: the campaign view on mobile is unacceptable).
 
 These are architecture and placement, so they are asked, never defaulted. They are routed
 through the Session 0 Manager:
