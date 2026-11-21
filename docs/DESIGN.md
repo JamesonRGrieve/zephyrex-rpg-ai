@@ -67,6 +67,20 @@ Campaign play is not chats. "The concept of chats should not exist. It should be
 
 Outcomes are decided separately: the [resolution mode](#narrative-and-mechanical-modes).
 
+### Canon warnings (the operator, 2026-11-21)
+
+Whoever writes a line, a player or the GM (person or AI), it is checked against canon:
+
+| Notice | When | Example |
+|---|---|---|
+| **Yellow warning** | The line is believed to contravene **established canon**: the campaign's own facts so far (its frame's truths, lorebooks, earlier sessions' summaries, the scenario) or the setting's canon, but not flagrantly: a likely slip, a contradiction the table may have meant. | A character calls the Transit Hub's bar by the wrong name; a dead NPC is spoken of as alive. |
+| **Red notice** | The line **flagrantly disregards in-universe canon**: something any character in the setting would know. | A tech-priest not knowing who the Omnissiah is. |
+
+- The check is the decision model (the `decide` role, Jev-style): a `score` question for "contradicts established canon" and one for "flagrantly breaks in-universe canon", asked with the line, the speaker's card, and the canon in reach (the lore entries the line activates, the frame's truths, the session summaries). Thresholds for yellow and red sit in the contract. No decide model, no check.
+- A person's line is checked as they write it: the notice shows on the composer before they send, with the reason in a sentence, and they may send anyway. An AI line is checked after it is written: the notice sits on the message, and a red one offers *Write another reply*.
+- Notices are table information, never part of the story: they don't enter the prompt (the OOC rule).
+- The warning says why (the canon it conflicts with, quoted from the lore or summary where one is found), so the person can correct it or decide it's intended.
+
 ### Mapping onto what exists
 
 - A campaign's story is one tree of messages, as a chat's is now: swipes and branches carry over. Rewind moves the campaign's head back to a message; fork copies the path to that message into a new campaign.
