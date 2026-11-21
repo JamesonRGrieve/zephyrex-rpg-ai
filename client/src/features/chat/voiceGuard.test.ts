@@ -7,6 +7,7 @@ import {
   metaBreak,
   narrateSegments,
   plainDashes,
+  replayOf,
   seatCut,
   speaksFor,
   strangerIn,
@@ -24,6 +25,9 @@ describe('the voice guard cases both twins run', () => {
   });
   it.each(cases.complete_cases)('$name', ({ text, complete }) => {
     expect(completeText(text)).toBe(complete);
+  });
+  it.each(cases.replay_cases)('$name', ({ text, earlier, hit }) => {
+    expect(replayOf(text, earlier)).toEqual(hit);
   });
   it.each(cases.seat_cut_cases)('$name', ({ text, seat, cut }) => {
     expect(seatCut(text, seat)).toBe(cut);

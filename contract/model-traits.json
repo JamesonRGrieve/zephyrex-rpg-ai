@@ -12,15 +12,15 @@
       "prose": 0.75,
       "darkness": 0.8,
       "humour": 0.5,
-      "adherence": 0.7,
+      "adherence": 0.6,
       "speed": 0.6,
       "params_b": 24.0,
-      "confidence": "H",
+      "confidence": "M",
       "warm": true,
       "narrator": true,
       "reasoning_effort": null,
       "context": "131k/35k/-",
-      "notes": "Mistral Small 3.2 RP tune. The current GM default and the only model kept warm on 72gb (measured: warm ~1.1-1.5 s, cold ~70 s)."
+      "notes": "Mistral Small 3.2 RP tune. The current GM default and the only model kept warm on 72gb (measured: warm ~1.1-1.5 s, cold ~70 s). Self Hosted AI, 2026-11-21: this Mistral-family Ollama template renders system messages only on a final user turn; rpg-ai sends every system message before the last user turn. Long-context adherence wants min_p and a repetition penalty."
     },
     "magnum-diamond-24b": {
       "spice": 0.9,
@@ -29,7 +29,7 @@
       "prose": 0.8,
       "darkness": 0.7,
       "humour": 0.55,
-      "adherence": 0.6,
+      "adherence": 0.55,
       "speed": 0.6,
       "params_b": 24.0,
       "confidence": "M",
@@ -37,7 +37,7 @@
       "narrator": true,
       "reasoning_effort": null,
       "context": "131k/35k/-",
-      "notes": "Claude-style prose tune on Mistral Small. Rich and wordy."
+      "notes": "Claude-style prose tune on Mistral Small. Rich and wordy. Self Hosted AI, 2026-11-21: this Mistral-family Ollama template renders system messages only on a final user turn; rpg-ai sends every system message before the last user turn. Long-context adherence wants min_p and a repetition penalty."
     },
     "magnum-v4-22b": {
       "spice": 0.9,
@@ -46,7 +46,7 @@
       "prose": 0.7,
       "darkness": 0.7,
       "humour": 0.5,
-      "adherence": 0.55,
+      "adherence": 0.5,
       "speed": 0.6,
       "params_b": 22.0,
       "confidence": "M",
@@ -54,7 +54,7 @@
       "narrator": true,
       "reasoning_effort": null,
       "context": "33k/33k/-",
-      "notes": "Older Mistral Small 22B base; 32k ctx."
+      "notes": "Older Mistral Small 22B base; 32k ctx. Self Hosted AI, 2026-11-21: this Mistral-family Ollama template renders system messages only on a final user turn; rpg-ai sends every system message before the last user turn. Long-context adherence wants min_p and a repetition penalty."
     },
     "arliai-rpmax-24b": {
       "spice": 0.8,
@@ -63,7 +63,7 @@
       "prose": 0.65,
       "darkness": 0.7,
       "humour": 0.55,
-      "adherence": 0.6,
+      "adherence": 0.55,
       "speed": 0.6,
       "params_b": 24.0,
       "confidence": "M",
@@ -71,7 +71,7 @@
       "narrator": true,
       "reasoning_effort": null,
       "context": "33k/33k/-",
-      "notes": "RPMax: varied characters, low repetition, less purple prose."
+      "notes": "RPMax: varied characters, low repetition, less purple prose. Self Hosted AI, 2026-11-21: this Mistral-family Ollama template renders system messages only on a final user turn; rpg-ai sends every system message before the last user turn. Long-context adherence wants min_p and a repetition penalty."
     },
     "arliai-rpmax-12b": {
       "spice": 0.8,
@@ -80,7 +80,7 @@
       "prose": 0.6,
       "darkness": 0.7,
       "humour": 0.55,
-      "adherence": 0.55,
+      "adherence": 0.45,
       "speed": 0.85,
       "params_b": 12.0,
       "confidence": "M",
@@ -88,7 +88,7 @@
       "narrator": true,
       "reasoning_effort": null,
       "context": "448k/74k/-",
-      "notes": "Nemo 12B base, trained to ~128k; 448k on 72gb is past what it handles well."
+      "notes": "Nemo 12B base, trained to ~128k; 448k on 72gb is past what it handles well. Self Hosted AI, 2026-11-21: this Mistral-family Ollama template renders system messages only on a final user turn; rpg-ai sends every system message before the last user turn. Long-context adherence wants min_p and a repetition penalty."
     },
     "theia-21b": {
       "spice": 0.9,
@@ -97,7 +97,7 @@
       "prose": 0.65,
       "darkness": 0.8,
       "humour": 0.45,
-      "adherence": 0.5,
+      "adherence": 0.45,
       "speed": 0.65,
       "params_b": 21.0,
       "confidence": "M",
@@ -105,7 +105,7 @@
       "narrator": true,
       "reasoning_effort": null,
       "context": "33k/31k/-",
-      "notes": "TheDrummer upscaled Nemo. Creative, drifts on long instructions."
+      "notes": "TheDrummer upscaled Nemo. Creative, drifts on long instructions. Self Hosted AI, 2026-11-21: this Mistral-family Ollama template renders system messages only on a final user turn; rpg-ai sends every system message before the last user turn. Long-context adherence wants min_p and a repetition penalty."
     },
     "dark-scarlett-27b-v2": {
       "spice": 0.9,

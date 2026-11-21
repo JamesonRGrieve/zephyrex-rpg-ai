@@ -476,7 +476,7 @@ def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping
     # Small models follow a worked example far better than a rule (the play-test).
     example_text = str(PROMPT["narrate_example"]).replace("{{example}}", example)
     # The play-test: a whole novel, acting and speaking for the person's character.
-    length = str(PROMPT["narrate_length"]).replace("{{seat_name}}", seat_name)
+    length = str(PROMPT["narrate_length"]).replace("{{seat_name}}", seat_name) + " " + str(PROMPT["narrate_continue"])
     markup = f"{PROMPT['narrate_location']} {PROMPT['narrate_markup']}"
     return f"{rule} {seat_rule} {length} {PROMPT['narrate_targets']} {markup}\n{example_text}"
 

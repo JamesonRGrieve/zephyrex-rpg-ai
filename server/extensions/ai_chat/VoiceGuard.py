@@ -282,3 +282,28 @@ def seat_cut(text: str, seat: str) -> str:
             continue
         return text[:at].rstrip()
     return text
+
+
+def _trigrams(text: str) -> set[str]:
+    words = [word for word in re.findall(r"[\w']+", text.lower()) if "_" not in word]
+    return {f"{words[index]} {words[index + 1]} {words[index + 2]}" for index in range(len(words) - 2)}
+
+
+def replay_of(text: str, earlier: Sequence[str]) -> dict[str, Any] | None:
+    """A narration that retells what already happened, no model call: over the threshold of its word
+    trigrams already in the last few story lines; the span is its first mostly old sentence."""
+    replay = VOICE_GUARD["replay"]
+    fresh = _trigrams(text)
+    if len(fresh) < int(replay["min_trigrams"]):
+        return None
+    old = _trigrams("\n".join(list(earlier)[-int(replay["window"]) :]))
+
+    def share(found: set[str]) -> float:
+        return len(found & old) / len(found) if found else 0.0
+
+    if share(fresh) < float(replay["threshold"]):
+        return None
+    for at, sentence in _sentences(text):
+        if share(_trigrams(sentence)) >= float(replay["threshold"]):
+            return {"at": at, "span": sentence}
+    return {"at": 0, "span": text.strip()}

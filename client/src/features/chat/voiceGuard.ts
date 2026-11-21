@@ -298,3 +298,25 @@ export function seatCut(text: string, seat: string): string {
   }
   return text;
 }
+
+const trigrams = (text: string): Set<string> => {
+  const words = text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? [];
+  return new Set(words.slice(2).map((word, index) => `${words[index]} ${words[index + 1]} ${word}`));
+};
+
+/**
+ * A narration that retells what already happened (the play-test: a round replayed almost word for
+ * word), no model call: over the threshold of its word trigrams already in the last few story lines.
+ * The span is its first sentence that is mostly old, for the one regeneration to forbid; or null.
+ */
+export function replayOf(text: string, earlier: readonly string[]): { at: number; span: string } | null {
+  const { threshold, window, min_trigrams } = VOICE_GUARD.replay;
+  const fresh = trigrams(text);
+  if (fresh.size < min_trigrams) return null;
+  const old = trigrams(earlier.slice(-window).join('\n'));
+  const share = (set: Set<string>): number =>
+    set.size === 0 ? 0 : [...set].filter((one) => old.has(one)).length / set.size;
+  if (share(fresh) < threshold) return null;
+  const hit = sentences(text).find((sentence) => share(trigrams(sentence.text)) >= threshold);
+  return hit === undefined ? { at: 0, span: text.trim() } : { at: hit.at, span: hit.text };
+}

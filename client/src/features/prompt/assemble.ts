@@ -701,7 +701,7 @@ export function narrateRule(persona: PromptPersona | null, characters: readonly 
     .replaceAll('{{names}}', names.join(', '));
   // Small models follow a worked example far better than a rule (the play-test).
   // The play-test: a whole novel, acting and speaking for the person's character.
-  const length = PROMPT.narrate_length.replaceAll('{{seat_name}}', seatName);
+  const length = `${PROMPT.narrate_length.replaceAll('{{seat_name}}', seatName)} ${PROMPT.narrate_continue}`;
   const markup = `${PROMPT.narrate_location} ${PROMPT.narrate_markup}`;
   return `${rule} ${seatRule} ${length} ${PROMPT.narrate_targets} ${markup}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
 }

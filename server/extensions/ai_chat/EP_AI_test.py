@@ -785,7 +785,9 @@ class TestGenerate:
             if raw:
                 assert sent == [{"role": "user", "content": "Name a port."}]
             else:
-                assert sent[-1] == {"role": "system", "content": "Name a port."} and len(sent) > 2
+                # The instruction reaches the model before the person's last line (SystemOrder.py: some
+                # templates drop a trailing system message).
+                assert sent[-2] == {"role": "system", "content": "Name a port."} and sent[-1]["role"] == "user" and len(sent) > 2
         listed = server.get(f"/v1/chat_message?chat_id={chat['id']}", headers=_headers(user)).json()["chat_messages"]
         assert len(listed) == 1
         refused = server.post("/v1/ai_chat/gen", json={"gen": {"chat_id": chat["id"], "prompt": "   "}}, headers=_headers(user))

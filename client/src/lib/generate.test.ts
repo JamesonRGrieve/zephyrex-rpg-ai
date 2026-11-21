@@ -352,7 +352,10 @@ describe('POST /v1/ai_chat/prompt', () => {
         }),
       );
     expect(await (await asked(false)).json()).toEqual({ gen: { text: '“Mind the coolant.”' } });
-    expect(received[0]?.body.messages.at(-1)).toEqual({ role: 'system', content: 'Name a port.' });
+    // The instruction reaches the model before the person's last line (systemOrder.ts: some templates
+    // drop a trailing system message).
+    expect(received[0]?.body.messages.at(-2)).toEqual({ role: 'system', content: 'Name a port.' });
+    expect(received[0]?.body.messages.at(-1)?.role).toBe('user');
     expect(received[0]?.body.messages.length).toBeGreaterThan(2);
     await asked(true);
     expect(received[1]?.body.messages).toEqual([{ role: 'user', content: 'Name a port.' }]);

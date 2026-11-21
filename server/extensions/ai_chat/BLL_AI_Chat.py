@@ -138,6 +138,7 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_url,
 )
 from zephyrex.extensions.ai_chat.StatusLine import status_clean, status_messages  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.SystemOrder import systems_before_last_user  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-not-found]
     present_cast,
     turn_pick,
@@ -2181,7 +2182,8 @@ def upstream_body(
         **(
             {"prompt": render_instruct(messages, markup, mode == "continue")}
             if text
-            else {"messages": with_images(messages, images)}
+            # The person's last line goes last (SystemOrder.py): some templates drop a trailing system message.
+            else {"messages": with_images(systems_before_last_user(messages), images)}
         ),
         "stream": True,
         "temperature": sampler["temperature"],
@@ -2721,6 +2723,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 **sampler,
                 "max_tokens": max(1, round(int(sampler["max_tokens"]) * float(tuning["max_tokens_scale"]))),
                 "temperature": float(sampler["temperature"]) + float(tuning["temperature_delta"]),
+                # Against replays (the play-test: a round retold almost word for word): the preset's own win.
+                "samplers": {**PROMPT["story_penalties"], **(sampler.get("samplers") or {})},
             }
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         # "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.

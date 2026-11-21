@@ -568,5 +568,40 @@
       "text": "Wren points. Tessaly answers her.",
       "cut": "Wren points."
     }
+  ],
+  "replay_cases": [
+    {
+      "name": "the play-test's replay: the round retold almost word for word",
+      "earlier": [
+        "Brakka slams his tankard down. \"By the ancestors, man! You've got guts.\" The tankard cracks down the middle.",
+        "Maelis lowers herself into her seat.",
+        "The hooded woman murmurs: \"The rain's stopped. The alley's clear.\""
+      ],
+      "text": "Brakka slams his tankard down. \"By the ancestors, man! You've got guts.\" The tankard cracks down the middle. Maelis lowers herself into her seat.",
+      "hit": {
+        "at": 0,
+        "span": "Brakka slams his tankard down."
+      }
+    },
+    {
+      "name": "new events: no match",
+      "earlier": [
+        "Brakka slams his tankard down. \"By the ancestors, man! You've got guts.\" The tankard cracks down the middle.",
+        "Maelis lowers herself into her seat.",
+        "The hooded woman murmurs: \"The rain's stopped. The alley's clear.\""
+      ],
+      "text": "Fennick reaches the door and pushes it open. Cold night air spills into the tavern, and the street beyond is empty and wet.",
+      "hit": null
+    },
+    {
+      "name": "too short to judge",
+      "earlier": [
+        "Brakka slams his tankard down. \"By the ancestors, man! You've got guts.\" The tankard cracks down the middle.",
+        "Maelis lowers herself into her seat.",
+        "The hooded woman murmurs: \"The rain's stopped. The alley's clear.\""
+      ],
+      "text": "Brakka slams his tankard.",
+      "hit": null
+    }
   ]
 }

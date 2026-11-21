@@ -44,6 +44,7 @@ import { statusClean, statusMessages } from '~/features/chat/statusLine';
 import { parsePlayerLines, stripMarkup } from '~/features/chat/playerLines';
 import { isAttempt, rollPick, rollQuestions } from '~/features/chat/rollDecision';
 import { partyBriefing, partyOf, partyText } from '~/features/prompt/party';
+import { systemsBeforeLastUser } from '~/features/prompt/systemOrder';
 import {
   type Move,
   type RoutineSlot,
@@ -401,6 +402,8 @@ export async function generationInputs(
             ),
           ),
           temperature: sampler.temperature + tuning.temperature_delta,
+          // Against replays (the play-test: a round retold almost word for word): the preset's own win.
+          samplers: { ...PROMPT.story_penalties, ...(sampler.samplers ?? {}) },
           stop: [
             ...new Set([
               ...sampler.stop,
@@ -678,7 +681,8 @@ export function upstreamBody(
     model: endpoint.model,
     ...(text
       ? { prompt: renderInstruct(messages, endpoint.instruct_template, mode === 'continue') }
-      : { messages: withImages(messages, isNativeApi(endpoint.api) ? [] : images) }),
+      : // The person's last line goes last (systemOrder.ts): some templates drop a trailing system message.
+        { messages: withImages(systemsBeforeLastUser(messages), isNativeApi(endpoint.api) ? [] : images) }),
     stream: true,
     temperature: sampler.temperature,
     top_p: sampler.top_p,

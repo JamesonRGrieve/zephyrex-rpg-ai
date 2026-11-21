@@ -1,0 +1,129 @@
+{
+  "$comment": "The person's last line goes last on the wire to a chat API: cases both twins run (client/src/features/prompt/systemOrder.test.ts, server/extensions/ai_chat/SystemOrder_test.py).",
+  "cases": [
+    {
+      "name": "the play-test's order: rules after the player's line move before it",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Main"
+        },
+        {
+          "role": "assistant",
+          "content": "Narration."
+        },
+        {
+          "role": "user",
+          "content": "Fennick walks to the door."
+        },
+        {
+          "role": "system",
+          "content": "Keep it short."
+        },
+        {
+          "role": "system",
+          "content": "Objective."
+        }
+      ],
+      "ordered": [
+        {
+          "role": "system",
+          "content": "Main"
+        },
+        {
+          "role": "assistant",
+          "content": "Narration."
+        },
+        {
+          "role": "system",
+          "content": "Keep it short."
+        },
+        {
+          "role": "system",
+          "content": "Objective."
+        },
+        {
+          "role": "user",
+          "content": "Fennick walks to the door."
+        }
+      ]
+    },
+    {
+      "name": "a continued reply keeps its assistant prefill last",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Go on."
+        },
+        {
+          "role": "system",
+          "content": "Note."
+        },
+        {
+          "role": "assistant",
+          "content": "The door"
+        }
+      ],
+      "ordered": [
+        {
+          "role": "system",
+          "content": "Note."
+        },
+        {
+          "role": "user",
+          "content": "Go on."
+        },
+        {
+          "role": "assistant",
+          "content": "The door"
+        }
+      ]
+    },
+    {
+      "name": "already in order: unchanged",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Main"
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        }
+      ],
+      "ordered": [
+        {
+          "role": "system",
+          "content": "Main"
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        }
+      ]
+    },
+    {
+      "name": "no user turn: unchanged",
+      "messages": [
+        {
+          "role": "system",
+          "content": "Main"
+        },
+        {
+          "role": "assistant",
+          "content": "Hello."
+        }
+      ],
+      "ordered": [
+        {
+          "role": "system",
+          "content": "Main"
+        },
+        {
+          "role": "assistant",
+          "content": "Hello."
+        }
+      ]
+    }
+  ]
+}
