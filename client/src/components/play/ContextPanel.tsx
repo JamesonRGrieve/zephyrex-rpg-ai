@@ -15,6 +15,7 @@ import {
   DiceReplay,
   DiceTray,
   Inventory,
+  Loot,
   SceneList,
 } from '@zephyrex/vtt-play';
 import { type ReactElement, useMemo } from 'react';
@@ -171,6 +172,15 @@ export function ContextPanel({
                 <AccordionTrigger>Inventory</AccordionTrigger>
                 <AccordionContent>
                   <Inventory personId={sheetFor} />
+                </AccordionContent>
+              </AccordionItem>
+            )}
+            {sheetFor !== null && (
+              // What lies where the character is (the operator: looting belongs in the context panel).
+              <AccordionItem value='loot'>
+                <AccordionTrigger>Loot here</AccordionTrigger>
+                <AccordionContent>
+                  <Loot personId={sheetFor} />
                 </AccordionContent>
               </AccordionItem>
             )}
