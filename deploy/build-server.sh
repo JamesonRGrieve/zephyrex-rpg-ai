@@ -45,6 +45,13 @@ mkdir -p "$out/app"
 cp "$server/rpg_ai_app.py" "$out/app/"
 cp -a "$server/extensions" "$out/app/extensions"
 cp -a "$repo/contract" "$out/contract"
+# The suite's lower products, each laid out as its repository is (server/extensions beside contract/),
+# so their own contract lookups (three levels above an extension's file) find them.
+for product in zephyrex-rpg-wiki zephyrex-vtt; do
+  mkdir -p "$out/app/suite/$product/server"
+  cp -a "$root/$product/server/extensions" "$out/app/suite/$product/server/extensions"
+  cp -a "$root/$product/contract" "$out/app/suite/$product/contract"
+done
 find "$out" -name "__pycache__" -prune -exec rm -rf {} +
 find "$out/app" -name "*_test.py" -delete
 echo "server bundle: $(du -sh "$out" | cut -f1)"

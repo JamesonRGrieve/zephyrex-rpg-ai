@@ -40,3 +40,7 @@ fetch client-framework https://github.com/JamesonRGrieve/ClientFramework.git "$C
 fetch auth https://github.com/JamesonRGrieve/auth.git "$AUTH_REF"
 fetch dynamic-form https://github.com/JamesonRGrieve/dynamic-form.git "$DYNAMIC_FORM_REF"
 fetch zod2gql https://github.com/JamesonRGrieve/zod2gql.git "$ZOD2GQL_REF"
+# The suite's lower products: the server loads their extensions (server/rpg_ai_app.py SUITE_ROOTS),
+# which read their own contract/ from the checkout's root.
+fetch zephyrex-rpg-wiki https://github.com/JamesonRGrieve/zephyrex-rpg-wiki.git "$WIKI_REF"
+fetch zephyrex-vtt https://github.com/JamesonRGrieve/zephyrex-vtt.git "$VTT_REF"

@@ -9,7 +9,9 @@ description = "Zephyrex RPG AI SaaS backend: a consumer of the Zephyrex server f
 license = "AGPL-3.0-or-later"
 requires-python = ">=3.11"
 dependencies = [
-    "zephyrex[ai,auth-magic-link,auth-session,email,genealogy,postgresql]",
+    # The suite adds the wiki's and the VTT's framework needs: acl-rbac and conversations (VTT tables),
+    # cloud (attachments' storage) and metadata (wiki properties).
+    "zephyrex[ai,acl-rbac,auth-magic-link,auth-session,cloud,conversations,email,genealogy,metadata,postgresql]",
     # zephyrex passes FastAPI(openapi_version=...), which FastAPI 0.162 rejects;
     # hold the version the framework's own requirements.lock vets.
     "fastapi~=0.142.2",
