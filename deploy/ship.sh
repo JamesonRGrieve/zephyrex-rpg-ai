@@ -49,5 +49,18 @@ place "$client" /srv/zephyrex-rpg/client
 # the new bundles take effect on every deploy after. The deploy user's sudoers allows only
 # try-restart and status for these two units.
 remote "sudo systemctl try-restart zephyrex-rpg-server zephyrex-rpg-client"
-remote "systemctl is-active zephyrex-rpg-server zephyrex-rpg-client || true"
-echo "placed; running units restarted (stopped ones stay stopped)"
+# An enabled unit must be running after the restart: that fails the deploy. One not yet enabled
+# (the first deploy, before the pipeline enables it) is only placed, never checked.
+for unit in zephyrex-rpg-server zephyrex-rpg-client; do
+  if remote "systemctl is-enabled --quiet $unit"; then
+    # Still activating right after the restart counts as up; failed or inactive fails the deploy.
+    state=$(remote "systemctl is-active $unit" || true)
+    case $state in
+      active | activating) ;;
+      *) echo "$unit is enabled but $state after the restart" >&2; exit 1 ;;
+    esac
+    echo "$unit: running"
+  else
+    echo "$unit: not enabled yet; placed only"
+  fi
+done
