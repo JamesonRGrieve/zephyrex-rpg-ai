@@ -7,7 +7,8 @@
  * whisper, shout, vox, voxcast) and tagged with whom it's to; an action is its own accented line;
  * anything else is narration.
  */
-import { Footprints, Radio, RadioTower } from 'lucide-react';
+import { Brain, Cpu, EyeOff, Footprints, Hand, MessageCircle, Radio, RadioTower, Search, Sparkles, Swords, type LucideIcon } from 'lucide-react';
+import { type ActionKind, actionKind } from '~/features/chat/actionKind';
 import type { ReactElement } from 'react';
 import { cn } from '~/lib/utils';
 
@@ -140,7 +141,7 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
               key={key}
               className='flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 [overflow-wrap:anywhere]'
             >
-              <Footprints className='mt-0.5 size-4 shrink-0 text-primary' aria-label='Action' />
+              <ActionIcon kind={actionKind(line.text)} />
               <span>
                 {other && <span className='font-medium'>{line.speaker} </span>}
                 <span className='italic'>{other ? line.text : capitalised(line.text)}</span>
@@ -161,4 +162,22 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
 
 function capitalised(text: string): string {
   return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+const ACTION_ICONS: Record<ActionKind, { icon: LucideIcon; label: string }> = {
+  attack: { icon: Swords, label: 'Attack' },
+  move: { icon: Footprints, label: 'Movement' },
+  tech: { icon: Cpu, label: 'Tech' },
+  social: { icon: MessageCircle, label: 'Social' },
+  search: { icon: Search, label: 'Search' },
+  stealth: { icon: EyeOff, label: 'Stealth' },
+  psychic: { icon: Brain, label: 'Psychic' },
+  use: { icon: Hand, label: 'Use' },
+  other: { icon: Sparkles, label: 'Action' },
+};
+
+/** The action's kind as its icon (features/chat/actionKind.ts). */
+function ActionIcon({ kind }: { kind: ActionKind }): ReactElement {
+  const { icon: Icon, label } = ACTION_ICONS[kind];
+  return <Icon className='mt-0.5 size-4 shrink-0 text-primary' aria-label={label} />;
 }
