@@ -15,6 +15,7 @@ import { isScript } from '~/features/chat/stscript';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
+import { LineQueue, type QueueMember } from './LineQueue';
 import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
 
 /** A story line is checked against canon once it is this long, this long after the last keystroke. */
@@ -69,6 +70,7 @@ export function Composer({
   quickReplies = [],
   repliesWritten = 0,
   onCheckCanon,
+  queue,
 }: {
   writing: boolean;
   disabled?: boolean;
@@ -94,6 +96,11 @@ export function Composer({
    * shows above the box; the person may send anyway. Without it, no check.
    */
   onCheckCanon?: (text: string, signal: AbortSignal) => Promise<CanonNoticeValue | null>;
+  /**
+   * A campaign's story turn as queued Say and Do items (the operator, 2026-11-21): who the seat
+   * plays (null as the GM), whom the GM may speak as, and who is present to be spoken to.
+   */
+  queue?: { me: QueueMember | null; speakers: readonly QueueMember[]; present: readonly QueueMember[] };
 }): ReactElement {
   // A quick reply that fills on opening the chat (A38) is the box's first text.
   const [text, setText] = useState(() => fillOn(quickReplies, 'chat_open')?.text ?? '');
@@ -289,6 +296,16 @@ export function Composer({
         )}
         {/* On a phone the box takes its own row and the tools sit below it: beside five 44 px buttons
             it was a 70 px column (found by the visual audit). From sm up it fills the row between them. */}
+        {channel === 'ic' && queue !== undefined && !writing ? (
+          // A campaign's story turn is queued Say and Do items (docs/DESIGN.md, Structured lines).
+          <LineQueue
+            me={queue.me}
+            speakers={queue.speakers}
+            present={queue.present}
+            disabled={disabled}
+            onSend={(lines) => onSend(lines, 'ic')}
+          />
+        ) : (
         <div className='flex flex-wrap items-end gap-2 sm:flex-nowrap'>
           {channel === 'ic' && !writing && (
             <>
@@ -400,6 +417,7 @@ export function Composer({
             </Button>
           )}
         </div>
+        )}
       </div>
     </form>
   );

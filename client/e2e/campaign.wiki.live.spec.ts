@@ -62,8 +62,10 @@ async function settled(page: Page): Promise<void> {
 
 async function say(page: Page, step: string, text: string, replies = 1): Promise<void> {
   const before = await page.getByRole('article').count();
-  await page.getByLabel('Your next line').fill(text);
-  await page.getByRole('button', { name: 'Send' }).click();
+  // A campaign's turn is queued (docs/DESIGN.md, Structured lines): one Do item carries the line.
+  await page.getByRole('button', { name: 'Do' }).click();
+  await page.getByLabel('What is done').last().fill(text);
+  await page.getByRole('button', { name: /^Send/ }).click();
   await expect.poll(() => page.getByRole('article').count(), { timeout: TURN }).toBeGreaterThanOrEqual(before + 1 + replies);
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: TURN });
   await settled(page);

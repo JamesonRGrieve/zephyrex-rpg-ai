@@ -1630,6 +1630,24 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         />
       )}
       <Composer
+        queue={
+          play.isCampaign
+            ? {
+                me:
+                  play.playingId === null
+                    ? null
+                    : { id: play.playingId, name: castById.get(play.playingId)?.name ?? 'You' },
+                speakers: chat.character_ids.flatMap((id) => {
+                  const member = castById.get(id);
+                  return member === undefined ? [] : [{ id, name: member.name }];
+                }),
+                present: chat.character_ids.flatMap((id) => {
+                  const member = castById.get(id);
+                  return member === undefined || id === play.playingId ? [] : [{ id, name: member.name }];
+                }),
+              }
+            : undefined
+        }
         onCheckCanon={(text, signal) =>
           checkLine(
             text,
