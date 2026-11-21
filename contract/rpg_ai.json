@@ -356,6 +356,7 @@
     },
     "resolution_modes": ["narrative", "mechanical", "hybrid"],
     "heading": "The campaign (the table agreed to this; keep to it):",
+    "mechanics_rule": "Never roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.",
     "gm_style_prefix": "How you run the game, as the table asked: "
   },
   "scenario": {

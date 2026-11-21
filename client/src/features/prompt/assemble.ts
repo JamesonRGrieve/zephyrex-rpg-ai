@@ -264,7 +264,8 @@ export function frameText(frame: CampaignFrame | null | undefined): string {
     characters === '' ? '' : `The characters: ${characters}`,
     frame.resolution_mode != null && modes.includes(frame.resolution_mode) ? `Resolution: ${frame.resolution_mode}.` : '',
   ].filter((line) => line !== '');
-  return lines.length === 0 ? '' : [CAMPAIGN.heading, ...lines].join('\n');
+  // Mechanics are never invented by a model (the operator, 2026-11-21): rolls go to the table or the VTT.
+  return lines.length === 0 ? '' : [CAMPAIGN.heading, ...lines, CAMPAIGN.mechanics_rule].join('\n');
 }
 
 export interface TableNote {

@@ -288,7 +288,8 @@ def frame_text(frame: Mapping[str, Any] | None) -> str:
         else "",
     ]
     kept = [line for line in lines if line]
-    return "\n".join([CAMPAIGN["heading"], *kept]) if kept else ""
+    # Mechanics are never invented by a model (the operator, 2026-11-21): rolls go to the table or the VTT.
+    return "\n".join([CAMPAIGN["heading"], *kept, CAMPAIGN["mechanics_rule"]]) if kept else ""
 
 
 SCENARIO = CONTRACT["scenario"]
