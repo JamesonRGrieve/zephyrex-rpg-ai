@@ -397,6 +397,39 @@ model ChatMemory {
   @@index([createdById, chatId])
 }
 
+/// A campaign's sessions (docs/DESIGN.md, The play model): segments of its story, each starting at
+/// one of its messages; an ended one carries the summary later sessions read instead of its lines.
+model ChatSession {
+  id             String    @id @default(uuid())
+  createdById    String
+  chatId         String
+  number         Int
+  title          String    @default("")
+  startMessageId String
+  summary        String    @default("")
+  endedAt        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime
+  updatedById    String?
+
+  @@index([chatId])
+}
+
+/// A campaign's play state (docs/DESIGN.md, The play model): the chat holding its story is a
+/// campaign, not a sandbox chat. Who the person plays (null: the GM or their persona), and the
+/// campaign and message it was forked from.
+model CampaignPlay {
+  id                   String   @id @default(uuid())
+  createdById          String
+  chatId               String   @unique
+  playingId            String?
+  forkedFromId         String?
+  forkedAtMessageId    String?
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime
+  updatedById          String?
+}
+
 /// A connection profile (audit gap 8): a named model and preset a chat switches to in one step.
 model ConnectionProfile {
   id          String   @id @default(uuid())

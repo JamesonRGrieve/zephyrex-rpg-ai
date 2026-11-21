@@ -7,7 +7,8 @@
  */
 import { idOf } from '~/features/data/records';
 import { useHidden } from 'zephyrex/hooks/useWrites';
-import { Plus, Trash2 } from 'lucide-react';
+import { Pencil, Plus, Trash2 } from 'lucide-react';
+import Link from 'next/link';
 import { type ReactElement, type ReactNode, useState } from 'react';
 import { deferWithUndo } from 'zephyrex/hooks/useToast';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
@@ -33,6 +34,7 @@ export function ManagedList<T extends ManagedRow>({
   emptyText,
   editor,
   onDelete,
+  href,
 }: {
   /** The kind of record, as a sentence names it ("persona"). */
   what: string;
@@ -46,6 +48,8 @@ export function ManagedList<T extends ManagedRow>({
   /** The editor for a row, or for a new one (null); `done` closes the sheet. */
   editor: (row: T | null, done: () => void) => ReactNode;
   onDelete: (row: T) => void;
+  /** A page for each row: a tap opens it, and an Edit button opens the editor instead. */
+  href?: (row: T) => string;
 }): ReactElement {
   const mobile = useIsMobile();
   const [editing, setEditing] = useState<T | 'new' | null>(null);
@@ -66,17 +70,42 @@ export function ManagedList<T extends ManagedRow>({
       <ul className='divide-y rounded-xl border empty:hidden'>
         {shown.map((row) => (
           <li key={row.id} className='flex items-center gap-3 p-2'>
-            <button
-              type='button'
-              className='flex min-h-12 min-w-0 flex-1 flex-col items-start rounded-md px-2 text-left hover:bg-accent'
-              onClick={() => setEditing(row)}
-            >
-              <span className='flex items-center gap-2 font-medium'>
-                {row.name}
-                {isDefault?.(row) === true && <Badge variant='secondary'>Default</Badge>}
-              </span>
-              <span className='w-full truncate text-xs text-muted-foreground'>{summary(row)}</span>
-            </button>
+            {href === undefined ? (
+              <button
+                type='button'
+                className='flex min-h-12 min-w-0 flex-1 flex-col items-start rounded-md px-2 text-left hover:bg-accent'
+                onClick={() => setEditing(row)}
+              >
+                <span className='flex items-center gap-2 font-medium'>
+                  {row.name}
+                  {isDefault?.(row) === true && <Badge variant='secondary'>Default</Badge>}
+                </span>
+                <span className='w-full truncate text-xs text-muted-foreground'>{summary(row)}</span>
+              </button>
+            ) : (
+              <>
+                <Link
+                  href={href(row)}
+                  className='flex min-h-12 min-w-0 flex-1 flex-col items-start justify-center rounded-md px-2 text-left hover:bg-accent'
+                >
+                  <span className='flex items-center gap-2 font-medium'>
+                    {row.name}
+                    {isDefault?.(row) === true && <Badge variant='secondary'>Default</Badge>}
+                  </span>
+                  <span className='w-full truncate text-xs text-muted-foreground'>{summary(row)}</span>
+                </Link>
+                <Button
+                  type='button'
+                  variant='ghost'
+                  size='icon'
+                  className='size-11'
+                  aria-label={`Edit ${row.name}`}
+                  onClick={() => setEditing(row)}
+                >
+                  <Pencil aria-hidden />
+                </Button>
+              </>
+            )}
             <Button
               type='button'
               variant='ghost'

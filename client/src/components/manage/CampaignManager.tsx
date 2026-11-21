@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
-/** Every campaign frame (A57): each edited in a sheet, each with its brief for the players (A58). */
+/**
+ * Every scenario (a campaign framing, A57; docs/DESIGN.md, The play model): a tap opens its page
+ * (start a campaign, its campaigns, its brief), Edit opens the frame in a sheet.
+ */
 import Link from 'next/link';
 import type { ReactElement } from 'react';
 import { Button } from 'zephyrex/ui/button';
@@ -20,15 +23,16 @@ export function CampaignManager(): ReactElement {
         </Button>
       </p>
       <ManagedList
-        what='campaign'
+        what='scenario'
         rows={list.data}
         error={list.error}
         onRetry={() => list.mutate()}
         summary={(row) => [row.genre, row.premise].filter(Boolean).join(' · ') || 'No premise yet'}
-        newLabel='New campaign'
-        emptyText='No campaigns yet. Frame one: what kind of game it is, so every chat in it keeps to it.'
+        newLabel='New scenario'
+        emptyText='No scenarios yet. Frame one: the world and premise your campaigns play in.'
         editor={(row, done) => <CampaignForm campaign={row} done={done} />}
         onDelete={(row) => void remove(row)}
+        href={(row) => `/campaigns/${row.id}`}
       />
     </div>
   );

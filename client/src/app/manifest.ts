@@ -24,9 +24,9 @@ export default function manifest(): MetadataRoute.Manifest {
       { src: '/icon-maskable.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'maskable' },
     ],
     shortcuts: [
-      { name: 'Chats', url: HOME_PATH },
+      { name: 'Campaigns', url: HOME_PATH },
       { name: 'Characters', url: '/characters' },
-      { name: 'New chat', url: `${HOME_PATH}?new=1` },
+      { name: 'New sandbox chat', url: '/sandbox?new=1' },
     ],
   };
 }

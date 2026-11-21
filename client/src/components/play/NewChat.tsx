@@ -15,6 +15,7 @@ import { LIMITS } from '~/contract';
 import { openingTurns } from '~/features/chat/turns';
 import { type Character, characters, chats, messages } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
+import { CampaignStart } from './CampaignStart';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 
 /** A chat's title from its cast. */
@@ -85,49 +86,61 @@ export function NewChat({
     <Sheet open={open} onOpenChange={onOpenChange}>
       <SheetContent side={mobile ? 'bottom' : 'right'} className='flex max-h-[90svh] flex-col pb-safe'>
         <SheetHeader>
-          <SheetTitle>New chat</SheetTitle>
-          <SheetDescription>Pick one character, or several for a group.</SheetDescription>
+          <SheetTitle>{campaignId === null ? 'New chat' : 'Start the campaign'}</SheetTitle>
+          <SheetDescription>
+            {campaignId === null
+              ? 'Pick one character, or several for a group.'
+              : 'Sit as the GM or as any character; the AI plays the rest of the party.'}
+          </SheetDescription>
         </SheetHeader>
-        <ul className='grid flex-1 gap-2 overflow-y-auto p-4' aria-label='Characters'>
-          {(list.data ?? []).map((character) => {
-            const order = picked.indexOf(character.id);
-            return (
-              <li key={character.id}>
-                <button
-                  type='button'
-                  aria-pressed={order !== -1}
-                  onClick={() => toggle(character.id)}
-                  className={cn(
-                    'flex min-h-14 w-full items-center gap-3 rounded-lg border p-2 text-left',
-                    order !== -1 && 'border-primary bg-primary/10',
-                  )}
-                >
-                  <Avatar className='size-10'>
-                    {character.avatar !== null && <AvatarImage src={character.avatar} alt='' />}
-                    <AvatarFallback>{initials(character.name)}</AvatarFallback>
-                  </Avatar>
-                  <span className='min-w-0 flex-1 truncate font-medium'>{character.name}</span>
-                  {order !== -1 && (
-                    <span className='text-xs text-muted-foreground'>{order === 0 ? 'Speaks first' : `#${order + 1}`}</span>
-                  )}
-                </button>
-              </li>
-            );
-          })}
-          {list.data !== undefined && list.data.length === 0 && (
-            <li className='text-muted-foreground'>Add a character first.</li>
-          )}
-        </ul>
-        <div className='border-t p-4'>
-          <Button
-            type='button'
-            className='h-11 w-full'
-            disabled={picked.length === 0 || starting}
-            onClick={() => void start()}
-          >
-            {starting ? 'Starting…' : picked.length > 1 ? `Start a group chat (${picked.length})` : 'Start the chat'}
-          </Button>
-        </div>
+        {campaignId !== null ? (
+          <CampaignStart campaignId={campaignId} onStarted={() => onOpenChange(false)} />
+        ) : (
+          <>
+            <ul className='grid flex-1 gap-2 overflow-y-auto p-4' aria-label='Characters'>
+              {(list.data ?? []).map((character) => {
+                const order = picked.indexOf(character.id);
+                return (
+                  <li key={character.id}>
+                    <button
+                      type='button'
+                      aria-pressed={order !== -1}
+                      onClick={() => toggle(character.id)}
+                      className={cn(
+                        'flex min-h-14 w-full items-center gap-3 rounded-lg border p-2 text-left',
+                        order !== -1 && 'border-primary bg-primary/10',
+                      )}
+                    >
+                      <Avatar className='size-10'>
+                        {character.avatar !== null && <AvatarImage src={character.avatar} alt='' />}
+                        <AvatarFallback>{initials(character.name)}</AvatarFallback>
+                      </Avatar>
+                      <span className='min-w-0 flex-1 truncate font-medium'>{character.name}</span>
+                      {order !== -1 && (
+                        <span className='text-xs text-muted-foreground'>
+                          {order === 0 ? 'Speaks first' : `#${order + 1}`}
+                        </span>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+              {list.data !== undefined && list.data.length === 0 && (
+                <li className='text-muted-foreground'>Add a character first.</li>
+              )}
+            </ul>
+            <div className='border-t p-4'>
+              <Button
+                type='button'
+                className='h-11 w-full'
+                disabled={picked.length === 0 || starting}
+                onClick={() => void start()}
+              >
+                {starting ? 'Starting…' : picked.length > 1 ? `Start a group chat (${picked.length})` : 'Start the chat'}
+              </Button>
+            </div>
+          </>
+        )}
       </SheetContent>
     </Sheet>
   );

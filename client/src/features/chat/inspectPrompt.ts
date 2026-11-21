@@ -165,3 +165,29 @@ export async function searchWeb(query: string): Promise<{ context: string; resul
   }
   return { context, results: Array.isArray(results) ? results.length : 0 };
 }
+
+export const CANON_PATH = '/api/v1/canon_check';
+
+const canonSchema = z.object({
+  level: z.enum(['none', 'yellow', 'red']),
+  fact: z.string().nullable(),
+  reason: z.string(),
+  checked: z.boolean(),
+});
+export type CanonCheck = z.infer<typeof canonSchema>;
+
+/** A line checked against canon (docs/DESIGN.md, Canon warnings); null when the check couldn't run. */
+export async function checkCanon(
+  request: { chat_id: string; text: string; speaker: string },
+  signal?: AbortSignal,
+): Promise<CanonCheck | null> {
+  const response = await fetch(CANON_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ canon_check: request }),
+    signal,
+  }).catch(() => null);
+  if (response === null || !response.ok) return null;
+  const parsed = canonSchema.safeParse(Reflect.get(Object(await response.json().catch(() => null)), 'canon_check'));
+  return parsed.success ? parsed.data : null;
+}

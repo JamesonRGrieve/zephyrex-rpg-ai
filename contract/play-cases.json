@@ -1,0 +1,78 @@
+{
+  "$comment": "The play model's rules (docs/DESIGN.md, The play model): where a reply's history starts (the latest session on the branch), the earlier sessions' summaries it reads instead, who the person is (the character they play, else their persona) and whom the AI plays. client/src/features/chat/play.ts and server/extensions/ai_chat/Play.py run these cases.",
+  "session_heading": "Session {n}, in brief:",
+  "cases": [
+    {
+      "name": "no sessions: the whole branch is read",
+      "path": ["m1", "m2", "m3"],
+      "sessions": [],
+      "start": 0,
+      "summary": ""
+    },
+    {
+      "name": "the current session's lines only; the earlier one by its summary",
+      "path": ["m1", "m2", "m3", "m4"],
+      "sessions": [
+        {
+          "number": 1,
+          "start_message_id": "m1",
+          "summary": "The cell landed and met the raven."
+        },
+        { "number": 2, "start_message_id": "m3", "summary": "" }
+      ],
+      "start": 2,
+      "summary": "Session 1, in brief:\nThe cell landed and met the raven."
+    },
+    {
+      "name": "a rewind to before session 2 reads session 1 again; session 2's start is off the branch",
+      "path": ["m1", "m2", "m9"],
+      "sessions": [
+        {
+          "number": 1,
+          "start_message_id": "m1",
+          "summary": "The cell landed."
+        },
+        {
+          "number": 2,
+          "start_message_id": "m3",
+          "summary": "They reached Dunmarch."
+        }
+      ],
+      "start": 0,
+      "summary": ""
+    },
+    {
+      "name": "three sessions: both earlier summaries, in order, skipping an empty one",
+      "path": ["a", "b", "c", "d", "e"],
+      "sessions": [
+        { "number": 3, "start_message_id": "e", "summary": "" },
+        { "number": 1, "start_message_id": "a", "summary": "One." },
+        { "number": 2, "start_message_id": "c", "summary": "  " }
+      ],
+      "start": 4,
+      "summary": "Session 1, in brief:\nOne."
+    }
+  ],
+  "seat_cases": [
+    {
+      "name": "playing a party member: they are the persona and leave the AI's cast",
+      "party": ["gus", "az", "magnus"],
+      "playing": {
+        "id": "az",
+        "name": "A.Z.",
+        "description": "A sanctioned psyker."
+      },
+      "persona": { "name": "Sam", "description": "The person." },
+      "ai_cast": ["gus", "magnus"],
+      "who": { "name": "A.Z.", "description": "A sanctioned psyker." }
+    },
+    {
+      "name": "the GM's seat: the person's persona stands, the whole party is the AI's",
+      "party": ["gus", "az"],
+      "playing": null,
+      "persona": { "name": "Sam", "description": "The person." },
+      "ai_cast": ["gus", "az"],
+      "who": { "name": "Sam", "description": "The person." }
+    }
+  ]
+}

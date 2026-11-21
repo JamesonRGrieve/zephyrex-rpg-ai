@@ -389,6 +389,40 @@ CREATE INDEX "ChatMemory_createdById_chatId_idx" ON "ChatMemory"("createdById", 
 CREATE UNIQUE INDEX "ChatMemory_chatId_model_messageId_chunkIndex_key" ON "ChatMemory"("chatId", "model", "messageId", "chunkIndex");
 
 -- CreateTable
+CREATE TABLE "ChatSession" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "chatId" TEXT NOT NULL,
+    "number" INTEGER NOT NULL,
+    "title" TEXT NOT NULL DEFAULT '',
+    "startMessageId" TEXT NOT NULL,
+    "summary" TEXT NOT NULL DEFAULT '',
+    "endedAt" DATETIME,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "ChatSession_chatId_idx" ON "ChatSession"("chatId");
+
+-- CreateTable
+CREATE TABLE "CampaignPlay" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "chatId" TEXT NOT NULL,
+    "playingId" TEXT,
+    "forkedFromId" TEXT,
+    "forkedAtMessageId" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE UNIQUE INDEX "CampaignPlay_chatId_key" ON "CampaignPlay"("chatId");
+
+-- CreateTable
 CREATE TABLE "ConnectionProfile" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "createdById" TEXT NOT NULL,

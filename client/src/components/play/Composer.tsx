@@ -15,6 +15,11 @@ import { isScript } from '~/features/chat/stscript';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
+import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
+
+/** A story line is checked against canon once it is this long, this long after the last keystroke. */
+const CANON_MIN_CHARACTERS = 12;
+const CANON_DELAY_MS = 1200;
 import { LIMITS, type QuickReplyAutoRun } from '~/contract';
 import { type ComposerChannel, outgoing } from '~/features/chat/outgoing';
 
@@ -63,6 +68,7 @@ export function Composer({
   castNames = [],
   quickReplies = [],
   repliesWritten = 0,
+  onCheckCanon,
 }: {
   writing: boolean;
   disabled?: boolean;
@@ -83,10 +89,34 @@ export function Composer({
   quickReplies?: readonly ComposerQuickReply[];
   /** How many replies have been written while this chat was open: each one runs the after-reply quick reply (A38). */
   repliesWritten?: number;
+  /**
+   * Checks a story line against canon as it is written (docs/DESIGN.md, Canon warnings): the notice
+   * shows above the box; the person may send anyway. Without it, no check.
+   */
+  onCheckCanon?: (text: string, signal: AbortSignal) => Promise<CanonNoticeValue | null>;
 }): ReactElement {
   // A quick reply that fills on opening the chat (A38) is the box's first text.
   const [text, setText] = useState(() => fillOn(quickReplies, 'chat_open')?.text ?? '');
   const [channel, setChannel] = useState<ComposerChannel>(() => fillOn(quickReplies, 'chat_open')?.channel ?? 'ic');
+  // The story line's canon notice, checked a moment after the person stops typing; shown only while
+  // the box still holds the line it was checked for.
+  const [canon, setCanon] = useState<{ line: string; notice: CanonNoticeValue | null } | null>(null);
+  const checking = onCheckCanon !== undefined && channel === 'ic';
+  const line = text.trim();
+  useEffect(() => {
+    if (!checking || line.length < CANON_MIN_CHARACTERS || line.startsWith('/')) return;
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      void onCheckCanon?.(line, controller.signal).then((notice) => {
+        if (!controller.signal.aborted) setCanon({ line, notice });
+      });
+    }, CANON_DELAY_MS);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [line, checking, onCheckCanon]);
+  const canonNotice = checking && canon !== null && canon.line === line ? canon.notice : null;
 
   // After each reply (A38): adjusted during render when the count moves, React's pattern for state
   // that follows a prop. An after-reply quick reply only ever fills (the contract refuses a send).
@@ -186,6 +216,7 @@ export function Composer({
       }}
     >
       <div className='mx-auto grid max-w-3xl gap-2 px-3 pt-2'>
+        {canonNotice !== null && <CanonNotice notice={canonNotice} />}
         {quickReplies.length > 0 && (
           <div role='group' aria-label='Quick replies' className='-mx-3 flex gap-2 overflow-x-auto px-3 pb-1'>
             {quickReplies.map((reply) => (

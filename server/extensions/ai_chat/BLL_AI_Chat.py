@@ -74,6 +74,12 @@ from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-
     native_request,
     openai_payload,
 )
+from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
+    ai_cast,
+    played_persona,
+    session_start_index,
+    sessions_summary,
+)
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     DEFAULT_USER_NAME,
     assemble_prompt,
@@ -2078,6 +2084,16 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             personas.get(id=chat.persona_id) if chat.persona_id else next(iter(personas.list(is_default=True)), None)
         )
         persona = None if persona_row is None else {"name": persona_row.name, "description": persona_row.description}
+        # A campaign (docs/DESIGN.md, The play model): the character the person plays is who they are and
+        # leaves the cast the AI plays; replies read the current session, earlier ones by their summaries.
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import play_context  # type: ignore[import-not-found]
+
+        playing_id, session_marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        if playing_id is not None:
+            played = characters.get(id=playing_id)
+            persona = played_persona({"name": played.name, "description": played.description}, persona)
+            kept = set(ai_cast([character["id"] for character in cast], playing_id))
+            cast = [character for character in cast if character["id"] in kept]
 
         messages = self._manager(ChatMessageManager).list(chat_id=chat.id)
         if body.leaf_id is not None and all(message.id != body.leaf_id for message in messages):
@@ -2085,7 +2101,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 status_code=422,
                 detail={"message": "The leaf must be a message in the chat", "code": "validation_error"},
             )
-        path = branch_to(messages, body.leaf_id) if body.leaf_id is not None else []
+        full_path = branch_to(messages, body.leaf_id) if body.leaf_id is not None else []
+        # The current session's lines only: earlier sessions reach the model as their summaries.
+        path_ids = [message.id for message in full_path]
+        path = full_path[session_start_index(path_ids, session_marks) :]
+        story_so_far = "\n\n".join(
+            part for part in ((chat.summary or "").strip(), sessions_summary(path_ids, session_marks)) if part
+        )
         # The newest line's pictures go to a vision model (A44); older ones stay in the chat only.
         leaf = path[-1] if path else None
         images = list(leaf.images or []) if leaf is not None and leaf.role == "user" and leaf.channel == "ic" else []
@@ -2206,7 +2228,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             body.mode,
             sampler["prompt_layout"] or [],
             chat.system_prompt or "",
-            chat.summary or "",
+            story_so_far,
             [
                 {
                     key: getattr(script, key)
@@ -2242,7 +2264,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 history,
                 int(sampler["context_tokens"]),
                 int(sampler["max_tokens"]),
-                chat.summary or "",
+                story_so_far,
                 {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
                 chat.table_notes or [],
                 frame,

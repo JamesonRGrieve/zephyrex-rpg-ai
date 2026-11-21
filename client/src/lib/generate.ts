@@ -33,6 +33,7 @@ import {
   PROMPT,
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
+import { aiCast, playedPersona, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import {
   type AssembledPrompt,
@@ -181,11 +182,23 @@ export async function generationInputs(
     throw validationError('The speaker must be a character in the chat', 'speaker_id');
   }
 
+  // A campaign (docs/DESIGN.md, The play model): the character the person plays is who they are,
+  // and leaves the cast the AI plays; replies read the current session, earlier ones by summary.
+  const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+  const playingId = play?.playingId ?? null;
+  const playedRow =
+    playingId === null ? null : await prisma.character.findFirst({ where: { id: playingId, createdById: ownerId } });
+  const aiIds = new Set(aiCast(chatFields.character_ids, playingId));
+  const aiCharacters = promptCharacters.filter((character) => aiIds.has(character.id));
+
   const personaRow =
     chatFields.persona_id === null
       ? await prisma.persona.findFirst({ where: { createdById: ownerId, isDefault: true } })
       : await personas.find(chatFields.persona_id, ownerId);
-  const persona = personaRow === null ? null : { name: personaRow.name, description: personaRow.description };
+  const persona = playedPersona(
+    playedRow === null ? null : { id: playedRow.id, name: playedRow.name, description: playedRow.description },
+    personaRow === null ? null : { name: personaRow.name, description: personaRow.description },
+  );
 
   const messages = (await chatMessages.list(ownerId, new URLSearchParams({ chat_id: chat.id }))).map((row) => ({
     id: row.id,
@@ -205,7 +218,16 @@ export async function generationInputs(
   if (body.leaf_id !== null && !messages.some((message) => message.id === body.leaf_id)) {
     throw validationError('The leaf must be a message in the chat', 'leaf_id');
   }
-  const path = body.leaf_id === null ? [] : branchTo(messages, body.leaf_id);
+  const fullPath = body.leaf_id === null ? [] : branchTo(messages, body.leaf_id);
+  const sessionRows = await prisma.chatSession.findMany({ where: { chatId: chat.id, createdById: ownerId } });
+  const sessionMarks = sessionRows.map((row) => ({
+    number: row.number,
+    start_message_id: row.startMessageId,
+    summary: row.summary,
+  }));
+  // The current session's lines only: earlier sessions reach the model as their summaries.
+  const path = fullPath.slice(sessionStartIndex(fullPath, sessionMarks));
+  const sessionSummary = sessionsSummary(fullPath, sessionMarks);
   // The newest line's pictures go to a vision model (A44); older ones stay in the chat only.
   const leafMessage = path.at(-1);
   const images =
@@ -283,7 +305,7 @@ export async function generationInputs(
     (endpointRow.instructTemplate as InstructTemplateId);
   return {
     prompt: {
-      characters: promptCharacters,
+      characters: aiCharacters,
       speaker_id: speakerId,
       persona,
       author_note: chatFields.author_note,
@@ -294,7 +316,7 @@ export async function generationInputs(
       mode: body.mode === 'table' ? 'reply' : body.mode,
       layout: sampler.prompt_layout,
       system_prompt: chatFields.system_prompt,
-      summary: chatFields.summary,
+      summary: [chatFields.summary.trim(), sessionSummary].filter((part) => part !== '').join('\n\n'),
       objective: chatFields.objectives.find((one) => !one.done)?.text ?? '',
       safety: { content_rating: chatFields.content_rating, lines: chatFields.lines, veils: chatFields.veils },
       table_notes: chatFields.table_notes,

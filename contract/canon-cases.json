@@ -1,0 +1,97 @@
+{
+  "$comment": "Canon warnings (docs/DESIGN.md, Canon warnings): the decision model's questions over a line and the canon in reach, and the notice its answers give (red: flagrantly breaks in-universe canon; yellow: likely contravenes established canon). client/src/features/chat/canon.ts and server/extensions/ai_chat/Canon.py run these cases.",
+  "none_option": "none of them",
+  "max_facts": 12,
+  "fact_characters": 400,
+  "quote_characters": 160,
+  "setting_heading": "Established canon (the campaign's facts and the setting's):",
+  "no_facts": "(none listed: judge by what anyone in this setting would know)",
+  "line_heading": "The line to check:",
+  "questions": {
+    "established": "Does the line contradict the established canon listed above (facts, names, who is alive, what has happened)?",
+    "universe": "Does the line show the speaker ignorant of, or flatly contradicting, something any character in this setting would know (its gods, its great institutions, basic facts of its universe)?",
+    "fact": "Which listed fact does the line conflict with most?"
+  },
+  "established_levels": ["consistent", "uncertain", "contradicts"],
+  "universe_levels": ["consistent", "odd", "flagrant"],
+  "yellow_at_established": 2,
+  "yellow_at_universe": 1,
+  "red_at_universe": 2,
+  "yellow_reason": "This may contravene established canon.",
+  "red_reason": "This flagrantly breaks in-universe canon.",
+  "cases": [
+    {
+      "name": "consistent: no notice",
+      "facts": [
+        {
+          "title": "The Omnissiah",
+          "text": "The Machine God, worshipped by the Adeptus Mechanicus."
+        }
+      ],
+      "answers": {
+        "established": { "level": "consistent", "index": 0 },
+        "universe": { "level": "consistent", "index": 0 },
+        "fact": { "choice": "none of them" }
+      },
+      "verdict": { "level": "none", "fact": null, "reason": "" }
+    },
+    {
+      "name": "a tech-priest not knowing the Omnissiah: red, quoting the fact",
+      "facts": [
+        {
+          "title": "The Omnissiah",
+          "text": "The Machine God, worshipped by the Adeptus Mechanicus. Every tech-priest serves it."
+        }
+      ],
+      "answers": {
+        "established": { "level": "contradicts", "index": 2 },
+        "universe": { "level": "flagrant", "index": 2 },
+        "fact": { "choice": "The Omnissiah" }
+      },
+      "verdict": {
+        "level": "red",
+        "fact": "The Omnissiah",
+        "reason": "This flagrantly breaks in-universe canon. The Omnissiah: “The Machine God, worshipped by the Adeptus Mechanicus.”"
+      }
+    },
+    {
+      "name": "a dead NPC spoken of as alive: yellow",
+      "facts": [
+        {
+          "title": "Osric",
+          "text": "Osric died when the Vigil Ledger was destroyed in Session 6."
+        }
+      ],
+      "answers": {
+        "established": { "level": "contradicts", "index": 2 },
+        "universe": { "level": "consistent", "index": 0 },
+        "fact": { "choice": "Osric" }
+      },
+      "verdict": {
+        "level": "yellow",
+        "fact": "Osric",
+        "reason": "This may contravene established canon. Osric: “Osric died when the Vigil Ledger was destroyed in Session 6.”"
+      }
+    },
+    {
+      "name": "odd for the setting, no fact named: yellow without a quote",
+      "facts": [],
+      "answers": {
+        "established": { "level": "consistent", "index": 0 },
+        "universe": { "level": "odd", "index": 1 },
+        "fact": { "choice": "none of them" }
+      },
+      "verdict": {
+        "level": "yellow",
+        "fact": null,
+        "reason": "This may contravene established canon."
+      }
+    },
+    {
+      "name": "the decision model didn't answer: no notice",
+      "facts": [],
+      "answers": { "established": null, "universe": null, "fact": null },
+      "verdict": { "level": "none", "fact": null, "reason": "" }
+    }
+  ]
+}

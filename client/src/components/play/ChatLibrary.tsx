@@ -20,6 +20,7 @@ import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { characters, chats, endpoints, messages, idOf } from '~/features/data/records';
+import { campaignPlays } from '~/features/data/playRecords';
 import { chatFromJsonl } from '~/features/import/stChat';
 import { writeImportedChat } from './importChat';
 import { initials } from '../characters/CharacterTile';
@@ -38,8 +39,23 @@ export function lastActive(stamp: string | null, now: Date = new Date()): string
   return when.toLocaleDateString();
 }
 
-export function ChatLibrary(): ReactElement {
-  const list = chats.useList();
+/**
+ * `campaigns`: the person's campaigns (a chat with a play state, docs/DESIGN.md, The play model);
+ * `sandbox`: one-on-one and group roleplay, SillyTavern's chats.
+ */
+export function ChatLibrary({ kind = 'sandbox' }: { kind?: 'campaigns' | 'sandbox' }): ReactElement {
+  const allChats = chats.useList();
+  const plays = campaignPlays.useList();
+  const campaignIds = useMemo(() => new Set((plays.data ?? []).map((play) => play.chat_id)), [plays.data]);
+  const list = {
+    ...allChats,
+    data:
+      allChats.data === undefined || plays.data === undefined
+        ? undefined
+        : allChats.data.filter((chat) => campaignIds.has(chat.id) === (kind === 'campaigns')),
+    error: allChats.error ?? plays.error,
+    mutate: allChats.mutate,
+  };
   const cast = characters.useList();
   const models = endpoints.useList();
   const { remove, create: createChat } = chats.useActions();
@@ -87,22 +103,32 @@ export function ChatLibrary(): ReactElement {
 
   return (
     <div className='space-y-4'>
-      <div className='flex flex-wrap gap-2'>
-        <Button type='button' className='h-11' onClick={() => setPicking(true)}>
-          <MessageSquarePlus aria-hidden /> New chat
-        </Button>
-        <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
-          <FileUp aria-hidden /> Import chat
-        </Button>
-        <input
-          ref={fileInput}
-          type='file'
-          accept='.jsonl,application/jsonl,application/x-ndjson'
-          multiple
-          hidden
-          onChange={(event) => void importFiles(event)}
-        />
-      </div>
+      {kind === 'campaigns' ? (
+        <div className='flex flex-wrap gap-2'>
+          <Button asChild className='h-11'>
+            <Link href='/campaigns'>
+              <MessageSquarePlus aria-hidden /> Start a campaign
+            </Link>
+          </Button>
+        </div>
+      ) : (
+        <div className='flex flex-wrap gap-2'>
+          <Button type='button' className='h-11' onClick={() => setPicking(true)}>
+            <MessageSquarePlus aria-hidden /> New chat
+          </Button>
+          <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
+            <FileUp aria-hidden /> Import chat
+          </Button>
+          <input
+            ref={fileInput}
+            type='file'
+            accept='.jsonl,application/jsonl,application/x-ndjson'
+            multiple
+            hidden
+            onChange={(event) => void importFiles(event)}
+          />
+        </div>
+      )}
       {all.length > 0 && (
         <div className='grid gap-2'>
           <div className='relative'>
@@ -127,7 +153,12 @@ export function ChatLibrary(): ReactElement {
       )}
       {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} avatar />}
-      {list.data !== undefined && all.length === 0 && !hidden.pending && (
+      {kind === 'campaigns' && list.data !== undefined && all.length === 0 && !hidden.pending && (
+        <p className='rounded-lg border p-4 text-muted-foreground'>
+          No campaigns yet. Pick a scenario and start one: you choose the party, and you can take any seat at any time.
+        </p>
+      )}
+      {kind === 'sandbox' && list.data !== undefined && all.length === 0 && !hidden.pending && (
         <FirstRun
           hasModel={(models.data ?? []).length > 0}
           hasCharacter={(cast.data ?? []).length > 0}

@@ -23,8 +23,8 @@ import {
   Settings2,
   X,
 } from 'lucide-react';
-import { useSearchParams } from 'next/navigation';
-import { type ReactElement, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Badge } from 'zephyrex/ui/badge';
@@ -49,6 +49,7 @@ import {
   type InspectedPrompt,
   inspectPrompt,
   summarizeBranch,
+  checkCanon,
   translateText,
 } from '~/features/chat/inspectPrompt';
 import { speakingStore, useSpeaking } from '~/features/speech/speaking';
@@ -95,6 +96,7 @@ import {
   characterExpressions,
   idOf,
   chatSchema,
+  connectionProfiles,
 } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
@@ -106,7 +108,11 @@ import { NextSpeaker } from './NextSpeaker';
 import { NamesWithoutLore } from '~/components/lore/NamesWithoutLore';
 import { namesWithoutLore } from '~/features/lore/namesWithoutLore';
 import { useClient, writeProblem } from 'zephyrex';
+import { sessionName } from '~/features/data/playRecords';
+import { useCampaign } from './useCampaign';
 import { useEndSession } from './useEndSession';
+import type { CanonNoticeValue } from './CanonNotice';
+import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { Recap } from './Recap';
 import { MessageItem, type MessageView } from './MessageItem';
@@ -237,6 +243,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const reply = useReply();
   // A link to a message (`?at=`, from the library's search) opens the branch through it.
   const params = useSearchParams();
+  const router = useRouter();
   const [leafId, setLeafId] = useState<string | null>(() => params.get('at'));
   const [writingAfter, setWritingAfter] = useState<{ parentId: string | null; speakerId: string } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -267,6 +274,23 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       ? (latestLeaf(all, leafId)?.id ?? leafId)
       : (latestLeaf(all)?.id ?? null);
   const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
+  // A campaign (docs/DESIGN.md, The play model): its seat, sessions, rewind and fork.
+  const play = useCampaign(chat, branch);
+  // Saved model-and-preset pairs (gap 8), offered in chat settings.
+  const profileList = connectionProfiles.useList();
+  // Canon notices (docs/DESIGN.md, Canon warnings): the person's line as they write it, and each AI line once written.
+  const [canonNotices, setCanonNotices] = useState<ReadonlyMap<string, CanonNoticeValue>>(new Map());
+  const checkLine = useCallback(
+    (text: string, speaker: string, signal?: AbortSignal) =>
+      checkCanon({ chat_id: chat.id, text, speaker }, signal).then((verdict) =>
+        verdict === null || !verdict.checked ? null : { level: verdict.level, reason: verdict.reason },
+      ),
+    [chat.id],
+  );
+  const noteCanon = (id: string, text: string, speaker: string) =>
+    void checkLine(text, speaker).then((notice) => {
+      if (notice !== null && notice.level !== 'none') setCanonNotices((current) => new Map(current).set(id, notice));
+    });
   // The background follows the scene (A31): the story's lines, as the scene's location reads them.
   const sceneLines = useMemo(
     () =>
@@ -337,6 +361,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setLeafId(saved.id);
     noteCost(saved.id, result);
     void showExpression(speakerId, saved.swipes[0] ?? '');
+    noteCanon(saved.id, splitReasoning(saved.swipes[0] ?? '').reply, castById.get(speakerId)?.name ?? 'A character');
     autoTranslate(saved.id, saved.swipes[0] ?? '');
     return saved;
   };
@@ -708,6 +733,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setLeafId(saved.id);
     noteCost(saved.id, result);
     autoTranslate(saved.id, saved.swipes[0] ?? '');
+    noteCanon(saved.id, splitReasoning(saved.swipes[0] ?? '').reply, 'The GM');
     return saved;
   };
 
@@ -723,7 +749,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
     const turns = roundTurns({
       seat: chat.seat,
-      characterIds: chat.character_ids,
+      // In a campaign, the AI plays the party less the character the person plays.
+      characterIds: play.isCampaign ? play.aiIds : chat.character_ids,
       branch: path,
       muted: chat.muted_ids,
       names: castNames,
@@ -1039,9 +1066,28 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           </ul>
           <p className='min-w-0 truncate font-medium' title={chat.title}>
             {chat.title}
+            {play.current !== null && (
+              <span className='ml-2 text-xs font-normal text-muted-foreground'>{sessionName(play.current)}</span>
+            )}
           </p>
         </div>
         <div className='flex shrink-0 flex-wrap justify-end gap-1'>
+          {play.isCampaign && (
+            // The seat hot-swaps at any time: the GM or any character (docs/DESIGN.md, The play model).
+            <SeatPicker
+              seat={play.playingId}
+              party={chat.character_ids.flatMap((id) => {
+                const character = castById.get(id);
+                return character === undefined ? [] : [{ id, name: character.name, avatar: character.avatar }];
+              })}
+              everyone={(cast.data ?? []).map((character) => ({
+                id: character.id,
+                name: character.name,
+                avatar: character.avatar,
+              }))}
+              onChange={(next) => void play.setSeat(next)}
+            />
+          )}
           <Button
             type='button'
             variant={chat.paused ? 'default' : 'ghost'}
@@ -1110,11 +1156,26 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
                 <GitFork aria-hidden /> Every branch
               </DropdownMenuItem>
-              {endSession.available && (
-                // A24: the session's report into the linked wiki campaign's log.
-                <DropdownMenuItem disabled={endSession.ending} onSelect={() => void endSession.end()}>
-                  <Flag aria-hidden /> {endSession.ending ? 'Writing the session report…' : 'End session'}
+              {play.isCampaign ? (
+                // A save point: the session's summary, then the next session (and A24's report into the wiki).
+                <DropdownMenuItem
+                  disabled={play.ending || endSession.ending}
+                  onSelect={() =>
+                    void play.endSession(branch.at(-1) ?? null).then((marker) => {
+                      if (marker !== null) setLeafId(marker);
+                      if (endSession.available) void endSession.end();
+                    })
+                  }
+                >
+                  <Flag aria-hidden /> {play.ending ? 'Ending the session…' : 'End session'}
                 </DropdownMenuItem>
+              ) : (
+                endSession.available && (
+                  // A24: the session's report into the linked wiki campaign's log.
+                  <DropdownMenuItem disabled={endSession.ending} onSelect={() => void endSession.end()}>
+                    <Flag aria-hidden /> {endSession.ending ? 'Writing the session report…' : 'End session'}
+                  </DropdownMenuItem>
+                )
               )}
               <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
                 <Download aria-hidden /> Export for SillyTavern
@@ -1217,8 +1278,25 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 })()}
                 onBranch={() => {
                   setLeafId(message.id);
-                  notify('Branching from here', 'Your next message starts a new branch.');
+                  notify(
+                    play.isCampaign ? 'Rewound to here' : 'Branching from here',
+                    play.isCampaign
+                      ? 'The story goes on from this line; what came after stays as a branch.'
+                      : 'Your next message starts a new branch.',
+                  );
                 }}
+                branchLabel={play.isCampaign ? 'Rewind to here' : undefined}
+                onForkCampaign={
+                  play.isCampaign
+                    ? () =>
+                        void play.fork(message, branch).then((id) => {
+                          if (id !== null) {
+                            notify('Forked', 'A new campaign goes on from that line.');
+                            router.push(`/play/${id}`);
+                          }
+                        })
+                    : undefined
+                }
                 onDelete={() => deleteMessage(message)}
                 onXCard={() => void update(message, { x_carded: !message.x_carded })}
                 onHide={() => void update(message, { hidden: !message.hidden })}
@@ -1234,6 +1312,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                     : undefined
                 }
                 translation={translationOf(message.id)}
+                canon={canonNotices.get(message.id)}
               />
             </li>
           );
@@ -1296,6 +1375,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         />
       )}
       <Composer
+        onCheckCanon={(text, signal) =>
+          checkLine(
+            text,
+            play.playingId === null
+              ? chat.seat === 'gm'
+                ? 'The GM'
+                : (persona?.name ?? 'The player')
+              : (castById.get(play.playingId)?.name ?? 'The player'),
+            signal,
+          )
+        }
         writing={writing}
         disabled={list.data === undefined}
         onSend={(text, channel, images) => void send(text, channel, images)}
@@ -1424,6 +1514,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         </SheetContent>
       </Sheet>
       <ChatSettings
+        profiles={profileList.data ?? []}
         open={settingsOpen}
         onOpenChange={setSettingsOpen}
         value={{

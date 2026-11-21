@@ -11,6 +11,7 @@ export const HOME_PATH = '/play';
 const APP_ROUTES = [
   HOME_PATH,
   '/campaigns',
+  '/sandbox',
   '/scenarios',
   '/characters',
   '/lorebooks',
@@ -38,9 +39,10 @@ const rpgAiExtension: ZephyrexClientExtension = {
   displayName: 'Zephyrex RPG AI',
   description: 'AI characters and an AI game master that play inside your world and at your table.',
   navItems: [
-    { title: 'Play', url: HOME_PATH },
-    { title: 'Campaigns', url: '/campaigns' },
-    { title: 'Scenarios', url: '/scenarios' },
+    // The play model (docs/DESIGN.md): campaigns are save states of scenarios; scenario framings
+    // live at /campaigns (their prep at /scenarios); one-on-one chats are the sandbox, last.
+    { title: 'Campaigns', url: HOME_PATH },
+    { title: 'Scenarios', url: '/campaigns' },
     { title: 'Characters', url: '/characters' },
     { title: 'Lorebooks', url: '/lorebooks' },
     { title: 'Data bank', url: '/data-bank' },
@@ -50,6 +52,7 @@ const rpgAiExtension: ZephyrexClientExtension = {
     { title: 'Regex', url: '/regex' },
     { title: 'Quick replies', url: '/quick-replies' },
     { title: 'Settings', url: '/settings' },
+    { title: 'Sandbox', url: '/sandbox' },
   ],
 };
 
@@ -90,7 +93,9 @@ const config: ZephyrexConfig = {
         // Sign-in through the operator's identity provider (server ai_chat/SignIn.py), named at build
         // time: NEXT_PUBLIC_OAUTH_PROVIDERS lists the instances, NEXT_PUBLIC_OAUTH_LABEL names the button.
         oauthProviders: OAUTH_PROVIDERS,
-        ...(OAUTH_PROVIDERS.length === 0 ? {} : { oauthLabels: Object.fromEntries(OAUTH_PROVIDERS.map((name) => [name, OAUTH_LABEL])) }),
+        ...(OAUTH_PROVIDERS.length === 0
+          ? {}
+          : { oauthLabels: Object.fromEntries(OAUTH_PROVIDERS.map((name) => [name, OAUTH_LABEL])) }),
         home: HOME_PATH,
         deletionNote:
           'Your characters, personas, chats, presets and model settings are deleted with your account, and you are signed out.',

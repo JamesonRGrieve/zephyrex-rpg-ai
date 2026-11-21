@@ -9,6 +9,7 @@
  * button in reach of a thumb, and the menu holds the rest.
  */
 import { type ReplyStats, statsLabel } from '~/features/chat/replyStats';
+import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
 import {
   ArrowDown,
   ArrowUp,
@@ -71,6 +72,10 @@ export interface MessageActions {
   /** Moves it down, swapping with its only reply (A9). */
   onMoveDown?: () => void;
   onBranch?: () => void;
+  /** What the branch action says: a campaign's is a rewind (docs/DESIGN.md, The play model). */
+  branchLabel?: string;
+  /** Copies the story up to this line into a new campaign of the same scenario. */
+  onForkCampaign?: () => void;
   onDelete?: () => void;
   /** The X-card (A25): takes the message out of the story, or puts it back. */
   onXCard?: () => void;
@@ -197,6 +202,7 @@ export function MessageItem({
   translation,
   proposal,
   cost,
+  canon,
   ...actions
 }: {
   message: MessageView;
@@ -209,6 +215,8 @@ export function MessageItem({
   proposal?: { label: string; text: string; added: boolean; onAdd: () => void };
   /** What writing it cost (AP5), for a reply written in this visit. */
   cost?: ReplyStats;
+  /** Its canon notice (docs/DESIGN.md, Canon warnings), once checked: yellow or red, with why. */
+  canon?: CanonNoticeValue;
 } & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   const editId = useId();
@@ -311,6 +319,7 @@ export function MessageItem({
                 )}
               </div>
             )}
+            {canon !== undefined && <CanonNotice notice={canon} className='mt-2' />}
             {translation !== undefined && (
               <div className='mt-2 rounded-md border-l-2 border-primary bg-muted px-3 py-2 text-sm' aria-live='polite'>
                 {translation.status === 'writing' && <p className='text-muted-foreground'>Translating…</p>}
@@ -449,7 +458,12 @@ export function MessageItem({
                 )}
                 {actions.onBranch !== undefined && (
                   <DropdownMenuItem onSelect={actions.onBranch}>
-                    <GitBranch aria-hidden /> Branch from here
+                    <GitBranch aria-hidden /> {actions.branchLabel ?? 'Branch from here'}
+                  </DropdownMenuItem>
+                )}
+                {actions.onForkCampaign !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onForkCampaign}>
+                    <GitBranch aria-hidden /> Fork a new campaign from here
                   </DropdownMenuItem>
                 )}
                 {actions.onDelete !== undefined && (

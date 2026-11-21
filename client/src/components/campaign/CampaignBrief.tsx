@@ -18,10 +18,10 @@ export function CampaignBrief({ campaign }: { campaign: Campaign }): ReactElemen
   const words = tone(campaign);
   const weights = CAMPAIGN.pillars.filter((pillar) => (campaign.pillars[pillar] ?? 0) > 0);
   return (
-    <article className='mx-auto grid max-w-2xl gap-6 leading-relaxed [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-6'>
+    <article className='grid w-full min-w-0 gap-6 leading-relaxed break-words [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-6'>
       <header className='grid gap-1'>
-        <h1 className='text-3xl font-semibold tracking-tight'>{campaign.name}</h1>
-        {campaign.genre !== '' && <p className='text-lg text-muted-foreground'>{campaign.genre}</p>}
+        <h1 className='text-2xl font-semibold tracking-tight sm:text-3xl'>{campaign.name}</h1>
+        {campaign.genre !== '' && <p className='text-base text-muted-foreground sm:text-lg'>{campaign.genre}</p>}
       </header>
       {campaign.premise !== '' && <p className='whitespace-pre-wrap'>{campaign.premise}</p>}
       {(words.length > 0 || campaign.themes.length > 0) && (

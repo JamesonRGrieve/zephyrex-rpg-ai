@@ -3,12 +3,12 @@ import { type ReactNode, Suspense } from 'react';
 import { AppPage } from '~/components/common/AppPage';
 import { ChatLibrary } from '~/components/play/ChatLibrary';
 
+/** Your campaigns (docs/DESIGN.md, The play model): save states of scenarios, newest first. */
 export default function PlayPage(): ReactNode {
   return (
-    <AppPage title='Play' heading='Your chats' width='medium'>
-      {/* The library reads the URL's ?new=1 (the install shortcut). */}
+    <AppPage title='Campaigns' heading='Your campaigns' width='medium'>
       <Suspense>
-        <ChatLibrary />
+        <ChatLibrary kind='campaigns' />
       </Suspense>
     </AppPage>
   );
