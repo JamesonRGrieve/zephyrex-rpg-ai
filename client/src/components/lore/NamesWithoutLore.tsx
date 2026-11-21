@@ -59,7 +59,7 @@ export function NamesWithoutLore({
           ))}
         </select>
       </div>
-      <ul className='divide-y rounded-xl border' aria-label='Names without lore'>
+      <ul className='divide-y rounded-xl border empty:hidden' aria-label='Names without lore'>
         {names.map((name) => (
           <li key={name} className='flex min-h-12 items-center justify-between gap-3 px-3'>
             <span>{name}</span>

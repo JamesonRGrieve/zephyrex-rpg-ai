@@ -19,10 +19,11 @@ import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
-import { characters, chats, messages, idOf } from '~/features/data/records';
+import { characters, chats, endpoints, messages, idOf } from '~/features/data/records';
 import { chatFromJsonl } from '~/features/import/stChat';
 import { writeImportedChat } from './importChat';
 import { initials } from '../characters/CharacterTile';
+import { FirstRun } from './FirstRun';
 import { NewChat } from './NewChat';
 
 /** "Today 14:05", "Yesterday", or the date: when a chat was last written in. */
@@ -40,6 +41,7 @@ export function lastActive(stamp: string | null, now: Date = new Date()): string
 export function ChatLibrary(): ReactElement {
   const list = chats.useList();
   const cast = characters.useList();
+  const models = endpoints.useList();
   const { remove, create: createChat } = chats.useActions();
   const { create: createCharacter } = characters.useActions();
   const { create: createMessage } = messages.useActions();
@@ -126,9 +128,11 @@ export function ChatLibrary(): ReactElement {
       {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} avatar />}
       {list.data !== undefined && all.length === 0 && !hidden.pending && (
-        <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>
-          No chats yet. Start one with a character.
-        </p>
+        <FirstRun
+          hasModel={(models.data ?? []).length > 0}
+          hasCharacter={(cast.data ?? []).length > 0}
+          onNewChat={() => setPicking(true)}
+        />
       )}
       {all.length > 0 && shown.length === 0 && found.length === 0 && (
         <p className='p-4 text-center text-muted-foreground'>No chat matches.</p>
@@ -138,7 +142,7 @@ export function ChatLibrary(): ReactElement {
           <h2 id='found-lines' className='text-sm font-semibold'>
             In the chats
           </h2>
-          <ul className='divide-y rounded-xl border'>
+          <ul className='divide-y rounded-xl border empty:hidden'>
             {found.map((line) => (
               <li key={line.messageId}>
                 <Link
@@ -201,7 +205,7 @@ export function ChatLibrary(): ReactElement {
           </li>
         ))}
       </ul>
-      <NewChat open={picking} onOpenChange={setPicking} />
+      <NewChat open={picking} onOpenChange={setPicking} campaignId={params.get('campaign')} />
     </div>
   );
 }

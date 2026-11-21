@@ -107,6 +107,8 @@ export const chatSchema = z.object({
   veils: z.array(z.string()),
   table_notes: z.array(z.object({ kind: z.enum(TABLE.note_kinds), text: z.string() })),
   paused: z.boolean(),
+  // STscript and macro variables kept with the chat ({{getvar}}, /setvar), name to value.
+  variables: z.record(z.string(), z.string()).default({}),
   campaign_id: z.string().nullable(),
   scenario_id: z.string().nullable(),
 });
@@ -194,7 +196,9 @@ export function resource<T extends Versioned, Create extends object, Extra = obj
     useList(query, enabled = true) {
       const client = useClient();
       const key = listKey(query);
-      return useSWR(enabled ? key : null, () => client.list(key, plural, schema));
+      // The query goes as the pager's params: it adds offset and limit to them. Baked into the path,
+      // it gained a second `?` and every filtered list came back empty (found by the visual audit).
+      return useSWR(enabled ? key : null, () => client.list(path, plural, schema, query ?? {}));
     },
     useOne(id) {
       const client = useClient();
@@ -257,12 +261,19 @@ export const endpoints = resource<
   { api_key?: string }
 >('model_endpoint', 'model_endpoints', endpointSchema);
 
-export const lorebookSchema = z.object({ ...versioned, name: z.string(), description: z.string() });
+export const lorebookSchema = z.object({
+  ...versioned,
+  name: z.string(),
+  description: z.string(),
+  wiki_campaign_id: z.string().nullable(),
+  wiki_synced_at: z.string().nullable(),
+});
 export type Lorebook = z.infer<typeof lorebookSchema>;
 
 export const lorebookEntrySchema = z.object({
   ...versioned,
   lorebook_id: z.string(),
+  wiki_entity_id: z.string().nullable(),
   comment: z.string(),
   keys: z.array(z.string()),
   secondary_keys: z.array(z.string()),
@@ -362,6 +373,7 @@ export const campaignSchema = z.object({
   characters: z.string(),
   resolution_mode: z.enum(CAMPAIGN.resolution_modes).nullable(),
   gm_style: z.string(),
+  wiki_campaign_id: z.string().nullable(),
 });
 export type Campaign = z.infer<typeof campaignSchema>;
 export const campaigns = resource<Campaign, Fields<Campaign> & { name: string }>('campaign', 'campaigns', campaignSchema);

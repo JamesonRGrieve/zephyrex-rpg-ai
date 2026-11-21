@@ -24,6 +24,7 @@ const VALUE = {
   lines: [],
   veils: [],
   table_notes: [],
+  variables: {},
   campaign_id: null,
   scenario_id: null,
 };

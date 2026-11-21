@@ -17,6 +17,16 @@ describe('CharacterTile', () => {
     expect(toggle).toHaveBeenCalledOnce();
   });
 
+  it('reads its description as a chat would, with {{char}} as their name', () => {
+    render(
+      <CharacterTile
+        character={{ ...ADA, description: '{{char}} is the engineer; {{user}} is new aboard.' }}
+        onToggleFavourite={vi.fn()}
+      />,
+    );
+    expect(screen.getByText('Ada Vance is the engineer; the player is new aboard.')).toBeInTheDocument();
+  });
+
   it('makes initials from up to two words', () => {
     expect([initials('Ada Vance Smith'), initials('bram'), initials('  ')]).toEqual(['AV', 'B', '?']);
   });

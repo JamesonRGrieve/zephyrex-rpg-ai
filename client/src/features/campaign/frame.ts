@@ -72,6 +72,7 @@ export function previewCampaign(draft: FrameDraft): Campaign {
     id: 'preview',
     created_at: '',
     updated_at: null,
+    wiki_campaign_id: null,
     premise: '',
     genre: '',
     dials: {},

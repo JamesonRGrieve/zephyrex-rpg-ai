@@ -256,7 +256,9 @@ export function Composer({
             )}
           </div>
         )}
-        <div className='flex items-end gap-2'>
+        {/* On a phone the box takes its own row and the tools sit below it: beside five 44 px buttons
+            it was a 70 px column (found by the visual audit). From sm up it fills the row between them. */}
+        <div className='flex flex-wrap items-end gap-2 sm:flex-nowrap'>
           {channel === 'ic' && !writing && (
             <>
               <input
@@ -293,7 +295,10 @@ export function Composer({
             rows={1}
             maxLength={LIMITS.message_characters}
             placeholder={PLACEHOLDERS[channel]}
-            className={cn('max-h-40 min-h-11 resize-none [field-sizing:content]', channel !== 'ic' && 'bg-muted')}
+            className={cn(
+              'order-first max-h-40 min-h-11 min-w-0 basis-full resize-none [field-sizing:content] sm:order-none sm:basis-0 sm:flex-1',
+              channel !== 'ic' && 'bg-muted',
+            )}
             onChange={(event) => setText(event.target.value)}
             onKeyDown={onKeyDown}
           />
@@ -346,7 +351,7 @@ export function Composer({
               type='button'
               size='icon'
               variant='outline'
-              className='size-11 shrink-0'
+              className='ms-auto size-11 shrink-0 sm:ms-0'
               aria-label='Stop the reply'
               onClick={onStop}
             >
@@ -356,7 +361,7 @@ export function Composer({
             <Button
               type='submit'
               size='icon'
-              className='size-11 shrink-0'
+              className='ms-auto size-11 shrink-0 sm:ms-0'
               aria-label='Send'
               disabled={disabled || text.trim() === ''}
             >

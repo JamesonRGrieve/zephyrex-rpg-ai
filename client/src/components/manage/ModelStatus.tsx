@@ -39,7 +39,7 @@ export function ModelStatus({
           <RefreshCw aria-hidden /> Check all
         </Button>
       </div>
-      <ul className='divide-y rounded-xl border'>
+      <ul className='divide-y rounded-xl border empty:hidden'>
         {models.map((model) => {
           const result = results.get(model.id);
           return (

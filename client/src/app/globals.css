@@ -4,6 +4,7 @@
 @import 'zephyrex/styles.css';
 @source '../../node_modules/zephyrex/dist';
 @source '../../node_modules/@zephyrex/auth/dist';
+@source '../../node_modules/@zephyrex/auth-magic-link/dist';
 @source '../../node_modules/@zephyrex/marketing/dist';
 @source '../../node_modules/@jgrieve/forms/dist';
 

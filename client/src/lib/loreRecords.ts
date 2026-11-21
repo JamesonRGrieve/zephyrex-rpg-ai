@@ -28,10 +28,17 @@ function written(columns: Columns, input: object, stamp: Date, userId?: string):
 
 // ---- lorebook -----------------------------------------------------------------------------
 
-const BOOK_COLUMNS: Columns = { name: plain('name'), description: plain('description') };
+const BOOK_COLUMNS: Columns = {
+  name: plain('name'),
+  description: plain('description'),
+  wiki_campaign_id: plain('wikiCampaignId'),
+  // Set by the wiki sync only: never in a client's input below.
+  wiki_synced_at: plain('wikiSyncedAt'),
+};
 const description = z.string().max(LIMITS.card_field_characters);
-const bookCreate = z.object({ name, description: description.default('') });
-const bookUpdate = z.object({ name, description }).partial();
+const wikiCampaignId = z.string().max(LIMITS.short_text_characters).nullable();
+const bookCreate = z.object({ name, description: description.default(''), wiki_campaign_id: wikiCampaignId.default(null) });
+const bookUpdate = z.object({ name, description, wiki_campaign_id: wikiCampaignId }).partial();
 
 type BookRow = Prisma.LorebookGetPayload<object>;
 
@@ -93,6 +100,7 @@ export const lorebooks: ResourceSpec<BookRow, z.infer<typeof bookCreate>, z.infe
 
 const ENTRY_COLUMNS: Columns = {
   lorebook_id: plain('lorebookId'),
+  wiki_entity_id: plain('wikiEntityId'),
   comment: plain('comment'),
   keys: jsonList('keys'),
   secondary_keys: jsonList('secondaryKeys'),
@@ -151,6 +159,8 @@ const entryFields = {
 const D = LORE.defaults;
 const entryCreate = z.object({
   lorebook_id: z.string().min(1),
+  // Set by the wiki sync (A15), as on the server.
+  wiki_entity_id: z.string().max(LIMITS.short_text_characters).nullable().default(null),
   comment: entryFields.comment.default(''),
   keys: keys.default([]),
   secondary_keys: keys.default([]),

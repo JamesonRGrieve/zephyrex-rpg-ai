@@ -6,25 +6,38 @@
  */
 import type { Page } from '@playwright/test';
 
-async function csrf(page: Page): Promise<Record<string, string>> {
-  const cookie = (await page.context().cookies()).find((one) => one.name === 'zx_csrf');
-  return cookie === undefined ? {} : { 'X-CSRF-Token': cookie.value };
-}
-
+/**
+ * Posts from inside the page, with the browser's own fetch: its cookies are the person's session.
+ * Playwright's page.request doesn't send a Secure cookie over http, so on a hosted build at
+ * 127.0.0.1 (where the browser itself accepts one) it answered 401 while the page was signed in.
+ */
 async function post(page: Page, resource: string, fields: Record<string, unknown>): Promise<{ id: string }> {
-  const response = await page.request.post(`/api/v1/${resource}`, {
-    data: { [resource]: fields },
-    headers: { 'Content-Type': 'application/json', ...(await csrf(page)) },
-  });
-  if (response.status() !== 201)
-    throw new Error(`seeding ${resource} answered ${response.status()}: ${await response.text()}`);
-  return ((await response.json()) as Record<string, { id: string }>)[resource] as { id: string };
+  if (!page.url().startsWith('http')) await page.goto('/play');
+  const answer = await page.evaluate(
+    async ({ resource, fields }) => {
+      const token = document.cookie
+        .split('; ')
+        .find((cookie) => cookie.startsWith('zx_csrf='))
+        ?.slice('zx_csrf='.length);
+      const response = await fetch(`/api/v1/${resource}`, {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...(token === undefined ? {} : { 'X-CSRF-Token': token }) },
+        body: JSON.stringify({ [resource]: fields }),
+      });
+      return { status: response.status, text: await response.text() };
+    },
+    { resource, fields },
+  );
+  if (answer.status !== 201) throw new Error(`seeding ${resource} answered ${answer.status}: ${answer.text}`);
+  return (JSON.parse(answer.text) as Record<string, { id: string }>)[resource] as { id: string };
 }
 
 export interface Seeded {
   characterId: string;
   chatId: string;
   lorebookId: string;
+  campaignId: string;
 }
 
 export async function seedChat(page: Page): Promise<Seeded> {
@@ -78,5 +91,18 @@ export async function seedChat(page: Page): Promise<Seeded> {
     channel: 'ooc',
     swipes: ['Can we skip ahead to docking?'],
   });
-  return { characterId: character.id, chatId: chat.id, lorebookId: lorebook.id };
+  const campaign = await post(page, 'campaign', {
+    name: 'The Kestrel Run',
+    premise: 'An old ore hauler, a cursed cargo, and a crew with debts.',
+    genre: 'space opera',
+    themes: ['debt', 'found family'],
+    truths: ['The cargo is older than the ship.'],
+  });
+  await post(page, 'scenario', {
+    campaign_id: campaign.id,
+    name: 'Docking at Vell',
+    premise: 'The station wants the cargo inspected.',
+    hook: 'A customs officer knocks on the airlock.',
+  });
+  return { characterId: character.id, chatId: chat.id, lorebookId: lorebook.id, campaignId: campaign.id };
 }

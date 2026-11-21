@@ -24,7 +24,16 @@ export function chatTitle(cast: readonly Pick<Character, 'name'>[]): string {
   return names.length === 2 ? `${names[0]} and ${names[1]}` : `${names[0]}, ${names[1]} and ${names.length - 2} more`;
 }
 
-export function NewChat({ open, onOpenChange }: { open: boolean; onOpenChange: (open: boolean) => void }): ReactElement {
+/** `campaignId`: the campaign frame the new chat plays in (from a campaign's brief), if any. */
+export function NewChat({
+  open,
+  onOpenChange,
+  campaignId = null,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  campaignId?: string | null;
+}): ReactElement {
   const list = characters.useList();
   const { create } = chats.useActions();
   const { create: createMessage } = messages.useActions();
@@ -48,6 +57,7 @@ export function NewChat({ open, onOpenChange }: { open: boolean; onOpenChange: (
         title: chatTitle(cast),
         character_ids: picked,
         mode: cast.length > 1 ? 'group' : 'character',
+        ...(campaignId === null ? {} : { campaign_id: campaignId }),
       });
       // Each member greets in turn (A52): one message after another, each answering the last.
       await openingTurns(cast).reduce<Promise<string | null>>(

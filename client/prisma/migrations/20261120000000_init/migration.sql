@@ -63,6 +63,7 @@ CREATE TABLE "Chat" (
     "veils" TEXT NOT NULL DEFAULT '[]',
     "tableNotes" TEXT NOT NULL DEFAULT '[]',
     "paused" BOOLEAN NOT NULL DEFAULT false,
+    "variables" TEXT NOT NULL DEFAULT '{}',
     "campaignId" TEXT,
     "scenarioId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -135,6 +136,8 @@ CREATE TABLE "Lorebook" (
     "createdById" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "description" TEXT NOT NULL DEFAULT '',
+    "wikiCampaignId" TEXT,
+    "wikiSyncedAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT
@@ -145,6 +148,7 @@ CREATE TABLE "LorebookEntry" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "createdById" TEXT NOT NULL,
     "lorebookId" TEXT NOT NULL,
+    "wikiEntityId" TEXT,
     "comment" TEXT NOT NULL DEFAULT '',
     "keys" TEXT NOT NULL DEFAULT '[]',
     "secondaryKeys" TEXT NOT NULL DEFAULT '[]',
@@ -285,6 +289,7 @@ CREATE TABLE "Campaign" (
     "characters" TEXT NOT NULL DEFAULT '',
     "resolutionMode" TEXT,
     "gmStyle" TEXT NOT NULL DEFAULT '',
+    "wikiCampaignId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

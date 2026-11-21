@@ -63,7 +63,7 @@ export function ManagedList<T extends ManagedRow>({
       {rows !== undefined && shown.length === 0 && !hidden.pending && (
         <p className='rounded-xl border border-dashed p-8 text-center text-muted-foreground'>{emptyText}</p>
       )}
-      <ul className='divide-y rounded-xl border'>
+      <ul className='divide-y rounded-xl border empty:hidden'>
         {shown.map((row) => (
           <li key={row.id} className='flex items-center gap-3 p-2'>
             <button

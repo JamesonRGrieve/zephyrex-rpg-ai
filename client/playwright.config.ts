@@ -18,13 +18,18 @@ import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import { OUTBOX } from './e2e/support/outbox';
 
-export const PORTS = { model: 47211, lite: 47212, server: 47213, saas: 47214 } as const;
+// rpg-ai's block on the runner: 48000 + 10 × its 58137 lane (7), so no other app's e2e collides.
+export const PORTS = { model: 48070, lite: 48071, server: 48072, saas: 48073 } as const;
 const host = (port: number) => `http://127.0.0.1:${port}`;
 const scratch = mkdtempSync(path.join(process.env.E2E_SCRATCH ?? tmpdir(), 'rpg-ai-e2e-'));
 // Production builds, each in its own build directory: two `next dev` servers from one client/
 // directory reload each other through next-env.d.ts (found by Chronos's suite).
 const NEXT = './node_modules/.bin/next';
-const serve = (port: number) => `${NEXT} build && ${NEXT} start -p ${port} -H 127.0.0.1`;
+// E2E_REUSE_BUILD=1: start from the build already in the edition's build directory, if there is
+// one (a later job on the same tree, e.g. the second edition's audit); otherwise every run builds.
+const REUSE_BUILD = process.env.E2E_REUSE_BUILD === '1';
+const serve = (port: number, dist: string) =>
+  `${REUSE_BUILD ? `test -f ${dist}/BUILD_ID || ${NEXT} build` : `${NEXT} build`} && ${NEXT} start -p ${port} -H 127.0.0.1`;
 const STARTUP_MS = 300_000;
 
 /** Where the e2e model server listens; specs add it as a model endpoint. */
@@ -87,14 +92,14 @@ export default defineConfig({
       stderr: 'pipe',
     },
     {
-      command: serve(PORTS.saas),
+      command: serve(PORTS.saas, '.next-e2e-saas'),
       url: `${host(PORTS.saas)}/healthz`,
       reuseExistingServer: false,
       timeout: STARTUP_MS,
       env: saas,
     },
     {
-      command: `./node_modules/.bin/prisma migrate deploy && ${serve(PORTS.lite)}`,
+      command: `./node_modules/.bin/prisma migrate deploy && ${serve(PORTS.lite, '.next-e2e-lite')}`,
       url: `${host(PORTS.lite)}/api/v1/alive`,
       reuseExistingServer: false,
       timeout: STARTUP_MS,

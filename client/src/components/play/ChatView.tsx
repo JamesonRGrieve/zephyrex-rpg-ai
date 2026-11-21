@@ -846,7 +846,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   return (
     <div
-      className='flex min-h-[calc(100svh-4rem)] flex-col bg-cover bg-fixed bg-center'
+      // The window's height less the bar (3rem) and AppPage's padding (2.5rem): no scroll on a short chat.
+      className='flex min-h-[calc(100svh-5.5rem)] flex-col bg-cover bg-fixed bg-center'
       // The chat's picture (A31) sits behind; the header and messages keep a solid background so
       // text never depends on the picture for contrast.
       style={chat.background === null ? undefined : { backgroundImage: `url(${JSON.stringify(chat.background)})` }}
@@ -863,27 +864,34 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             {MODE_LABELS[campaign.resolution_mode]}
           </Badge>
         )}
-        <ul className='flex min-w-0 -space-x-2' aria-label='In this chat'>
-          {chat.character_ids.map((id) => {
-            const character = castById.get(id);
-            return (
-              <li key={id}>
-                <Avatar className='size-9 border-2 border-background'>
-                  {character?.avatar !== undefined && character.avatar !== null && (
-                    <AvatarImage src={character.avatar} alt='' />
-                  )}
-                  <AvatarFallback>{initials(character?.name ?? '?')}</AvatarFallback>
-                </Avatar>
-                <span className='sr-only'>{character?.name ?? 'A character'}</span>
-              </li>
-            );
-          })}
-        </ul>
-        <div className='flex flex-wrap justify-end gap-1'>
+        {/* Who is in it and what it's called, so the page says which chat this is (the audit found only
+            the avatars, with the title nowhere). The page's h1 stays "Chat" for the outline. */}
+        <div className='flex min-w-0 flex-1 items-center gap-2'>
+          <ul className='flex shrink-0 -space-x-2' aria-label='In this chat'>
+            {chat.character_ids.map((id) => {
+              const character = castById.get(id);
+              return (
+                <li key={id}>
+                  <Avatar className='size-9 border-2 border-background'>
+                    {character?.avatar !== undefined && character.avatar !== null && (
+                      <AvatarImage src={character.avatar} alt='' />
+                    )}
+                    <AvatarFallback>{initials(character?.name ?? '?')}</AvatarFallback>
+                  </Avatar>
+                  <span className='sr-only'>{character?.name ?? 'A character'}</span>
+                </li>
+              );
+            })}
+          </ul>
+          <p className='min-w-0 truncate font-medium' title={chat.title}>
+            {chat.title}
+          </p>
+        </div>
+        <div className='flex shrink-0 flex-wrap justify-end gap-1'>
           <Button
             type='button'
             variant={chat.paused ? 'default' : 'ghost'}
-            className='h-11'
+            className='h-11 max-sm:w-11 max-sm:px-0'
             aria-pressed={chat.paused}
             onClick={() =>
               void updateChat(chat, { paused: !chat.paused }).then(() =>
@@ -894,27 +902,28 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               )
             }
           >
-            {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />} {chat.paused ? 'Resume' : 'Pause'}
+            {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />}
+            <span className='max-sm:sr-only'>{chat.paused ? 'Resume' : 'Pause'}</span>
           </Button>
           <Button
             type='button'
             variant='outline'
-            className='h-11'
+            className='h-11 max-sm:w-11 max-sm:px-0'
             onClick={() => void xCardLatest()}
             aria-label='X-card the latest reply'
           >
-            <X aria-hidden /> X-card
+            <X aria-hidden /> <span className='max-sm:sr-only'>X-card</span>
           </Button>
           {running !== undefined && (
-            <Button type='button' variant='ghost' className='h-11' onClick={() => setScenarioOpen(true)}>
-              <Clock3 aria-hidden /> Scenario
+            <Button type='button' variant='ghost' className='h-11 max-sm:w-11 max-sm:px-0' onClick={() => setScenarioOpen(true)}>
+              <Clock3 aria-hidden /> <span className='max-sm:sr-only'>Scenario</span>
             </Button>
           )}
-          <Button type='button' variant='ghost' className='h-11' onClick={() => void openInspector()}>
-            <ScanText aria-hidden /> Context
+          <Button type='button' variant='ghost' className='h-11 max-sm:w-11 max-sm:px-0' onClick={() => void openInspector()}>
+            <ScanText aria-hidden /> <span className='max-sm:sr-only'>Context</span>
           </Button>
-          <Button type='button' variant='ghost' className='h-11' onClick={() => setSettingsOpen(true)}>
-            <Settings2 aria-hidden /> Chat settings
+          <Button type='button' variant='ghost' className='h-11 max-sm:w-11 max-sm:px-0' onClick={() => setSettingsOpen(true)}>
+            <Settings2 aria-hidden /> <span className='max-sm:sr-only'>Chat settings</span>
           </Button>
           <DropdownMenu>
             <DropdownMenuTrigger asChild>

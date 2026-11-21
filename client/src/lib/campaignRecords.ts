@@ -23,6 +23,7 @@ const COLUMNS: Columns = {
   characters: plain('characters'),
   resolution_mode: plain('resolutionMode'),
   gm_style: plain('gmStyle'),
+  wiki_campaign_id: plain('wikiCampaignId'),
 };
 
 const items = z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.campaign_list_items);
@@ -50,6 +51,7 @@ const fields = {
   characters: z.string().max(LIMITS.card_field_characters),
   resolution_mode: z.enum(CAMPAIGN.resolution_modes).nullable(),
   gm_style: z.string().max(LIMITS.card_field_characters),
+  wiki_campaign_id: z.string().max(LIMITS.short_text_characters).nullable(),
 };
 const create = z.object({
   name: fields.name,
@@ -63,6 +65,7 @@ const create = z.object({
   characters: fields.characters.default(''),
   resolution_mode: fields.resolution_mode.default(null),
   gm_style: fields.gm_style.default(''),
+  wiki_campaign_id: fields.wiki_campaign_id.default(null),
 });
 const update = z.object(fields).partial();
 

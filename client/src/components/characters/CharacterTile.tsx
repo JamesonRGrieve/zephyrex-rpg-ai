@@ -7,6 +7,7 @@ import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Badge } from 'zephyrex/ui/badge';
 import { Button } from 'zephyrex/ui/button';
 import type { Character } from '~/features/data/records';
+import { expandMacros } from '~/features/prompt/macros';
 
 /** The character's initials, for when there is no picture. */
 export function initials(name: string): string {
@@ -37,7 +38,12 @@ export function CharacterTile({
           {character.name}
         </h2>
       </Link>
-      {character.description !== '' && <p className='line-clamp-2 text-sm text-muted-foreground'>{character.description}</p>}
+      {character.description !== '' && (
+        <p className='line-clamp-2 text-sm text-muted-foreground'>
+          {/* As the card reads in a chat: {{char}} is their name; {{user}} is the player. */}
+          {expandMacros(character.description, { char: character.name, user: 'the player' })}
+        </p>
+      )}
       {character.tags.length > 0 && (
         <ul className='flex flex-wrap gap-1' aria-label='Tags'>
           {character.tags.slice(0, 4).map((tag) => (

@@ -46,8 +46,12 @@ export function ThemeChips({
   );
 }
 
-/** The chips, bound to the theme in force. */
-export function ThemePicker(): ReactElement {
-  const { themes, currentTheme, setTheme } = useTheme();
+/**
+ * The chips, bound to the theme in force. `initialTheme` is that theme as the server read it from
+ * the cookie: without it the server's render (which can't read cookies from script) marked "Light",
+ * and hydration kept that mark whatever the theme was (found by the visual audit).
+ */
+export function ThemePicker({ initialTheme }: { initialTheme?: string | undefined }): ReactElement {
+  const { themes, currentTheme, setTheme } = useTheme(undefined, initialTheme);
   return <ThemeChips themes={themes} current={currentTheme} onChange={setTheme} />;
 }

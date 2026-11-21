@@ -7,11 +7,12 @@ import { CustomCss } from './CustomCss';
 import { DeviceSettingsForm } from './DeviceSettingsForm';
 import { ThemePicker } from './ThemePicker';
 
-export function SettingsPanel(): ReactElement {
+/** `theme`: the theme in force, as the server read it (see ThemePicker). */
+export function SettingsPanel({ theme }: { theme?: string }): ReactElement {
   const { settings, measured, change } = useDeviceSettings();
   return (
     <div className='grid gap-10'>
-      <ThemePicker />
+      <ThemePicker initialTheme={theme} />
       <DeviceSettingsForm settings={settings} measured={measured} onChange={change} />
       <CustomCss />
       <BackupPanel />

@@ -258,7 +258,8 @@ export function SessionZero({
           )}
           <Button
             type='submit'
-            className='h-11 flex-1'
+            // Sized to its label at the row's end, not stretched across the form (UX and UI).
+            className='ms-auto h-11 px-6'
             disabled={writes.busy || (step?.ready !== undefined && !step.ready(draft))}
           >
             {reviewing ? 'Save the campaign' : at === STEPS.length - 1 ? 'See the frame' : 'Next'}

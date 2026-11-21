@@ -39,6 +39,9 @@ const nextConfig = {
   env: {
     NEXT_PUBLIC_RPG_AI_VARIANT: VARIANT,
     APP_URI,
+    // The framework middleware reads it: an http origin (an e2e run on 127.0.0.1) turns off
+    // the CSP's upgrade-insecure-requests, which would send every request to https.
+    NEXT_PUBLIC_APP_URI: APP_URI,
     NEXT_PUBLIC_THEME_DEFAULT_MODE: process.env.DEFAULT_THEME_MODE || 'dark',
   },
   async rewrites() {

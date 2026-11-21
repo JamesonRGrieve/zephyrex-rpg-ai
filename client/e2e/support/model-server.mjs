@@ -6,7 +6,7 @@
  */
 import { createServer } from 'node:http';
 
-const port = Number(process.argv[2] ?? 47211);
+const port = Number(process.argv[2] ?? 48070);
 const WORD_DELAY_MS = 30;
 
 createServer((request, response) => {

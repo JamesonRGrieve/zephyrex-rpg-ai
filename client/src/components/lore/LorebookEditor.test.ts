@@ -8,7 +8,14 @@ const STAMP = '2026-11-20T00:00:00.000000';
 
 describe('lorebook editor helpers', () => {
   it('keeps only an entry’s own fields', () => {
-    const record: LorebookEntry = { ...SPANNER_ENTRY, id: 'e1', created_at: STAMP, updated_at: STAMP, lorebook_id: 'b1' };
+    const record: LorebookEntry = {
+      ...SPANNER_ENTRY,
+      id: 'e1',
+      created_at: STAMP,
+      updated_at: STAMP,
+      lorebook_id: 'b1',
+      wiki_entity_id: 'w-spanner',
+    };
     expect(entryFields(record)).toEqual(SPANNER_ENTRY);
   });
 

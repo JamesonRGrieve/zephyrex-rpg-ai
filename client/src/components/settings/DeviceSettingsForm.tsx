@@ -29,10 +29,10 @@ const TIER_OPTIONS: { value: TierChoice; label: string; hint: string }[] = [
   { value: 'auto', label: 'Automatic', hint: 'Use what this device can do' },
   { value: 'strong', label: 'Full', hint: 'Every effect, and models in the browser where possible' },
   { value: 'standard', label: 'Balanced', hint: 'Lighter effects; models on the server' },
-  { value: 'light', label: 'Light', hint: 'Simplest drawing, least battery and data' },
+  { value: 'light', label: 'Lean', hint: 'Simplest drawing, least battery and data' },
 ];
 
-const TIER_NAME: Record<DeviceTier, string> = { strong: 'Full', standard: 'Balanced', light: 'Light' };
+const TIER_NAME: Record<DeviceTier, string> = { strong: 'Full', standard: 'Balanced', light: 'Lean' };
 
 export function DeviceSettingsForm({
   settings,

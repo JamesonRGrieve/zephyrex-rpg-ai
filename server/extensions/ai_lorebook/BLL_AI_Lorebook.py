@@ -9,14 +9,20 @@ every write): the same resources, fields and rules as the lite edition's
 - ``/v1/chat_lore_state``: a chat's lore timers (sticky and cooldown), written by generation.
 """
 
+import inspect
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 from fastapi import HTTPException
 from pydantic import BaseModel as PlainModel
+from pydantic import BaseModel as RouteModel
 from pydantic import Field, field_validator
+from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
 
 # Resolves only at runtime, through the extensions namespace path.
 from zephyrex.extensions.ai_character.Contract import CONTRACT, LIMITS  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_lorebook.WikiSync import sync_plan  # type: ignore[import-not-found]
+from zephyrex.lib.CustomRoute import ExposeIn, custom_route
 from zephyrex.logic.AbstractLogicManager import (
     AbstractBLLManager,
     ApplicationModel,
@@ -39,13 +45,25 @@ MAX_KEYS: int = LIMITS["lore_keys_per_entry"]
 MAX_KEY: int = LIMITS["lore_key_characters"]
 MAX_CONTENT: int = LIMITS["lore_content_characters"]
 MAX_ENTRIES: int = LIMITS["lorebook_entries"]
-RANGED = {"depth": "depth", "order": "order", "probability": "probability", "group_weight": "group_weight", "sticky": "timed", "cooldown": "timed", "delay": "timed"}
+RANGED = {
+    "depth": "depth",
+    "order": "order",
+    "probability": "probability",
+    "group_weight": "group_weight",
+    "sticky": "timed",
+    "cooldown": "timed",
+    "delay": "timed",
+}
 
 
 def _invalid(field: str, message: str) -> HTTPException:
     return HTTPException(
         status_code=422,
-        detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": [field], "msg": message}]},
+        detail={
+            "message": "Validation error",
+            "code": "validation_error",
+            "errors": [{"loc": [field], "msg": message}],
+        },
     )
 
 
@@ -83,23 +101,121 @@ class LorebookModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["LorebookManager"]]
     name: str = Field(..., description="Name")
     description: str = Field("", description="What the book covers")
+    wiki_campaign_id: str | None = Field(None, description="The wiki campaign this book is kept in sync with (A15)")
+    wiki_synced_at: datetime | None = Field(None, description="When its last sync from the wiki began")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI lorebooks (World Info)"
 
     class Create(BookChecks, BaseModel):
         name: str = Field(..., min_length=1, max_length=MAX_NAME)
         description: str = Field("", max_length=MAX_CARD)
+        wiki_campaign_id: str | None = Field(None, max_length=MAX_SHORT)
 
     class Update(BookChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
         description: str | None = Field(None, max_length=MAX_CARD)
+        wiki_campaign_id: str | None = Field(None, max_length=MAX_SHORT)
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
 
 
+# A wiki sync reads the wiki's world_entities a page at a time (A15).
+WIKI_PAGE = 500
+WIKI_PAGES_MAX = 40
+
+
+class LorebookSyncRequest(RouteModel):
+    lorebook_id: str
+
+
+class LorebookSyncEnvelope(RouteModel):
+    """`{"sync": {"lorebook_id"}}`: the book to bring up to date with its wiki campaign."""
+
+    sync: LorebookSyncRequest
+
+
+class LorebookSync(RouteModel):
+    """What one sync from the wiki changed in the book."""
+
+    created: int
+    updated: int
+    removed: int
+
+
 class LorebookManager(AbstractBLLManager[LorebookModel], RouterMixin):
     _model = LorebookModel
+
+    @custom_route(
+        method="POST",
+        path="/sync",
+        input_model=LorebookSyncEnvelope,
+        output_model=LorebookSync,
+        authentication_type="jwt",
+        openapi_tags=("Lorebooks",),
+        summary="Bring a book up to date with its wiki campaign (A15)",
+        expose_in=(ExposeIn.REST,),
+    )
+    async def sync_route(self, body: LorebookSyncEnvelope) -> LorebookSync:
+        return await self.sync_from_wiki(body.sync.lorebook_id)
+
+    async def sync_from_wiki(self, lorebook_id: str) -> LorebookSync:
+        """Pulls the wiki's changes since the last sync into the book: one entry per wiki entity,
+        updated in place and removed by its tombstone, the person's own entries never touched
+        (contract/wiki-sync-cases.json). Through the wiki's own ability, under the person's access."""
+        book = self.get(id=lorebook_id)
+        if not book.wiki_campaign_id:
+            raise _invalid("wiki_campaign_id", "This lorebook isn't linked to a wiki campaign")
+        world_entities = loaded_ability(self.model_registry, "rpg_core", "world_entities")
+        if world_entities is None:
+            raise HTTPException(status_code=409, detail="The wiki isn't part of this install")
+        requester = str(self.requester.id)
+        entries = LorebookEntryManager(requester_id=requester, model_registry=self.model_registry)
+        current = [
+            {
+                "id": row.id,
+                "wiki_entity_id": row.wiki_entity_id,
+                "comment": row.comment,
+                "keys": row.keys,
+                "content": row.content,
+            }
+            for row in entries.list(lorebook_id=lorebook_id)
+        ]
+        started = datetime.now(UTC)
+        counts = {"created": 0, "updated": 0, "removed": 0}
+        after: str | None = None
+        for _ in range(WIKI_PAGES_MAX):
+            page = world_entities(
+                self.model_registry,
+                requester,
+                book.wiki_campaign_id,
+                since=book.wiki_synced_at,
+                after=after,
+                limit=WIKI_PAGE,
+            )
+            if inspect.isawaitable(page):
+                page = await page
+            plan = sync_plan(current, page["world_entities"])
+            for entry in plan["create"]:
+                created = entries.create(lorebook_id=lorebook_id, **entry)
+                current.append({**entry, "id": created.id})
+            for change in plan["update"]:
+                entries.update(change["id"], comment=change["comment"], keys=change["keys"], content=change["content"])
+                current = [{**row, **change} if row["id"] == change["id"] else row for row in current]
+            for entry_id in plan["remove"]:
+                entries.delete(entry_id)
+                current = [row for row in current if row["id"] != entry_id]
+            for counted, planned in (("created", "create"), ("updated", "update"), ("removed", "remove")):
+                counts[counted] += len(plan[planned])
+            after = page.get("next")
+            if after is None:
+                break
+        else:
+            # Too many changes for one sync: what was read is applied; the rest comes next time.
+            return LorebookSync(**counts)
+        # Not a client's field (it isn't in Update): written as the server-side update it is.
+        self.update_trusted(lorebook_id, wiki_synced_at=started)
+        return LorebookSync(**counts)
 
     def delete(self, id: str) -> None:
         # A book's entries go with it.
@@ -148,6 +264,7 @@ class EntryChecks(PlainModel):
 class LorebookEntryModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["LorebookEntryManager"]]
     lorebook_id: str = Field(..., description="The book")
+    wiki_entity_id: str | None = Field(None, description="The wiki entity it was made from (A15), or none")
     comment: str = Field("", description="The entry's label")
     keys: list[str] = Field(default_factory=list)
     secondary_keys: list[str] = Field(default_factory=list)
@@ -178,6 +295,8 @@ class LorebookEntryModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
 
     class Create(EntryChecks, BaseModel):
         lorebook_id: str = Field(..., min_length=1)
+        # Set by the wiki sync, never by hand (A15): the wiki entity the entry was made from.
+        wiki_entity_id: str | None = Field(None, max_length=MAX_SHORT)
         comment: str = Field("", max_length=MAX_SHORT)
         keys: list[str] = Field(default_factory=list)
         secondary_keys: list[str] = Field(default_factory=list)
@@ -253,7 +372,11 @@ class LorebookEntryManager(AbstractBLLManager[LorebookEntryModel], RouterMixin):
 
     def list(self, *args: Any, **kwargs: Any) -> Any:
         rows = super().list(*args, **kwargs)
-        return sorted(rows, key=lambda row: (getattr(row, "order", 0), str(getattr(row, "created_at", "")))) if isinstance(rows, list) else rows
+        return (
+            sorted(rows, key=lambda row: (getattr(row, "order", 0), str(getattr(row, "created_at", ""))))
+            if isinstance(rows, list)
+            else rows
+        )
 
 
 class ChatLoreStateModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):

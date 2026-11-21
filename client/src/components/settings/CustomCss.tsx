@@ -50,7 +50,7 @@ export function CustomCssEditor({ css, onApply }: { css: string; onApply: (css: 
           Clear
         </Button>
         <span className='text-sm text-muted-foreground' aria-live='polite'>
-          {changed ? 'Not applied yet' : css === '' ? 'None' : 'Applied'}
+          {changed ? 'Not applied yet' : css === '' ? 'No custom styles' : 'Applied'}
         </span>
       </div>
     </section>

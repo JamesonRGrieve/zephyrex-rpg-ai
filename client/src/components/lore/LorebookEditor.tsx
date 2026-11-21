@@ -25,9 +25,11 @@ import { type Lorebook, type LorebookEntry, lorebookEntries, lorebooks, idOf } f
 import { type EntryFields, lorebookToJson } from '~/features/import/stLorebook';
 import { EntryForm } from './EntryForm';
 import { BLANK_ENTRY } from './fixtures';
+import { WikiSync } from './WikiSync';
 
 /** An entry's own fields, without the record's id, book and versions. */
-const RECORD_KEYS = new Set(['id', 'created_at', 'updated_at', 'lorebook_id']);
+// A record's own keys, and the wiki link the sync sets (A15): none of them is an entry's content.
+const RECORD_KEYS = new Set(['id', 'created_at', 'updated_at', 'lorebook_id', 'wiki_entity_id']);
 
 export function entryFields(entry: LorebookEntry): EntryFields {
   return Object.fromEntries(Object.entries(entry).filter(([key]) => !RECORD_KEYS.has(key))) as EntryFields;
@@ -127,6 +129,13 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
   return (
     <div className='space-y-6'>
       <BookHeader key={current.id} book={current} />
+      <WikiSync
+        book={current}
+        onSynced={() => {
+          void book.mutate();
+          void entries.mutate();
+        }}
+      />
       <div className='flex flex-wrap items-center gap-2'>
         <label htmlFor={searchId} className='sr-only'>
           Search entries
@@ -166,7 +175,7 @@ export function LorebookEditor({ id }: { id: string }): ReactElement {
           No entries yet. Add one, with the words that should bring it into a reply.
         </p>
       )}
-      <ul className='divide-y rounded-xl border' aria-label='Entries'>
+      <ul className='divide-y rounded-xl border empty:hidden' aria-label='Entries'>
         {shown.map((entry) => (
           <li key={entry.id} className='flex items-center gap-2 p-2'>
             <button

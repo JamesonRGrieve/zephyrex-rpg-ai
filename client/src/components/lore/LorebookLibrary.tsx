@@ -8,7 +8,7 @@ import { useHidden } from 'zephyrex/hooks/useWrites';
 import { BookPlus, FileUp, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { type ChangeEvent, type ReactElement, useRef, useState } from 'react';
+import { type ChangeEvent, type ReactElement, useRef } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
@@ -76,7 +76,7 @@ export function LorebookLibrary(): ReactElement {
           No lorebooks yet. Start one, or import a SillyTavern World Info file.
         </p>
       )}
-      <ul className='divide-y rounded-xl border'>
+      <ul className='divide-y rounded-xl border empty:hidden'>
         {shown.map((book) => (
           <li key={book.id} className='relative flex items-center gap-3 p-3'>
             <Link href={`/lorebooks/${book.id}`} className='min-w-0 flex-1 after:absolute after:inset-0'>

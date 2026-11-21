@@ -1,6 +1,6 @@
 # Privacy Policy
 
-Last updated: November 20, 2026
+Last updated: November 21, 2026
 
 Zephyrex RPG AI is an open-source app for roleplay with AI characters and an AI game master. You
 keep character cards, personas and chats, and the app asks an AI model you choose to write the
@@ -68,5 +68,6 @@ project's public history.
 
 ## Contact
 
-Questions go to the maintainer through the project's repository. Don't post personal details in a
-public issue.
+Privacy questions and data requests (a copy of your data, a correction, or its deletion) go to
+privacy@zephyrex.ca. Other questions about the software go to the project's public source on
+GitHub, github.com/JamesonRGrieve/zephyrex-rpg-ai; don't post personal details there.

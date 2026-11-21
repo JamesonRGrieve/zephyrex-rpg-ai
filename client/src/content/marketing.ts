@@ -15,7 +15,7 @@ export const START: Link = { label: 'Start playing', href: '/play' };
 
 export const HERO = {
   title: 'Characters who know your world',
-  lead: 'Chat and play with AI characters and an AI game master. Bring your SillyTavern cards, use any model you like, and keep everything on your own machine.',
+  lead: 'Chat and play with AI characters and an AI game master. Bring your SillyTavern cards, use any model you like, and pick up on any device, or run it yourself.',
 };
 
 export const FEATURES: readonly Feature[] = [
@@ -75,7 +75,7 @@ export const FEATURES: readonly Feature[] = [
       'Point it at Ollama, llama.cpp, a gateway or a hosted API: anything OpenAI-compatible, or text completion with instruct templates.',
     details: [
       'A model per job: replies, the GM, summaries, translation',
-      'Your API keys never leave your machine except to the endpoint you chose',
+      'Your API keys are stored encrypted and sent only to the endpoint you chose',
     ],
     availability: 'everywhere',
   },
@@ -107,7 +107,8 @@ export const FAQS: readonly Faq[] = [
   },
   {
     question: 'Where are my chats kept?',
-    answer: 'In a database on the machine that runs the app. The only place your words go is the model endpoint you chose.',
+    answer:
+      'Here, in your account, so they follow you to every device you sign in on. Self-hosted, in a database on your own machine. Either way, the only other place your words go is the model endpoint you chose.',
   },
   {
     question: 'Is it free?',

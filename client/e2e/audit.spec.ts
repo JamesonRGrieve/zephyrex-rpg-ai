@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /**
- * The visual audit: every page, on both editions, at desktop 1366 and phone 390@2x, dark and
- * light; the hosted edition signed out (its visitor pages) and signed in (the app's pages).
+ * The visual audit: every page, on both editions, at desktop 1366, tablet 768@2x and phone 390@2x,
+ * dark and light; the hosted edition signed out (its visitor pages); the app's pages on first run
+ * (an empty account) and with sample content (UX and UI standard, Zephyrex SOP).
  *
  * Every shot is checked for what a person would notice without looking closely: no sideways
  * overflow, no page errors, nothing fetched from another host, no same-origin link that answers
@@ -17,12 +18,13 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { devices, expect, test, type Browser, type Page, type TestInfo } from '@playwright/test';
 import { isHosted, signIn } from './support/people';
-import { seedChat } from './support/seed';
+import { type Seeded, seedChat } from './support/seed';
 
 const AUDIT_DIR = process.env.VISUAL_AUDIT ?? '';
 // Real devices (their user agents, touch and mobile behaviour), at the audit's sizes.
 const VIEWPORTS = {
   desktop: { ...devices['Desktop Chrome'], viewport: { width: 1366, height: 768 }, deviceScaleFactor: 1 },
+  tablet: { ...devices['iPad Mini'], viewport: { width: 768, height: 1024 }, deviceScaleFactor: 2 },
   phone: { ...devices['Pixel 7'], viewport: { width: 390, height: 844 }, deviceScaleFactor: 2 },
 } as const;
 const THEMES = ['dark', 'light'] as const;
@@ -30,6 +32,7 @@ const VISITOR_PAGES = ['/', '/user', '/docs/privacy'];
 const APP_PAGES = [
   '/play',
   '/campaigns',
+  '/campaigns/session-zero',
   '/scenarios',
   '/characters',
   '/lorebooks',
@@ -40,6 +43,8 @@ const APP_PAGES = [
   '/regex',
   '/quick-replies',
   '/settings',
+  // An address that isn't a page: the app's own not-found page.
+  '/no-such-page',
 ];
 /** The dev server's own badge is not part of the app: leave it out of the shots. */
 const HIDE_DEV_TOOLS = 'nextjs-portal { display: none !important; }';
@@ -116,7 +121,18 @@ async function shoot(page: Page, origin: string, target: string, name: string): 
     await settled(page);
     const facts = await page.evaluate(() => ({
       title: document.title,
-      overflow: document.documentElement.scrollWidth - window.innerWidth,
+      // The framework shell scrolls inside SidebarInset (h-svh overflow-y-auto), not the document,
+      // where sideways overflow never widens the document: count the page's scroller too
+      // (16 Worldviews' finding, client/e2e/support/audit.ts).
+      overflow: Math.max(
+        document.documentElement.scrollWidth - window.innerWidth,
+        ...[...document.querySelectorAll<HTMLElement>('*')]
+          .filter((element) => /(auto|scroll)/.test(getComputedStyle(element).overflowY))
+          .filter((element) => element.scrollHeight > element.clientHeight)
+          .sort((a, b) => b.scrollHeight - a.scrollHeight)
+          .slice(0, 1)
+          .map((scroller) => scroller.scrollWidth - scroller.clientWidth),
+      ),
       h1: document.querySelectorAll('h1').length,
       // One outline: each heading at most one level below the one before it (h2 → h4 skips).
       headingSkips: [...document.querySelectorAll('h1, h2, h3, h4, h5, h6')].flatMap((heading, index, all) => {
@@ -136,6 +152,18 @@ async function shoot(page: Page, origin: string, target: string, name: string): 
     };
     if (AUDIT_DIR !== '') {
       mkdirSync(AUDIT_DIR, { recursive: true });
+      // A full-page shot sees only the document: unroll the page's own scroller (the tallest
+      // element that scrolls vertically) so the shot holds the whole page, not its first screen.
+      await page.evaluate(() => {
+        const [scroller] = [...document.querySelectorAll<HTMLElement>('*')]
+          .filter((element) => /(auto|scroll)/.test(getComputedStyle(element).overflowY))
+          .filter((element) => element.scrollHeight > element.clientHeight)
+          .sort((a, b) => b.scrollHeight - a.scrollHeight);
+        if (scroller !== undefined) {
+          scroller.style.height = 'auto';
+          scroller.style.overflow = 'visible';
+        }
+      });
       await page.screenshot({ path: path.join(AUDIT_DIR, `${name}.png`), fullPage: true });
       writeFileSync(path.join(AUDIT_DIR, `${name}.json`), `${JSON.stringify(report, null, 2)}\n`);
     }
@@ -159,33 +187,50 @@ function expectClean(report: Report): void {
   expect(report.unnamedImages, `${report.path}: images without alt`).toBe(0);
 }
 
-async function audit(browser: Browser, testInfo: TestInfo, signedIn: boolean): Promise<void> {
-  // Each run makes its own desktop and phone contexts, so the phone projects add nothing.
+type Phase = 'out' | 'first' | 'in';
+
+/** The page's file-name slug: its path, with a record's id read as "record". */
+function slugOf(target: string): string {
+  return target === '/'
+    ? 'home'
+    : target
+        .slice(1)
+        .replaceAll('/', '-')
+        .replace(/[0-9a-f-]{36}$/, 'record');
+}
+
+/**
+ * One phase at every size and theme. `out`: the visitor pages, signed out. `first`: the app's pages
+ * on an empty account (first run). `in`: the same with sample content, and the record pages.
+ * The hosted edition signs a new person in per shot set, so each `in` set seeds its own content;
+ * the lite edition has one local person, so it is seeded once (and `first` runs before it is).
+ */
+async function audit(browser: Browser, testInfo: TestInfo, phase: Phase): Promise<void> {
+  // Each run makes its own contexts at every size, so the phone projects add nothing.
   test.skip(testInfo.project.name.endsWith('-phone'), 'the audit sets its own viewports');
   const origin = String(testInfo.project.use.baseURL);
-  const pages = signedIn ? APP_PAGES : VISITOR_PAGES;
+  const hosted = isHosted(testInfo);
+  let liteSeed: Seeded | null = null;
   for (const [size, device] of Object.entries(VIEWPORTS)) {
     for (const theme of THEMES) {
       const context = await browser.newContext({ ...device, baseURL: origin });
       await context.addCookies([{ name: 'theme', value: theme, url: origin }]);
       const page = await context.newPage();
       try {
-        if (signedIn && isHosted(testInfo)) await signIn(page);
-        // Signed in, the pages with something in them too: a character and a chat.
-        const seeded = signedIn ? await seedChat(page) : null;
-        const targets =
-          seeded === null
-            ? pages
-            : [...pages, `/characters/${seeded.characterId}`, `/play/${seeded.chatId}`, `/lorebooks/${seeded.lorebookId}`];
+        if (phase !== 'out' && hosted) await signIn(page);
+        let targets = phase === 'out' ? VISITOR_PAGES : APP_PAGES;
+        if (phase === 'in') {
+          const seeded = hosted ? await seedChat(page) : (liteSeed ??= await seedChat(page));
+          targets = [
+            ...APP_PAGES,
+            `/characters/${seeded.characterId}`,
+            `/play/${seeded.chatId}`,
+            `/lorebooks/${seeded.lorebookId}`,
+            `/campaigns/${seeded.campaignId}`,
+          ];
+        }
         for (const target of targets) {
-          const slug =
-            target === '/'
-              ? 'home'
-              : target
-                  .slice(1)
-                  .replaceAll('/', '-')
-                  .replace(/[0-9a-f-]{36}$/, 'record');
-          const name = `${testInfo.project.name}-${signedIn ? 'in' : 'out'}-${size}-${theme}-${slug}`;
+          const name = `${testInfo.project.name}-${phase}-${size}-${theme}-${slugOf(target)}`;
           expectClean(await shoot(page, origin, target, name));
         }
       } finally {
@@ -195,15 +240,25 @@ async function audit(browser: Browser, testInfo: TestInfo, signedIn: boolean): P
   }
 }
 
+const SETS = Object.keys(VIEWPORTS).length * THEMES.length;
+
 test.describe('visual audit', () => {
+  // In order: the lite edition's first run must come before its one person has any content.
+  test.describe.configure({ mode: 'serial' });
+
   test('the visitor pages', async ({ browser }, testInfo) => {
     test.skip(!isHosted(testInfo), 'the lite edition has no visitor pages');
-    test.setTimeout(VISITOR_PAGES.length * 4 * PER_SHOT_MS);
-    await audit(browser, testInfo, false);
+    test.setTimeout(VISITOR_PAGES.length * SETS * PER_SHOT_MS);
+    await audit(browser, testInfo, 'out');
   });
 
-  test("the app's pages", async ({ browser }, testInfo) => {
-    test.setTimeout((APP_PAGES.length + 3) * 4 * PER_SHOT_MS + 4 * 30_000);
-    await audit(browser, testInfo, true);
+  test("the app's pages on first run", async ({ browser }, testInfo) => {
+    test.setTimeout(APP_PAGES.length * SETS * PER_SHOT_MS + SETS * 30_000);
+    await audit(browser, testInfo, 'first');
+  });
+
+  test("the app's pages with content", async ({ browser }, testInfo) => {
+    test.setTimeout((APP_PAGES.length + 4) * SETS * PER_SHOT_MS + SETS * 30_000);
+    await audit(browser, testInfo, 'in');
   });
 });

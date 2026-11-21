@@ -83,6 +83,8 @@ model Chat {
   veils        String   @default("[]")
   tableNotes   String   @default("[]")
   paused       Boolean  @default(false)
+  /// The chat's macro and STscript variables (audit gap 1), as a JSON object of strings.
+  variables    String   @default("{}")
   campaignId   String?
   scenarioId   String?
   createdAt    DateTime @default(now())
@@ -166,6 +168,9 @@ model Lorebook {
   createdById String
   name        String
   description String   @default("")
+  /// The wiki campaign this book is kept in sync with (A15), and when its last sync began.
+  wikiCampaignId String?
+  wikiSyncedAt   DateTime?
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   updatedById String?
@@ -178,6 +183,8 @@ model LorebookEntry {
   id                  String   @id @default(uuid())
   createdById         String
   lorebookId          String
+  /// The wiki entity the entry was made from, set by the wiki sync (A15); null for one written by hand.
+  wikiEntityId        String?
   comment             String   @default("")
   keys                String   @default("[]")
   secondaryKeys       String   @default("[]")
@@ -292,6 +299,8 @@ model Campaign {
   resolutionMode String?
   /// How the GM runs the game (A20): read by the GM's voices only.
   gmStyle        String   @default("")
+  /// The wiki campaign the frame belongs to, when the wiki is loaded.
+  wikiCampaignId String?
   createdAt      DateTime @default(now())
   updatedAt      DateTime
   updatedById    String?

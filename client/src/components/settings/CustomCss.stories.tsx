@@ -37,6 +37,6 @@ export const Applied: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: 'Clear' }));
-    await expect(canvas.getByText('None')).toBeInTheDocument();
+    await expect(canvas.getByText('No custom styles')).toBeInTheDocument();
   },
 };

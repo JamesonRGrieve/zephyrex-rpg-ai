@@ -126,6 +126,7 @@ class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     )
     resolution_mode: str | None = Field(None, description="narrative, mechanical or hybrid")
     gm_style: str = Field("", description="How the GM runs the game (A20): read by the GM's voices only")
+    wiki_campaign_id: str | None = Field(None, description="The wiki campaign the frame belongs to (wiki loaded)")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI campaign frames"
 
@@ -141,6 +142,7 @@ class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         characters: str = Field("", max_length=MAX_CARD)
         resolution_mode: str | None = None
         gm_style: str = Field("", max_length=MAX_CARD)
+        wiki_campaign_id: str | None = Field(None, max_length=MAX_SHORT)
 
     class Update(FrameChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -154,6 +156,7 @@ class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         characters: str | None = Field(None, max_length=MAX_CARD)
         resolution_mode: str | None = None
         gm_style: str | None = Field(None, max_length=MAX_CARD)
+        wiki_campaign_id: str | None = Field(None, max_length=MAX_SHORT)
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
