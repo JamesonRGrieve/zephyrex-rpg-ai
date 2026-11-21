@@ -60,6 +60,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
 )
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.ExtraBody import extra_body_problem, with_extra_body  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Group import group_stops  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-found]
     active_template,
@@ -911,6 +912,14 @@ class EndpointChecks(PlainModel):
             raise ValueError("Only a search source (searxng, brave) serves the search role")
         return self
 
+    @field_validator("extra_body", check_fields=False)
+    @classmethod
+    def _checked_extra_body(cls, value: Any) -> Any:
+        problem = None if value is None else extra_body_problem(value)
+        if problem is not None:
+            raise ValueError(problem)
+        return value
+
     @field_validator("roles", check_fields=False)
     @classmethod
     def _checked_roles(cls, value: Any) -> Any:
@@ -1043,6 +1052,9 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         None, description="The person's own template (A17), used in place of instruct_template"
     )
     image_size: str = Field("", description="The size it is asked to draw at (A30); empty for the contract's default")
+    extra_body: dict[str, Any] = Field(
+        default_factory=dict, description="Extra request fields, merged into each request it's sent"
+    )
     has_api_key: bool = Field(False, description="Set by the server: whether a key is stored")
     # Write-only: excluded from every serialization, kept encrypted.
     api_key: str | None = Field(None, exclude=True, description="Set by the server: the encrypted API key")
@@ -1062,6 +1074,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         custom_template_id: str | None = None
         image_size: str = ""
         roles: list[str] = Field(default_factory=list)
+        extra_body: dict[str, Any] = Field(default_factory=dict)
 
     class Update(EndpointChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -1075,6 +1088,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         custom_template_id: str | None = None
         image_size: str | None = None
         roles: list[str] | None = None
+        extra_body: dict[str, Any] | None = None
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -1127,6 +1141,7 @@ class ModelEndpointManager(AbstractBLLManager[ModelEndpointModel], RouterMixin):
         kwargs.setdefault("is_default", False)
         # JSON columns get no column default: an unset list is stored as [] (as every manager here does).
         kwargs.setdefault("roles", [])
+        kwargs.setdefault("extra_body", {})
         self._check_custom_template(kwargs.get("custom_template_id"))
         if kwargs["is_default"]:
             self._clear_other_defaults(None)
@@ -1752,13 +1767,15 @@ def macro_context(
 def upstream_request(endpoint: Any, key: str, body: dict[str, Any]) -> dict[str, Any]:
     """Where and how a model is asked (``url``, ``headers``, ``json``): an OpenAI-compatible endpoint
     as the body is; Anthropic's and Google's own APIs in their shape (audit gap 8, NativeApis.py)."""
+    # The endpoint's extra request fields go last, over everything but the conversation's own.
+    extra = getattr(endpoint, "extra_body", None)
     if endpoint.api in NATIVE_APIS:
         native: dict[str, Any] = native_request(endpoint.api, endpoint.base_url, key, body)
-        return native
+        return {**native, "json": with_extra_body(native["json"], extra)}
     return {
         "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
         "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-        "json": body,
+        "json": with_extra_body(body, extra),
     }
 
 
@@ -2500,6 +2517,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         "criteria": labels,
                     }
                 },
+                getattr(deciding, "extra_body", None),
             )
             decided = (answers or {}).get("expression")
             if decided is not None and "choice" in decided:
@@ -2572,13 +2590,16 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 answer = await client.post(
                     images_url(endpoint.base_url),
                     headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-                    json={
-                        "model": endpoint.model,
-                        "prompt": prompt,
-                        "n": 1,
-                        "size": getattr(endpoint, "image_size", "") or CONTRACT["picture"]["size"],
-                        "response_format": "b64_json",
-                    },
+                    json=with_extra_body(
+                        {
+                            "model": endpoint.model,
+                            "prompt": prompt,
+                            "n": 1,
+                            "size": getattr(endpoint, "image_size", "") or CONTRACT["picture"]["size"],
+                            "response_format": "b64_json",
+                        },
+                        getattr(endpoint, "extra_body", None),
+                    ),
                 )
         except httpx.HTTPError as error:
             raise HTTPException(

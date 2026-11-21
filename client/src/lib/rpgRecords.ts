@@ -43,6 +43,7 @@ import {
   type InstructTemplateId,
 } from '~/contract';
 import { samplerProblem } from '~/features/prompt/samplers';
+import { extraBodyProblem } from '~/features/models/extraBody';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -737,6 +738,7 @@ const ENDPOINT_COLUMNS: Columns = {
   custom_template_id: plain('customTemplateId'),
   image_size: plain('imageSize'),
   roles: jsonList('roles'),
+  extra_body: jsonObject('extraBody'),
 };
 
 const baseUrl = z
@@ -762,6 +764,11 @@ const endpointFields = {
   image_size: z.union([z.literal(''), z.enum(PICTURE.sizes as [string, ...string[]])]),
   /** What it is used for (A27); none means only where a chat names it or it is the default. */
   roles: z.array(z.enum(ENDPOINT_ROLES)).refine((roles) => new Set(roles).size === roles.length, 'Each role once'),
+  /** Extra request fields, merged into each request it's sent (SillyTavern's additional parameters). */
+  extra_body: z.record(z.string(), z.unknown()).superRefine((value, context) => {
+    const problem = extraBodyProblem(value);
+    if (problem !== null) context.addIssue({ code: 'custom', message: problem });
+  }),
 };
 const endpointCreate = z.object({
   name,
@@ -774,6 +781,7 @@ const endpointCreate = z.object({
   custom_template_id: endpointFields.custom_template_id.default(null),
   image_size: endpointFields.image_size.default(''),
   roles: endpointFields.roles.default([]),
+  extra_body: endpointFields.extra_body.default({}),
 });
 const endpointUpdate = z.object({ name, ...endpointFields }).partial();
 

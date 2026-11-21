@@ -15,6 +15,7 @@ const MODEL = {
   has_api_key: false,
   custom_template_id: null,
   image_size: '',
+  extra_body: {},
   api: 'chat' as const,
   instruct_template: 'chatml' as const,
   roles: ['story' as const],

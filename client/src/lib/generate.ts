@@ -36,6 +36,7 @@ import { branchTo } from '~/features/chat/branch';
 import { aiCast, playedPersona, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
 import { groupStops } from '~/features/chat/group';
 import { personaBooks, personaFor } from '~/features/prompt/personaPick';
+import { type ExtraBody, storedExtraBody, withExtraBody } from '~/features/models/extraBody';
 import type { Persona as PersonaRecord } from '~/features/data/records';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import {
@@ -117,6 +118,8 @@ export interface Endpoint {
   api_key: string;
   api: EndpointApi;
   instruct_template: InstructTemplateId | InstructTemplate;
+  /** Extra request fields, merged into each request it's sent (SillyTavern's additional parameters). */
+  extra_body?: ExtraBody;
 }
 
 /** Everything a reply needs, read as the owner sees it. */
@@ -384,6 +387,7 @@ export async function generationInputs(
       api: endpointRow.api as EndpointApi,
       // The person's own template (A17) when it names one that is still theirs, else the built-in.
       instruct_template: instructTemplate,
+      extra_body: storedExtraBody(endpointRow.extraBody),
     },
     loreState: lore.state,
     activeLore: lore.active,
@@ -742,7 +746,8 @@ async function askModel(
       'Content-Type': 'application/json',
       ...(endpoint.api_key === '' ? {} : { Authorization: `Bearer ${endpoint.api_key}` }),
     },
-    body: JSON.stringify(native?.json ?? body),
+    // The endpoint's extra request fields go last, over everything but the conversation's own.
+    body: JSON.stringify(withExtraBody(native?.json ?? body, endpoint.extra_body)),
     signal,
   }).catch(() => {
     throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });
@@ -1047,13 +1052,18 @@ export async function picture(nextRequest: NextRequest): Promise<Response> {
         'Content-Type': 'application/json',
         ...(row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` }),
       },
-      body: JSON.stringify({
-        model: row.model,
-        prompt,
-        n: 1,
-        size: row.imageSize === '' ? PICTURE.size : row.imageSize,
-        response_format: 'b64_json',
-      }),
+      body: JSON.stringify(
+        withExtraBody(
+          {
+            model: row.model,
+            prompt,
+            n: 1,
+            size: row.imageSize === '' ? PICTURE.size : row.imageSize,
+            response_format: 'b64_json',
+          },
+          storedExtraBody(row.extraBody),
+        ),
+      ),
       signal: nextRequest.signal,
     }).catch(() => {
       throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });

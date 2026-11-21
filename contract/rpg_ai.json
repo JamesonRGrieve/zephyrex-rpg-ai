@@ -739,5 +739,11 @@
     "story_characters": 10000,
     "activation_regex_characters": 200
   },
-  "search_apis": ["searxng", "brave"]
+  "search_apis": ["searxng", "brave"],
+  "extra_body": {
+    "$comment": "Extra request fields per endpoint (SillyTavern's additional parameters): a JSON object merged into every request body sent to that endpoint, after the app's own fields, so it can set what the app doesn't (reasoning_effort, say) or override a sampler; the fields that carry the conversation are never overridden (features/models/extraBody.ts, ai_chat/ExtraBody.py; cases in contract/extra-body-cases.json).",
+    "max_bytes": 4000,
+    "max_keys": 30,
+    "reserved": ["model", "messages", "prompt", "stream", "system", "systemInstruction", "contents"]
+  }
 }

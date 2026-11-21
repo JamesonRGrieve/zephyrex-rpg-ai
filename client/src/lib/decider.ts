@@ -7,6 +7,7 @@
  */
 import { type DecideAnswer, type DecideQuestion, decideRequest, readAnswers } from '~/features/decide/decide';
 import { endpoints } from '~/lib/rpgRecords';
+import { storedExtraBody, withExtraBody } from '~/features/models/extraBody';
 
 const NO_QUERY = new URLSearchParams();
 
@@ -19,6 +20,8 @@ interface DeciderRow {
   apiKey: string;
   isDefault: boolean;
   name: string;
+  /** Extra request fields (a JSON column), merged into the question's request. */
+  extraBody?: string;
 }
 
 /** The person's model serving `decide` (the default one first), or null when there is none. */
@@ -55,7 +58,7 @@ export async function askDecider(
       'Content-Type': 'application/json',
       ...(row.apiKey === '' ? {} : { Authorization: `Bearer ${row.apiKey}` }),
     },
-    body: JSON.stringify(decideRequest(row.model, state, questions)),
+    body: JSON.stringify(withExtraBody(decideRequest(row.model, state, questions), storedExtraBody(row.extraBody))),
     signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
   }).catch(() => null);
   if (answer === null || !answer.ok) return null;

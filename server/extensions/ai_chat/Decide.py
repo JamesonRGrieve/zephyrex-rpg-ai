@@ -13,6 +13,8 @@ import math
 from collections.abc import Mapping, Sequence
 from typing import Any
 
+from zephyrex.extensions.ai_chat.ExtraBody import with_extra_body  # type: ignore[import-not-found]
+
 
 def _choice_options(criteria: Sequence[str] | Mapping[str, str]) -> dict[str, str]:
     if isinstance(criteria, Mapping):
@@ -133,7 +135,12 @@ def completion_content(body: Any) -> str | None:
 
 
 async def ask_decider(
-    base_url: str, model: str, api_key: str, state: str, questions: Mapping[str, Mapping[str, Any]]
+    base_url: str,
+    model: str,
+    api_key: str,
+    state: str,
+    questions: Mapping[str, Mapping[str, Any]],
+    extra: Mapping[str, Any] | None = None,
 ) -> dict[str, dict[str, Any] | None] | None:
     """The questions' answers from the decision model at ``base_url``, or None when it couldn't be
     asked (unreachable, refused, or not a completion), so the caller does what it did before."""
@@ -145,7 +152,8 @@ async def ask_decider(
             answer = await client.post(
                 f"{base_url.rstrip('/')}/chat/completions",
                 headers=headers,
-                json=decide_request(model, state, questions),
+                # The endpoint's extra request fields, never over the conversation's own (ExtraBody.py).
+                json=with_extra_body(decide_request(model, state, questions), extra),
             )
     except httpx.HTTPError:
         return None

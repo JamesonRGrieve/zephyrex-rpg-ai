@@ -233,7 +233,9 @@ describe('World Info in a reply', () => {
     const response = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
     const { prompt } = (await response.json()) as { prompt: { messages: { role: string; content: string }[] } };
     expect(prompt.messages[0]?.content).not.toContain('Sam is a new deckhand.');
-    expect(prompt.messages).toContainEqual(expect.objectContaining({ role: 'user', content: 'Sam: Sam is a new deckhand.' }));
+    expect(prompt.messages).toContainEqual(
+      expect.objectContaining({ role: 'user', content: 'Sam: Sam is a new deckhand.' }),
+    );
     expect(prompt.messages.some((message) => message.content.includes('lost a spanner overboard'))).toBe(true);
     await prisma.persona.deleteMany();
   });
@@ -284,6 +286,16 @@ describe('POST /v1/ai_chat/prompt', () => {
     expect(body.prompt.tokens).toBe(body.prompt.messages.reduce((total, message) => total + message.tokens, 0));
     expect(received).toHaveLength(0);
     expect(await prisma.chatLoreState.count()).toBe(0);
+  });
+
+  it('sends the endpoint’s extra request fields, never over the conversation’s own', async () => {
+    const { chat, line } = await seed();
+    await prisma.modelEndpoint.updateMany({
+      data: { extraBody: JSON.stringify({ reasoning_effort: 'none', temperature: 0.1, stream: false }) },
+    });
+    await events(await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } })));
+    const body = received[0]?.body as Record<string, unknown>;
+    expect([body.reasoning_effort, body.temperature, body.model, body.stream]).toEqual(['none', 0.1, 'tiny', true]);
   });
 
   it('asks for the person’s own line when impersonating', async () => {

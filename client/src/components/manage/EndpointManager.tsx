@@ -27,6 +27,8 @@ import {
 } from '~/contract';
 import { type ModelEndpoint, endpoints, refreshedByRecords, instructTemplates } from '~/features/data/records';
 import { pingEndpoint } from '~/features/models/ping';
+import { readExtraBody } from '~/features/models/extraBody';
+import { ExtraBodyField, extraBodyText } from './ExtraBodyField';
 import { ManagedList } from './ManagedList';
 import { ModelStatus } from './ModelStatus';
 
@@ -70,6 +72,9 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
   const [roles, setRoles] = useState<EndpointRole[]>(endpoint?.roles ?? []);
   // The size it draws at (A30), asked only of a model set to draw; empty is the contract's default.
   const [imageSize, setImageSize] = useState(endpoint?.image_size ?? '');
+  // Extra request fields, typed as JSON (SillyTavern's additional parameters).
+  const [extraText, setExtraText] = useState(extraBodyText(endpoint?.extra_body));
+  const extra = readExtraBody(extraText);
   const writes = useWrites(refreshedByRecords);
   const ids = {
     name: useId(),
@@ -93,6 +98,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
       image_size: roles.includes('image') && !searching ? imageSize : '',
       roles: searching ? (['search'] as EndpointRole[]) : roles.filter((role) => role !== 'search'),
       ...(apiKey === '' ? {} : { api_key: apiKey }),
+      ...('value' in extra && !searching ? { extra_body: extra.value } : {}),
     };
     if (await writes.run(endpoint === null ? create(fields) : update(endpoint, fields), 'Not saved', 'Saved')) done();
   };
@@ -293,6 +299,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
           </div>
         </fieldset>
       )}
+      {!searching && <ExtraBodyField text={extraText} onChange={setExtraText} />}
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <Label htmlFor={ids.isDefault}>Use for new chats</Label>
         <Switch id={ids.isDefault} checked={isDefault} onCheckedChange={setIsDefault} />
@@ -301,7 +308,7 @@ function EndpointForm({ endpoint, done }: { endpoint: ModelEndpoint | null; done
       <Button
         type='submit'
         className='h-11'
-        disabled={name.trim() === '' || baseUrl.trim() === '' || (!searching && model.trim() === '')}
+        disabled={name.trim() === '' || baseUrl.trim() === '' || (!searching && (model.trim() === '' || 'problem' in extra))}
       >
         Save
       </Button>

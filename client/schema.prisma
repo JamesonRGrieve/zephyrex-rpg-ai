@@ -167,6 +167,8 @@ model ModelEndpoint {
   /// The size it is asked to draw at (A30), one of the contract's picture sizes; "" is the contract's default.
   imageSize   String   @default("")
   roles       String   @default("[]")
+  /// Extra request fields (SillyTavern's additional parameters): a JSON object merged into each request.
+  extraBody   String   @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   updatedById String?

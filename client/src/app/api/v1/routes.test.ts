@@ -256,6 +256,24 @@ describe('model endpoints', () => {
   });
 });
 
+describe('extra request fields on an endpoint', () => {
+  it('keeps an object of extra fields and refuses one that sets the conversation', async () => {
+    const post = (extra: unknown) =>
+      postEndpoint(
+        call('/v1/model_endpoint', {
+          method: 'POST',
+          body: { model_endpoint: { name: 'M', base_url: 'http://h:1/v1', model: 'm', extra_body: extra } },
+        }),
+        none,
+      );
+    expect(await (await post({ reasoning_effort: 'none' })).json()).toMatchObject({
+      model_endpoint: { extra_body: { reasoning_effort: 'none' } },
+    });
+    expect((await post({ stream: false })).status).toBe(422);
+    expect((await post(['x'])).status).toBe(422);
+  });
+});
+
 describe('the local owner', () => {
   it('refuses a cross-site write', async () => {
     const response = await postCharacter(

@@ -134,6 +134,7 @@ CREATE TABLE "ModelEndpoint" (
     "customTemplateId" TEXT,
     "imageSize" TEXT NOT NULL DEFAULT '',
     "roles" TEXT NOT NULL DEFAULT '[]',
+    "extraBody" TEXT NOT NULL DEFAULT '{}',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

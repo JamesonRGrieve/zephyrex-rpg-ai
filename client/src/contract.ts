@@ -99,6 +99,8 @@ export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['cha
 /** Native APIs (audit gap 8): how Anthropic's and Google's are asked (cases in contract/native-api-cases.json). */
 export const NATIVE_APIS = contract.native_apis;
 /** Personas (audit gap 9): description positions, roles, and locks to characters. */
+/** Extra request fields per endpoint: their size, and the fields they never override. */
+export const EXTRA_BODY = contract.extra_body;
 export const PERSONA = contract.persona as unknown as Omit<typeof contract.persona, 'positions' | 'roles'> & {
   positions: readonly ['prompt', 'depth', 'note_top', 'note_bottom', 'none'];
   roles: readonly ['system', 'user', 'assistant'];

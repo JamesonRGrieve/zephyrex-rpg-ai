@@ -173,6 +173,7 @@ export const endpointSchema = z.object({
   custom_template_id: z.string().nullable(),
   image_size: z.string(),
   roles: z.array(z.enum(ENDPOINT_ROLES)),
+  extra_body: z.record(z.string(), z.unknown()),
 });
 export type ModelEndpoint = z.infer<typeof endpointSchema>;
 

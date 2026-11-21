@@ -684,6 +684,21 @@ class TestGenerate:
         server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
         assert {key: RECEIVED[0]["body"][key] for key in ("logit_bias", "negative_prompt", "guidance_scale")} == {"logit_bias": {"50256": -100}, "negative_prompt": "purple prose", "guidance_scale": 1.5}
 
+    def test_an_endpoints_extra_request_fields_reach_the_model_never_over_the_conversation(self, server: TestClient, model_url: str) -> None:
+        # SillyTavern's additional parameters: e.g. reasoning_effort "none" to stop a model thinking.
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        refused = server.post("/v1/model_endpoint", json={"model_endpoint": {"name": "x", "base_url": model_url, "model": "tiny", "extra_body": {"stream": False}}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+        made = _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True, extra_body={"reasoning_effort": "none", "temperature": 0.1}).json()["model_endpoint"]
+        assert made["extra_body"] == {"reasoning_effort": "none", "temperature": 0.1}
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        RECEIVED.clear()
+        server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        body = RECEIVED[0]["body"]
+        assert (body["reasoning_effort"], body["temperature"], body["model"], body["stream"]) == ("none", 0.1, "tiny", True)
+
     def test_a_presets_further_samplers_reach_only_the_apis_that_take_them(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]
