@@ -11,6 +11,7 @@
  */
 import { journals, worlds } from '@zephyrex-rpg/wiki/features/data/records';
 import { useRouter } from 'next/navigation';
+import { notify } from 'zephyrex/hooks/useToast';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
 import { type ReactElement, useMemo, useState } from 'react';
@@ -289,6 +290,9 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       await createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id });
       onStarted();
       router.push(`/play/${chat.id}`);
+    } catch (error) {
+      // Never a silent hang (the operator, 2026-11-21: "Start the campaign now hangs"): say why.
+      notify('The campaign was not started', error instanceof Error ? error.message : undefined);
     } finally {
       setStarting(false);
     }

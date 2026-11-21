@@ -16,6 +16,7 @@ import { openingTurns } from '~/features/chat/turns';
 import { people, worlds } from '@zephyrex-rpg/wiki/features/data/records';
 import { useCast } from '~/features/data/cast';
 import { sandboxCampaign, sharedCampaign } from '~/features/data/sandbox';
+import { usePersonFolders } from '~/features/data/folders';
 import { type Character, chats, messages } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { CampaignStart } from './CampaignStart';
@@ -39,6 +40,14 @@ export function NewChat({
   campaignId?: string | null;
 }): ReactElement {
   const list = useCast();
+  const folders = usePersonFolders();
+  // The picker folders the cast by setting, scenario and campaign (features/data/folders).
+  const grouped = new Map<string, NonNullable<typeof list.data>>();
+  for (const character of list.data ?? []) {
+    const folder = folders.get(character.id) ?? 'Cards';
+    grouped.set(folder, [...(grouped.get(folder) ?? []), character]);
+  }
+  const folderNames = [...grouped.keys()].sort((a, b) => a.localeCompare(b));
   const { create } = chats.useActions();
   const personList = people.useList();
   const worldList = worlds.useList();
@@ -108,7 +117,11 @@ export function NewChat({
         ) : (
           <>
             <ul className='grid flex-1 gap-2 overflow-y-auto p-4' aria-label='Characters'>
-              {(list.data ?? []).map((character) => {
+              {folderNames.flatMap((folder) => [
+                <li key={`folder-${folder}`} role='presentation' className='pt-2 text-xs font-semibold text-muted-foreground'>
+                  {folder}
+                </li>,
+                ...(grouped.get(folder) ?? []).map((character) => {
                 const order = picked.indexOf(character.id);
                 return (
                   <li key={character.id}>
@@ -134,7 +147,8 @@ export function NewChat({
                     </button>
                   </li>
                 );
-              })}
+              }),
+              ])}
               {list.data !== undefined && list.data.length === 0 && (
                 <li className='text-muted-foreground'>Add a character first.</li>
               )}

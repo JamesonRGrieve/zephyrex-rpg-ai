@@ -118,17 +118,26 @@ export function CampaignManager(): ReactElement {
                 <ul className='grid gap-2'>
                   {system.scenarios.map((scenario) => (
                     <li key={scenario.id} className='grid gap-1 rounded-lg border'>
-                      <div className='flex items-start'>
+                      {/* The title, with its wiki page beside it (the operator, 2026-11-21: "beside the
+                          title"); the rest of the card starts a campaign. */}
+                      <div className='flex min-w-0 items-center gap-1 px-3 pt-2'>
+                        <button
+                          type='button'
+                          onClick={() => setStarting(scenario.id)}
+                          className='min-w-0 truncate text-left font-medium hover:underline'
+                        >
+                          {scenario.name}
+                        </button>
+                        <WikiLink href={`/w/${scenario.id}/about`} name={scenario.name} />
+                        <Provenance kind={scenario.provenance ?? 'homebrew'} source={scenario.source ?? null} />
+                      </div>
                       <button
                         type='button'
                         onClick={() => setStarting(scenario.id)}
-                        className='flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-lg p-3 text-left hover:bg-muted'
+                        aria-label={`Start a campaign of ${scenario.name}`}
+                        className='flex min-h-11 w-full items-center gap-3 rounded-b-lg px-3 pb-3 text-left hover:bg-muted'
                       >
                         <span className='min-w-0 flex-1'>
-                          <span className='flex min-w-0 items-center gap-2'>
-                            <span className='truncate font-medium'>{scenario.name}</span>
-                            <Provenance kind={scenario.provenance ?? 'homebrew'} source={scenario.source ?? null} />
-                          </span>
                           {scenario.description !== null && scenario.description !== '' && (
                             <span className='line-clamp-2 text-sm text-muted-foreground'>{scenario.description}</span>
                           )}
@@ -143,12 +152,7 @@ export function CampaignManager(): ReactElement {
                           )}
                         </span>
                         <Play aria-hidden className='size-4 shrink-0' />
-                        <span className='sr-only'>Start a campaign</span>
                       </button>
-                      <span className='p-1.5'>
-                        <WikiLink href={`/w/${scenario.id}/about`} name={scenario.name} />
-                      </span>
-                      </div>
                       {(played.get(scenario.id) ?? []).length > 0 && (
                         <ul aria-label={`Campaigns of ${scenario.name}`} className='grid gap-1 px-3 pb-3'>
                           {[...(played.get(scenario.id) ?? [])]

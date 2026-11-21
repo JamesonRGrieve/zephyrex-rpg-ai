@@ -116,7 +116,7 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
 
   // Scenarios: the wiki campaign, grouped under its setting and system; a tap starts a campaign.
   await page.goto('/campaigns');
-  await page.getByRole('button', { name: /Voidship Escapade \(e2e\)/ }).click();
+  await page.getByRole('button', { name: /^Start a campaign of Voidship Escapade \(e2e\)/ }).click();
   await expect(page.getByRole('button', { name: 'Start the campaign' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('list', { name: 'Party' }).getByRole('button', { pressed: true })).toHaveCount(2);
   await page.getByRole('button', { name: 'Start the campaign' }).click();
@@ -136,7 +136,7 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   await say(page, 'GM starts a fight', 'The vent above them bursts open. A pale, many-limbed thing drops into the brig. Combat begins!');
 
   // A roll from the VTT's dice tray: a formula, rolled on the server, recorded as a roll line.
-  await page.getByRole('button', { name: 'Context' }).click();
+  await page.getByRole('button', { name: 'Context', exact: true }).click();
   await page.getByRole('button', { name: 'Dice' }).click();
   const formula = page.getByLabel(/formula/i);
   if ((await formula.count()) > 0) {
