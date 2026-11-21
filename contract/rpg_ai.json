@@ -741,6 +741,16 @@
     "activation_regex_characters": 200
   },
   "search_apis": ["searxng", "brave"],
+  "injections": {
+    "$comment": "STscript's /inject (audit gap 5): a chat's named injections, kept until flushed. Each has an id, its text, where it goes (chat: at a depth in the chat, with a role; before or after: at the start or end of the system prompt). features/chat/injections.ts, ai_chat/Injections.py, assemble.ts and Prompt.py.",
+    "max": 50,
+    "id_characters": 100,
+    "text_characters": 10000,
+    "positions": ["chat", "before", "after"],
+    "roles": ["system", "user", "assistant"],
+    "depth_max": 1000,
+    "default_depth": 4
+  },
   "group_settings": {
     "$comment": "Group chat modes (audit gap 6), a chat's group_settings: card_mode swap (the speaker's card) or join (every member's card, each between the join prefix and suffix); order natural, list or pooled; allow_self (natural order may pick who just spoke); auto_seconds (the next member replies by itself after that long idle, 0 off); scenario (replaces each card's scenario). features/chat/turns.ts, features/prompt/assemble.ts, ai_chat/Prompt.py.",
     "card_modes": ["swap", "join"],

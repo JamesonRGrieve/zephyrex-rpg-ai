@@ -39,6 +39,7 @@ import { personaBooks, personaFor } from '~/features/prompt/personaPick';
 import { genMessages } from '~/features/prompt/gen';
 import { type ExtraBody, storedExtraBody, withExtraBody } from '~/features/models/extraBody';
 import type { GroupSettings } from '~/features/chat/groupSettings';
+import type { Injection } from '~/features/chat/injections';
 import type { Persona as PersonaRecord } from '~/features/data/records';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import {
@@ -174,6 +175,7 @@ export async function generationInputs(
     scenario_id: string | null;
     variables: Record<string, string>;
     group_settings: GroupSettings;
+    injections: Injection[];
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -368,6 +370,8 @@ export async function generationInputs(
       frame: chatFields.campaign_id === null ? null : await campaignFrame(ownerId, chatFields.campaign_id),
       // A group's joined cards and own scenario (audit gap 6).
       group: chatFields.group_settings,
+      // The chat's /inject injections (audit gap 5).
+      injections: chatFields.injections,
       scenario: chatFields.scenario_id === null ? null : await runningScenario(ownerId, chatFields.scenario_id),
       data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),

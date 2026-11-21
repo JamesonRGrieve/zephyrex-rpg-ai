@@ -72,6 +72,7 @@ CREATE TABLE "Chat" (
     "paused" BOOLEAN NOT NULL DEFAULT false,
     "variables" TEXT NOT NULL DEFAULT '{}',
     "groupSettings" TEXT NOT NULL DEFAULT '{}',
+    "injections" TEXT NOT NULL DEFAULT '[]',
     "campaignId" TEXT,
     "scenarioId" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,

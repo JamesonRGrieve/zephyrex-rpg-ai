@@ -68,10 +68,10 @@ imported card, preset or script breaks without it.
    activation regex. Imported instruct and context JSON can't be read in.
 5. **STscript's generation and chat commands.** `/gen`, `/genraw`, `/trigger`, `/send`,
    `/inject`, `/messages`, `/swipe`/`/addswipe`, `/hide`/`/unhide`, `/del`, `/cut` and `/sysgen`
-   are what popular quick-reply sets call. 185 of the 293 commands are missing (table below).
-   The 55 covered are the language core (variables, maths, control flow, strings, input) and,
+   are what popular quick-reply sets call. 182 of the 293 commands are missing (table below).
+   The 58 covered are the language core (variables, maths, control flow, strings, input) and,
    since gap 5's work, `/gen`, `/genraw`, `/sysgen`, `/send`, `/trigger`, `/messages`,
-   `/addswipe`, `/del` and `/comment`; `/inject` and `/cut` are next.
+   `/addswipe`, `/del`, `/comment`, `/inject`, `/listinjects` and `/flushinject`; `/cut` is next.
 6. **Group chat generation modes.** There's no swap-versus-join character cards, no auto-mode,
    no "allow self responses", no pooled order, no per-group scenario override and no group nudge
    template. Groups work, but SillyTavern group players set these first.
@@ -472,7 +472,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/findentry` | findlore, findwi | world-info.js | missing |  |
 | `/flat` | default | slash-commands.js | missing |  |
 | `/flushglobalvar` |  | variables.js | covered |  |
-| `/flushinject` | flushinjects | slash-commands.js | missing |  |
+| `/flushinject` | flushinjects | slash-commands.js | covered | `withoutInjection` (gap 5) |
 | `/flushvar` | flushchatvar | variables.js | covered |  |
 | `/forcesave` |  | slash-commands.js | out of scope | rpg-ai saves every write |
 | `/fuzzy` |  | slash-commands.js | missing |  |
@@ -498,7 +498,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/import` |  | extensions/quick-reply/src/SlashCommandHandler.js | missing |  |
 | `/incglobalvar` |  | variables.js | covered |  |
 | `/incvar` | incchatvar | variables.js | covered |  |
-| `/inject` |  | slash-commands.js | missing |  |
+| `/inject` |  | slash-commands.js | covered | chat `injections` (gap 5), `features/chat/injections.ts` |
 | `/input` | prompt | slash-commands.js | covered |  |
 | `/instruct` |  | slash-commands.js | missing |  |
 | `/instruct-off` | instruct-toggle | slash-commands.js | missing |  |
@@ -508,7 +508,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/len` | length | variables.js | covered |  |
 | `/let` |  | variables.js | missing |  |
 | `/list-gallery` | lg | extensions/gallery/index.js | missing |  |
-| `/listinjects` | flushinjects | slash-commands.js | missing |  |
+| `/listinjects` | flushinjects | slash-commands.js | covered | `injectionsText` (gap 5) |
 | `/listvar` | listchatvar | variables.js | missing |  |
 | `/loader-hide` |  | action-loader-slashcommands.js | out of scope | ST's loading overlay |
 | `/loader-show` |  | action-loader-slashcommands.js | out of scope | ST's loading overlay |

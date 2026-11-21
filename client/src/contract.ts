@@ -101,6 +101,11 @@ export const NATIVE_APIS = contract.native_apis;
 /** Personas (audit gap 9): description positions, roles, and locks to characters. */
 /** Extra request fields per endpoint: their size, and the fields they never override. */
 export const EXTRA_BODY = contract.extra_body;
+/** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
+export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
+  positions: readonly ['chat', 'before', 'after'];
+  roles: readonly ['system', 'user', 'assistant'];
+};
 /** Group chat modes (audit gap 6): card modes, orders, join affixes and limits. */
 export const GROUP_SETTINGS = contract.group_settings as unknown as Omit<
   typeof contract.group_settings,

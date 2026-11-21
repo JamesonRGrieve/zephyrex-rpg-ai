@@ -64,6 +64,7 @@ from zephyrex.extensions.ai_chat.ExtraBody import extra_body_problem, with_extra
 from zephyrex.extensions.ai_chat.Gen import gen_messages  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Group import group_stops  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.GroupSettings import group_settings_problem  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Injections import injections_problem  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-found]
     active_template,
     instruct_stops,
@@ -327,6 +328,15 @@ def _base_url(url: Any) -> Any:
 
 
 class ChatChecks(PlainModel):
+    @field_validator("injections", check_fields=False)
+    @classmethod
+    def _checked_injections(cls, value: Any) -> Any:
+        """STscript's /inject injections (audit gap 5, Injections.py)."""
+        problem = None if value is None else injections_problem(value)
+        if problem is not None:
+            raise ValueError(problem)
+        return value
+
     @field_validator("group_settings", check_fields=False)
     @classmethod
     def _checked_group_settings(cls, value: Any) -> Any:
@@ -504,6 +514,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     group_settings: dict[str, Any] = Field(
         default_factory=dict, description="A group's modes: card mode, order, allow self, auto-reply, scenario"
     )
+    injections: list[dict[str, Any]] = Field(
+        default_factory=list, description="STscript's /inject injections, kept until flushed"
+    )
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
@@ -534,6 +547,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         scenario_id: str | None = None
         variables: dict[str, str] = Field(default_factory=dict)
         group_settings: dict[str, Any] = Field(default_factory=dict)
+        injections: list[dict[str, Any]] = Field(default_factory=list)
 
     class Update(ChatChecks, BaseModel):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -562,6 +576,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         scenario_id: str | None = None
         variables: dict[str, str] | None = None
         group_settings: dict[str, Any] | None = None
+        injections: list[dict[str, Any]] | None = None
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -610,6 +625,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("objectives", [])
         kwargs.setdefault("variables", {})
         kwargs.setdefault("group_settings", {})
+        kwargs.setdefault("injections", [])
         kwargs.setdefault("lines", [])
         kwargs.setdefault("veils", [])
         kwargs.setdefault("table_notes", [])
@@ -2330,6 +2346,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             template if isinstance(template, dict) and endpoint.api in ("text", "horde") else None,
             # A group's joined cards and own scenario (audit gap 6).
             chat.group_settings or {},
+            # The chat's /inject injections (audit gap 5).
+            chat.injections or [],
         )
         if body.mode == "table":
             # The table GM (A11, A20) reads the table talk, with the story for reference only.

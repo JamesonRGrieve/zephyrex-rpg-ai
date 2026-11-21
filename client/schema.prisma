@@ -96,6 +96,8 @@ model Chat {
   variables    String   @default("{}")
   /// A group's modes (audit gap 6): card mode, order, allow self, auto-reply, scenario; a JSON object.
   groupSettings String  @default("{}")
+  /// STscript's /inject injections (audit gap 5), kept until flushed; a JSON list.
+  injections   String   @default("[]")
   campaignId   String?
   scenarioId   String?
   createdAt    DateTime @default(now())

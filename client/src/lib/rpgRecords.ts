@@ -45,6 +45,7 @@ import {
 import { samplerProblem } from '~/features/prompt/samplers';
 import { extraBodyProblem } from '~/features/models/extraBody';
 import { groupSettingsProblem } from '~/features/chat/groupSettings';
+import { injectionsProblem } from '~/features/chat/injections';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -299,6 +300,7 @@ const CHAT_COLUMNS: Columns = {
   paused: plain('paused'),
   variables: jsonObject('variables'),
   group_settings: jsonObject('groupSettings'),
+  injections: jsonList('injections'),
   campaign_id: plain('campaignId'),
   scenario_id: plain('scenarioId'),
 };
@@ -370,6 +372,11 @@ const chatFields = {
     const problem = groupSettingsProblem(value);
     if (problem !== null) context.addIssue({ code: 'custom', message: problem });
   }),
+  /** STscript's /inject injections (audit gap 5), kept until flushed. */
+  injections: z.array(z.record(z.string(), z.unknown())).superRefine((value, context) => {
+    const problem = injectionsProblem(value);
+    if (problem !== null) context.addIssue({ code: 'custom', message: problem });
+  }),
   /** The campaign it belongs to (A57); its frame is read every turn. */
   campaign_id: recordId.nullable(),
   /** The scenario it runs (A59, A60); the GM's view of it is read every turn. */
@@ -400,6 +407,7 @@ const chatCreate = z.object({
   paused: chatFields.paused.default(false),
   variables: chatFields.variables.default({}),
   group_settings: chatFields.group_settings.default({}),
+  injections: chatFields.injections.default([]),
   campaign_id: chatFields.campaign_id.default(null),
   scenario_id: chatFields.scenario_id.default(null),
 });

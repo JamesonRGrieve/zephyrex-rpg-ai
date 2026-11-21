@@ -38,6 +38,7 @@ def test_case(case: dict[str, Any]) -> None:
         frame=given.get("frame"),
         scenario=given.get("scenario"),
         group_modes=given.get("group"),
+        injections=given.get("injections", []),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]

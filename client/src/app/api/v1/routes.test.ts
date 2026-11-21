@@ -275,6 +275,21 @@ describe('a group chat’s modes (audit gap 6)', () => {
   });
 });
 
+describe('a chat’s /inject injections (audit gap 5)', () => {
+  it('keeps them and refuses one id twice or a position that isn’t one', async () => {
+    const ada = await created<{ id: string }>(postCharacter, '/v1/character', 'character', { name: 'Ada' });
+    const post = (injections: unknown) =>
+      postChat(
+        call('/v1/chat', { method: 'POST', body: { chat: { title: 'C', character_ids: [ada.record.id], injections } } }),
+        none,
+      );
+    const one = { id: 'mood', text: 'Rain.', position: 'chat', depth: 2, role: 'system' };
+    expect(await (await post([one])).json()).toMatchObject({ chat: { injections: [one] } });
+    expect((await post([one, one])).status).toBe(422);
+    expect((await post([{ ...one, position: 'top' }])).status).toBe(422);
+  });
+});
+
 describe('extra request fields on an endpoint', () => {
   it('keeps an object of extra fields and refuses one that sets the conversation', async () => {
     const post = (extra: unknown) =>

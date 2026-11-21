@@ -141,6 +141,16 @@ export interface PromptInput {
    * A group's modes (audit gap 6): `join` puts every member's card in the system prompt, each
    * between the join prefix and suffix; `scenario` replaces each card's scenario.
    */
+  /**
+   * The chat's /inject injections (audit gap 5): `before` and `after` at the start and end of the
+   * system prompt, `chat` at its depth with its role.
+   */
+  injections?: readonly {
+    text: string;
+    position: 'chat' | 'before' | 'after';
+    depth: number;
+    role: 'system' | 'user' | 'assistant';
+  }[];
   group?: {
     card_mode?: (typeof GROUP_SETTINGS.card_modes)[number];
     join_prefix?: string;
@@ -741,9 +751,18 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     memories: input.memories ?? '',
     summary: (input.summary ?? '').trim() === '' ? '' : PROMPT.summary_prefix + (input.summary ?? ''),
   };
+  const core = storySystem(input, texts, order, fill) ?? systemText(texts, order, fill);
+  // The chat's /inject injections at the start and end of the system prompt (audit gap 5).
+  const injected = (position: 'before' | 'after') =>
+    (input.injections ?? [])
+      .filter((injection) => injection.position === position && injection.text.trim() !== '')
+      .map((injection) => fill(injection.text))
+      .join('\n\n');
+  const beforeSystem = injected('before');
+  const afterSystem = injected('after');
   const system: ModelMessage = {
     role: 'system',
-    content: storySystem(input, texts, order, fill) ?? systemText(texts, order, fill),
+    content: [beforeSystem, core, afterSystem].filter((part) => part !== '').join('\n\n'),
   };
   const note = fill(
     [
@@ -785,6 +804,10 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
             },
           },
         ]),
+    // The chat's /inject injections placed in the history (audit gap 5), each at its depth.
+    ...(input.injections ?? [])
+      .filter((injection) => injection.position === 'chat' && injection.text.trim() !== '')
+      .map((injection) => ({ depth: injection.depth, message: { role: injection.role, content: fill(injection.text) } })),
     // The person's own prompts placed in the history (audit gap 3), each at its depth.
     ...order.flatMap((entry) => {
       if (!('content' in entry) || !entry.enabled || entry.position !== 'depth') return [];

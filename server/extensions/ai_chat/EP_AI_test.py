@@ -738,6 +738,25 @@ class TestGenerate:
         refused = server.post("/v1/ai_chat/gen", json={"gen": {"chat_id": chat["id"], "prompt": "   "}}, headers=_headers(user))
         assert refused.status_code == 422
 
+    def test_a_chats_injections_reach_the_prompt_and_are_checked(self, server: TestClient, model_url: str) -> None:
+        # Audit gap 5: STscript's /inject keeps named injections with the chat until flushed.
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        twice = [{"id": "a", "text": "x", "position": "chat", "depth": 1, "role": "system"}] * 2
+        refused = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "injections": twice}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+        injections = [
+            {"id": "tone", "text": "A grim tale.", "position": "before", "depth": 4, "role": "system"},
+            {"id": "weather", "text": "It is raining.", "position": "chat", "depth": 0, "role": "user"},
+        ]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], injections=injections).json()["chat"]
+        assert chat["injections"] == injections
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        messages = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)).json()["prompt"]["messages"]
+        assert messages[0]["content"].startswith("A grim tale.\n\n")
+        assert {"role": messages[-1]["role"], "content": messages[-1]["content"]} == {"role": "user", "content": "It is raining."}
+
     def test_a_presets_further_samplers_reach_only_the_apis_that_take_them(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

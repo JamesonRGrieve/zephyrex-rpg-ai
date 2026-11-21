@@ -2037,6 +2037,83 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "the chat's /inject injections (audit gap 5): before and after the system prompt, and in the chat at their depth and role",
+      "input": {
+        "characters": ["ada"],
+        "speaker_id": "c-ada",
+        "persona": {
+          "name": "Sam",
+          "description": "{{user}} is a new deckhand."
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Welcome aboard."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where do I sleep?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "injections": [
+          {
+            "id": "rule",
+            "text": "Keep {{char}} terse.",
+            "position": "after",
+            "depth": 4,
+            "role": "system"
+          },
+          {
+            "id": "weather",
+            "text": "It is raining on deck.",
+            "position": "chat",
+            "depth": 1,
+            "role": "user"
+          },
+          {
+            "id": "tone",
+            "text": "A grim tale.",
+            "position": "before",
+            "depth": 4,
+            "role": "system"
+          },
+          {
+            "id": "blank",
+            "text": "  ",
+            "position": "chat",
+            "depth": 0,
+            "role": "system"
+          }
+        ]
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "A grim tale.\n\nWrite Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nKeep Ada terse."
+        },
+        {
+          "role": "assistant",
+          "content": "Welcome aboard."
+        },
+        {
+          "role": "user",
+          "content": "It is raining on deck."
+        },
+        {
+          "role": "user",
+          "content": "Where do I sleep?"
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

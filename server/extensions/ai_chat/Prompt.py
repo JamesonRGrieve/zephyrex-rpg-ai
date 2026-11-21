@@ -446,6 +446,7 @@ def assemble_prompt(
     macros: Mapping[str, Any] | None = None,
     template: Mapping[str, Any] | None = None,
     group_modes: Mapping[str, Any] | None = None,
+    injections: Sequence[Mapping[str, Any]] = (),
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -577,10 +578,18 @@ def assemble_prompt(
         "summary": PROMPT["summary_prefix"] + summary if summary.strip() else "",
     }
     story_system = _story_system(template, texts, order, fill, speaker, persona, sections)
-    system = {
-        "role": "system",
-        "content": story_system if story_system is not None else _system_text(texts, order, fill),
-    }
+    core = story_system if story_system is not None else _system_text(texts, order, fill)
+
+    # The chat's /inject injections at the start and end of the system prompt (audit gap 5).
+    def injected(position: str) -> str:
+        return "\n\n".join(
+            fill(str(injection["text"]))
+            for injection in injections
+            if injection.get("position") == position and str(injection.get("text") or "").strip()
+        )
+
+    before, after_system = injected("before"), injected("after")
+    system = {"role": "system", "content": "\n\n".join(part for part in (before, core, after_system) if part)}
     block = "\n".join(
         part.strip()
         for part in (sections.get("before_an", ""), kept("author_note", author_note), sections.get("after_an", ""))
@@ -620,6 +629,12 @@ def assemble_prompt(
         # The chat's current task (A53), a system line at its depth.
         task = fill(PROMPT["objective_prompt"].replace("{{task}}", objective.strip()))
         inserts.append((PROMPT["objective_depth"], {"role": "system", "content": task}))
+    # The chat's /inject injections placed in the history (audit gap 5), each at its depth.
+    for injection in injections:
+        if injection.get("position") == "chat" and str(injection.get("text") or "").strip():
+            inserts.append(
+                (int(injection["depth"]), {"role": str(injection["role"]), "content": fill(str(injection["text"]))})
+            )
     # The person's own prompts placed in the history (audit gap 3), each at its depth.
     for entry in order:
         if "content" in entry and entry["enabled"] and entry["position"] == "depth":

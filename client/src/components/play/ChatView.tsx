@@ -119,6 +119,7 @@ import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
 import type { GroupSettings } from '~/features/chat/groupSettings';
+import { type Injection, injectionsText, withInjection, withoutInjection } from '~/features/chat/injections';
 import { Recap } from './Recap';
 import { MessageItem, type MessageView } from './MessageItem';
 
@@ -150,6 +151,10 @@ const SCRIPT_ACTIONS: ReadonlySet<string> = new Set([
   'genraw',
   'sysgen',
   'comment',
+  // Audit gap 5: the chat's injections, kept until flushed.
+  'inject',
+  'listinjects',
+  'flushinject',
   'send',
   'trigger',
   'messages',
@@ -514,6 +519,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const runUserScript = async (script: string, setInput?: (text: string) => void) => {
     // The branch as the script changes it: React's state is a step behind within one run.
     let parent = leaf;
+    // The chat as this script last saved it: each /inject or /flushinject builds on the one before.
+    let scriptChat = chat;
     let path: ChatMessage[] = [...branch];
     const addLine = async (fields: Omit<Parameters<typeof create>[0], 'chat_id' | 'parent_id'>) => {
       const saved = await create({ ...fields, chat_id: chat.id, parent_id: parent });
@@ -562,6 +569,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           await addLine({ role: 'narrator', channel: 'ic', swipes: [answer] });
           return undefined;
         }
+        // The chat's injections (audit gap 5): set, listed and flushed, kept with the chat.
+        if (name === 'inject' || name === 'flushinject') {
+          const current = scriptChat.injections as unknown as Injection[];
+          const next = name === 'inject' ? withInjection(current, args, text) : withoutInjection(current, args.id ?? text);
+          scriptChat = await updateChat(scriptChat, { injections: next as unknown as Record<string, unknown>[] });
+          return undefined;
+        }
+        if (name === 'listinjects') return injectionsText(scriptChat.injections as unknown as Injection[]);
         // A comment (audit gap 5): kept in the chat as a system line the model never reads.
         if (name === 'comment') {
           await addLine({ role: 'system', channel: 'system', swipes: [text] });
