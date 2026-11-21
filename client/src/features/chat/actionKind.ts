@@ -1,30 +1,108 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /**
- * What kind of action a Do line is, for its icon (the operator, 2026-11-21: "Can the decision model
- * decide on the action icons?"). A free word match first; the decision model's category, when the
- * roll decision gives one, wins over it.
+ * What kind of action a Do line is, for its icon (the operator, 2026-11-21: "Not enough icon
+ * options, pissing in the middle of the floor should be water droplets"). A free word match, most
+ * specific first; the decision model's kind, when the roll decision gives one, wins over it.
  */
-export const ACTION_KINDS = ['attack', 'move', 'tech', 'social', 'search', 'stealth', 'psychic', 'use', 'other'] as const;
+export const ACTION_KINDS = [
+  'relieve',
+  'drink',
+  'eat',
+  'sleep',
+  'fire',
+  'heal',
+  'pray',
+  'spell',
+  'psychic',
+  'shoot',
+  'attack',
+  'defend',
+  'throw',
+  'hack',
+  'repair',
+  'unlock',
+  'open',
+  'steal',
+  'pay',
+  'give',
+  'write',
+  'read',
+  'music',
+  'laugh',
+  'cry',
+  'love',
+  'threaten',
+  'social',
+  'listen',
+  'look',
+  'search',
+  'stealth',
+  'swim',
+  'climb',
+  'ride',
+  'sit',
+  'dress',
+  'move',
+  'use',
+  'other',
+] as const;
 export type ActionKind = (typeof ACTION_KINDS)[number];
 
 const WORDS: [ActionKind, RegExp][] = [
   [
-    'attack',
-    /\b(attack|punch|kick|stab|slash|shoot|fire[sd]?|strike|swing|hit|shove|tackle|grapple|throw[sn]?|charge[sd]?)/i,
+    'relieve',
+    /\b(piss|pee|urinat|relieves? (him|her|them)sel|takes? a (leak|piss|dump)|shit[st]?\b|vomit|throws? up|pukes?)/i,
   ],
-  ['tech', /\b(hack|slice|splice|program|repair|rewire|bypass|cogitator|data-?slate|auspex|servo|machine spirit|override)/i],
-  ['psychic', /\b(psychic|psyker|warp|mind|telepath|divin|sense[sd]? the)/i],
-  ['stealth', /\b(sneak|hide|hides|creep|slip[sp]? past|conceal|shadow)/i],
-  ['search', /\b(search|inspect|examine|look[sn]? (?:at|for|around)|study|check[sn]?|scan[sn]?|read[sn]?)/i],
-  ['social', /\b(persuade|convince|intimidate|threaten|bluff|lie[sd]?|charm|bargain|plead|salute|bow[sn]?|nod[sn]?)/i],
+  ['drink', /\b(drink|drinks|drank|sip|swig|gulp|quaff|downs (the|his|her|a|its)|toasts?)\b/i],
+  ['eat', /\b(eat|eats|ate|chew|bite[sd]? into|devour|munch|feast)/i],
+  ['sleep', /\b(sleep|naps?|dozes?|rests?|lies down|yawns?)\b/i],
+  ['fire', /\b(light[sn]?|ignite|set[sn]? fire|burn|torch|kindle|stokes?)/i],
+  ['heal', /\b(heal|bandage|tend[sn]? (to )?(the |his |her )?wound|stitch|first aid|medic)/i],
+  ['pray', /\b(pray|bless|kneel|worship|chant|invoke the emperor|sanctif)/i],
+  ['spell', /\b(cast[sn]?|spell|incant|conjur|enchant|ritual)/i],
+  ['psychic', /\b(psychic|psyker|warp|telepath|divin|reads? (his|her|their) mind)/i],
+  [
+    'shoot',
+    /\b(shoot|shoots|shot|fires? (at|a|the|his|her)|aim[sn]? (at|the)|las-?gun|las-?pistol|bow|crossbow|bolter|pistol|rifle)/i,
+  ],
+  ['throw', /\b(throw|throws|threw|hurl|toss|lob)/i],
+  [
+    'attack',
+    /\b(attack|punch|kick|stab|slash|strike|swing[sn]? (at|the|his|her)|hit[s]?\b|shove|tackle|grapple|headbutt|charge[sd]? (at|into))/i,
+  ],
+  ['defend', /\b(block|parr|dodge|shield|brace|stands? guard|on guard|take[sn]? cover)/i],
+  ['hack', /\b(hack|slice|splice|program|cogitator|data-?slate|auspex|override|code|decrypt)/i],
+  ['repair', /\b(repair|fix|rewire|mend|tinker|maintain|servo)/i],
+  ['unlock', /\b(unlock|pick[sn]? the lock|lockpick|key)/i],
+  ['open', /\b(open[sn]?|close[sn]?|kick[sn]? (in|open) the door)/i],
+  ['steal', /\b(steal|pickpocket|pocket[sn]?|swipe[sn]?|lift[sn]? (his|her|the) purse|filch)/i],
+  ['pay', /\b(pay|pays|paid|coin|bribe|buy[sn]?|tip[sn]?|tab)\b/i],
+  ['give', /\b(give[sn]?|hand[sn]? (over|him|her|them)|offer[sn]?)/i],
+  ['write', /\b(write|writes|wrote|scribble|sign[sn]?|draw[sn]? a map|note[sn]? down)/i],
+  ['read', /\b(read[sn]?|stud(y|ies)|consult[sn]? (the|his|her) book)/i],
+  ['music', /\b(sing|sings|sang|hum[sn]?|whistle|play[sn]? (the|a|his|her) (lute|flute|song|tune)|dance)/i],
+  ['laugh', /\b(laugh|chuckle|grin|giggle|smirk|snort)/i],
+  ['cry', /\b(cry|cries|weep|sob|sigh)/i],
+  ['love', /\b(kiss|hug|embrace|flirt|wink[sn]?|caress)/i],
+  ['threaten', /\b(threaten|intimidate|glare|growl|snarl|menac)/i],
+  [
+    'social',
+    /\b(persuade|convince|bluff|lie[sd]?|charm|bargain|plead|negotiat|salute|bow[sn]?|nod[sn]?|wave[sn]?|shrug[sn]?|greet)/i,
+  ],
+  ['listen', /\b(listen|eavesdrop|overhear|ear to)/i],
+  ['look', /\b(look[sn]?|watch|stare|glance|peer|observe|study the)/i],
+  ['search', /\b(search|inspect|examine|rummage|check[sn]?|scan[sn]?|investigat)/i],
+  ['stealth', /\b(sneak|hide|hides|creep|slip[sp]? (past|away|out)|conceal|lurk)/i],
+  ['swim', /\b(swim|swims|swam|wade|dive[sn]? into)/i],
+  ['climb', /\b(climb|scale[sn]?|clamber|ascend)/i],
+  ['ride', /\b(ride[sn]?|rode|mount[sn]?|gallop|drive[sn]?|steer[sn]?|pilot[sn]?)/i],
+  ['sit', /\b(sit[sn]?|sat|takes? a seat|lean[sn]? back|slump)/i],
+  ['dress', /\b(dress|don[sn]?|put[sn]? on|change[sn]? (clothes|into)|cloak)/i],
   [
     'move',
-    /\b(walk|run|ran|climb|jump|leap|dash|sprint|enter|leave[sn]?|head[sn]?|step[sn]?|go(?:es)? |follow|cross|retreat|flee|dive[sn]?|duck[sn]?|crawl)/i,
+    /\b(walk|run|ran|jump|leap|dash|sprint|enter|leave[sn]?|head[sn]?|step[sn]?|go(?:es)? |follow|cross|retreat|flee|duck[sn]?|crawl|charge[sd]?|stride|wander)/i,
   ],
-  [
-    'use',
-    /\b(use[sn]?|draw[sn]?|reload|open[sn]?|close[sn]?|pick[sn]? up|grab[sn]?|take[sn]?|give[sn]?|drink[sn]?|eat[sn]?|light[sn]?)/i,
-  ],
+  ['use', /\b(use[sn]?|draw[sn]?|reload|grab[sn]?|take[sn]?|pick[sn]? up|drop[sn]?|wield)/i],
 ];
 
 export function actionKind(text: string): ActionKind {
