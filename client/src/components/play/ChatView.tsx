@@ -131,7 +131,7 @@ import { useSidebar } from 'zephyrex/ui/sidebar';
 const CONTEXT_SIDEBAR = <ContextSidebar />;
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
-import { completeText, metaBreak, narrateSegments, plainDashes, seatCut } from '~/features/chat/voiceGuard';
+import { completeText, metaBreak, narrateSegments, plainDashes, replayOf, seatCut } from '~/features/chat/voiceGuard';
 import { aimAt, clarify, ensurePerson, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
@@ -956,6 +956,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // (the operator, 2026-11-21: "I also didn't get a response"): one more try, then a notice.
     if (completeText(result.text).trim() === '') {
       const again = await timedWrite({ ...request, forbid: { names: [], span: '' } });
+      if (again !== null) result = again;
+    }
+    // A replay of what was just told (the model copying its last round) is written once more with
+    // that span forbidden (the operator's 23:19 transcript).
+    const recentStory = branch
+      .filter((message) => message.channel === 'ic')
+      .slice(-6)
+      .map((message) => message.swipes[message.swipe_index ?? 0] ?? '');
+    const replayed = replayOf(result.text, recentStory);
+    if (replayed !== null) {
+      const again = await timedWrite({ ...request, forbid: { names: [], span: replayed.span } });
       if (again !== null) result = again;
     }
     const broke = metaBreak(result.text);
