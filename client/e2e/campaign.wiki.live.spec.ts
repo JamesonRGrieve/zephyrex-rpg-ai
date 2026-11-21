@@ -116,7 +116,7 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
 
   // Scenarios: the wiki campaign, grouped under its setting and system; a tap starts a campaign.
   await page.goto('/campaigns');
-  await page.getByRole('link', { name: /Voidship Escapade \(e2e\)/ }).click();
+  await page.getByRole('button', { name: /Voidship Escapade \(e2e\)/ }).click();
   await expect(page.getByRole('button', { name: 'Start the campaign' })).toBeVisible({ timeout: 30_000 });
   await expect(page.getByRole('list', { name: 'Party' }).getByRole('button', { pressed: true })).toHaveCount(2);
   await page.getByRole('button', { name: 'Start the campaign' }).click();

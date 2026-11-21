@@ -13,6 +13,7 @@ import { Button } from 'zephyrex/ui/button';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
+import { NewChat } from '~/components/play/NewChat';
 import { chats } from '~/features/data/records';
 import { groupScenarios, taggedWith, useScenarios } from '~/features/data/scenarios';
 
@@ -31,6 +32,8 @@ export function CampaignManager(): ReactElement {
     ]);
   }
   const [wanted, setWanted] = useState<string[]>([]);
+  // The scenario being started: a tap opens its start sheet here (never a navigation to this page).
+  const [starting, setStarting] = useState<string | null>(null);
   const groups = {
     error: read.error,
     mutate: read.mutate,
@@ -82,9 +85,10 @@ export function CampaignManager(): ReactElement {
                 <ul className='grid gap-2'>
                   {system.scenarios.map((scenario) => (
                     <li key={scenario.id} className='grid gap-1 rounded-lg border'>
-                      <Link
-                        href={`/play?new=1&campaign=${encodeURIComponent(scenario.id)}`}
-                        className='flex min-h-14 items-center gap-3 rounded-lg p-3 hover:bg-muted'
+                      <button
+                        type='button'
+                        onClick={() => setStarting(scenario.id)}
+                        className='flex min-h-14 w-full items-center gap-3 rounded-lg p-3 text-left hover:bg-muted'
                       >
                         <span className='min-w-0 flex-1'>
                           <span className='block truncate font-medium'>{scenario.name}</span>
@@ -103,7 +107,7 @@ export function CampaignManager(): ReactElement {
                         </span>
                         <Play aria-hidden className='size-4 shrink-0' />
                         <span className='sr-only'>Start a campaign</span>
-                      </Link>
+                      </button>
                       {(played.get(scenario.id) ?? []).length > 0 && (
                         <ul aria-label={`Campaigns of ${scenario.name}`} className='grid gap-1 px-3 pb-3'>
                           {[...(played.get(scenario.id) ?? [])]
@@ -131,6 +135,7 @@ export function CampaignManager(): ReactElement {
           </section>
         ))
       )}
+      <NewChat open={starting !== null} onOpenChange={(open) => !open && setStarting(null)} campaignId={starting} />
     </div>
   );
 }
