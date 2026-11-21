@@ -786,7 +786,10 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
         ? override
         : narrating
           ? [
-              [PROMPT.narrate_prompt, narrateRule(persona, input.characters)].filter((part) => part !== '').join(' '),
+              // The play-test: an in-character line was answered with an apology for being cut off.
+              [PROMPT.narrate_prompt, PROMPT.in_character, narrateRule(persona, input.characters)]
+                .filter((part) => part !== '')
+                .join(' '),
               gmStyleText(input.frame),
             ]
               .filter((part) => part !== '')
@@ -794,6 +797,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
           : // Nobody speaks for anyone else: every other voice at the table, by name and look.
             [
               speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
+              PROMPT.in_character,
               castRule(PROMPT.voice_cast, persona, input.characters, speaker.id),
             ]
               .filter((part) => part !== '')

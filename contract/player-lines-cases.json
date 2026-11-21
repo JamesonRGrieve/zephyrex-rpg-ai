@@ -1,0 +1,226 @@
+{
+  "$comment": "Structured lines: cases both twins run (client/src/features/chat/playerLines.test.ts, server/extensions/ai_chat/PlayerLines_test.py).",
+  "people": [
+    {
+      "id": "tess",
+      "name": "Tessaly Kord"
+    },
+    {
+      "id": "wren",
+      "name": "Wren"
+    },
+    {
+      "id": "ruhl",
+      "name": "Confessor Ruhl"
+    },
+    {
+      "id": "aco",
+      "name": "The Acolyte"
+    },
+    {
+      "id": "kord",
+      "name": "Kord"
+    }
+  ],
+  "parse_cases": [
+    {
+      "name": "the composer's four forms and the four manners (the operator's message)",
+      "text": "Tessaly Kord (to Wren): \"Quiet. Listen.\"\nTessaly Kord bangs on the wall with her mechadendrite.\nConfessor Ruhl (to everyone): \"Kneel.\"\nNarrator: The lights flicker.\nTessaly Kord (to Wren, whispers): \"Not here.\"\nWren (to everyone, shouts): \"Down!\"\nTessaly Kord (vox to Kord): \"Status?\"\nConfessor Ruhl (voxcast): \"All hands.\"",
+      "items": [
+        {
+          "speaker_id": "tess",
+          "kind": "say",
+          "manner": "speak",
+          "target_id": "wren",
+          "text": "Quiet. Listen."
+        },
+        {
+          "speaker_id": "tess",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "text": "bangs on the wall with her mechadendrite."
+        },
+        {
+          "speaker_id": "ruhl",
+          "kind": "say",
+          "manner": "speak",
+          "target_id": null,
+          "text": "Kneel."
+        },
+        {
+          "speaker_id": null,
+          "kind": "narrate",
+          "manner": null,
+          "target_id": null,
+          "text": "The lights flicker."
+        },
+        {
+          "speaker_id": "tess",
+          "kind": "say",
+          "manner": "whisper",
+          "target_id": "wren",
+          "text": "Not here."
+        },
+        {
+          "speaker_id": "wren",
+          "kind": "say",
+          "manner": "shout",
+          "target_id": null,
+          "text": "Down!"
+        },
+        {
+          "speaker_id": "tess",
+          "kind": "say",
+          "manner": "vox",
+          "target_id": "kord",
+          "text": "Status?"
+        },
+        {
+          "speaker_id": "ruhl",
+          "kind": "say",
+          "manner": "voxcast",
+          "target_id": null,
+          "text": "All hands."
+        }
+      ]
+    },
+    {
+      "name": "a unique first name, an article that is no name, the old Name: form, a line no one opens, blank lines",
+      "text": "Tessaly (to Wren): \"Hey.\"\n\nThe vents rattle.\nWren: \"Fine.\"\nSomeone shouts from below.\nKord checks the pipes.",
+      "items": [
+        {
+          "speaker_id": "tess",
+          "kind": "say",
+          "manner": "speak",
+          "target_id": "wren",
+          "text": "Hey."
+        },
+        {
+          "speaker_id": null,
+          "kind": "narrate",
+          "manner": null,
+          "target_id": null,
+          "text": "The vents rattle."
+        },
+        {
+          "speaker_id": "wren",
+          "kind": "say",
+          "manner": "speak",
+          "target_id": null,
+          "text": "Fine."
+        },
+        {
+          "speaker_id": null,
+          "kind": "narrate",
+          "manner": null,
+          "target_id": null,
+          "text": "Someone shouts from below."
+        },
+        {
+          "speaker_id": "kord",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "text": "checks the pipes."
+        }
+      ]
+    },
+    {
+      "name": "a target no one has is everyone; a manner it doesn't know is speech",
+      "text": "Wren (to Captain Rho, sings): \"La.\"",
+      "items": [
+        {
+          "speaker_id": "wren",
+          "kind": "say",
+          "manner": "speak",
+          "target_id": null,
+          "text": "La."
+        }
+      ]
+    }
+  ],
+  "format_case": {
+    "items": [
+      {
+        "speaker_id": "tess",
+        "kind": "say",
+        "manner": "speak",
+        "target_id": "wren",
+        "text": "Quiet. Listen."
+      },
+      {
+        "speaker_id": "tess",
+        "kind": "do",
+        "manner": null,
+        "target_id": null,
+        "text": "bangs on the wall with her mechadendrite."
+      },
+      {
+        "speaker_id": "ruhl",
+        "kind": "say",
+        "manner": "speak",
+        "target_id": null,
+        "text": "Kneel."
+      },
+      {
+        "speaker_id": null,
+        "kind": "narrate",
+        "manner": null,
+        "target_id": null,
+        "text": "The lights flicker."
+      },
+      {
+        "speaker_id": "tess",
+        "kind": "say",
+        "manner": "whisper",
+        "target_id": "wren",
+        "text": "Not here."
+      },
+      {
+        "speaker_id": "wren",
+        "kind": "say",
+        "manner": "shout",
+        "target_id": null,
+        "text": "Down!"
+      },
+      {
+        "speaker_id": "tess",
+        "kind": "say",
+        "manner": "vox",
+        "target_id": "kord",
+        "text": "Status?"
+      },
+      {
+        "speaker_id": "ruhl",
+        "kind": "say",
+        "manner": "voxcast",
+        "target_id": null,
+        "text": "All hands."
+      }
+    ],
+    "text": "Tessaly Kord (to Wren): \"Quiet. Listen.\"\nTessaly Kord bangs on the wall with her mechadendrite.\nConfessor Ruhl (to everyone): \"Kneel.\"\nNarrator: The lights flicker.\nTessaly Kord (to Wren, whispers): \"Not here.\"\nWren (to everyone, shouts): \"Down!\"\nTessaly Kord (vox to Kord): \"Status?\"\nConfessor Ruhl (voxcast): \"All hands.\""
+  },
+  "speaker_cases": [
+    {
+      "line": "Wren (to everyone, shouts): \"Down!\"",
+      "speaker": "wren"
+    },
+    {
+      "line": "Narrator: The lights flicker.",
+      "speaker": null
+    },
+    {
+      "line": "The Acolyte rises.",
+      "speaker": "aco"
+    },
+    {
+      "line": "The vents rattle.",
+      "speaker": null
+    },
+    {
+      "line": "Kordelia waits.",
+      "speaker": null
+    }
+  ]
+}

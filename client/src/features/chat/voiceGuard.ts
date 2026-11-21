@@ -199,3 +199,28 @@ export function strangerIn(text: string): { at: number; span: string } | null {
   );
   return hit === undefined ? null : { at: hit.at, span: hit.text };
 }
+
+/** The first sentence that breaks character (an apology, "let me continue", the narrative…); or null. */
+export function metaBreak(text: string): { at: number; span: string } | null {
+  const hit = sentences(text).find((sentence) =>
+    VOICE_GUARD.meta_phrases.some((phrase) => sentence.text.toLowerCase().includes(phrase)),
+  );
+  return hit === undefined ? null : { at: hit.at, span: hit.text };
+}
+
+const closes = (text: string, mark: string): boolean => text.endsWith(mark) && text.split(mark).length % 2 === 1;
+
+/**
+ * A reply trimmed back to its last complete sentence or line (the play-test: "Something's wrong with
+ * the—" was saved cut off). Whole when it already ends complete; '' when nothing in it is.
+ */
+export function completeText(text: string): string {
+  const trimmed = text.trimEnd();
+  if (trimmed === '') return '';
+  if (/[.!?…]["”’'*)\]]*$/u.test(trimmed) || closes(trimmed, '*') || closes(trimmed, '"')) return trimmed;
+  let end = -1;
+  for (const match of trimmed.matchAll(/[.!?…]["”’'*)\]]*(?=\s)/gu)) end = match.index + match[0].length;
+  const line = trimmed.lastIndexOf('\n');
+  const cut = Math.max(end, line);
+  return cut <= 0 ? '' : trimmed.slice(0, cut).trimEnd();
+}

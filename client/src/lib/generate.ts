@@ -383,14 +383,17 @@ export async function generationInputs(
     purpose === 'reply'
       ? {
           ...sampler,
-          // In proportion (the operator's play-test): a group turn or the narrator's is short; the
-          // narrator sliders' verbosity scales it, and their humour warms the temperature.
+          // The narrator sliders: verbosity scales the ceiling, and their humour warms the temperature.
           max_tokens: Math.max(
             1,
             Math.round(
-              ((aiCharacters.length > 1 || body.mode === 'narrate') && body.mode !== 'impersonate'
-                ? Math.min(sampler.max_tokens, PROMPT.group_max_tokens)
-                : sampler.max_tokens) * tuning.max_tokens_scale,
+              // Only a safety ceiling (the operator: length is the prompt's to set; a tight cap cut a
+              // narration mid-sentence): the narrator's, or a character turn's.
+              (body.mode === 'narrate'
+                ? Math.min(sampler.max_tokens, PROMPT.narrate_max_tokens)
+                : body.mode !== 'impersonate'
+                  ? Math.min(sampler.max_tokens, PROMPT.group_max_tokens)
+                  : sampler.max_tokens) * tuning.max_tokens_scale,
             ),
           ),
           temperature: sampler.temperature + tuning.temperature_delta,

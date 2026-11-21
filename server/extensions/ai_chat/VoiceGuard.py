@@ -190,3 +190,30 @@ def stranger_in(text: str) -> dict[str, Any] | None:
         if any(phrase in sentence.lower() for phrase in VOICE_GUARD["stranger_phrases"]):
             return {"at": at, "span": sentence}
     return None
+
+
+def meta_break(text: str) -> dict[str, Any] | None:
+    """The first sentence that breaks character (an apology, "let me continue", the narrative...)."""
+    for at, sentence in _sentences(text):
+        if any(phrase in sentence.lower() for phrase in VOICE_GUARD["meta_phrases"]):
+            return {"at": at, "span": sentence}
+    return None
+
+
+def _closes(text: str, mark: str) -> bool:
+    return text.endswith(mark) and len(text.split(mark)) % 2 == 1
+
+
+def complete_text(text: str) -> str:
+    """A reply trimmed back to its last complete sentence or line; whole when it ends complete, '' when
+    nothing in it is."""
+    trimmed = text.rstrip()
+    if not trimmed:
+        return ""
+    if re.search(r"[.!?…][\"”’'*)\]]*$", trimmed) or _closes(trimmed, "*") or _closes(trimmed, '"'):  # noqa: RUF001
+        return trimmed
+    end = -1
+    for match in re.finditer(r"[.!?…][\"”’'*)\]]*(?=\s)", trimmed):  # noqa: RUF001
+        end = match.end()
+    cut = max(end, trimmed.rfind("\n"))
+    return "" if cut <= 0 else trimmed[:cut].rstrip()

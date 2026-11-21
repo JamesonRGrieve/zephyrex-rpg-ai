@@ -567,13 +567,15 @@ def assemble_prompt(
         main = system_prompt
     elif narrating:
         ruled = narrate_rule(persona, characters)
-        narrate = " ".join(part for part in (PROMPT["narrate_prompt"], ruled) if part)
+        # The play-test: an in-character line was answered with an apology for being cut off.
+        narrate = " ".join(part for part in (PROMPT["narrate_prompt"], PROMPT["in_character"], ruled) if part)
         main = "\n\n".join(part for part in (narrate, gm_style_text(frame)) if part)
     else:
         main = speaker["system_prompt"] if speaker["system_prompt"].strip() else PROMPT["default_system_prompt"]
-        # Nobody speaks for anyone else: every other voice at the table, by name and look.
+        # Nobody speaks for anyone else: every other voice at the table, by name and look; and it stays
+        # in character.
         ruled = cast_rule(PROMPT["voice_cast"], persona, characters, speaker["id"])
-        main = " ".join(part for part in (main, ruled) if part)
+        main = " ".join(part for part in (main, PROMPT["in_character"], ruled) if part)
     # The narrator sliders' lines (NarratorStyle.py): length, and the narrator's tone.
     if style.strip():
         main = f"{main}\n\n{style.strip()}"

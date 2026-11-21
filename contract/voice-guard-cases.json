@@ -349,5 +349,47 @@
       "text": "Vardane nods. \"Tessaly. Took you long enough.\"",
       "hit": null
     }
+  ],
+  "complete_cases": [
+    {
+      "name": "the play-test's cut-off: back to the last whole sentence",
+      "text": "The lamps flicker. Wren tenses. Something's wrong with the—",
+      "complete": "The lamps flicker. Wren tenses."
+    },
+    {
+      "name": "already whole",
+      "text": "The door seals behind you.",
+      "complete": "The door seals behind you."
+    },
+    {
+      "name": "a closed quote or action is whole",
+      "text": "Wren (to everyone): \"Down!\"",
+      "complete": "Wren (to everyone): \"Down!\""
+    },
+    {
+      "name": "a whole line before a cut-off one",
+      "text": "Narrator: The hatch opens\nWren (to everyone): \"Wa",
+      "complete": "Narrator: The hatch opens"
+    },
+    {
+      "name": "nothing whole",
+      "text": "Something's wrong with the",
+      "complete": ""
+    }
+  ],
+  "meta_cases": [
+    {
+      "name": "the play-test's break: an apology for being cut off",
+      "text": "I apologize, it seems I cut off mid-sentence. Let me continue the narrative.",
+      "hit": {
+        "at": 0,
+        "span": "I apologize, it seems I cut off mid-sentence."
+      }
+    },
+    {
+      "name": "in character: no match",
+      "text": "\"With the what?\" Wren hisses. \"The seals. Look.\"",
+      "hit": null
+    }
   ]
 }

@@ -2611,8 +2611,12 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 ],
             )
             sampler = {**sampler, "stop": list(dict.fromkeys([*sampler["stop"], *stops]))}
-            # In proportion (the operator's play-test): a group turn or the narrator's is short.
-            if (len(cast) > 1 or body.mode == "narrate") and body.mode != "impersonate":
+            # Ceilings, not lengths: the prompt's proportion and length lines set how long a turn runs.
+            # Only a safety ceiling (the operator: length is the prompt's to set; a tight cap cut a
+            # narration mid-sentence): the narrator's, or a character turn's.
+            if body.mode == "narrate":
+                sampler = {**sampler, "max_tokens": min(int(sampler["max_tokens"]), int(PROMPT["narrate_max_tokens"]))}
+            elif body.mode != "impersonate":
                 sampler = {**sampler, "max_tokens": min(int(sampler["max_tokens"]), int(PROMPT["group_max_tokens"]))}
             # The narrator sliders' verbosity and humour (NarratorStyle.py).
             sampler = {

@@ -117,7 +117,9 @@
     "objective_depth": 2,
     "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}}, and stop where {{user}} would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.",
     "cast_heading": "The characters:",
-    "group_max_tokens": 350,
+    "group_max_tokens": 800,
+    "narrate_max_tokens": 1200,
+    "in_character": "Every line of the story is in character: never address the player, apologise, or mention the text, the story, prompts or being cut off.",
     "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. You may give any other character a moment in their own voice, only as an interlude: a line with only @@ and their name (e.g. @@{{example}}), then their words and actions in the third person, as they would say and do them, then a line @@Narrator before your narration goes on. Outside an interlude, never write what they say, think or decide. The characters you may voice: {{names}}.",
     "narrate_seat": "Never state {{seat_name}}'s habits, thoughts, feelings or knowledge (no \"you know her as\", no \"you never quite\"): only what {{seat_name}} perceives.",
     "narrate_example": "For example:\nRain hammers the hull plates. Somewhere ahead, boots ring on steel.\n@@{{example}}\n\"Hold.\" {{example}} raises a fist and listens.\n@@Narrator\nThe footsteps stop.",
@@ -842,6 +844,7 @@
     "descriptor_words": 2,
     "min_word": 4,
     "stop_words": ["with", "from", "that", "this", "their", "there", "they", "into", "over", "very", "your", "have", "been", "were", "what", "when", "where", "which", "while"],
+    "meta_phrases": ["i apologize", "i apologise", "let me continue", "as an ai", "the narrative", "cut off mid", "continue the story", "my previous response", "my last response", "i'm sorry, but"],
     "stranger_phrases": ["who are you", "who're you", "who the hell are you", "i don't know you", "do i know you", "have we met", "never seen you", "never met you"]
   },
   "narrator_style": {

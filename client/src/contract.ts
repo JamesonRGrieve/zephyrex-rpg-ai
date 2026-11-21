@@ -117,6 +117,8 @@ export const PARTY = contract.party;
 export const VOICE_GUARD = contract.voice_guard;
 /** Narrator sliders: how a model is chosen by reputation and tuned. */
 export const NARRATOR_STYLE = contract.narrator_style;
+/** Structured lines: say, do and narrate, one item per line. */
+export const PLAYER_LINES = contract.player_lines;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];
