@@ -2,9 +2,14 @@
 'use client';
 /**
  * A person's own instruct templates (A17): the markup a text API's model was trained on, when no
- * built-in one fits. A model endpoint then picks one in place of a built-in template.
+ * built-in one fits. A model endpoint then picks one in place of a built-in template, or a model
+ * whose name its activation pattern matches takes it by itself. It can carry SillyTavern's context
+ * template (a story string, an example separator, a chat start) and name every turn, and a
+ * SillyTavern instruct or context file can be read in (audit gap 4).
  */
 import { type ReactElement, useId, useState } from 'react';
+import { Switch } from 'zephyrex/ui/switch';
+import { templateFromSillyTavern } from '~/features/import/stTemplates';
 import { useWrites } from 'zephyrex/hooks/useWrites';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
@@ -26,7 +31,10 @@ const MARKUP_FIELDS = [
 ] as const;
 
 type MarkupField = (typeof MARKUP_FIELDS)[number][0];
-export type InstructTemplateFields = Pick<InstructTemplateRecord, 'name' | MarkupField | 'stop'>;
+export type InstructTemplateFields = Pick<
+  InstructTemplateRecord,
+  'name' | MarkupField | 'stop' | 'include_names' | 'activation_regex' | 'story_string' | 'example_separator' | 'chat_start'
+>;
 
 /** Stop strings typed one per line: empty lines dropped. */
 export function stopLines(text: string): string[] {
@@ -53,14 +61,68 @@ export function InstructTemplateFormView({
     assistant_suffix: template?.assistant_suffix ?? '',
   }));
   const [stop, setStop] = useState((template?.stop ?? []).join('\n'));
-  const ids = { name: useId(), stop: useId(), field: useId() };
+  const [context, setContext] = useState({
+    include_names: template?.include_names ?? false,
+    activation_regex: template?.activation_regex ?? '',
+    story_string: template?.story_string ?? '',
+    example_separator: template?.example_separator ?? '',
+    chat_start: template?.chat_start ?? '',
+  });
+  const [imported, setImported] = useState<string | null>(null);
+  const ids = {
+    name: useId(),
+    stop: useId(),
+    field: useId(),
+    names: useId(),
+    regex: useId(),
+    story: useId(),
+    separator: useId(),
+    start: useId(),
+    file: useId(),
+  };
+
+  // A SillyTavern instruct or context file read in: what it sets replaces the form's, and what didn't map is named.
+  const importFile = async (file: File | undefined) => {
+    if (file === undefined) return;
+    let json: unknown = null;
+    try {
+      json = JSON.parse(await file.text());
+    } catch {
+      setImported('That file isn’t a SillyTavern template (not JSON).');
+      return;
+    }
+    const read = templateFromSillyTavern(json);
+    if (name.trim() === '') setName(read.name);
+    setMarkup({
+      start: read.start,
+      system_prefix: read.system_prefix,
+      system_suffix: read.system_suffix,
+      user_prefix: read.user_prefix,
+      user_suffix: read.user_suffix,
+      assistant_prefix: read.assistant_prefix,
+      assistant_suffix: read.assistant_suffix,
+    });
+    setStop(read.stop.join('\n'));
+    setContext({
+      include_names: read.include_names,
+      activation_regex: read.activation_regex,
+      story_string: read.story_string,
+      example_separator: read.example_separator,
+      chat_start: read.chat_start,
+    });
+    setImported(
+      read.unmapped.length === 0
+        ? 'Read in. Save to keep it.'
+        : `Read in. Not brought over: ${read.unmapped.join(', ')}. Save to keep it.`,
+    );
+  };
 
   return (
     <form
       className='grid gap-4'
       onSubmit={(event) => {
         event.preventDefault();
-        void onSave({ name: name.trim(), ...markup, stop: stopLines(stop) }).then((saved) => {
+        void onSave({ name: name.trim(), ...markup, stop: stopLines(stop), ...context }).then((saved) => {
           if (saved) done();
         });
       }}
@@ -105,6 +167,82 @@ export function InstructTemplateFormView({
           className='font-mono text-sm'
           onChange={(event) => setStop(event.target.value)}
         />
+      </div>
+      <div className='flex min-h-11 items-center justify-between gap-3'>
+        <Label htmlFor={ids.names}>Name every turn</Label>
+        <Switch
+          id={ids.names}
+          checked={context.include_names}
+          onCheckedChange={(on) => setContext({ ...context, include_names: on })}
+        />
+      </div>
+      <div className='grid gap-1.5'>
+        <Label htmlFor={ids.regex}>Use for models matching</Label>
+        <p id={`${ids.regex}-hint`} className='text-xs text-muted-foreground'>
+          A pattern: a model whose name it matches uses this template unless its endpoint names one.
+        </p>
+        <Input
+          id={ids.regex}
+          value={context.activation_regex}
+          maxLength={INSTRUCT_CUSTOM.activation_regex_characters}
+          placeholder='llama-3'
+          aria-describedby={`${ids.regex}-hint`}
+          className='h-11 font-mono text-sm'
+          onChange={(event) => setContext({ ...context, activation_regex: event.target.value })}
+        />
+      </div>
+      <div className='grid gap-1.5'>
+        <Label htmlFor={ids.story}>Story string</Label>
+        <p id={`${ids.story}-hint`} className='text-xs text-muted-foreground'>
+          SillyTavern’s context template, in place of the card’s sections: {'{{system}}'}, {'{{description}}'},{' '}
+          {'{{personality}}'}, {'{{scenario}}'}, {'{{persona}}'}, {'{{wiBefore}}'}, {'{{wiAfter}}'}, {'{{mesExamples}}'} and{' '}
+          {'{{#if x}}…{{/if}}'}. Blank: the sections as the prompt manager orders them.
+        </p>
+        <Textarea
+          id={ids.story}
+          rows={4}
+          value={context.story_string}
+          maxLength={INSTRUCT_CUSTOM.story_characters}
+          aria-describedby={`${ids.story}-hint`}
+          className='font-mono text-sm'
+          onChange={(event) => setContext({ ...context, story_string: event.target.value })}
+        />
+      </div>
+      <div className='grid gap-4 sm:grid-cols-2'>
+        <div className='grid gap-1.5'>
+          <Label htmlFor={ids.separator}>Example separator</Label>
+          <Input
+            id={ids.separator}
+            value={context.example_separator}
+            maxLength={INSTRUCT_CUSTOM.field_characters}
+            className='h-11 font-mono text-sm'
+            onChange={(event) => setContext({ ...context, example_separator: event.target.value })}
+          />
+        </div>
+        <div className='grid gap-1.5'>
+          <Label htmlFor={ids.start}>Chat start</Label>
+          <Input
+            id={ids.start}
+            value={context.chat_start}
+            maxLength={INSTRUCT_CUSTOM.field_characters}
+            className='h-11 font-mono text-sm'
+            onChange={(event) => setContext({ ...context, chat_start: event.target.value })}
+          />
+        </div>
+      </div>
+      <div className='grid gap-1.5'>
+        <Label htmlFor={ids.file}>Read in a SillyTavern template</Label>
+        <Input
+          id={ids.file}
+          type='file'
+          accept='application/json,.json'
+          className='h-11'
+          aria-describedby={`${ids.file}-status`}
+          onChange={(event) => void importFile(event.target.files?.[0])}
+        />
+        <p id={`${ids.file}-status`} role='status' className='text-xs text-muted-foreground'>
+          {imported ?? 'An instruct template, a context template, or a master export of both.'}
+        </p>
       </div>
       <Button type='submit' className='h-11' disabled={name.trim() === ''}>
         Save

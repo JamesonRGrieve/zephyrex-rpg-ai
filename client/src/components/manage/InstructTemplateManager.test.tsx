@@ -33,4 +33,32 @@ describe('stopLines', () => {
   it('drops empty lines and keeps spaces', () => {
     expect(stopLines('a\n\n b\n')).toEqual(['a', ' b']);
   });
+
+  it('saves the context template and names every turn (audit gap 4)', async () => {
+    const onSave = vi.fn(async () => true);
+    render(<InstructTemplateFormView template={null} onSave={onSave} done={vi.fn()} />);
+    await userEvent.type(screen.getByLabelText('Name'), 'Llama');
+    await userEvent.click(screen.getByLabelText('Name every turn'));
+    await userEvent.type(screen.getByLabelText('Use for models matching'), 'llama-3');
+    await userEvent.type(screen.getByLabelText('Chat start'), '***');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(
+      expect.objectContaining({ include_names: true, activation_regex: 'llama-3', chat_start: '***', story_string: '' }),
+    );
+  });
+
+  it('reads in a SillyTavern instruct template and names what didn’t come', async () => {
+    render(<InstructTemplateFormView template={null} onSave={vi.fn(async () => true)} done={vi.fn()} />);
+    const file = new File(
+      [JSON.stringify({ name: 'Alpaca', input_sequence: '### Instruction:', wrap: true, skip_examples: true })],
+      'alpaca.json',
+      {
+        type: 'application/json',
+      },
+    );
+    await userEvent.upload(screen.getByLabelText('Read in a SillyTavern template'), file);
+    expect(await screen.findByText(/Not brought over: skip_examples/)).toBeInTheDocument();
+    expect(screen.getByLabelText('Name')).toHaveValue('Alpaca');
+    expect(screen.getByLabelText('Before your message')).toHaveValue('### Instruction:\n');
+  });
 });

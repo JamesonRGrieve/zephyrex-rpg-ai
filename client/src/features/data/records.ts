@@ -448,6 +448,11 @@ export const instructTemplateSchema = z.object({
   assistant_prefix: z.string(),
   assistant_suffix: z.string(),
   stop: z.array(z.string()),
+  include_names: z.boolean().default(false),
+  activation_regex: z.string().default(''),
+  story_string: z.string().default(''),
+  example_separator: z.string().default(''),
+  chat_start: z.string().default(''),
 });
 export type InstructTemplateRecord = z.infer<typeof instructTemplateSchema>;
 export const instructTemplates = resource<InstructTemplateRecord, Fields<InstructTemplateRecord> & { name: string }>(

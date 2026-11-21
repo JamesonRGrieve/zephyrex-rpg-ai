@@ -58,7 +58,7 @@ import {
   type PromptTurn,
 } from '~/features/prompt/assemble';
 import { type InstructTemplate, instructStops, renderInstruct } from '~/features/prompt/instruct';
-import { ownTemplate } from '~/lib/instructTemplateRecords';
+import { activatedTemplate, ownTemplate } from '~/lib/instructTemplateRecords';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
 import { dataBankText } from '~/features/chat/dataBank';
@@ -263,6 +263,12 @@ export async function generationInputs(
     null;
   if (endpointRow === null) throw new ApiError(409, { message: 'Add a model endpoint first', code: 'no_model_endpoint' });
 
+  // The person's own template (A17) when the endpoint names one that is still theirs; else the one
+  // whose activation regex its model matches (audit gap 4); else the built-in.
+  const instructTemplate: InstructTemplateId | InstructTemplate =
+    (endpointRow.customTemplateId === null ? null : await ownTemplate(ownerId, endpointRow.customTemplateId)) ??
+    (await activatedTemplate(ownerId, endpointRow.model)) ??
+    (endpointRow.instructTemplate as InstructTemplateId);
   return {
     prompt: {
       characters: promptCharacters,
@@ -284,6 +290,17 @@ export async function generationInputs(
       scenario: chatFields.scenario_id === null ? null : await runningScenario(ownerId, chatFields.scenario_id),
       data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
+      // A text API's own template may carry SillyTavern's context template (audit gap 4).
+      ...(typeof instructTemplate === 'string' || (endpointRow.api !== 'text' && endpointRow.api !== 'horde')
+        ? {}
+        : {
+            template: {
+              story_string: instructTemplate.story_string ?? '',
+              example_separator: instructTemplate.example_separator ?? '',
+              chat_start: instructTemplate.chat_start ?? '',
+              include_names: instructTemplate.include_names === true,
+            },
+          }),
       macros: macroContext(chat.id, path, promptCharacters, speakerId, persona, endpointRow.model, chatFields.variables),
     },
     sampler,
@@ -293,9 +310,7 @@ export async function generationInputs(
       api_key: endpointRow.apiKey,
       api: endpointRow.api as EndpointApi,
       // The person's own template (A17) when it names one that is still theirs, else the built-in.
-      instruct_template:
-        (endpointRow.customTemplateId === null ? null : await ownTemplate(ownerId, endpointRow.customTemplateId)) ??
-        (endpointRow.instructTemplate as InstructTemplateId),
+      instruct_template: instructTemplate,
     },
     loreState: lore.state,
     activeLore: lore.active,

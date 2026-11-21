@@ -695,6 +695,25 @@ class TestGenerate:
         assert reply.text.index('"*Ada nods.*"') < reply.text.index("event: done"), reply.text
         assert RECEIVED[0]["body"]["messages"][-1] == {"role": "assistant", "content": "*Ada nods.*"}
 
+    def test_a_template_a_model_activates_brings_its_story_string_and_names(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada", description="A pilot.", system_prompt="You are {{char}}.").json()["character"]
+        _create(server, user, "model_endpoint", name="Text", base_url=model_url, model="llama-3-8b", api="text", is_default=True)
+        story = "{{#if system}}{{system}}\n{{/if}}{{#if description}}{{description}}\n{{/if}}"
+        _create(
+            server, user, "instruct_template", name="Story", user_prefix="U: ", assistant_prefix="A: ",
+            include_names=True, activation_regex="llama-3", story_string=story, chat_start="***",
+        )
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+        messages = server.post("/v1/ai_chat/prompt", json=asked, headers=_headers(user)).json()["prompt"]["messages"]
+        assert messages[0]["content"] == "You are Ada.\nA pilot.\n\n***"
+        assert messages[1] == {"role": "user", "content": "User: Hi.", "tokens": messages[1]["tokens"]}
+        RECEIVED.clear()
+        server.post("/v1/ai_chat/generate", json=asked, headers=_headers(user))
+        assert "U: User: Hi." in RECEIVED[0]["body"]["prompt"]
+
     def test_a_sprite_is_chosen_only_from_the_characters_own_labels(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { INSTRUCT_CUSTOM, LIMITS } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
-import type { InstructTemplate } from '~/features/prompt/instruct';
+import { activeTemplate, type InstructTemplate } from '~/features/prompt/instruct';
 
 const COLUMNS: Columns = {
   name: plain('name'),
@@ -21,6 +21,11 @@ const COLUMNS: Columns = {
   assistant_prefix: plain('assistantPrefix'),
   assistant_suffix: plain('assistantSuffix'),
   stop: jsonList('stop'),
+  include_names: plain('includeNames'),
+  activation_regex: plain('activationRegex'),
+  story_string: plain('storyString'),
+  example_separator: plain('exampleSeparator'),
+  chat_start: plain('chatStart'),
 };
 
 const markup = z.string().max(INSTRUCT_CUSTOM.field_characters);
@@ -34,6 +39,12 @@ const fields = {
   assistant_prefix: markup,
   assistant_suffix: markup,
   stop: z.array(z.string().min(1).max(INSTRUCT_CUSTOM.stop_characters)).max(INSTRUCT_CUSTOM.stops),
+  // SillyTavern's context template and instruct options (audit gap 4).
+  include_names: z.boolean(),
+  activation_regex: z.string().max(INSTRUCT_CUSTOM.activation_regex_characters),
+  story_string: z.string().max(INSTRUCT_CUSTOM.story_characters),
+  example_separator: markup,
+  chat_start: markup,
 };
 const create = z.object({
   name: fields.name,
@@ -45,6 +56,11 @@ const create = z.object({
   assistant_prefix: markup.default(''),
   assistant_suffix: markup.default(''),
   stop: fields.stop.default([]),
+  include_names: fields.include_names.default(false),
+  activation_regex: fields.activation_regex.default(''),
+  story_string: fields.story_string.default(''),
+  example_separator: markup.default(''),
+  chat_start: markup.default(''),
 });
 const update = z.object(fields).partial();
 
@@ -92,5 +108,22 @@ export async function ownTemplate(ownerId: string, id: string): Promise<Instruct
     assistant_prefix: row.assistantPrefix,
     assistant_suffix: row.assistantSuffix,
     stop: z.array(z.string()).parse(JSON.parse(row.stop)),
+    include_names: row.includeNames,
+    story_string: row.storyString,
+    example_separator: row.exampleSeparator,
+    chat_start: row.chatStart,
   };
+}
+
+/**
+ * The person's own template a model activates (audit gap 4): the first by name whose activation
+ * regex matches the model's name; none when none does.
+ */
+export async function activatedTemplate(ownerId: string, model: string): Promise<InstructTemplate | null> {
+  const rows = await prisma.instructTemplate.findMany({ where: { createdById: ownerId }, orderBy: { name: 'asc' } });
+  const found = activeTemplate(
+    model,
+    rows.map((row) => ({ id: row.id, name: row.name, activation_regex: row.activationRegex })),
+  );
+  return found === null ? null : ownTemplate(ownerId, found.id);
 }

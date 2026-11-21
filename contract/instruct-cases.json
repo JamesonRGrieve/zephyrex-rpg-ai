@@ -140,5 +140,111 @@
       "open_last": true,
       "prompt": "You are Ada.\n\n### Instruction:\nHello.\n\n### Response:\nHi.\n\n### Instruction:\nFix the engine?\n\n### Response:\n"
     }
+  ],
+  "story_cases": [
+    {
+      "name": "SillyTavern's default story string: the parts it has, in order, the other macros left",
+      "story": "{{#if system}}{{system}}\n{{/if}}{{#if wiBefore}}{{wiBefore}}\n{{/if}}{{#if description}}{{description}}\n{{/if}}{{#if personality}}{{char}}'s personality: {{personality}}\n{{/if}}{{#if scenario}}Scenario: {{scenario}}\n{{/if}}{{#if wiAfter}}{{wiAfter}}\n{{/if}}{{#if persona}}{{persona}}\n{{/if}}{{trim}}",
+      "values": {
+        "system": "You are Ada.",
+        "description": "A pilot.",
+        "personality": "Dry.",
+        "scenario": "",
+        "persona": "Sam, a cook.",
+        "wiBefore": "",
+        "wiAfter": "The ship is old."
+      },
+      "text": "You are Ada.\nA pilot.\n{{char}}'s personality: Dry.\nThe ship is old.\nSam, a cook.\n{{trim}}"
+    },
+    {
+      "name": "a block whose name is blank or only spaces is dropped",
+      "story": "[{{#if scenario}}S: {{scenario}}{{/if}}]",
+      "values": {
+        "scenario": "  "
+      },
+      "text": "[]"
+    },
+    {
+      "name": "blocks inside blocks, the innermost first",
+      "story": "{{#if system}}A{{#if persona}}B{{/if}}C{{/if}}",
+      "values": {
+        "system": "x",
+        "persona": ""
+      },
+      "text": "AC"
+    },
+    {
+      "name": "a name the story doesn't know stays as written",
+      "story": "{{wobble}} {{#if wobble}}gone{{/if}}|{{mesExamples}}",
+      "values": {
+        "mesExamples": "<START>"
+      },
+      "text": "{{wobble}} |<START>"
+    }
+  ],
+  "active_cases": [
+    {
+      "name": "the template whose pattern matches the model",
+      "model": "Mistral-Nemo-12B",
+      "templates": [
+        {
+          "id": "a",
+          "name": "Llama",
+          "activation_regex": "llama"
+        },
+        {
+          "id": "b",
+          "name": "Nemo",
+          "activation_regex": "Nemo"
+        }
+      ],
+      "active": "b"
+    },
+    {
+      "name": "the first by name of those that match",
+      "model": "llama-3-70b",
+      "templates": [
+        {
+          "id": "z",
+          "name": "Zeta",
+          "activation_regex": "llama"
+        },
+        {
+          "id": "a",
+          "name": "Alpha",
+          "activation_regex": "llama-3"
+        }
+      ],
+      "active": "a"
+    },
+    {
+      "name": "a blank pattern never matches",
+      "model": "anything",
+      "templates": [
+        {
+          "id": "a",
+          "name": "A",
+          "activation_regex": ""
+        }
+      ],
+      "active": null
+    },
+    {
+      "name": "a pattern that doesn't compile never matches",
+      "model": "x(",
+      "templates": [
+        {
+          "id": "a",
+          "name": "A",
+          "activation_regex": "x("
+        },
+        {
+          "id": "b",
+          "name": "B",
+          "activation_regex": "^x"
+        }
+      ],
+      "active": "b"
+    }
   ]
 }

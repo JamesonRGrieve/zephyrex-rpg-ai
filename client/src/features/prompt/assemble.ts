@@ -32,6 +32,7 @@ import { CAMPAIGN, EXPRESSION, PICTURE, PROMPT, REASONING, SAFETY, SCENARIO, TAB
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandAll, expandMacros, type MacroContext, type MacroNames } from './macros';
+import { renderStoryString } from './instruct';
 
 export interface PromptCharacter {
   id: string;
@@ -111,6 +112,11 @@ export interface PromptInput {
   data_bank?: string;
   /** The chat's older lines recalled by meaning (A19, lib/memory.ts); blank for none. */
   memories?: string;
+  /**
+   * The text-completion model's own template, where it carries SillyTavern's context template (audit
+   * gap 4): a story string in place of the card's sections, and every turn named.
+   */
+  template?: { story_string: string; example_separator: string; chat_start: string; include_names: boolean };
   /**
    * What SillyTavern's macros read beyond the names (audit gap 1): the card's and persona's fields,
    * the last lines, the clock, a random source and the chat's variables. Without it only the names
@@ -451,6 +457,55 @@ export function estimateTokens(message: ModelMessage): number {
 
 type LoreSections = LoreResult['sections'];
 
+/** The sections a context template's story string stands in for (audit gap 4). */
+const STORY_SECTIONS: ReadonlySet<string> = new Set([
+  'main',
+  'description',
+  'personality',
+  'scenario',
+  'persona',
+  'lore_before_char',
+  'lore_after_char',
+  'examples',
+]);
+
+/**
+ * The system message from a context template's story string (audit gap 4), or null without one: the
+ * story (its chat start closing it), then this app's own sections it has no place for, in order.
+ */
+function storySystem(
+  input: PromptInput,
+  texts: Partial<Record<PromptSectionId, string>>,
+  order: readonly (PromptSection | OwnPrompt)[],
+  fill: (text: string) => string,
+): string | null {
+  const template = input.template;
+  if (template === undefined || template.story_string.trim() === '') return null;
+  const speaker = input.characters.find((character) => character.id === input.speaker_id);
+  const lore = input.lore?.sections ?? {};
+  const examples = speaker?.example_messages.trim() ?? '';
+  const story = renderStoryString(template.story_string, {
+    system: texts.main ?? '',
+    description: texts.description ?? '',
+    personality: speaker?.personality ?? '',
+    scenario: speaker?.scenario ?? '',
+    persona: input.persona?.description ?? '',
+    wiBefore: lore.before_char ?? '',
+    wiAfter: lore.after_char ?? '',
+    loreBefore: lore.before_char ?? '',
+    loreAfter: lore.after_char ?? '',
+    mesExamples:
+      examples === '' ? '' : `${template.example_separator === '' ? '' : `${template.example_separator}\n`}${examples}`,
+  });
+  const opening = fill([story, template.chat_start].filter((part) => part.trim() !== '').join('\n')).trim();
+  const rest = systemText(
+    texts,
+    order.filter((entry) => !STORY_SECTIONS.has(entry.id)),
+    fill,
+  );
+  return [opening, rest].filter((part) => part !== '').join('\n\n');
+}
+
 function systemText(
   texts: Partial<Record<PromptSectionId, string>>,
   order: readonly (PromptSection | OwnPrompt)[],
@@ -497,12 +552,15 @@ function historyMessage(
   group: boolean,
   userName: string,
   narrating = false,
+  includeNames = false,
 ): ModelMessage {
   // A model's reasoning is never read back to it (A45).
   const thinks = turn.role === 'character' && REASONING.pairs.some(([opening]) => turn.content.includes(opening as string));
   const content = thinks ? splitReasoning(turn.content).reply : turn.content;
   if (turn.role === 'character' && turn.speaker_character_id === speakerId) {
-    return { role: 'assistant', content };
+    // A template that names every turn (audit gap 4) names the speaker's own too.
+    const own = namesById.get(speakerId);
+    return { role: 'assistant', content: includeNames && own !== undefined ? `${own}: ${content}` : content };
   }
   if (turn.role === 'system' || turn.channel === 'roll') return { role: 'system', content: turn.content };
   // The narrator's own past narration is its own voice.
@@ -513,7 +571,7 @@ function historyMessage(
       : turn.role === 'user'
         ? userName
         : (namesById.get(turn.speaker_character_id ?? '') ?? NARRATOR);
-  const named = group || turn.role !== 'user';
+  const named = group || includeNames || turn.role !== 'user';
   return { role: 'user', content: named ? `${name}: ${content}` : content };
 }
 
@@ -620,7 +678,10 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     memories: input.memories ?? '',
     summary: (input.summary ?? '').trim() === '' ? '' : PROMPT.summary_prefix + (input.summary ?? ''),
   };
-  const system: ModelMessage = { role: 'system', content: systemText(texts, order, fill) };
+  const system: ModelMessage = {
+    role: 'system',
+    content: storySystem(input, texts, order, fill) ?? systemText(texts, order, fill),
+  };
   const note = fill(noteBlock(sectionText('author_note', input.author_note), loreSections));
   // The speaker's Character's Note (gap 7); the narrator has none.
   const cardNote = narrating ? null : characterNote(speaker);
@@ -676,7 +737,9 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
             content: applyRegex(turn.content, input.regex ?? [], placement, 'prompt', storyTurns.length - 1 - index),
           };
     })
-    .map((turn) => historyMessage(turn, speaker.id, namesById, group, names.user, narrating));
+    .map((turn) =>
+      historyMessage(turn, speaker.id, namesById, group, names.user, narrating, input.template?.include_names === true),
+    );
 
   const budget = input.context_tokens - input.max_tokens;
   const cost = (messages: readonly ModelMessage[]) =>

@@ -794,6 +794,49 @@
       "dropped": 0
     },
     {
+      "name": "a context template's story string (audit gap 4) stands in for the card's sections, its chat start closing it, and every turn named",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "summary": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where is the coolant?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "template": {
+          "story_string": "{{#if system}}{{system}}\n{{/if}}{{#if description}}{{description}}\n{{/if}}{{#if scenario}}Scenario: {{scenario}}\n{{/if}}",
+          "example_separator": "***",
+          "chat_start": "***",
+          "include_names": true
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\nBram is the ship's cook.\n\n***"
+        },
+        {
+          "role": "user",
+          "content": "User: Where is the coolant?"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
+    },
+    {
       "name": "the person's own prompts (audit gap 3): one in the system message at its place, one at a depth, one turned off",
       "input": {
         "characters": [

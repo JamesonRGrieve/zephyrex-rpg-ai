@@ -60,7 +60,11 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
 )
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-found]
+    active_template,
+    instruct_stops,
+    render_instruct,
+)
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
@@ -942,6 +946,11 @@ class InstructTemplateModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
     assistant_prefix: str = Field("", description="Before a reply")
     assistant_suffix: str = Field("", description="After a reply")
     stop: list[str] = Field(default_factory=list, description="Where the model's reply ends")
+    include_names: bool = Field(False, description="Every turn named (SillyTavern's Include Names)")
+    activation_regex: str = Field("", description="Used for an endpoint whose model's name this matches")
+    story_string: str = Field("", description="SillyTavern's context template: the story in place of the card")
+    example_separator: str = Field("", description="Before the example dialogue")
+    chat_start: str = Field("", description="After the story, before the chat")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI instruct templates"
 
@@ -955,6 +964,11 @@ class InstructTemplateModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         assistant_prefix: str = Field("", max_length=CUSTOM["field_characters"])
         assistant_suffix: str = Field("", max_length=CUSTOM["field_characters"])
         stop: list[str] = Field(default_factory=list)
+        include_names: bool = False
+        activation_regex: str = Field("", max_length=CUSTOM["activation_regex_characters"])
+        story_string: str = Field("", max_length=CUSTOM["story_characters"])
+        example_separator: str = Field("", max_length=CUSTOM["field_characters"])
+        chat_start: str = Field("", max_length=CUSTOM["field_characters"])
 
     class Update(InstructTemplateChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -966,6 +980,11 @@ class InstructTemplateModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         assistant_prefix: str | None = Field(None, max_length=CUSTOM["field_characters"])
         assistant_suffix: str | None = Field(None, max_length=CUSTOM["field_characters"])
         stop: list[str] | None = None
+        include_names: bool | None = None
+        activation_regex: str | None = Field(None, max_length=CUSTOM["activation_regex_characters"])
+        story_string: str | None = Field(None, max_length=CUSTOM["story_characters"])
+        example_separator: str | None = Field(None, max_length=CUSTOM["field_characters"])
+        chat_start: str | None = Field(None, max_length=CUSTOM["field_characters"])
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -976,12 +995,21 @@ class InstructTemplateManager(AbstractBLLManager[InstructTemplateModel], RouterM
 
     def create(self, **kwargs: Any) -> Any:
         kwargs.setdefault("stop", [])
+        kwargs.setdefault("include_names", False)
+        for field in ("activation_regex", "story_string", "example_separator", "chat_start"):
+            kwargs.setdefault(field, "")
         return super().create(**kwargs)
 
 
 def template_fields(row: Any) -> dict[str, Any]:
-    """A stored template as the twins' render_instruct reads one."""
-    return {field: getattr(row, field) or "" for field in CUSTOM["fields"]} | {"stop": list(row.stop or [])}
+    """A stored template as the twins' render_instruct reads one, with SillyTavern's context template
+    and Include Names (audit gap 4)."""
+    context = {field: getattr(row, field, "") or "" for field in ("story_string", "example_separator", "chat_start")}
+    return (
+        {field: getattr(row, field) or "" for field in CUSTOM["fields"]}
+        | {"stop": list(row.stop or []), "include_names": bool(getattr(row, "include_names", False))}
+        | context
+    )
 
 
 class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
@@ -1883,11 +1911,20 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     def _template_of(self, endpoint: Any) -> str | dict[str, Any]:
         """The endpoint's instruct markup: the person's own template (A17) when it names one that
         still exists, else its built-in one."""
+        templates = self._manager(InstructTemplateManager)
         if getattr(endpoint, "custom_template_id", None):
             try:
-                return template_fields(self._manager(InstructTemplateManager).get(id=endpoint.custom_template_id))
+                return template_fields(templates.get(id=endpoint.custom_template_id))
             except HTTPException:
                 pass
+        # Else the person's own template whose activation regex its model matches (audit gap 4).
+        rows = templates.list()
+        found = active_template(
+            str(endpoint.model or ""),
+            [{"id": row.id, "name": row.name, "activation_regex": row.activation_regex or ""} for row in rows],
+        )
+        if found is not None:
+            return template_fields(next(row for row in rows if row.id == found["id"]))
         return str(endpoint.instruct_template)
 
     async def _memories(self, body: GenerateRequest) -> str:
@@ -2109,6 +2146,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 status_code=409, detail={"message": "Add a model endpoint first", "code": "no_model_endpoint"}
             )
 
+        template = self._template_of(endpoint)
         frame = frame_of(self._manager(CampaignFrameManager).get(id=chat.campaign_id)) if chat.campaign_id else None
         assembled = assemble_prompt(
             cast,
@@ -2147,6 +2185,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             scenario_of(self._manager(ScenarioManager).get(id=chat.scenario_id)) if chat.scenario_id else None,
             memories,
             macro_context(chat, path, cast, speaker_id, persona, endpoint.model),
+            # A text API's own template may carry SillyTavern's context template (audit gap 4).
+            template if isinstance(template, dict) and endpoint.api in ("text", "horde") else None,
         )
         if body.mode == "table":
             # The table GM (A11, A20) reads the table talk, with the story for reference only.
@@ -2161,7 +2201,6 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 chat.table_notes or [],
                 frame,
             )
-        template = self._template_of(endpoint)
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         request: dict[str, Any] = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),

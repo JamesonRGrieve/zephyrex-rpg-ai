@@ -1121,7 +1121,9 @@
     ],
     "field_characters": 200,
     "stops": 8,
-    "stop_characters": 64
+    "stop_characters": 64,
+    "story_characters": 10000,
+    "activation_regex_characters": 200
   },
   "search_apis": [
     "searxng",

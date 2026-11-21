@@ -352,6 +352,11 @@ CREATE TABLE "InstructTemplate" (
     "assistantPrefix" TEXT NOT NULL DEFAULT '',
     "assistantSuffix" TEXT NOT NULL DEFAULT '',
     "stop" TEXT NOT NULL DEFAULT '[]',
+    "includeNames" BOOLEAN NOT NULL DEFAULT false,
+    "activationRegex" TEXT NOT NULL DEFAULT '',
+    "storyString" TEXT NOT NULL DEFAULT '',
+    "exampleSeparator" TEXT NOT NULL DEFAULT '',
+    "chatStart" TEXT NOT NULL DEFAULT '',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

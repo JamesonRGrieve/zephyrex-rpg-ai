@@ -28,6 +28,7 @@ from typing import Any
 
 # Resolves only at runtime, through the extensions namespace path.
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Instruct import render_story_string  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Macros import MacroContext, expand_all, expand_macros  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import apply_regex  # type: ignore[import-not-found]
 
@@ -134,6 +135,49 @@ def _capped(text: str, max_tokens: int | None) -> str:
     if max_tokens is None:
         return text
     return text[: max_tokens * PROMPT["characters_per_token"]].rstrip()
+
+
+# The sections a context template's story string stands in for (audit gap 4).
+_STORY_SECTIONS = frozenset(
+    ("main", "description", "personality", "scenario", "persona", "lore_before_char", "lore_after_char", "examples")
+)
+
+
+def _story_system(
+    template: Mapping[str, Any] | None,
+    texts: Mapping[str, str],
+    order: Sequence[Mapping[str, Any]],
+    fill: Callable[[str], str],
+    speaker: Mapping[str, Any],
+    persona: Mapping[str, Any] | None,
+    lore: Mapping[str, str],
+) -> str | None:
+    """The system message from a context template's story string (audit gap 4), or None without
+    one: the story (its chat start closing it), then this app's own sections it has no place for."""
+    story_string = str((template or {}).get("story_string") or "")
+    if not story_string.strip():
+        return None
+    separator = str((template or {}).get("example_separator") or "")
+    examples = str(speaker.get("example_messages") or "").strip()
+    story = render_story_string(
+        story_string,
+        {
+            "system": texts.get("main", ""),
+            "description": texts.get("description", ""),
+            "personality": str(speaker.get("personality") or ""),
+            "scenario": str(speaker.get("scenario") or ""),
+            "persona": str(persona["description"]) if persona is not None else "",
+            "wiBefore": lore.get("before_char", ""),
+            "wiAfter": lore.get("after_char", ""),
+            "loreBefore": lore.get("before_char", ""),
+            "loreAfter": lore.get("after_char", ""),
+            "mesExamples": (f"{separator}\n" if separator else "") + examples if examples else "",
+        },
+    )
+    chat_start = str((template or {}).get("chat_start") or "")
+    opening = fill("\n".join(part for part in (story, chat_start) if part.strip())).strip()
+    rest = _system_text(texts, [entry for entry in order if entry["id"] not in _STORY_SECTIONS], fill)
+    return "\n\n".join(part for part in (opening, rest) if part)
 
 
 def _system_text(texts: Mapping[str, str], layout: Sequence[Mapping[str, Any]], fill: Callable[[str], str]) -> str:
@@ -345,12 +389,16 @@ def _history_message(
     group: bool,
     user_name: str,
     narrating: bool = False,
+    include_names: bool = False,
 ) -> dict[str, str]:
     if turn["role"] == "character" and any(opening in turn["content"] for opening, _closing in REASONING_PAIRS):
         # A model's reasoning is never read back to it (A45).
         turn = {**turn, "content": split_reasoning(turn["content"])[1]}
     if turn["role"] == "character" and turn["speaker_character_id"] == speaker_id:
-        return {"role": "assistant", "content": turn["content"]}
+        # A template that names every turn (audit gap 4) names the speaker's own too.
+        own = names_by_id.get(speaker_id)
+        content = f"{own}: {turn['content']}" if include_names and own else turn["content"]
+        return {"role": "assistant", "content": content}
     if turn["role"] == "system" or turn["channel"] == "roll":
         return {"role": "system", "content": turn["content"]}
     if narrating and turn["role"] == "narrator":
@@ -362,7 +410,7 @@ def _history_message(
         name = user_name
     else:
         name = names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
-    named = group or turn["role"] != "user"
+    named = group or include_names or turn["role"] != "user"
     return {"role": "user", "content": f"{name}: {turn['content']}" if named else turn["content"]}
 
 
@@ -388,6 +436,7 @@ def assemble_prompt(
     scenario: Mapping[str, Any] | None = None,
     memories: str = "",
     macros: Mapping[str, Any] | None = None,
+    template: Mapping[str, Any] | None = None,
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -481,7 +530,11 @@ def assemble_prompt(
         "memories": memories,
         "summary": PROMPT["summary_prefix"] + summary if summary.strip() else "",
     }
-    system = {"role": "system", "content": _system_text(texts, order, fill)}
+    story_system = _story_system(template, texts, order, fill, speaker, persona, sections)
+    system = {
+        "role": "system",
+        "content": story_system if story_system is not None else _system_text(texts, order, fill),
+    }
     block = "\n".join(
         part.strip()
         for part in (sections.get("before_an", ""), kept("author_note", author_note), sections.get("after_an", ""))
@@ -536,7 +589,16 @@ def assemble_prompt(
         for index, turn in enumerate(story_turns)
     ]
     turns = [
-        _history_message(turn, speaker["id"], names_by_id, group, names["user"], narrating) for turn in story_turns
+        _history_message(
+            turn,
+            speaker["id"],
+            names_by_id,
+            group,
+            names["user"],
+            narrating,
+            bool(template and template.get("include_names")),
+        )
+        for turn in story_turns
     ]
 
     budget = context_tokens - max_tokens
