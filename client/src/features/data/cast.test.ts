@@ -6,7 +6,7 @@ vi.mock('./records', () => ({}));
 vi.mock('zephyrex', () => ({ useClient: () => ({}) }));
 vi.mock('@zephyrex-rpg/wiki/features/data/records', () => ({}));
 
-const { mergeCast, PARTY_TAG, personAsCast } = await import('./cast');
+const { mergeCast, oneLine, PARTY_TAG, personAsCast } = await import('./cast');
 
 const person = (id: string, kind: string, name = id) => ({
   id,
@@ -39,5 +39,13 @@ describe('mergeCast', () => {
       ['b', 'b'],
       ['c', 'c'],
     ]);
+  });
+});
+
+describe('oneLine', () => {
+  it('the first sentence, without the leading name', () => {
+    expect(oneLine('Ilsa Marrow', 'Ilsa Marrow The Mystic. A sanctioned psyker, soul-bound.')).toBe('The Mystic.');
+    expect(oneLine('Rook', 'A blunt soldier with a lasgun')).toBe('A blunt soldier with a lasgun');
+    expect(oneLine('X', null)).toBe('');
   });
 });

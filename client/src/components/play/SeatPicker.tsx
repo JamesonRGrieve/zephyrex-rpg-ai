@@ -19,6 +19,8 @@ export interface SeatCharacter {
   avatar: string | null;
   /** A traditional player character (wiki kind `pc`); anyone else is listed as an NPC. */
   pc?: boolean;
+  /** Who they are, in a line (the wiki's summary). */
+  line?: string;
 }
 
 /**
@@ -134,7 +136,12 @@ export function SeatPicker({
                     <AvatarFallback className='text-[10px]'>{initials(character.name)}</AvatarFallback>
                   </Avatar>
                 </span>
-                <span className='min-w-0 flex-1 truncate'>{character.name}</span>
+                <span className='min-w-0 flex-1'>
+                  <span className='block truncate'>{character.name}</span>
+                  {character.line !== undefined && character.line !== '' && (
+                    <span className='line-clamp-2 block text-xs text-muted-foreground'>{character.line}</span>
+                  )}
+                </span>
                 {inParty.has(character.id) && <span className='text-xs text-muted-foreground'>Party</span>}
               </button>
             </li>

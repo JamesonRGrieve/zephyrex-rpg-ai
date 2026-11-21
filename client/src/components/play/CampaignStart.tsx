@@ -69,7 +69,9 @@ function Row({
       </Avatar>
       <span className='min-w-0 flex-1'>
         <span className='block truncate font-medium'>{character.name}</span>
-        {character.folder !== '' && <span className='block truncate text-xs text-muted-foreground'>{character.folder}</span>}
+        {character.folder !== '' && (
+          <span className='line-clamp-2 block text-xs text-muted-foreground'>{character.folder}</span>
+        )}
       </span>
       {label !== undefined && <span className='text-xs text-muted-foreground'>{label}</span>}
     </button>

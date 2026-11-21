@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('zephyrex', () => ({ useClient: () => ({}) }));
 
-const { groupScenarios, NO_SETTING, NO_SYSTEM } = await import('./scenarios');
+const { groupScenarios, NO_SETTING, NO_SYSTEM, taggedWith, withTags } = await import('./scenarios');
 
 const scenario = (id: string, setting_id: string | null, game_system_id: string | null) => ({
   id,
@@ -51,5 +51,27 @@ describe('groupScenarios', () => {
   it('an unknown setting or system id falls into the ungrouped', () => {
     const groups = groupScenarios([scenario('A', 'gone', 'gone')], [], []);
     expect(groups).toEqual([{ setting: NO_SETTING, systems: [{ system: NO_SYSTEM, scenarios: [scenario('A', 'gone', 'gone')] }] }]);
+  });
+});
+
+describe('withTags and taggedWith', () => {
+  const scenarios = [scenario('a', null, null), scenario('b', null, null)];
+  const styles = [
+    { id: 't1', name: 'mystery' },
+    { id: 't2', name: 'combat-heavy' },
+  ];
+  const tagged = [
+    { taxon_id: 't2', target_entity_id: 'a' },
+    { taxon_id: 't1', target_entity_id: 'a' },
+    { taxon_id: 't1', target_entity_id: 'b' },
+    { taxon_id: 'gone', target_entity_id: 'b' },
+  ];
+  it('each scenario gets its play styles by name, A–Z, unknown taxa left out', () => {
+    expect(withTags(scenarios, styles, tagged).map((one) => one.tags)).toEqual([['combat-heavy', 'mystery'], ['mystery']]);
+  });
+  it('filtering keeps the scenarios carrying every wanted style', () => {
+    const all = withTags(scenarios, styles, tagged);
+    expect(taggedWith(all, []).map((one) => one.id)).toEqual(['a', 'b']);
+    expect(taggedWith(all, ['mystery', 'combat-heavy']).map((one) => one.id)).toEqual(['a']);
   });
 });

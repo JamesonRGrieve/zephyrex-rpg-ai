@@ -827,10 +827,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
         const next = await decideNextTurn(chat.id, parent.id);
         if (!next.decided) break;
-        if (next.kind === 'pause') return;
-        if (next.kind === 'character' && (next.character_id === null || !aiIds.has(next.character_id))) return;
+        const usable = next.kind === 'character' && next.character_id !== null && aiIds.has(next.character_id);
+        // The person's own line always gets an answer: a pause (or a pick outside the AI party)
+        // straight after it becomes the AI GM's narration. Later in the round, it ends the round.
+        if (!usable && next.kind !== 'gm') {
+          if (parent !== start) return;
+        }
         const saved =
-          next.kind === 'gm' ? await narrateAfter(parent.id) : await replyAfter(parent.id, current, next.character_id ?? undefined);
+          usable && next.character_id !== null
+            ? await replyAfter(parent.id, current, next.character_id)
+            : await narrateAfter(parent.id);
         if (saved === null) return;
         parent = saved;
         current = [...current, saved];
@@ -1205,13 +1211,22 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 const character = castById.get(id);
                 return character === undefined
                   ? []
-                  : [{ id, name: character.name, avatar: character.avatar, pc: character.tags.includes(PARTY_TAG) }];
+                  : [
+                      {
+                        id,
+                        name: character.name,
+                        avatar: character.avatar,
+                        pc: character.tags.includes(PARTY_TAG),
+                        line: character.folder,
+                      },
+                    ];
               })}
               everyone={(cast.data ?? []).map((character) => ({
                 id: character.id,
                 name: character.name,
                 avatar: character.avatar,
                 pc: character.tags.includes(PARTY_TAG),
+                line: character.folder,
               }))}
               onChange={(next) => {
                 setSeatSaving(true);

@@ -51,21 +51,42 @@ export function personAsCast(person: Pick<Person, 'id' | 'name' | 'description' 
 const IDS_PER_READ = 100;
 
 const pictureRows = z.object({
-  world_entities: z.array(z.object({ id: z.string(), picture: z.string().nullish() })),
+  world_entities: z.array(
+    z.object({ id: z.string(), name: z.string().nullish(), picture: z.string().nullish(), summary: z.string().nullish() }),
+  ),
 });
 
-const NO_PICTURES: ReadonlyMap<string, string> = new Map();
+/** What the wiki says of a person, for the pickers: their picture and a one-line description. */
+export interface PersonLook {
+  picture: string | null;
+  line: string;
+}
+
+const NO_PICTURES: ReadonlyMap<string, PersonLook> = new Map();
+
+/** The summary's first sentence, without the name it may start with ("Ilsa Marrow The Mystic. …"). */
+export function oneLine(name: string, summary: string | null | undefined): string {
+  let text = (summary ?? '').trim();
+  if (name !== '' && text.toLowerCase().startsWith(name.toLowerCase())) text = text.slice(name.length).trim();
+  const end = text.search(/[.!?](\s|$)/);
+  const first = end < 0 ? text : text.slice(0, end + 1);
+  return first.length > 140 ? `${first.slice(0, 139).trimEnd()}…` : first;
+}
 
 /** Each person's picture (the wiki's world_entity read by ids), as the app's own /api path. */
-function usePictures(ids: readonly string[]): ReadonlyMap<string, string> {
+function usePictures(ids: readonly string[]): ReadonlyMap<string, PersonLook> {
   const client = useClient();
   const key = ids.length === 0 ? null : ['rpg-ai', 'cast-pictures', ...[...ids].sort()];
   const { data } = useSWR(key, async () => {
-    const found = new Map<string, string>();
+    const found = new Map<string, PersonLook>();
     for (let start = 0; start < ids.length; start += IDS_PER_READ) {
       const chunk = ids.slice(start, start + IDS_PER_READ);
       const body = pictureRows.parse(await client.get('/v1/world_entity', { ids: chunk.join(',') }));
-      for (const row of body.world_entities) if (row.picture) found.set(row.id, row.picture.startsWith('/') ? `/api${row.picture}` : row.picture);
+      for (const row of body.world_entities)
+        found.set(row.id, {
+          picture: row.picture ? (row.picture.startsWith('/') ? `/api${row.picture}` : row.picture) : null,
+          line: oneLine(row.name ?? '', row.summary),
+        });
     }
     return found;
   });
@@ -92,7 +113,11 @@ export function useCast(campaignId?: string | null): Pick<SWRResponse<Character[
       personList.data === undefined && cardList.data === undefined
         ? undefined
         : mergeCast(
-            persons.map((person) => ({ ...personAsCast(person), avatar: pictures.get(person.id) ?? null })),
+            persons.map((person) => {
+              const look = pictures.get(person.id);
+              // The picker's line under the name: the wiki's one-line description.
+              return { ...personAsCast(person), avatar: look?.picture ?? null, folder: look?.line ?? '' };
+            }),
             cardList.data ?? [],
           ),
     [personList.data, cardList.data, persons, pictures],

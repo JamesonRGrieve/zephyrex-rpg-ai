@@ -16,9 +16,31 @@ const scenarioSchema = z.object({
   setting_id: z.string().nullish(),
   game_system_id: z.string().nullish(),
 });
-export type Scenario = z.infer<typeof scenarioSchema>;
+export type Scenario = z.infer<typeof scenarioSchema> & { tags?: string[] };
 
 const namedSchema = z.object({ id: z.string(), name: z.string() });
+const taggedSchema = z.object({ taxon_id: z.string(), target_entity_id: z.string() });
+
+/** Each scenario's play-style tags (the wiki's world_taxonomy, kind play_style), by name A–Z. */
+export function withTags(
+  scenarios: readonly Scenario[],
+  styles: readonly Named[],
+  tagged: readonly { taxon_id: string; target_entity_id: string }[],
+): Scenario[] {
+  const name = new Map(styles.map((one) => [one.id, one.name]));
+  const byCampaign = new Map<string, string[]>();
+  for (const row of tagged) {
+    const style = name.get(row.taxon_id);
+    if (style === undefined) continue;
+    byCampaign.set(row.target_entity_id, [...(byCampaign.get(row.target_entity_id) ?? []), style]);
+  }
+  return scenarios.map((one) => ({ ...one, tags: [...new Set(byCampaign.get(one.id) ?? [])].sort(byName) }));
+}
+
+/** The scenarios carrying every one of `wanted` (none wanted: all). */
+export function taggedWith(scenarios: readonly Scenario[], wanted: readonly string[]): Scenario[] {
+  return scenarios.filter((one) => wanted.every((tag) => (one.tags ?? []).includes(tag)));
+}
 export type Named = z.infer<typeof namedSchema>;
 
 export const NO_SETTING = 'No setting';
@@ -65,15 +87,28 @@ export function groupScenarios(
   });
 }
 
-/** The grouped scenarios; the system names are absent (all "No system") when the VTT is not loaded. */
-export function useScenarioGroups() {
+/**
+ * The scenarios with their play-style tags, and the settings and systems to group them by; the
+ * system names are absent (all "No system") when the VTT is not loaded, and the tags when the wiki
+ * has no play styles.
+ */
+export function useScenarios() {
   const client = useClient();
-  return useSWR(['rpg-ai', 'scenario-groups'], async () => {
-    const [scenarios, settings, systems] = await Promise.all([
+  return useSWR(['rpg-ai', 'scenarios'], async () => {
+    const [scenarios, settings, systems, styles, tagged] = await Promise.all([
       client.list('/v1/campaign', 'campaigns', scenarioSchema, {}),
       client.list('/v1/setting', 'settings', namedSchema, {}).catch(() => []),
       client.list('/v1/game_system', 'game_systems', namedSchema, {}).catch(() => []),
+      client.list('/v1/taxon', 'taxons', namedSchema, { kind: 'play_style' }).catch(() => []),
+      client
+        .list('/v1/entity_taxon', 'entity_taxons', taggedSchema, { target_entity_type: 'campaign' })
+        .catch(() => []),
     ]);
-    return groupScenarios(scenarios, settings, systems);
+    return {
+      scenarios: withTags(scenarios, styles, tagged),
+      settings,
+      systems,
+      styles: [...new Set(styles.map((one) => one.name))].sort(byName),
+    };
   });
 }
