@@ -247,6 +247,8 @@ binding; the owner of each piece is named.
   tolerance, verbosity, prose, darkness, humour, instruction adherence, speed), seeded from the
   models' known reputation and editable on the Models page. The narrator uses the story model
   nearest the sliders, with adherence as a floor; an endpoint chosen for the chat always wins.
+  **No model under 10B parameters ever narrates** (the operator: "Too stupid"); a mixture of
+  experts counts by its total size.
   Verbosity also sets the length; spice and darkness set the tone line, always capped by the
   campaign's table-safety rating.
 
