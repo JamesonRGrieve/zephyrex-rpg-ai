@@ -6,7 +6,7 @@
  * narrate: `Narrator: text`; any other line is narration. Pure, and held to
  * contract/player-lines-cases.json with ai_chat/PlayerLines.py.
  */
-import { PLAYER_LINES } from '~/contract';
+import { PLAYER_LINES, PROMPT } from '~/contract';
 
 export type Manner = (typeof PLAYER_LINES.manners)[number];
 
@@ -15,8 +15,10 @@ export interface PlayerLine {
   kind: 'say' | 'do' | 'narrate';
   /** How a line is said; null for do and narrate. */
   manner: Manner | null;
-  /** Whom it's said to; null for everyone (and for do and narrate). */
+  /** Whom it's said to or done at (a person), null for everyone or none. */
   target_id: string | null;
+  /** The target as written, when it names no person ("the Neverborn"); null otherwise. */
+  target_name: string | null;
   text: string;
 }
 
@@ -65,20 +67,30 @@ const unquote = (text: string): string => {
 };
 
 /** How a say's parenthesis reads: its manner and its target (null: everyone). */
-function said(paren: string, people: readonly Person[]): { manner: Manner; target_id: string | null } {
+function said(
+  paren: string,
+  people: readonly Person[],
+): { manner: Manner; target_id: string | null; target_name: string | null } {
   const text = paren.trim();
-  if (text.toLowerCase() === 'voxcast') return { manner: 'voxcast', target_id: null };
+  if (text.toLowerCase() === 'voxcast') return { manner: 'voxcast', target_id: null, target_name: null };
   const vox = /^vox\s+to\s+(.+)$/iu.exec(text);
-  if (vox !== null) return { manner: 'vox', target_id: target(vox[1] ?? '', people) };
+  if (vox !== null)
+    return { manner: 'vox', target_id: target(vox[1] ?? '', people), target_name: unnamed(vox[1] ?? '', people) };
   const to = /^to\s+(.+?)(?:\s*,\s*(\w+))?$/iu.exec(text);
-  if (to === null) return { manner: 'speak', target_id: null };
+  if (to === null) return { manner: 'speak', target_id: null, target_name: null };
   const word = (to[2] ?? '').toLowerCase();
   const manner = (Object.entries(PLAYER_LINES.manner_words).find(([, verb]) => verb === word)?.[0] ?? 'speak') as Manner;
-  return { manner, target_id: target(to[1] ?? '', people) };
+  return { manner, target_id: target(to[1] ?? '', people), target_name: unnamed(to[1] ?? '', people) };
 }
 
 const target = (name: string, people: readonly Person[]): string | null =>
   name.trim().toLowerCase() === PLAYER_LINES.everyone ? null : named(name, people);
+
+/** A target as written when it names no person (and isn't everyone); null otherwise. */
+const unnamed = (name: string, people: readonly Person[]): string | null =>
+  name.trim() === '' || name.trim().toLowerCase() === PLAYER_LINES.everyone || named(name, people) !== null
+    ? null
+    : name.trim();
 
 /** Who a line is spoken by, for a live stream's switch; null for the narrator or no one. */
 export function lineSpeaker(line: string, people: readonly Person[]): string | null {
@@ -86,6 +98,8 @@ export function lineSpeaker(line: string, people: readonly Person[]): string | n
   if (trimmed.toLowerCase().startsWith(`${PLAYER_LINES.narrator.toLowerCase()}:`)) return null;
   return opening(trimmed, people)?.id ?? null;
 }
+
+const NONE = { manner: null, target_id: null, target_name: null } as const;
 
 /** A message's items, one per non-blank line. */
 export function parsePlayerLines(text: string, people: readonly Person[]): PlayerLine[] {
@@ -95,12 +109,12 @@ export function parsePlayerLines(text: string, people: readonly Person[]): Playe
     if (line === '') continue;
     const narrator = new RegExp(`^${PLAYER_LINES.narrator}:\\s*(.*)$`, 'isu').exec(line);
     if (narrator !== null) {
-      items.push({ speaker_id: null, kind: 'narrate', manner: null, target_id: null, text: (narrator[1] ?? '').trim() });
+      items.push({ ...NONE, speaker_id: null, kind: 'narrate', text: (narrator[1] ?? '').trim() });
       continue;
     }
     const open = opening(line, people);
     if (open === null) {
-      items.push({ speaker_id: null, kind: 'narrate', manner: null, target_id: null, text: line });
+      items.push({ ...NONE, speaker_id: null, kind: 'narrate', text: line });
       continue;
     }
     const say = /^\s*\(([^)]*)\)\s*:\s*(.*)$/su.exec(open.rest);
@@ -110,10 +124,24 @@ export function parsePlayerLines(text: string, people: readonly Person[]): Playe
     }
     const colon = /^\s*:\s*(.*)$/su.exec(open.rest);
     if (colon !== null) {
-      items.push({ speaker_id: open.id, kind: 'say', manner: 'speak', target_id: null, text: unquote(colon[1] ?? '') });
+      items.push({ ...NONE, speaker_id: open.id, kind: 'say', manner: 'speak', text: unquote(colon[1] ?? '') });
       continue;
     }
-    items.push({ speaker_id: open.id, kind: 'do', manner: null, target_id: null, text: open.rest.trim() });
+    // A do with its target (the operator: a punch at the hostile was read as at a team mate).
+    const at = /^\s*\(at\s+([^)]+)\)\s*(.*)$/isu.exec(open.rest);
+    if (at !== null) {
+      const whom = at[1] ?? '';
+      items.push({
+        ...NONE,
+        speaker_id: open.id,
+        kind: 'do',
+        target_id: target(whom, people),
+        target_name: unnamed(whom, people),
+        text: (at[2] ?? '').trim(),
+      });
+      continue;
+    }
+    items.push({ ...NONE, speaker_id: open.id, kind: 'do', text: open.rest.trim() });
   }
   return items;
 }
@@ -125,8 +153,9 @@ export function formatPlayerLines(items: readonly PlayerLine[], people: readonly
     .map((item) => {
       const who = name(item.speaker_id);
       if (item.kind === 'narrate' || who === '') return `${PLAYER_LINES.narrator}: ${item.text}`;
-      if (item.kind === 'do') return `${who} ${item.text}`;
-      const to = item.target_id === null ? PLAYER_LINES.everyone : name(item.target_id) || PLAYER_LINES.everyone;
+      const whom = (item.target_id === null ? '' : name(item.target_id)) || (item.target_name ?? '');
+      if (item.kind === 'do') return whom === '' ? `${who} ${item.text}` : `${who} (at ${whom}) ${item.text}`;
+      const to = whom || PLAYER_LINES.everyone;
       const manner = item.manner ?? 'speak';
       const paren =
         manner === 'voxcast'
@@ -139,4 +168,18 @@ export function formatPlayerLines(items: readonly PlayerLine[], people: readonly
       return `${who} (${paren}): "${item.text}"`;
     })
     .join('\n');
+}
+
+/**
+ * A line's text without the narrator's markup, for speech and summaries (the operator: screens and
+ * colours): `[screen: …]` and `[/screen]` lines go and their contents stay; a palette colour's tags go
+ * and its words stay. Anything else in brackets is left as written.
+ */
+export function stripMarkup(text: string): string {
+  const colours = PROMPT.markup.colours.join('|');
+  return text
+    .split('\n')
+    .filter((line) => !/^\s*\[(?:screen:[^\]]*|\/screen)\]\s*$/iu.test(line))
+    .join('\n')
+    .replace(new RegExp(`\\[(?:${colours})\\]([\\s\\S]*?)\\[\\/(?:${colours})\\]`, 'giu'), '$1');
 }

@@ -186,6 +186,80 @@
           "kind": "formula"
         }
       }
+    },
+    {
+      "name": "an attempt offers no \"no roll\": the model picks the test",
+      "options": {
+        "characteristics": [
+          {
+            "slug": "agility",
+            "name": "Agility"
+          }
+        ],
+        "skills": [
+          {
+            "slug": "tech-use",
+            "name": "Tech-Use"
+          },
+          {
+            "slug": "dodge",
+            "name": "Dodge"
+          }
+        ],
+        "difficulties": [
+          {
+            "slug": "easy"
+          },
+          {
+            "slug": "challenging"
+          },
+          {
+            "slug": "hard"
+          }
+        ],
+        "default_difficulty": "challenging",
+        "has_sheet": true
+      },
+      "mode": "narrative",
+      "actor": "Tessaly Kord",
+      "attempt": true,
+      "questions": {
+        "roll": {
+          "type": "choice",
+          "instructions": "Tessaly Kord is attempting something whose outcome is uncertain. Pick the characteristic or skill the game's rules would test.",
+          "criteria": [
+            "Agility",
+            "Tech-Use",
+            "Dodge"
+          ]
+        },
+        "difficulty": {
+          "type": "choice",
+          "instructions": "How hard is it, given the situation?",
+          "criteria": [
+            "easy",
+            "challenging",
+            "hard"
+          ]
+        }
+      },
+      "picks": {
+        "Agility": {
+          "kind": "test",
+          "name": "agility",
+          "label": "Agility"
+        },
+        "Tech-Use": {
+          "kind": "test",
+          "name": "tech-use",
+          "label": "Tech-Use"
+        },
+        "Dodge": {
+          "kind": "test",
+          "name": "dodge",
+          "label": "Dodge"
+        }
+      }
     }
   ],
   "pick_cases": [
@@ -284,6 +358,28 @@
     {
       "total": 3,
       "outcome": "miss"
+    }
+  ],
+  "attempt_cases": [
+    {
+      "line": "Tessaly Kord tries to slice the door's cogitator.",
+      "attempt": true
+    },
+    {
+      "line": "Tessaly Kord tries to pick the lock.",
+      "attempt": true
+    },
+    {
+      "line": "Tessaly Kord charges down the stairs.",
+      "attempt": false
+    },
+    {
+      "line": "Tessaly Kord (to Wren): \"Try the door.\"",
+      "attempt": false
+    },
+    {
+      "line": "Wren hacks the terminal.",
+      "attempt": true
     }
   ]
 }

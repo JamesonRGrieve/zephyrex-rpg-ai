@@ -61,6 +61,11 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     PROMPT,
     SAMPLER_RANGES,
 )
+from zephyrex.extensions.ai_chat.Clarify import (  # type: ignore[import-not-found]
+    clarify_need,
+    clarify_questions,
+    should_ask,
+)
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text, wiki_document_texts  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.ExtraBody import extra_body_problem, with_extra_body  # type: ignore[import-not-found]
@@ -97,6 +102,7 @@ from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
     session_start_index,
     sessions_summary,
 )
+from zephyrex.extensions.ai_chat.PlayerLines import parse_player_lines  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     DEFAULT_USER_NAME,
     assemble_prompt,
@@ -113,7 +119,11 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
 )
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Remembering import forget_chat, memories_for  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.RollDecision import roll_pick, roll_questions  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.RollDecision import (  # type: ignore[import-not-found]
+    is_attempt,
+    roll_pick,
+    roll_questions,
+)
 from zephyrex.extensions.ai_chat.Samplers import sampler_params, sampler_problem  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Search import (  # type: ignore[import-not-found]
     QUERY_CHARACTERS as SEARCH_QUERY_CHARACTERS,
@@ -1784,6 +1794,22 @@ class WorldTickEnvelope(PlainModel):
     world_tick: WorldTick
 
 
+class ClarifyRequest(PlainModel):
+    """The GM's question when the person's action is ambiguous (the operator, 2026-11-21)."""
+
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+
+
+class ClarifyRequestEnvelope(PlainModel):
+    clarify: ClarifyRequest
+
+
+class ClarifyEnvelope(PlainModel):
+    #: The question and its options (those present), or None: nothing to ask.
+    clarify: dict[str, Any] | None = None
+
+
 class CutRequest(PlainModel):
     """STscript's /cut (audit gap 5): the messages to take out, all of one chat."""
 
@@ -3225,8 +3251,22 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 frame = None
             mode = getattr(frame, "resolution_mode", None) or "narrative"
         options = await test_options(self.model_registry, str(self.requester.id), asked.character_id)
-        questions, picks = roll_questions(options, mode, actor)
         story = set(PROMPT["story_channels"])
+        # The actor's latest story line: an attempt at something uncertain always gets a test.
+        acted = next(
+            (
+                turn
+                for turn in reversed(context["history"])
+                if turn["channel"] in story
+                and (
+                    turn["role"] == "user"
+                    if asked.character_id == playing_id
+                    else turn["speaker_character_id"] == asked.character_id
+                )
+            ),
+            None,
+        )
+        questions, picks = roll_questions(options, mode, actor, acted is not None and is_attempt(acted["content"]))
         state = turn_state(
             [
                 {
@@ -3373,6 +3413,92 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         return WorldTickEnvelope(
             world_tick=WorldTick(skipped=False, now=clock, moves=moves, arrivals=arrivals(moves, at, locations))
         )
+
+    @custom_route(
+        method="POST",
+        path="/clarify",
+        input_model=ClarifyRequestEnvelope,
+        output_model=ClarifyEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="The GM's question when the person's action leaves its target ambiguous among those present",
+    )
+    async def clarify_route(self, body: ClarifyRequestEnvelope) -> ClarifyEnvelope:
+        none = ClarifyEnvelope(clarify=None)
+        asked = body.clarify
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        if playing_id is None:
+            return none
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id, mode="narrate"), save_timers=False
+        )
+        story = set(PROMPT["story_channels"])
+        story_turns = [
+            turn
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        if not story_turns or story_turns[-1]["role"] != "user":
+            return none
+        persona = context["persona"]
+        actor = persona["name"] if persona is not None else DEFAULT_USER_NAME
+        people = [*context["cast"], {"id": playing_id, "name": actor}]
+        world = context["world"]
+        locations = [
+            {**entity, "aliases": list(entity.get("aliases") or [])}
+            for entity in world
+            if entity.get("kind") == "location" and not entity.get("deleted")
+        ]
+        at = scene_location([{"text": turn["content"], "channel": "story"} for turn in story_turns], locations)
+        persons = [
+            {"id": entity["id"], "name": entity["name"]}
+            for entity in world
+            if entity.get("kind") == "person" and not entity.get("deleted") and entity["id"] != playing_id
+        ]
+        reach = present_cast(
+            persons,
+            {
+                "tokens": None,
+                "scene_location": at,
+                "location_parents": {location["id"]: location.get("parent_id") for location in locations},
+                "person_locations": {
+                    entity["id"]: entity.get("location_id") for entity in world if entity.get("kind") == "person"
+                },
+                "recent": [
+                    {
+                        "speaker_id": playing_id
+                        if turn["role"] == "user"
+                        else turn["speaker_character_id"]
+                        if turn["role"] == "character"
+                        else None,
+                        "text": turn["content"],
+                    }
+                    for turn in story_turns
+                ],
+                "vox": chat.vox_ids or [],
+            },
+        )
+        candidates = [person for person in persons if person["id"] in reach["present"]]
+        need = clarify_need(parse_player_lines(story_turns[-1]["content"], people), playing_id, candidates)
+        deciding = self._decider() if need is not None else None
+        if need is None or deciding is None:
+            return none
+        questions = clarify_questions(need["action"], actor, candidates)
+        answers = await ask_decider(
+            deciding.base_url,
+            deciding.model,
+            decrypt_secret(deciding.api_key) if deciding.api_key else "",
+            "\n".join(turn["content"] for turn in story_turns[-6:]),
+            {"ambiguous": questions["decide"]},
+            getattr(deciding, "extra_body", None),
+        )
+        return ClarifyEnvelope(clarify=questions["player"]) if should_ask((answers or {}).get("ambiguous")) else none
 
     @custom_route(
         method="POST",

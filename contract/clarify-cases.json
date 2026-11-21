@@ -1,0 +1,185 @@
+{
+  "$comment": "The GM's question tool: cases both twins run (client/src/features/chat/clarify.test.ts, server/extensions/ai_chat/Clarify_test.py).",
+  "need_cases": [
+    {
+      "name": "the operator's punch with no target, among two: may need a question",
+      "items": [
+        {
+          "speaker_id": "tess",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": null,
+          "text": "punches it."
+        }
+      ],
+      "seat": "tess",
+      "candidates": [
+        {
+          "id": "wren",
+          "name": "Wren"
+        },
+        {
+          "id": "nev",
+          "name": "the Neverborn"
+        }
+      ],
+      "need": {
+        "action": "punches it."
+      }
+    },
+    {
+      "name": "a do with its target needs none",
+      "items": [
+        {
+          "speaker_id": "tess",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": "the Neverborn",
+          "text": "punches it."
+        }
+      ],
+      "seat": "tess",
+      "candidates": [
+        {
+          "id": "wren",
+          "name": "Wren"
+        },
+        {
+          "id": "nev",
+          "name": "the Neverborn"
+        }
+      ],
+      "need": null
+    },
+    {
+      "name": "one candidate needs none",
+      "items": [
+        {
+          "speaker_id": "tess",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": null,
+          "text": "punches it."
+        }
+      ],
+      "seat": "tess",
+      "candidates": [
+        {
+          "id": "wren",
+          "name": "Wren"
+        }
+      ],
+      "need": null
+    },
+    {
+      "name": "speech needs none",
+      "items": [
+        {
+          "speaker_id": "tess",
+          "kind": "say",
+          "manner": "speak",
+          "target_id": null,
+          "target_name": null,
+          "text": "Back off."
+        }
+      ],
+      "seat": "tess",
+      "candidates": [
+        {
+          "id": "wren",
+          "name": "Wren"
+        },
+        {
+          "id": "nev",
+          "name": "the Neverborn"
+        }
+      ],
+      "need": null
+    },
+    {
+      "name": "someone else's do needs none",
+      "items": [
+        {
+          "speaker_id": "wren",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": null,
+          "text": "punches it."
+        }
+      ],
+      "seat": "tess",
+      "candidates": [
+        {
+          "id": "wren",
+          "name": "Wren"
+        },
+        {
+          "id": "nev",
+          "name": "the Neverborn"
+        }
+      ],
+      "need": null
+    }
+  ],
+  "questions_case": {
+    "action": "punches it.",
+    "actor": "Tessaly Kord",
+    "candidates": [
+      {
+        "id": "wren",
+        "name": "Wren"
+      },
+      {
+        "id": "nev",
+        "name": "the Neverborn"
+      }
+    ],
+    "questions": {
+      "decide": {
+        "type": "noul",
+        "instructions": "Does the story leave unclear whom or what Tessaly Kord means by this action, among: Wren, the Neverborn? Action: punches it."
+      },
+      "player": {
+        "question": "Who or what is Tessaly Kord acting on? (punches it.)",
+        "options": [
+          {
+            "label": "Wren",
+            "value": "wren"
+          },
+          {
+            "label": "the Neverborn",
+            "value": "nev"
+          }
+        ]
+      }
+    }
+  },
+  "ask_cases": [
+    {
+      "answer": {
+        "probability": 0.8
+      },
+      "ask": true
+    },
+    {
+      "answer": {
+        "probability": 0.2
+      },
+      "ask": false
+    },
+    {
+      "answer": null,
+      "ask": false
+    },
+    {
+      "answer": {
+        "choice": "x"
+      },
+      "ask": false
+    }
+  ]
+}

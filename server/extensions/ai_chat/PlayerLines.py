@@ -12,7 +12,7 @@ import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
 
 PLAYER_LINES: dict[str, Any] = CONTRACT["player_lines"]
 
@@ -63,18 +63,25 @@ def _target(name: str, people: Sequence[Mapping[str, Any]]) -> str | None:
     return None if name.strip().lower() == PLAYER_LINES["everyone"] else _named(name, people)
 
 
-def _said(paren: str, people: Sequence[Mapping[str, Any]]) -> tuple[str, str | None]:
+def _unnamed(name: str, people: Sequence[Mapping[str, Any]]) -> str | None:
+    """A target as written when it names no person (and isn't everyone); None otherwise."""
+    if not name.strip() or name.strip().lower() == PLAYER_LINES["everyone"] or _named(name, people) is not None:
+        return None
+    return name.strip()
+
+
+def _said(paren: str, people: Sequence[Mapping[str, Any]]) -> tuple[str, str | None, str | None]:
     text = paren.strip()
     if text.lower() == "voxcast":
-        return "voxcast", None
+        return "voxcast", None, None
     if (vox := re.fullmatch(r"vox\s+to\s+(.+)", text, re.IGNORECASE)) is not None:
-        return "vox", _target(vox.group(1), people)
+        return "vox", _target(vox.group(1), people), _unnamed(vox.group(1), people)
     to = re.fullmatch(r"to\s+(.+?)(?:\s*,\s*(\w+))?", text, re.IGNORECASE)
     if to is None:
-        return "speak", None
+        return "speak", None, None
     word = (to.group(2) or "").lower()
     manner = next((key for key, verb in PLAYER_LINES["manner_words"].items() if verb == word), "speak")
-    return manner, _target(to.group(1), people)
+    return manner, _target(to.group(1), people), _unnamed(to.group(1), people)
 
 
 def line_speaker(line: str, people: Sequence[Mapping[str, Any]]) -> str | None:
@@ -86,8 +93,22 @@ def line_speaker(line: str, people: Sequence[Mapping[str, Any]]) -> str | None:
     return opened[0] if opened else None
 
 
-def _item(speaker_id: str | None, kind: str, manner: str | None, target_id: str | None, text: str) -> dict[str, Any]:
-    return {"speaker_id": speaker_id, "kind": kind, "manner": manner, "target_id": target_id, "text": text}
+def _item(
+    speaker_id: str | None,
+    kind: str,
+    manner: str | None,
+    target_id: str | None,
+    text: str,
+    target_name: str | None = None,
+) -> dict[str, Any]:
+    return {
+        "speaker_id": speaker_id,
+        "kind": kind,
+        "manner": manner,
+        "target_id": target_id,
+        "target_name": target_name,
+        "text": text,
+    }
 
 
 def parse_player_lines(text: str, people: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
@@ -107,11 +128,16 @@ def parse_player_lines(text: str, people: Sequence[Mapping[str, Any]]) -> list[d
             continue
         id_, rest = opened
         if (say := re.fullmatch(r"\s*\(([^)]*)\)\s*:\s*(.*)", rest, re.DOTALL)) is not None:
-            manner, target = _said(say.group(1), people)
-            items.append(_item(id_, "say", manner, target, _unquote(say.group(2))))
+            manner, target, target_name = _said(say.group(1), people)
+            items.append(_item(id_, "say", manner, target, _unquote(say.group(2)), target_name))
             continue
         if (colon := re.fullmatch(r"\s*:\s*(.*)", rest, re.DOTALL)) is not None:
             items.append(_item(id_, "say", "speak", None, _unquote(colon.group(1))))
+            continue
+        # A do with its target (the operator: a punch at the hostile was read as at a team mate).
+        if (at := re.fullmatch(r"\s*\(at\s+([^)]+)\)\s*(.*)", rest, re.IGNORECASE | re.DOTALL)) is not None:
+            whom = at.group(1)
+            items.append(_item(id_, "do", None, _target(whom, people), at.group(2).strip(), _unnamed(whom, people)))
             continue
         items.append(_item(id_, "do", None, None, rest.strip()))
     return items
@@ -126,12 +152,13 @@ def format_player_lines(items: Sequence[Mapping[str, Any]], people: Sequence[Map
     lines: list[str] = []
     for item in items:
         who = name(item["speaker_id"])
+        whom = (name(item["target_id"]) if item["target_id"] is not None else "") or (item.get("target_name") or "")
         if item["kind"] == "narrate" or not who:
             lines.append(f"{PLAYER_LINES['narrator']}: {item['text']}")
         elif item["kind"] == "do":
-            lines.append(f"{who} {item['text']}")
+            lines.append(f"{who} (at {whom}) {item['text']}" if whom else f"{who} {item['text']}")
         else:
-            to = (name(item["target_id"]) if item["target_id"] is not None else "") or PLAYER_LINES["everyone"]
+            to = whom or PLAYER_LINES["everyone"]
             manner = item.get("manner") or "speak"
             if manner == "voxcast":
                 paren = "voxcast"
@@ -143,3 +170,12 @@ def format_player_lines(items: Sequence[Mapping[str, Any]], people: Sequence[Map
                 paren = f"to {to}"
             lines.append(f'{who} ({paren}): "{item["text"]}"')
     return "\n".join(lines)
+
+
+def strip_markup(text: str) -> str:
+    """A line's text without the narrator's markup, for speech and summaries: screen lines go and their
+    contents stay; a palette colour's tags go and its words stay."""
+    colours = "|".join(re.escape(colour) for colour in PROMPT["markup"]["colours"])
+    screen = re.compile(r"\s*\[(?:screen:[^\]]*|/screen)\]\s*", re.IGNORECASE)
+    kept = [line for line in text.split("\n") if not screen.fullmatch(line)]
+    return re.sub(rf"\[(?:{colours})\](.*?)\[/(?:{colours})\]", r"\1", "\n".join(kept), flags=re.IGNORECASE | re.DOTALL)

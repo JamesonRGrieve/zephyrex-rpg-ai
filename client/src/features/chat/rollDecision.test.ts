@@ -3,11 +3,18 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/roll-decision-cases.json';
 import type { DecideAnswer } from '~/features/decide/decide';
-import { type TestOptions, lightOutcome, rollPick, rollQuestions } from './rollDecision';
+import { type TestOptions, isAttempt, lightOutcome, rollPick, rollQuestions } from './rollDecision';
 
 describe('the roll decision cases both twins run', () => {
-  it.each(cases.question_cases)('$name', ({ options, mode, actor, questions, picks }) => {
-    expect(rollQuestions(options as TestOptions | null, mode, actor)).toEqual({ questions, picks });
+  it.each(cases.question_cases)('$name', (one) => {
+    const attempt = 'attempt' in one ? one.attempt : false;
+    expect(rollQuestions(one.options as TestOptions | null, one.mode, one.actor, attempt)).toEqual({
+      questions: one.questions,
+      picks: one.picks,
+    });
+  });
+  it.each(cases.attempt_cases)('an attempt: $line', ({ line, attempt }) => {
+    expect(isAttempt(line)).toBe(attempt);
   });
   it.each(cases.pick_cases)('$name', ({ answers, pack, pick }) => {
     const options = pack ? (cases.options as TestOptions) : null;

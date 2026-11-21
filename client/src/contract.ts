@@ -119,6 +119,8 @@ export const VOICE_GUARD = contract.voice_guard;
 export const NARRATOR_STYLE = contract.narrator_style;
 /** Structured lines: say, do and narrate, one item per line. */
 export const PLAYER_LINES = contract.player_lines;
+/** The GM's question tool: when a do line's target is ambiguous. */
+export const CLARIFY = contract.clarify;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

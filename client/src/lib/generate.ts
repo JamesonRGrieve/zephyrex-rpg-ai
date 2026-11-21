@@ -38,7 +38,9 @@ import { branchTo } from '~/features/chat/branch';
 import { aiCast, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
 import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
-import { rollPick, rollQuestions } from '~/features/chat/rollDecision';
+import { clarifyNeed, clarifyQuestions, shouldAsk } from '~/features/chat/clarify';
+import { parsePlayerLines } from '~/features/chat/playerLines';
+import { isAttempt, rollPick, rollQuestions } from '~/features/chat/rollDecision';
 import { partyBriefing, partyOf, partyText } from '~/features/prompt/party';
 import {
   type Move,
@@ -1148,8 +1150,21 @@ export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
     const actor = asked.character_id === playingId ? player : names.get(asked.character_id);
     if (actor === undefined) throw validationError('The character must be in the chat', 'character_id');
     const options = null;
-    const { questions, picks } = rollQuestions(options, frame?.resolutionMode ?? 'narrative', actor);
     const story = new Set<string>(PROMPT.story_channels);
+    // The actor's latest story line: an attempt at something uncertain always gets a test.
+    const acted = [...prompt.history]
+      .reverse()
+      .find(
+        (turn) =>
+          story.has(turn.channel) &&
+          (asked.character_id === playingId ? turn.role === 'user' : turn.speaker_character_id === asked.character_id),
+      );
+    const { questions, picks } = rollQuestions(
+      options,
+      frame?.resolutionMode ?? 'narrative',
+      actor,
+      acted !== undefined && isAttempt(acted.content),
+    );
     const state = turnState(
       prompt.history
         .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
@@ -1290,6 +1305,96 @@ export async function worldTick(nextRequest: NextRequest): Promise<Response> {
     return Response.json({
       world_tick: { skipped: false, reason: null, now: clock, moves, arrivals: arrivals(moves, at, locations) },
     });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const clarifyRequest = z.object({
+  chat_id: z.string().min(1),
+  leaf_id: z.string().min(1).nullable().default(null),
+});
+
+/**
+ * `POST /v1/ai_chat/clarify` (the operator, 2026-11-21: "We need question tool support for ambiguity"):
+ * when the person's latest do line names no target and two or more are present, one decide call says
+ * whether it's truly ambiguous; then `{ "clarify": { "question", "options": [{ "label", "value" }] } }`,
+ * the options only those present, for the GM to ask out of game. `{ "clarify": null }` otherwise, and
+ * for free when no line could need it (features/chat/clarify.ts).
+ */
+export async function clarify(nextRequest: NextRequest): Promise<Response> {
+  const none = Response.json({ clarify: null });
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = clarifyRequest.safeParse(Reflect.get(envelope, 'clarify'));
+    if (!parsed.success) throw validationError('A clarify object with a chat_id is required', 'clarify');
+    const asked = parsed.data;
+    const chat = await chats.find(asked.chat_id, owner.id);
+    if (chat === null) throw notFound(chats.modelName);
+    const fields = chats.fields(chat) as { vox_ids: string[] };
+    const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+    const playingId = play?.playingId ?? null;
+    if (playingId === null) return none;
+    const { prompt, world } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null, forbid: null },
+      Math.random,
+      'reply',
+      wikiReader(nextRequest),
+    );
+    const story = new Set<string>(PROMPT.story_channels);
+    const storyTurns = prompt.history.filter(
+      (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
+    );
+    const last = storyTurns.at(-1);
+    if (last === undefined || last.role !== 'user') return none;
+    const actor = prompt.persona?.name ?? DEFAULT_USER_NAME;
+    const people = [...prompt.characters, { id: playingId, name: actor }];
+    const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
+    const locations = world
+      .filter((entity) => entity.kind === 'location' && entity.deleted !== true)
+      .map((entity) => ({ ...entity, aliases: [...((field(entity, 'aliases') as string[] | undefined) ?? [])] }));
+    const at = sceneLocation(
+      storyTurns.map((turn) => ({ text: turn.content, channel: 'story' })),
+      locations,
+    );
+    const persons = world
+      .filter((entity) => entity.kind === 'person' && entity.deleted !== true && entity.id !== playingId)
+      .map((entity) => ({ id: entity.id, name: entity.name }));
+    const { present } = presentCast(persons, {
+      tokens: null,
+      scene_location: at,
+      location_parents: Object.fromEntries(
+        locations.map((location) => [location.id, (field(location, 'parent_id') as string | null | undefined) ?? null]),
+      ),
+      person_locations: Object.fromEntries(
+        world
+          .filter((entity) => entity.kind === 'person')
+          .map((entity) => [entity.id, (field(entity, 'location_id') as string | null | undefined) ?? null]),
+      ),
+      recent: storyTurns.map((turn) => ({
+        speaker_id: turn.role === 'user' ? playingId : turn.role === 'character' ? turn.speaker_character_id : null,
+        text: turn.content,
+      })),
+      vox: fields.vox_ids,
+    });
+    const candidates = persons.filter((person) => present.includes(person.id));
+    const need = clarifyNeed(parsePlayerLines(last.content, people), playingId, candidates);
+    if (need === null) return none;
+    const deciding = await decider(owner.id);
+    if (deciding === null) return none;
+    const { decide, player } = clarifyQuestions(need.action, actor, candidates);
+    const answers = await askDecider(
+      deciding,
+      storyTurns
+        .map((turn) => turn.content)
+        .slice(-6)
+        .join('\n'),
+      { ambiguous: decide },
+      nextRequest.signal,
+    );
+    return shouldAsk(answers?.ambiguous) ? Response.json({ clarify: player }) : none;
   } catch (error) {
     return apiErrorResponse(error);
   }

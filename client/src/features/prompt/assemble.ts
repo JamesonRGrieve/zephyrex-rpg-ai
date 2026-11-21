@@ -700,7 +700,7 @@ export function narrateRule(persona: PromptPersona | null, characters: readonly 
     .replaceAll('{{example}}', example)
     .replaceAll('{{names}}', names.join(', '));
   // Small models follow a worked example far better than a rule (the play-test).
-  return `${rule} ${seatRule} ${PROMPT.narrate_markup}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
+  return `${rule} ${seatRule} ${PROMPT.narrate_targets} ${PROMPT.narrate_markup}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
 }
 
 /** A regeneration's forbidden span, with whom it wrote for; nothing without one. */

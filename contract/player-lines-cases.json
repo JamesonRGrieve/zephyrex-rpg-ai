@@ -32,6 +32,7 @@
           "kind": "say",
           "manner": "speak",
           "target_id": "wren",
+          "target_name": null,
           "text": "Quiet. Listen."
         },
         {
@@ -39,6 +40,7 @@
           "kind": "do",
           "manner": null,
           "target_id": null,
+          "target_name": null,
           "text": "bangs on the wall with her mechadendrite."
         },
         {
@@ -46,6 +48,7 @@
           "kind": "say",
           "manner": "speak",
           "target_id": null,
+          "target_name": null,
           "text": "Kneel."
         },
         {
@@ -53,6 +56,7 @@
           "kind": "narrate",
           "manner": null,
           "target_id": null,
+          "target_name": null,
           "text": "The lights flicker."
         },
         {
@@ -60,6 +64,7 @@
           "kind": "say",
           "manner": "whisper",
           "target_id": "wren",
+          "target_name": null,
           "text": "Not here."
         },
         {
@@ -67,6 +72,7 @@
           "kind": "say",
           "manner": "shout",
           "target_id": null,
+          "target_name": null,
           "text": "Down!"
         },
         {
@@ -74,6 +80,7 @@
           "kind": "say",
           "manner": "vox",
           "target_id": "kord",
+          "target_name": null,
           "text": "Status?"
         },
         {
@@ -81,6 +88,7 @@
           "kind": "say",
           "manner": "voxcast",
           "target_id": null,
+          "target_name": null,
           "text": "All hands."
         }
       ]
@@ -94,6 +102,7 @@
           "kind": "say",
           "manner": "speak",
           "target_id": "wren",
+          "target_name": null,
           "text": "Hey."
         },
         {
@@ -101,6 +110,7 @@
           "kind": "narrate",
           "manner": null,
           "target_id": null,
+          "target_name": null,
           "text": "The vents rattle."
         },
         {
@@ -108,6 +118,7 @@
           "kind": "say",
           "manner": "speak",
           "target_id": null,
+          "target_name": null,
           "text": "Fine."
         },
         {
@@ -115,6 +126,7 @@
           "kind": "narrate",
           "manner": null,
           "target_id": null,
+          "target_name": null,
           "text": "Someone shouts from below."
         },
         {
@@ -122,12 +134,13 @@
           "kind": "do",
           "manner": null,
           "target_id": null,
+          "target_name": null,
           "text": "checks the pipes."
         }
       ]
     },
     {
-      "name": "a target no one has is everyone; a manner it doesn't know is speech",
+      "name": "a target who is no one known is kept as written; a manner it doesn't know is speech",
       "text": "Wren (to Captain Rho, sings): \"La.\"",
       "items": [
         {
@@ -135,7 +148,30 @@
           "kind": "say",
           "manner": "speak",
           "target_id": null,
+          "target_name": "Captain Rho",
           "text": "La."
+        }
+      ]
+    },
+    {
+      "name": "a do with its target: a person, or a hostile as written (the operator's punch)",
+      "text": "Tessaly Kord (at the Neverborn) punches it.\nTessaly Kord (at Wren) shoves her aside.",
+      "items": [
+        {
+          "speaker_id": "tess",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": "the Neverborn",
+          "text": "punches it."
+        },
+        {
+          "speaker_id": "tess",
+          "kind": "do",
+          "manner": null,
+          "target_id": "wren",
+          "target_name": null,
+          "text": "shoves her aside."
         }
       ]
     }
@@ -147,6 +183,7 @@
         "kind": "say",
         "manner": "speak",
         "target_id": "wren",
+        "target_name": null,
         "text": "Quiet. Listen."
       },
       {
@@ -154,6 +191,7 @@
         "kind": "do",
         "manner": null,
         "target_id": null,
+        "target_name": null,
         "text": "bangs on the wall with her mechadendrite."
       },
       {
@@ -161,6 +199,7 @@
         "kind": "say",
         "manner": "speak",
         "target_id": null,
+        "target_name": null,
         "text": "Kneel."
       },
       {
@@ -168,6 +207,7 @@
         "kind": "narrate",
         "manner": null,
         "target_id": null,
+        "target_name": null,
         "text": "The lights flicker."
       },
       {
@@ -175,6 +215,7 @@
         "kind": "say",
         "manner": "whisper",
         "target_id": "wren",
+        "target_name": null,
         "text": "Not here."
       },
       {
@@ -182,6 +223,7 @@
         "kind": "say",
         "manner": "shout",
         "target_id": null,
+        "target_name": null,
         "text": "Down!"
       },
       {
@@ -189,6 +231,7 @@
         "kind": "say",
         "manner": "vox",
         "target_id": "kord",
+        "target_name": null,
         "text": "Status?"
       },
       {
@@ -196,6 +239,7 @@
         "kind": "say",
         "manner": "voxcast",
         "target_id": null,
+        "target_name": null,
         "text": "All hands."
       }
     ],
@@ -222,5 +266,43 @@
       "line": "Kordelia waits.",
       "speaker": null
     }
-  ]
+  ],
+  "markup_cases": [
+    {
+      "name": "a screen's lines stay, its tags go",
+      "text": "Narrator: A cogitator flickers awake.\n[screen: Cogitator]\nSEAL BREACH - DECK C\n[/screen]",
+      "plain": "Narrator: A cogitator flickers awake.\nSEAL BREACH - DECK C"
+    },
+    {
+      "name": "a palette colour's tags go, its words stay",
+      "text": "Narrator: The rune glows [red]blood red[/red] and [gold]bright[/gold].",
+      "plain": "Narrator: The rune glows blood red and bright."
+    },
+    {
+      "name": "a colour off the palette is left as written",
+      "text": "[pink]soft[/pink]",
+      "plain": "[pink]soft[/pink]"
+    }
+  ],
+  "target_format_case": {
+    "items": [
+      {
+        "speaker_id": "tess",
+        "kind": "do",
+        "manner": null,
+        "target_id": null,
+        "target_name": "the Neverborn",
+        "text": "punches it."
+      },
+      {
+        "speaker_id": "tess",
+        "kind": "do",
+        "manner": null,
+        "target_id": "wren",
+        "target_name": null,
+        "text": "shoves her aside."
+      }
+    ],
+    "text": "Tessaly Kord (at the Neverborn) punches it.\nTessaly Kord (at Wren) shoves her aside."
+  }
 }

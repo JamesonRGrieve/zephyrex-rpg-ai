@@ -8,6 +8,7 @@ The twin of client/src/features/chat/rollDecision.ts, held to contract/roll-deci
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from typing import Any
 
@@ -16,14 +17,23 @@ from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[i
 DECIDE_ROLL: dict[str, Any] = CONTRACT["decide_roll"]
 
 
+def is_attempt(line: str) -> bool:
+    """Whether a line attempts something uncertain: a do line, not speech, with an attempt word in it."""
+    if re.match(r"[^\"“(]*\([^)]*\)\s*:", line.strip()):
+        return False
+    words = re.split(r"[^\w']+|[\d_]+", line.lower())
+    return any(word in words for word in DECIDE_ROLL["attempt_words"])
+
+
 def roll_questions(
-    options: Mapping[str, Any] | None, mode: str, actor: str
+    options: Mapping[str, Any] | None, mode: str, actor: str, attempt: bool = False
 ) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, str]]]:
-    """The decision model's questions (the roll, and a difficulty under a pack), and what each option picks."""
-    instructions = DECIDE_ROLL["instructions"]["mechanical" if mode == "mechanical" else "narrative"].replace(
-        "{{actor}}", actor
-    )
-    picks: dict[str, dict[str, str]] = {DECIDE_ROLL["none"]: {"kind": "none"}}
+    """The decision model's questions (the roll, and a difficulty under a pack), and what each option picks.
+    An attempt (is_attempt) offers no "no roll": the model picks the test."""
+    usual = DECIDE_ROLL["instructions"]["mechanical" if mode == "mechanical" else "narrative"]
+    template = DECIDE_ROLL["attempt"] if attempt else usual
+    instructions = str(template).replace("{{actor}}", actor)
+    picks: dict[str, dict[str, str]] = {} if attempt else {DECIDE_ROLL["none"]: {"kind": "none"}}
     if options is None or not options.get("has_sheet"):
         picks[DECIDE_ROLL["light"]["option"]] = {"kind": "formula"}
         return {"roll": {"type": "choice", "instructions": instructions, "criteria": list(picks)}}, picks

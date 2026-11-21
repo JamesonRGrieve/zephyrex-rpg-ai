@@ -25,17 +25,30 @@ export type RollPick =
 
 type Option = { kind: 'none' } | { kind: 'test'; name: string; label: string } | { kind: 'formula' };
 
-/** The decision model's questions (the roll, and a difficulty under a pack), and what each option picks. */
+/**
+ * Whether a line attempts something uncertain (the operator's play-test: "tries to slice the door's
+ * cogitator" got no roll): a do line, not speech, with an attempt word in it. No model call.
+ */
+export function isAttempt(line: string): boolean {
+  if (/^[^"“(]*\([^)]*\)\s*:/u.test(line.trim())) return false;
+  const words = line.toLowerCase().split(/[^\p{L}']+/u);
+  return DECIDE_ROLL.attempt_words.some((word) => words.includes(word));
+}
+
+/**
+ * The decision model's questions (the roll, and a difficulty under a pack), and what each option picks.
+ * An attempt (isAttempt) offers no "no roll": the model picks the test.
+ */
 export function rollQuestions(
   options: TestOptions | null,
   mode: string,
   actor: string,
+  attempt = false,
 ): { questions: Record<string, DecideQuestion>; picks: Record<string, Option> } {
-  const instructions = DECIDE_ROLL.instructions[mode === 'mechanical' ? 'mechanical' : 'narrative'].replaceAll(
-    '{{actor}}',
-    actor,
-  );
-  const picks: Record<string, Option> = { [DECIDE_ROLL.none]: { kind: 'none' } };
+  const instructions = (
+    attempt ? DECIDE_ROLL.attempt : DECIDE_ROLL.instructions[mode === 'mechanical' ? 'mechanical' : 'narrative']
+  ).replaceAll('{{actor}}', actor);
+  const picks: Record<string, Option> = attempt ? {} : { [DECIDE_ROLL.none]: { kind: 'none' } };
   if (options === null || !options.has_sheet) {
     picks[DECIDE_ROLL.light.option] = { kind: 'formula' };
     return { questions: { roll: { type: 'choice', instructions, criteria: Object.keys(picks) } }, picks };

@@ -123,6 +123,7 @@
     "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. Write one item per line: your narration as `Narrator: ...`; another character, when you give them a moment, on a line of their own, in the third person: `Name (to Someone): \"what they say\"` (or to everyone; to X, whispers; to everyone, shouts; vox to X; voxcast) or `Name does something`. Never put what they say, think or decide in a Narrator line. The characters you may voice: {{names}}.",
     "narrate_seat": "Never state {{seat_name}}'s habits, thoughts, feelings or knowledge (no \"you know her as\", no \"you never quite\"): only what {{seat_name}} perceives.",
     "narrate_example": "For example:\nNarrator: Rain hammers the hull plates. Somewhere ahead, boots ring on steel.\n{{example}} (to everyone, whispers): \"Hold.\"\n{{example}} raises a fist and listens.\nNarrator: The footsteps stop. A cogitator flickers awake.\n[screen: Cogitator]\nSEAL BREACH - DECK C\n[/screen]",
+    "narrate_targets": "An action's object is its stated target (at X), else the nearest hostile; never a member of the party unless named. Never invent props, devices or objects the story doesn't have.",
     "narrate_markup": "A device's display or readout goes in a screen block: a line [screen: Cogitator] (or Data-slate, Auspex, Vox-log), its lines, then [/screen]. For emphasis you may colour a few words: [red]...[/red], or amber, green, blue, gold or grey.",
     "voice_lines": "Write {{char}}'s turn one item per line: `{{char}} (to Someone): \"what they say\"` or `{{char}} does something`.",
     "markup": {"screens": ["Cogitator", "Data-slate", "Auspex", "Vox-log"], "colours": ["red", "amber", "green", "blue", "gold", "grey"]},
@@ -801,6 +802,8 @@
       "narrative": "{{actor}} just acted. Does the outcome need a roll? Pick one only when the outcome is truly uncertain and something real is at stake; otherwise pick no roll, and the story decides.",
       "mechanical": "{{actor}} just acted. Does the game's rules call for a test of that action? Pick the characteristic or skill the rules would test, or no roll when the action needs none."
     },
+    "attempt": "{{actor}} is attempting something whose outcome is uncertain. Pick the characteristic or skill the game's rules would test.",
+    "attempt_words": ["try", "tries", "tried", "trying", "attempt", "attempts", "attempting", "hack", "hacks", "slice", "slices", "pick", "picks", "climb", "climbs", "persuade", "persuades", "convince", "convinces", "attack", "attacks", "shoot", "shoots", "strike", "strikes", "sneak", "sneaks", "force", "forces", "bypass", "bypasses", "repair", "repairs", "decipher", "deciphers", "search", "searches", "lie", "lies", "bluff", "bluffs", "dodge", "dodges"],
     "difficulty": "How hard is it, given the situation?",
     "none": "No roll",
     "light": {
@@ -878,6 +881,12 @@
     "manners": ["speak", "whisper", "shout", "vox", "voxcast"],
     "manner_words": {"whisper": "whispers", "shout": "shouts"},
     "articles": ["the", "a", "an"]
+  },
+  "clarify": {
+    "$comment": "The GM's question tool (the operator, 2026-11-21: \"We need question tool support for ambiguity\"). Free first: only a do line of the person's with no (at X), and at least two candidates present, can need a question. Then one decide call: is its target or intent ambiguous among them? Over threshold, the player is asked, the options only the candidates. features/chat/clarify.ts, ai_chat/Clarify.py, contract/clarify-cases.json.",
+    "ambiguous": "Does the story leave unclear whom or what {{actor}} means by this action, among: {{candidates}}? Action: {{action}}",
+    "question": "Who or what is {{actor}} acting on? ({{action}})",
+    "threshold": 0.5
   },
   "group_settings": {
     "$comment": "Group chat modes (audit gap 6), a chat's group_settings: card_mode swap (the speaker's card) or join (every member's card, each between the join prefix and suffix); order natural, list or pooled; allow_self (natural order may pick who just spoke); auto_seconds (the next member replies by itself after that long idle, 0 off); scenario (replaces each card's scenario). features/chat/turns.ts, features/prompt/assemble.ts, ai_chat/Prompt.py.",
