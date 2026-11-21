@@ -67,6 +67,13 @@ from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-fo
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-found]
+    NATIVE_APIS,
+    native_model_ids,
+    native_models_request,
+    native_request,
+    openai_payload,
+)
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     DEFAULT_USER_NAME,
     assemble_prompt,
@@ -1494,7 +1501,17 @@ class MovedEnvelope(PlainModel):
 
 
 # What a message is, as against where it sits in the tree: what moving it up swaps with its parent (A9).
-MOVED_FIELDS = ("role", "channel", "speaker_character_id", "swipes", "swipe_index", "bookmarked", "images", "x_carded", "hidden")
+MOVED_FIELDS = (
+    "role",
+    "channel",
+    "speaker_character_id",
+    "swipes",
+    "swipe_index",
+    "bookmarked",
+    "images",
+    "x_carded",
+    "hidden",
+)
 
 
 class PictureRequest(PlainModel):
@@ -1722,6 +1739,28 @@ def macro_context(
         "random": random.random,
         "local": dict(chat.variables or {}),
     }
+
+
+def upstream_request(endpoint: Any, key: str, body: dict[str, Any]) -> dict[str, Any]:
+    """Where and how a model is asked (``url``, ``headers``, ``json``): an OpenAI-compatible endpoint
+    as the body is; Anthropic's and Google's own APIs in their shape (audit gap 8, NativeApis.py)."""
+    if endpoint.api in NATIVE_APIS:
+        native: dict[str, Any] = native_request(endpoint.api, endpoint.base_url, key, body)
+        return native
+    return {
+        "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
+        "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
+        "json": body,
+    }
+
+
+def as_openai_payload(api: str | None, payload: str) -> str | None:
+    """A stream payload as the one reader takes it: an OpenAI-compatible endpoint's as it is; a native
+    API's rewritten as an OpenAI chunk, or None when it adds nothing (audit gap 8)."""
+    if api not in NATIVE_APIS:
+        return payload
+    rewritten: str | None = openai_payload(str(api), payload)
+    return rewritten
 
 
 def upstream_body(
@@ -2065,7 +2104,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
         # What lore and the data bank scan: the story, less what the table X-carded (A25).
         story_texts = [
-            turn["content"] for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"] and not turn["hidden"]
+            turn["content"]
+            for turn in history
+            if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"] and not turn["hidden"]
         ]
         book_ids = list(dict.fromkeys([*(chat.lorebook_ids or []), *own_books]))
         entries_manager = self._manager(LorebookEntryManager)
@@ -2207,14 +2248,20 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 frame,
             )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
-        request: dict[str, Any] = {
-            "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
-            "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-            # "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.
-            "json": upstream_body(
-                endpoint, sampler, assembled.messages, "continue" if assembled.prefill else body.mode, images, template
+        # "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.
+        # Anthropic's and Google's own APIs (audit gap 8) take no pictures yet.
+        request = upstream_request(
+            endpoint,
+            key,
+            upstream_body(
+                endpoint,
+                sampler,
+                assembled.messages,
+                "continue" if assembled.prefill else body.mode,
+                () if endpoint.api in NATIVE_APIS else images,
+                template,
             ),
-        }
+        )
         context = {
             "cast": cast,
             "persona": persona,
@@ -2333,10 +2380,19 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         started = time.monotonic()
         try:
+            # Anthropic's and Google's own APIs (audit gap 8) list their models in their own shape.
+            listing: dict[str, Any] = (
+                native_models_request(endpoint.api, endpoint.base_url, key)
+                if endpoint.api in NATIVE_APIS
+                else {
+                    "url": models_url(endpoint.base_url),
+                    "headers": {"Authorization": f"Bearer {key}"} if key else {},
+                }
+            )
+            url: str = listing["url"]
+            headers: dict[str, str] = listing["headers"]
             async with httpx.AsyncClient(timeout=PING_TIMEOUT_SECONDS) as client:
-                answer = await client.get(
-                    models_url(endpoint.base_url), headers={"Authorization": f"Bearer {key}"} if key else {}
-                )
+                answer = await client.get(url, headers=headers)
         except httpx.HTTPError:
             latency = int((time.monotonic() - started) * 1000)
             return PingEnvelope(
@@ -2346,14 +2402,17 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             )
         latency = int((time.monotonic() - started) * 1000)
         try:
-            listed = answer.json().get("data")
+            answered: Any = answer.json()
         except ValueError:
-            listed = None
-        ids = (
-            [str(model["id"]) for model in listed if isinstance(model, dict) and isinstance(model.get("id"), str)]
-            if isinstance(listed, list)
-            else None
-        )
+            answered = None
+        listed = answered.get("data") if isinstance(answered, dict) else None
+        ids: list[str] | None
+        if endpoint.api in NATIVE_APIS:
+            ids = native_model_ids(endpoint.api, answered)
+        elif isinstance(listed, list):
+            ids = [str(model["id"]) for model in listed if isinstance(model, dict) and isinstance(model.get("id"), str)]
+        else:
+            ids = None
         ok = answer.status_code < 400
         detail = (
             ("Answered, without a model list" if ids is None else f"{len(ids)} models offered")
@@ -2631,11 +2690,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     endpoint, key, upstream_body(endpoint, sampler, messages, "reply", template=context.get("template"))
                 )
             ).strip()
-        request: dict[str, Any] = {
-            "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
-            "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-            "json": upstream_body(endpoint, sampler, messages, "reply", template=context.get("template")),
-        }
+        request = upstream_request(
+            endpoint, key, upstream_body(endpoint, sampler, messages, "reply", template=context.get("template"))
+        )
         pieces: list[str] = []
         joiner = ReasoningJoiner()
         try:
@@ -2654,7 +2711,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 async for line in upstream.aiter_lines():
                     if not line.startswith("data:"):
                         continue
-                    payload = line[len("data:") :]
+                    payload = as_openai_payload(endpoint.api, line[len("data:") :])
+                    if payload is None:
+                        continue
                     if payload.strip() == "[DONE]":
                         break
                     delta = joiner.take(payload)
@@ -2742,7 +2801,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 async for line in upstream.aiter_lines():
                     if not line.startswith("data:"):
                         continue
-                    payload = line[len("data:") :]
+                    payload = as_openai_payload(_context["endpoint"].api, line[len("data:") :])
+                    if payload is None:
+                        continue
                     if payload.strip() == "[DONE]":
                         break
                     delta = joiner.take(payload)

@@ -30,6 +30,11 @@ class FakeModel(BaseHTTPRequestHandler):
         if "/v2/generate/text/status/" in self.path:
             RECEIVED.append({"path": self.path, "apikey": self.headers.get("apikey"), "body": None})
             body = json.dumps({"done": True, "generations": [{"text": "Aye, captain."}]}).encode()
+        elif self.headers.get("x-goog-api-key") or self.headers.get("x-api-key"):
+            # Google's and Anthropic's own model lists (audit gap 8).
+            RECEIVED.append({"path": self.path, "headers": dict(self.headers), "body": None})
+            listed = {"models": [{"name": "models/gemini-tiny"}]} if self.headers.get("x-goog-api-key") else {"data": [{"id": "claude-tiny"}]}
+            body = json.dumps(listed).encode()
         else:
             body = json.dumps({"data": [{"id": "tiny"}, {"id": "small"}]}).encode()
         self.send_response(200)
@@ -40,7 +45,22 @@ class FakeModel(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         length = int(self.headers.get("Content-Length", "0"))
-        RECEIVED.append({"path": self.path, "authorization": self.headers.get("Authorization"), "body": json.loads(self.rfile.read(length))})
+        RECEIVED.append({"path": self.path, "authorization": self.headers.get("Authorization"), "headers": dict(self.headers), "body": json.loads(self.rfile.read(length))})
+        if self.path.endswith("/messages") or ":streamGenerateContent" in self.path:
+            # Anthropic's and Google's own streams (audit gap 8): thinking, then the two pieces.
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            if self.path.endswith("/messages"):
+                events = [{"type": "message_start", "message": {}}, {"type": "content_block_delta", "delta": {"type": "thinking_delta", "thinking": "Hm."}}]
+                events += [{"type": "content_block_delta", "delta": {"type": "text_delta", "text": piece}} for piece in ("“Mind ", "the coolant.”")]
+                events.append({"type": "message_stop"})
+            else:
+                events = [{"candidates": [{"content": {"parts": [{"text": "Hm.", "thought": True}]}}]}]
+                events += [{"candidates": [{"content": {"role": "model", "parts": [{"text": piece}]}}]} for piece in ("“Mind ", "the coolant.”")]
+            for event in events:
+                self.wfile.write(f"event: x\ndata: {json.dumps(event)}\n\n".encode())
+            return
         if self.path.endswith("/v2/generate/text/async"):
             RECEIVED[-1]["apikey"] = self.headers.get("apikey")
             RECEIVED[-1]["agent"] = self.headers.get("Client-Agent")
@@ -654,6 +674,32 @@ class TestGenerate:
             sent[endpoint["name"]] = {key: body[key] for key in ("min_p", "presence_penalty", "seed", "dry_base") if key in body}
         # DRY's base never goes without its multiplier; min-P never to a chat API.
         assert sent == {"Chat": {"presence_penalty": 0.4, "seed": 7}, "Text": {"min_p": 0.05, "presence_penalty": 0.4, "seed": 7}}
+
+    def test_anthropics_and_googles_own_apis_are_asked_in_their_shape_and_read_back(self, server: TestClient, model_url: str) -> None:
+        # Audit gap 8: the request in each API's own shape, its stream (thinking included) read as any other.
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada", system_prompt="You are {{char}}.").json()["character"]
+        claude = _create(server, user, "model_endpoint", name="Claude", base_url=model_url, model="claude-tiny", api="anthropic", api_key="k-1").json()["model_endpoint"]
+        gemini = _create(server, user, "model_endpoint", name="Gemini", base_url=model_url, model="gemini-tiny", api="google", api_key="g-1").json()["model_endpoint"]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        for endpoint, path, key_header in ((claude, "/v1/messages", "x-api-key"), (gemini, "/v1/models/gemini-tiny:streamGenerateContent?alt=sse", "x-goog-api-key")):
+            RECEIVED.clear()
+            asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "endpoint_id": endpoint["id"]}}
+            reply = server.post("/v1/ai_chat/generate", json=asked, headers=_headers(user))
+            assert reply.status_code == 200, reply.text
+            assert '"text": "<think>"' in reply.text or "<think>" in reply.text, reply.text
+            assert "Mind " in reply.text and "the coolant." in reply.text and "event: done" in reply.text, reply.text
+            sent = RECEIVED[0]
+            assert sent["path"] == path
+            assert sent["headers"].get(key_header) in ("k-1", "g-1") and sent["authorization"] is None
+            if endpoint is claude:
+                assert sent["body"]["system"].startswith("You are Ada.") and sent["body"]["messages"][-1] == {"role": "user", "content": "Hi."}
+            else:
+                assert sent["body"]["systemInstruction"]["parts"][0]["text"].startswith("You are Ada.")
+                assert sent["body"]["contents"][-1] == {"role": "user", "parts": [{"text": "Hi."}]}
+            ping = server.post("/v1/ai_chat/ping", json={"ping": {"endpoint_id": endpoint["id"]}}, headers=_headers(user)).json()["ping"]
+            assert ping["ok"] is True and ping["has_model"] is True, ping
 
     def test_macros_read_the_chat_and_its_variables_and_a_reply_keeps_what_they_set(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
