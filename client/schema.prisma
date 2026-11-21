@@ -284,7 +284,7 @@ model DataDocument {
 }
 
 /// A campaign's frame: the table's agreement about what kind of game it is (A57).
-model Campaign {
+model CampaignFrame {
   id             String   @id @default(uuid())
   createdById    String
   name           String

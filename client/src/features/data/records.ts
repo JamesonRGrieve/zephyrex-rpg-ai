@@ -376,7 +376,7 @@ export const campaignSchema = z.object({
   wiki_campaign_id: z.string().nullable(),
 });
 export type Campaign = z.infer<typeof campaignSchema>;
-export const campaigns = resource<Campaign, Fields<Campaign> & { name: string }>('campaign', 'campaigns', campaignSchema);
+export const campaigns = resource<Campaign, Fields<Campaign> & { name: string }>('campaign_frame', 'campaign_frames', campaignSchema);
 
 export const scenarioSchema = z.object({
   ...versioned,

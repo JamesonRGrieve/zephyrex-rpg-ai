@@ -275,7 +275,7 @@ CREATE TABLE "DataDocument" (
 CREATE INDEX "DataDocument_createdById_idx" ON "DataDocument"("createdById");
 
 -- CreateTable
-CREATE TABLE "Campaign" (
+CREATE TABLE "CampaignFrame" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "createdById" TEXT NOT NULL,
     "name" TEXT NOT NULL,
@@ -296,7 +296,7 @@ CREATE TABLE "Campaign" (
 );
 
 -- CreateIndex
-CREATE INDEX "Campaign_createdById_idx" ON "Campaign"("createdById");
+CREATE INDEX "CampaignFrame_createdById_idx" ON "CampaignFrame"("createdById");
 
 -- CreateTable
 CREATE TABLE "Scenario" (

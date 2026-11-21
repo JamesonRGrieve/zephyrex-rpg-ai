@@ -69,40 +69,40 @@ const create = z.object({
 });
 const update = z.object(fields).partial();
 
-type Row = Prisma.CampaignGetPayload<object>;
+type Row = Prisma.CampaignFrameGetPayload<object>;
 
 function written(input: object, stamp: Date, userId?: string): Record<string, unknown> {
   return { ...columnsOf(COLUMNS, input), updatedAt: stamp, ...(userId === undefined ? {} : { updatedById: userId }) };
 }
 
 export const campaigns: ResourceSpec<Row, z.infer<typeof create>, z.infer<typeof update>> = {
-  resource: 'campaign',
-  plural: 'campaigns',
-  modelName: 'CampaignModel',
+  resource: 'campaign_frame',
+  plural: 'campaign_frames',
+  modelName: 'CampaignFrameModel',
   createSchema: create,
   updateSchema: update,
-  list: (ownerId) => prisma.campaign.findMany({ where: { createdById: ownerId }, orderBy: { name: 'asc' } }),
-  find: (id, ownerId) => prisma.campaign.findFirst({ where: { id, createdById: ownerId } }),
+  list: (ownerId) => prisma.campaignFrame.findMany({ where: { createdById: ownerId }, orderBy: { name: 'asc' } }),
+  find: (id, ownerId) => prisma.campaignFrame.findFirst({ where: { id, createdById: ownerId } }),
   insert: (ownerId, input, stamp) =>
-    prisma.campaign.create({
-      data: { createdById: ownerId, ...written(input, stamp) } as Prisma.CampaignUncheckedCreateInput,
+    prisma.campaignFrame.create({
+      data: { createdById: ownerId, ...written(input, stamp) } as Prisma.CampaignFrameUncheckedCreateInput,
     }),
   async updateIfCurrent(id, version, input, stamp, userId) {
-    const { count } = await prisma.campaign.updateMany({
+    const { count } = await prisma.campaignFrame.updateMany({
       where: { id, updatedAt: version },
-      data: written(input, stamp, userId) as Prisma.CampaignUncheckedUpdateManyInput,
+      data: written(input, stamp, userId) as Prisma.CampaignFrameUncheckedUpdateManyInput,
     });
-    return count === 0 ? null : prisma.campaign.findUnique({ where: { id } });
+    return count === 0 ? null : prisma.campaignFrame.findUnique({ where: { id } });
   },
   async remove(id) {
-    const campaign = await prisma.campaign.findUnique({ where: { id }, select: { createdById: true } });
+    const campaign = await prisma.campaignFrame.findUnique({ where: { id }, select: { createdById: true } });
     if (campaign === null) return;
     await prisma.$transaction([
       prisma.chat.updateMany({
         where: { createdById: campaign.createdById, campaignId: id },
         data: { campaignId: null, updatedAt: new Date() },
       }),
-      prisma.campaign.delete({ where: { id } }),
+      prisma.campaignFrame.delete({ where: { id } }),
     ]);
   },
   fields: (row) => fieldsOf(COLUMNS, row),
@@ -201,7 +201,7 @@ type ScenarioRow = Prisma.ScenarioGetPayload<object>;
 
 async function checkCampaign(ownerId: string, campaignId: string | null | undefined): Promise<void> {
   if (campaignId === null || campaignId === undefined) return;
-  if ((await prisma.campaign.count({ where: { id: campaignId, createdById: ownerId } })) === 0)
+  if ((await prisma.campaignFrame.count({ where: { id: campaignId, createdById: ownerId } })) === 0)
     throw validationError('That campaign is not one of yours', 'campaign_id');
 }
 

@@ -32,7 +32,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as PlainModel
 from pydantic import Field, field_validator, model_validator
 from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[import-not-found]
-    CampaignManager,
+    CampaignFrameManager,
     ScenarioManager,
     frame_of,
     scenario_of,
@@ -485,7 +485,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
             ("persona_id", PersonaManager),
             ("preset_id", GenerationPresetManager),
             ("endpoint_id", ModelEndpointManager),
-            ("campaign_id", CampaignManager),
+            ("campaign_id", CampaignFrameManager),
             ("scenario_id", ScenarioManager),
         ):
             if fields.get(field) is not None:
@@ -1959,7 +1959,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 status_code=409, detail={"message": "Add a model endpoint first", "code": "no_model_endpoint"}
             )
 
-        frame = frame_of(self._manager(CampaignManager).get(id=chat.campaign_id)) if chat.campaign_id else None
+        frame = frame_of(self._manager(CampaignFrameManager).get(id=chat.campaign_id)) if chat.campaign_id else None
         assembled = assemble_prompt(
             cast,
             speaker_id,

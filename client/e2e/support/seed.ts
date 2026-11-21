@@ -91,7 +91,7 @@ export async function seedChat(page: Page): Promise<Seeded> {
     channel: 'ooc',
     swipes: ['Can we skip ahead to docking?'],
   });
-  const campaign = await post(page, 'campaign', {
+  const campaign = await post(page, 'campaign_frame', {
     name: 'The Kestrel Run',
     premise: 'An old ore hauler, a cursed cargo, and a crew with debts.',
     genre: 'space opera',

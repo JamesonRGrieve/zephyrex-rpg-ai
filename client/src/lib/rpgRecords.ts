@@ -370,7 +370,7 @@ async function checkChatReferences(ownerId: string, input: z.infer<typeof chatUp
     ['persona_id', () => prisma.persona.count({ where: { ...owned, id: input.persona_id ?? '' } })],
     ['preset_id', () => prisma.generationPreset.count({ where: { ...owned, id: input.preset_id ?? '' } })],
     ['endpoint_id', () => prisma.modelEndpoint.count({ where: { ...owned, id: input.endpoint_id ?? '' } })],
-    ['campaign_id', () => prisma.campaign.count({ where: { ...owned, id: input.campaign_id ?? '' } })],
+    ['campaign_id', () => prisma.campaignFrame.count({ where: { ...owned, id: input.campaign_id ?? '' } })],
     ['scenario_id', () => prisma.scenario.count({ where: { ...owned, id: input.scenario_id ?? '' } })],
   ];
   const named = single.filter(([field]) => typeof input[field] === 'string');

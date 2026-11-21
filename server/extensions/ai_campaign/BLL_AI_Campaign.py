@@ -2,7 +2,7 @@
 """Campaign frames (A57, A58) and scenarios (A59-A61), on the framework's records: the same resource,
 fields and rules as the lite edition's (client/src/lib/campaignRecords.ts).
 
-``/v1/campaign``: the table's agreement about what kind of game it is: premise, genre, the tone
+``/v1/campaign_frame``: the table's agreement about what kind of game it is: premise, genre, the tone
 dials, themes, the weight of each pillar, structure, setting truths, the characters' ties and the
 resolution mode. A chat that names it reads it every turn (Prompt.frame_text); its brief is the same
 frame shown to the players.
@@ -109,8 +109,8 @@ class FrameChecks(PlainModel):
         return _one_of(value, CAMPAIGN["resolution_modes"], "resolution_mode")
 
 
-class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
-    Manager: ClassVar[type["CampaignManager"]]
+class CampaignFrameModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
+    Manager: ClassVar[type["CampaignFrameManager"]]
     name: str = Field(..., description="Name")
     premise: str = Field("", description="The one-paragraph promise of the campaign")
     genre: str = Field("", description="Its genre")
@@ -176,8 +176,8 @@ FRAME_FIELDS = (
 )
 
 
-class CampaignManager(AbstractBLLManager[CampaignModel], RouterMixin):
-    _model = CampaignModel
+class CampaignFrameManager(AbstractBLLManager[CampaignFrameModel], RouterMixin):
+    _model = CampaignFrameModel
 
     def create(self, **kwargs: Any) -> Any:
         for key, value in (
@@ -439,7 +439,7 @@ class ScenarioManager(AbstractBLLManager[ScenarioModel], RouterMixin):
     def _check_campaign(self, fields: dict[str, Any]) -> None:
         if fields.get("campaign_id") is not None:
             try:
-                CampaignManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(
+                CampaignFrameManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(
                     id=fields["campaign_id"]
                 )
             except HTTPException as error:

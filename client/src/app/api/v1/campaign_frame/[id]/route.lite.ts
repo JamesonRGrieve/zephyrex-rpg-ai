@@ -2,5 +2,5 @@
 import { localOwner, recordRoutes } from '@zephyrex/lite';
 import { campaigns } from '~/lib/campaignRecords';
 
-// GET, PUT (If-Match) and DELETE (If-Match) /v1/campaign/{id}.
+// GET, PUT (If-Match) and DELETE (If-Match) /v1/campaign_frame/{id}.
 export const { GET, PUT, DELETE } = recordRoutes(campaigns, localOwner);

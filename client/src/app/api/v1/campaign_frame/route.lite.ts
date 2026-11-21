@@ -2,5 +2,5 @@
 import { collectionRoutes, localOwner } from '@zephyrex/lite';
 import { campaigns } from '~/lib/campaignRecords';
 
-// GET /v1/campaign (list, by name) and POST /v1/campaign (create).
+// GET /v1/campaign_frame (list, by name) and POST /v1/campaign_frame (create).
 export const { GET, POST } = collectionRoutes(campaigns, localOwner);
