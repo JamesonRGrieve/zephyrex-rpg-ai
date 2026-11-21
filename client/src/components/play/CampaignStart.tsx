@@ -14,7 +14,7 @@ import { useRouter } from 'next/navigation';
 import { notify } from 'zephyrex/hooks/useToast';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { type ReactElement, useMemo, useState } from 'react';
+import { type ReactElement, useEffect, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
@@ -91,13 +91,48 @@ export interface StartChoice {
 }
 
 /** The choices: the seat, who the person plays, and the party. Data-free, so a story can drive it. */
+/** The steps of a start, in order (the operator, 2026-11-21: "A progress bar for the copy"). */
+export const START_STEPS = [
+  'Copying the scenario for your campaign',
+  'Seating the party',
+  'Setting the scene',
+  'Opening the story',
+] as const;
+
+/** The start's progress: the step under way and a bar; the copy creeps while the server works. */
+export function StartProgress({ step, creep }: { step: number; creep: number }): ReactElement {
+  const share = 100 / START_STEPS.length;
+  const percent = Math.min(99, Math.round(step * share + creep * share));
+  return (
+    <div className='grid gap-2' role='status' aria-live='polite'>
+      <div
+        className='h-2 w-full overflow-hidden rounded-full bg-muted'
+        role='progressbar'
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={percent}
+        aria-label='Starting the campaign'
+      >
+        <div className='h-full rounded-full bg-primary transition-[width] duration-500' style={{ width: `${percent}%` }} />
+      </div>
+      <p className='text-sm text-muted-foreground'>
+        {START_STEPS[Math.min(step, START_STEPS.length - 1)]}… ({step + 1} of {START_STEPS.length})
+      </p>
+    </div>
+  );
+}
+
 export function CampaignStartForm({
   cast,
   starting,
+  step = 0,
+  creep = 0,
   onStart,
 }: {
   cast: readonly Character[];
   starting: boolean;
+  step?: number;
+  creep?: number;
   onStart: (choice: StartChoice) => void;
 }): ReactElement {
   const [seat, setSeat] = useState<'gm' | 'player'>('gm');
@@ -201,7 +236,8 @@ export function CampaignStartForm({
           </ul>
         </section>
       </div>
-      <div className='border-t p-4'>
+      <div className='grid gap-3 border-t p-4'>
+        {starting && <StartProgress step={step} creep={creep} />}
         <Button
           type='button'
           className='h-11 w-full'
@@ -237,6 +273,14 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   const router = useRouter();
   const client = useClient();
   const [starting, setStarting] = useState(false);
+  const [step, setStep] = useState(0);
+  const [creep, setCreep] = useState(0);
+  // While the server copies (no progress of its own), the first step's bar creeps toward its end.
+  useEffect(() => {
+    if (!starting || step !== 0) return undefined;
+    const timer = setInterval(() => setCreep((now) => now + (0.95 - now) * 0.08), 1000);
+    return () => clearInterval(timer);
+  }, [starting, step]);
   const all = useMemo(() => cast.data ?? [], [cast.data]);
 
   /**
@@ -259,6 +303,8 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
     const scenario = campaign.data;
     if (scenario === undefined) return;
     setStarting(true);
+    setStep(0);
+    setCreep(0);
     try {
       // The playthrough: the scenario's own copy, its cast remapped to the copies.
       const copy = instantiated.parse(
@@ -268,6 +314,8 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       const { seat, playing, party } = remapChoice(choice, copy.id_map);
       // The campaign's story is one chat: the party (and whoever the person starts as) are its cast.
       const members = playing === null || party.includes(playing) ? party : [...party, playing];
+      setStep(1);
+      setCreep(0);
       const chat = await createChat({
         title: world.name.slice(0, LIMITS.chat_title_characters),
         character_ids: members.slice(0, LIMITS.characters_per_chat),
@@ -279,6 +327,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
         // the GM interjecting, or a pause for the person.
         group_settings: { order: 'decide' },
       });
+      setStep(2);
       const opening = await createMessage({
         chat_id: chat.id,
         parent_id: null,
@@ -286,6 +335,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
         channel: 'ic',
         swipes: [await toldOpening(world.id, playing, openingLine(scenario, notes.data ?? []))],
       });
+      setStep(3);
       await createPlay({ chat_id: chat.id, playing_id: playing });
       await createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id });
       onStarted();
@@ -298,5 +348,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
     }
   };
 
-  return <CampaignStartForm cast={all} starting={starting} onStart={(choice) => void start(choice)} />;
+  return (
+    <CampaignStartForm cast={all} starting={starting} step={step} creep={creep} onStart={(choice) => void start(choice)} />
+  );
 }

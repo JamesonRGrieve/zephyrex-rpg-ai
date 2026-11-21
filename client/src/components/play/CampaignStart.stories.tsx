@@ -52,3 +52,13 @@ export const AsAnyCharacter: Story = {
     await expect(args.onStart).toHaveBeenCalledWith({ seat: 'player', playing: 'massen', party: ['gus', 'az'] });
   },
 };
+
+/** A start under way: the copy step, its bar creeping while the server copies the scenario. */
+export const Copying: Story = {
+  args: { starting: true, step: 0, creep: 0.4 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('progressbar', { name: 'Starting the campaign' })).toBeVisible();
+    await expect(canvas.getByText(/Copying the scenario for your campaign… \(1 of 4\)/)).toBeVisible();
+  },
+};

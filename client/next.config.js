@@ -30,6 +30,9 @@ const DEFAULT_PAGE_EXTENSIONS = ['tsx', 'ts', 'jsx', 'js'];
 const nextConfig = {
   outputFileTracingRoot: REPOSITORY_ROOT,
   turbopack: { root: REPOSITORY_ROOT },
+  // The SaaS proxy to the server waits up to two minutes: starting a campaign copies a whole
+  // scenario (the operator, 2026-11-21: Start failed at Next's default 30 s proxy timeout).
+  experimental: { proxyTimeout: 120_000 },
   // The VTT's play UI ships as TypeScript source (its package exports src/index.ts).
   transpilePackages: ['@zephyrex/vtt-play'],
   // Lets the e2e suite build beside a running dev server without sharing its output.
