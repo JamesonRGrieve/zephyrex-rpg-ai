@@ -16,7 +16,8 @@ export function Providers({ children }: { children: ReactNode }): ReactNode {
     <ZephyrexApp config={config}>
       <SidebarMain side='left' />
       {children}
-      <SidebarContext side='right' />
+      {/* The right-hand context pop-out, in an open chat (components/play/ContextPanel.tsx). */}
+      <SidebarContext side='right' visibleOn={['/play/']} />
       <CustomStyle />
     </ZephyrexApp>
   );

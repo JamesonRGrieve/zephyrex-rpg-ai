@@ -18,13 +18,11 @@ import {
   Loot,
   SceneList,
 } from '@zephyrex/vtt-play';
-import { type ReactElement, useMemo } from 'react';
+import { type ReactElement, useMemo, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
 import { useClient } from 'zephyrex';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from 'zephyrex/ui/accordion';
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
 import { type Presence, presentCast } from '~/features/chat/turnDecision';
-import { useIsMobile } from 'zephyrex/hooks/useMobile';
 
 export interface PanelMember {
   id: string;
@@ -76,27 +74,44 @@ function Member({ member, note }: { member: PanelMember; note?: string | null })
   );
 }
 
-export function ContextPanel({
-  open,
-  onOpenChange,
-  campaignId,
-  cast,
-  seatId,
-  recent,
-  lastRoll = null,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
+export interface ContextPanelProps {
   campaignId: string | null;
   cast: readonly PanelMember[];
   seatId: string | null;
   recent: Presence['recent'];
   /** The latest decided roll, as the VTT answered it: its dice tumble again here. */
   lastRoll?: unknown;
-}): ReactElement {
-  const mobile = useIsMobile();
+}
+
+/**
+ * The open chat's context, handed to the app wrapper's right-hand sidebar (the framework's
+ * SidebarContext, a pop-out from the right as the navigation is from the left). The chat writes its
+ * props here; the sidebar, outside the chat's tree, reads them.
+ */
+let current: ContextPanelProps | null = null;
+const listeners = new Set<() => void>();
+export function setContextPanel(next: ContextPanelProps | null): void {
+  current = next;
+  for (const listener of listeners) listener();
+}
+function subscribe(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+/** What the right-hand sidebar shows while a chat is open. */
+export function ContextSidebar(): ReactElement | null {
+  const props = useSyncExternalStore(
+    subscribe,
+    () => current,
+    () => null,
+  );
+  return props === null ? null : <ContextPanel {...props} />;
+}
+
+export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null }: ContextPanelProps): ReactElement {
   const client = useClient();
-  const entities = useSWR(open && campaignId !== null ? ['rpg-ai', 'panel-entities', campaignId] : null, async () => {
+  const entities = useSWR(campaignId !== null ? ['rpg-ai', 'panel-entities', campaignId] : null, async () => {
     const page = await client.get('/v1/world_entity', { campaign_id: campaignId ?? '', limit: '500' });
     const rows = Reflect.get(Object(page), 'world_entities');
     return Array.isArray(rows) ? (rows as Entity[]) : [];
@@ -107,101 +122,98 @@ export function ContextPanel({
   );
   const sheetFor = seatId ?? cast[0]?.id ?? null;
   return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[90svh] overflow-y-auto pb-safe'>
-        <SheetHeader>
-          <SheetTitle>Context</SheetTitle>
-          <SheetDescription>Who is here, where the rest are, your sheet, what you carry and the dice.</SheetDescription>
-        </SheetHeader>
-        <div className='p-4'>
-          <Accordion type='single' defaultValue='here'>
-            <AccordionItem value='here'>
-              <AccordionTrigger>Here ({here.length})</AccordionTrigger>
+    <div className='grid gap-2'>
+      <p className='px-2 text-xs text-muted-foreground'>
+        Who is here, where the rest are, your sheet, what you carry and the dice.
+      </p>
+      <div className='px-2'>
+        <Accordion type='single' defaultValue='here'>
+          <AccordionItem value='here'>
+            <AccordionTrigger>Here ({here.length})</AccordionTrigger>
+            <AccordionContent>
+              <ul className='grid gap-2'>
+                {here.map((member) => (
+                  <Member key={member.id} member={member} />
+                ))}
+              </ul>
+            </AccordionContent>
+          </AccordionItem>
+          <AccordionItem value='away'>
+            <AccordionTrigger>Elsewhere ({away.length})</AccordionTrigger>
+            <AccordionContent>
+              <ul className='grid gap-2'>
+                {away.map(({ member, place }) => (
+                  <Member key={member.id} member={member} note={place ?? 'unknown'} />
+                ))}
+              </ul>
+            </AccordionContent>
+          </AccordionItem>
+          {campaignId !== null && (
+            // The fight in progress (the VTT's rpg_combat): its round, the initiative order, whose
+            // turn it is; the GM rolls, starts, advances and ends it here.
+            <AccordionItem value='combat'>
+              <AccordionTrigger>Combat order</AccordionTrigger>
               <AccordionContent>
-                <ul className='grid gap-2'>
-                  {here.map((member) => (
-                    <Member key={member.id} member={member} />
-                  ))}
-                </ul>
+                <CombatOrder campaignId={campaignId} />
               </AccordionContent>
             </AccordionItem>
-            <AccordionItem value='away'>
-              <AccordionTrigger>Elsewhere ({away.length})</AccordionTrigger>
+          )}
+          {campaignId !== null && (
+            // The table (the operator, 2026-11-21: tables belong in the play area): the campaign's
+            // scenes (the GM makes one current), its seats, and what's on the current map.
+            <AccordionItem value='table'>
+              <AccordionTrigger>Table</AccordionTrigger>
               <AccordionContent>
-                <ul className='grid gap-2'>
-                  {away.map(({ member, place }) => (
-                    <Member key={member.id} member={member} note={place ?? 'unknown'} />
-                  ))}
-                </ul>
+                <div className='grid gap-4'>
+                  <SceneList campaignId={campaignId} />
+                  <CampaignSeats campaignId={campaignId} />
+                  <CurrentSceneTokens campaignId={campaignId} />
+                </div>
               </AccordionContent>
             </AccordionItem>
-            {campaignId !== null && (
-              // The fight in progress (the VTT's rpg_combat): its round, the initiative order, whose
-              // turn it is; the GM rolls, starts, advances and ends it here.
-              <AccordionItem value='combat'>
-                <AccordionTrigger>Combat order</AccordionTrigger>
-                <AccordionContent>
-                  <CombatOrder campaignId={campaignId} />
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            {campaignId !== null && (
-              // The table (the operator, 2026-11-21: tables belong in the play area): the campaign's
-              // scenes (the GM makes one current), its seats, and what's on the current map.
-              <AccordionItem value='table'>
-                <AccordionTrigger>Table</AccordionTrigger>
-                <AccordionContent>
-                  <div className='grid gap-4'>
-                    <SceneList campaignId={campaignId} />
-                    <CampaignSeats campaignId={campaignId} />
-                    <CurrentSceneTokens campaignId={campaignId} />
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            {sheetFor !== null && (
-              <AccordionItem value='sheet'>
-                <AccordionTrigger>Character sheet</AccordionTrigger>
-                <AccordionContent>
-                  <CharacterSheet personId={sheetFor} />
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            {sheetFor !== null && (
-              <AccordionItem value='inventory'>
-                <AccordionTrigger>Inventory</AccordionTrigger>
-                <AccordionContent>
-                  <Inventory personId={sheetFor} />
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            {sheetFor !== null && (
-              // What lies where the character is (the operator: looting belongs in the context panel).
-              <AccordionItem value='loot'>
-                <AccordionTrigger>Loot here</AccordionTrigger>
-                <AccordionContent>
-                  <Loot personId={sheetFor} />
-                </AccordionContent>
-              </AccordionItem>
-            )}
-            {sheetFor !== null && (
-              <AccordionItem value='dice'>
-                <AccordionTrigger>Dice</AccordionTrigger>
-                <AccordionContent>
-                  <div className='grid gap-4'>
-                    {lastRoll !== null && (
-                      // The latest decided roll, replayed (the operator: "The dice tray / animation could
-                      // also be in the right popout").
-                      <DiceReplay result={lastRoll} />
-                    )}
-                    <DiceTray personId={sheetFor} />
-                  </div>
-                </AccordionContent>
-              </AccordionItem>
-            )}
-          </Accordion>
-        </div>
-      </SheetContent>
-    </Sheet>
+          )}
+          {sheetFor !== null && (
+            <AccordionItem value='sheet'>
+              <AccordionTrigger>Character sheet</AccordionTrigger>
+              <AccordionContent>
+                <CharacterSheet personId={sheetFor} />
+              </AccordionContent>
+            </AccordionItem>
+          )}
+          {sheetFor !== null && (
+            <AccordionItem value='inventory'>
+              <AccordionTrigger>Inventory</AccordionTrigger>
+              <AccordionContent>
+                <Inventory personId={sheetFor} />
+              </AccordionContent>
+            </AccordionItem>
+          )}
+          {sheetFor !== null && (
+            // What lies where the character is (the operator: looting belongs in the context panel).
+            <AccordionItem value='loot'>
+              <AccordionTrigger>Loot here</AccordionTrigger>
+              <AccordionContent>
+                <Loot personId={sheetFor} />
+              </AccordionContent>
+            </AccordionItem>
+          )}
+          {sheetFor !== null && (
+            <AccordionItem value='dice'>
+              <AccordionTrigger>Dice</AccordionTrigger>
+              <AccordionContent>
+                <div className='grid gap-4'>
+                  {lastRoll !== null && (
+                    // The latest decided roll, replayed (the operator: "The dice tray / animation could
+                    // also be in the right popout").
+                    <DiceReplay result={lastRoll} />
+                  )}
+                  <DiceTray personId={sheetFor} />
+                </div>
+              </AccordionContent>
+            </AccordionItem>
+          )}
+        </Accordion>
+      </div>
+    </div>
   );
 }

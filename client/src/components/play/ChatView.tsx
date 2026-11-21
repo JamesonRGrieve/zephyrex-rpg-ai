@@ -123,7 +123,12 @@ import { CanonOff } from './CanonNotice';
 import { RollSheet } from './RollSheet';
 import type { NarratorStyle } from '~/features/models/narratorStyle';
 import { SheetPanel } from './SheetPanel';
-import { ContextPanel } from './ContextPanel';
+import { ContextSidebar, setContextPanel } from './ContextPanel';
+import { SidebarContent } from 'zephyrex/components/appwrapper/src/SidebarContentManager';
+import { useSidebar } from 'zephyrex/ui/sidebar';
+
+/** One element for the right-hand sidebar, so its content is set once, not on every render. */
+const CONTEXT_SIDEBAR = <ContextSidebar />;
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments, plainDashes, seatCut } from '~/features/chat/voiceGuard';
@@ -272,7 +277,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const [rollOpen, setRollOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [contextOpen, setContextOpen] = useState(false);
+  const { toggleSidebar: toggleContext } = useSidebar('right');
   const [view, setView] = useState<'chat' | 'map'>('chat');
   const [namesOpen, setNamesOpen] = useState(false);
   const entryList = lorebookEntries.useList(undefined, namesOpen);
@@ -833,6 +838,28 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         {controls}
       </div>
     );
+  // The right-hand sidebar's context, from this chat (components/play/ContextPanel.tsx).
+  const contextCast = chat.character_ids.flatMap((id) => {
+    const member = castById.get(id);
+    return member === undefined ? [] : [{ id, name: member.name, line: member.folder }];
+  });
+  const contextRecent = branch.slice(-8).map((message) => ({
+    speaker_id: message.speaker_character_id,
+    text: message.swipes[message.swipe_index ?? 0] ?? '',
+  }));
+  const contextKey = JSON.stringify([chat.campaign_id, contextCast, play.playingId, contextRecent, lastRoll]);
+  useEffect(() => {
+    setContextPanel({
+      campaignId: chat.campaign_id ?? null,
+      cast: contextCast,
+      seatId: play.playingId,
+      recent: contextRecent,
+      lastRoll,
+    });
+    // Only when what it shows changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [contextKey]);
+  useEffect(() => () => setContextPanel(null), []);
   const streamText = reply.state.status === 'writing' ? reply.state.text : '';
   // The AI never writes the person's character (the operator, 2026-11-21: "it just did an entire
   // novel including both acting and speaking for my character"): the moment a line opens with the
@@ -1512,7 +1539,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   variant='ghost'
                   className='h-11 max-sm:w-11 max-sm:px-0'
                   aria-label='Context'
-                  onClick={() => setContextOpen(true)}
+                  onClick={toggleContext}
                 >
                   <PanelRight aria-hidden className='size-4' />
                   <span className='max-sm:sr-only'>Context</span>
@@ -1901,21 +1928,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               }),
             }))}
         />
-        <ContextPanel
-          open={contextOpen}
-          onOpenChange={setContextOpen}
-          campaignId={chat.campaign_id ?? null}
-          cast={chat.character_ids.flatMap((id) => {
-            const member = castById.get(id);
-            return member === undefined ? [] : [{ id, name: member.name, line: member.folder }];
-          })}
-          seatId={play.playingId}
-          lastRoll={lastRoll}
-          recent={branch.slice(-8).map((message) => ({
-            speaker_id: message.speaker_character_id,
-            text: message.swipes[message.swipe_index ?? 0] ?? '',
-          }))}
-        />
+        {/* The context lives in the app wrapper's right-hand sidebar (the framework's pop-out from the
+            right, as the navigation is from the left). */}
+        <SidebarContent title='Context'>{CONTEXT_SIDEBAR}</SidebarContent>
         <SheetPanel
           open={sheetOpen}
           onOpenChange={setSheetOpen}
