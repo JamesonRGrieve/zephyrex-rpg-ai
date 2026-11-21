@@ -454,22 +454,27 @@ def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping
     """The narrator's rule: never the person's seat (named first, as the player); any other cast member
     only in an @@Name interlude, each named with how they look."""
     voiced = [character for character in characters if str(character["name"]).strip()]
-    if not voiced:
-        return str(PROMPT["narrate_open"])
     seat_name = (str(persona["name"]).strip() if persona is not None else "") or "{{user}}"
+    # The play-test: the narrator told the person their own habits ("you never quite...").
+    seat_rule = str(PROMPT["narrate_seat"]).replace("{{seat_name}}", seat_name)
+    if not voiced:
+        return f"{PROMPT['narrate_open']} {seat_rule}"
     marks = [PROMPT["player_label"], one_line(str((persona or {}).get("description") or ""))]
     names = []
     for character in voiced:
         line = _line_of(character, seat_name)
         name = str(character["name"]).strip()
         names.append(f"{name} ({line})" if line else name)
-    return str(
-        PROMPT["narrate_cast"]
+    example = str(voiced[0]["name"]).strip()
+    rule = (
+        str(PROMPT["narrate_cast"])
         .replace("{{seat}}", f"{seat_name} ({'; '.join(mark for mark in marks if mark)})")
         .replace("{{seat_name}}", seat_name)
-        .replace("{{example}}", str(voiced[0]["name"]).strip())
+        .replace("{{example}}", example)
         .replace("{{names}}", ", ".join(names))
     )
+    # Small models follow a worked example far better than a rule (the play-test).
+    return f"{rule} {seat_rule}\n{str(PROMPT['narrate_example']).replace('{{example}}', example)}"
 
 
 def forbid_text(forbid: Mapping[str, Any] | None) -> str:

@@ -29,8 +29,66 @@ const nameForms = (name: string): string[] => {
 const isNamed = (said: string, name: string): boolean =>
   nameForms(name).some((form) => form.toLowerCase() === said.trim().toLowerCase());
 
+/** A one-line's head noun: its first word that isn't small or a stop word ("A thief with…" → thief). */
+function headNoun(line: string): string {
+  return (
+    line
+      .toLowerCase()
+      .split(/[^\p{L}\p{N}']+/u)
+      .find((one) => one.length >= VOICE_GUARD.min_word && !VOICE_GUARD.stop_words.includes(one)) ?? ''
+  );
+}
+
+/** Where a paragraph first mentions a member: by name, first name, or "the <head noun>"; -1 if never. */
+function mentionAt(text: string, member: { name: string; line?: string }): number {
+  const forms = [...nameForms(member.name)];
+  const head = headNoun(member.line ?? '');
+  const at = (pattern: RegExp): number => pattern.exec(text)?.index ?? -1;
+  const found = [
+    ...forms.map((form) => at(new RegExp(`(?<![\\p{L}\\p{N}])${escaped(form)}(?![\\p{L}\\p{N}])`, 'iu'))),
+    ...(head === '' ? [] : [at(new RegExp(`(?<![\\p{L}\\p{N}])the\\s+${escaped(head)}(?![\\p{L}\\p{N}])`, 'iu'))]),
+  ].filter((one) => one >= 0);
+  return found.length === 0 ? -1 : Math.min(...found);
+}
+
+/**
+ * The fallback when the narrator writes a cast member in prose (the play-test): in a paragraph with
+ * quoted speech, the member it first mentions (by name or as "the <their head noun>") speaks it; from
+ * that mention (or the first quote) through the last quote and its trailing attribution is their
+ * interlude, and the prose around it stays the narrator's. Null when nobody can be named.
+ */
+function attributed(
+  line: string,
+  cast: readonly { id: string; name: string; line?: string }[],
+): { before: string; id: string; body: string; after: string } | null {
+  const all = sentences(line);
+  const quoted = all.map((sentence) => quotes(sentence.text));
+  const first = quoted.indexOf(true);
+  if (first === -1) return null;
+  let last = quoted.lastIndexOf(true);
+  // "…?' she hisses." belongs with the speech it attributes.
+  while (last + 1 < all.length && /^\p{Ll}/u.test(all[last + 1]?.text ?? '')) last += 1;
+  const end = (all[last]?.at ?? 0) + (all[last]?.text.length ?? 0);
+  const reach = line.slice(0, end);
+  const named = cast
+    .map((member) => ({ member, at: mentionAt(reach, member) }))
+    .filter((one) => one.at >= 0)
+    .sort((a, b) => a.at - b.at)[0];
+  if (named === undefined) return null;
+  const startIndex = Math.min(
+    first,
+    all.findIndex((sentence) => sentence.at + sentence.text.length > named.at),
+  );
+  const start = all[startIndex]?.at ?? 0;
+  return { before: line.slice(0, start), id: named.member.id, body: line.slice(start, end), after: line.slice(end) };
+}
+
 /** A narration's parts in order: the narrator's and each interlude's, the seat's name cutting it there. */
-export function narrateSegments(text: string, cast: readonly { id: string; name: string }[], seat: string): Segment[] {
+export function narrateSegments(
+  text: string,
+  cast: readonly { id: string; name: string; line?: string }[],
+  seat: string,
+): Segment[] {
   const parts: { speaker_id: string | null; lines: string[] }[] = [];
   const push = (who: string | null, line: string): void => {
     const last = parts.at(-1);
@@ -62,6 +120,15 @@ export function narrateSegments(text: string, cast: readonly { id: string; name:
       const actor = cast.find((member) => leads(trimmed, member.name));
       if (actor !== undefined) {
         push(actor.id, line);
+        continue;
+      }
+    }
+    if (speaker === null) {
+      const split = attributed(line, cast);
+      if (split !== null) {
+        if (split.before.trim() !== '') push(null, split.before);
+        push(split.id, split.body);
+        if (split.after.trim() !== '') push(null, split.after);
         continue;
       }
     }

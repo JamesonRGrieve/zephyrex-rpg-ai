@@ -154,6 +154,133 @@
           "text": "Vardane looks over."
         }
       ]
+    },
+    {
+      "name": "the live campaign: a party member in prose by her descriptor (\"the thief\") becomes her interlude; the prose around stays narration",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "wren",
+          "name": "Wren",
+          "line": "A thief with quick hands and a quicker temper."
+        },
+        {
+          "id": "var",
+          "name": "Vardane",
+          "line": "The cell's grim leader."
+        }
+      ],
+      "text": "Dust hangs in the alley.\nThe thief emerges from a doorway… 'Could've just called out,' she says, brushing off her sleeves.\nThe alley is quiet again.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "Dust hangs in the alley."
+        },
+        {
+          "speaker_id": "wren",
+          "text": "The thief emerges from a doorway… 'Could've just called out,' she says, brushing off her sleeves."
+        },
+        {
+          "speaker_id": null,
+          "text": "The alley is quiet again."
+        }
+      ]
+    },
+    {
+      "name": "the live campaign: the attribution after the quote (\"she hisses\") goes with her line",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "wren",
+          "name": "Wren",
+          "line": "A thief with quick hands and a quicker temper."
+        },
+        {
+          "id": "var",
+          "name": "Vardane",
+          "line": "The cell's grim leader."
+        }
+      ],
+      "text": "The thief—you know her as Wren… 'What the hell is wrong with you?' she hisses.",
+      "segments": [
+        {
+          "speaker_id": "wren",
+          "text": "The thief—you know her as Wren… 'What the hell is wrong with you?' she hisses."
+        }
+      ]
+    },
+    {
+      "name": "narration before the speaker's sentence stays the narrator's within the paragraph",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "wren",
+          "name": "Wren",
+          "line": "A thief with quick hands and a quicker temper."
+        },
+        {
+          "id": "var",
+          "name": "Vardane",
+          "line": "The cell's grim leader."
+        }
+      ],
+      "text": "Rain lashes the stacks. Vardane turns. \"Move.\"",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "Rain lashes the stacks."
+        },
+        {
+          "speaker_id": "var",
+          "text": "Vardane turns. \"Move.\""
+        }
+      ]
+    },
+    {
+      "name": "quoted speech nobody in the cast can be named for stays narration",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "wren",
+          "name": "Wren",
+          "line": "A thief with quick hands and a quicker temper."
+        },
+        {
+          "id": "var",
+          "name": "Vardane",
+          "line": "The cell's grim leader."
+        }
+      ],
+      "text": "A voice on the vox crackles. 'Report.'",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "A voice on the vox crackles. 'Report.'"
+        }
+      ]
+    },
+    {
+      "name": "prose with no speech stays narration",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "wren",
+          "name": "Wren",
+          "line": "A thief with quick hands and a quicker temper."
+        },
+        {
+          "id": "var",
+          "name": "Vardane",
+          "line": "The cell's grim leader."
+        }
+      ],
+      "text": "The way the light falls on the wet stone.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "The way the light falls on the wet stone."
+        }
+      ]
     }
   ],
   "speaks_cases": [

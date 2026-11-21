@@ -119,6 +119,8 @@
     "cast_heading": "The characters:",
     "group_max_tokens": 350,
     "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. You may give any other character a moment in their own voice, only as an interlude: a line with only @@ and their name (e.g. @@{{example}}), then their words and actions in the third person, as they would say and do them, then a line @@Narrator before your narration goes on. Outside an interlude, never write what they say, think or decide. The characters you may voice: {{names}}.",
+    "narrate_seat": "Never state {{seat_name}}'s habits, thoughts, feelings or knowledge (no \"you know her as\", no \"you never quite\"): only what {{seat_name}} perceives.",
+    "narrate_example": "For example:\nRain hammers the hull plates. Somewhere ahead, boots ring on steel.\n@@{{example}}\n\"Hold.\" {{example}} raises a fist and listens.\n@@Narrator\nThe footsteps stop.",
     "narrate_open": "You never write dialogue, thoughts, decisions or actions for anyone at the table. Describe them only as others see them, and stop the moment one would act or speak.",
     "interlude_mark": "@@",
     "narrator_mark": "Narrator",
@@ -862,6 +864,14 @@
       {"slider": "humour", "high_at": 0.67, "high": "Let humour in wherever it fits.", "high_rating": "general", "low_at": 0.33, "low": "Play it straight: no jokes."}
     ],
     "temperature_delta": 0.2
+  },
+  "player_lines": {
+    "$comment": "Structured lines (the operator, 2026-11-21): the person's message and the AI's answers, one item per line. say: `Name (to Target): \"text\"`, the target a person or everyone, with an optional manner: `(to X, whispers)`, `(to everyone, shouts)`, `(vox to X)`, `(voxcast)`; do: `Name action...`; narrate: `Narrator: text`; any other line is narration. Names match in full, or by a first name unique among the people (never an article); the longest wins. features/chat/playerLines.ts, ai_chat/PlayerLines.py, contract/player-lines-cases.json.",
+    "narrator": "Narrator",
+    "everyone": "everyone",
+    "manners": ["speak", "whisper", "shout", "vox", "voxcast"],
+    "manner_words": {"whisper": "whispers", "shout": "shouts"},
+    "articles": ["the", "a", "an"]
   },
   "group_settings": {
     "$comment": "Group chat modes (audit gap 6), a chat's group_settings: card_mode swap (the speaker's card) or join (every member's card, each between the join prefix and suffix); order natural, list or pooled; allow_self (natural order may pick who just spoke); auto_seconds (the next member replies by itself after that long idle, 0 off); scenario (replaces each card's scenario). features/chat/turns.ts, features/prompt/assemble.ts, ai_chat/Prompt.py.",

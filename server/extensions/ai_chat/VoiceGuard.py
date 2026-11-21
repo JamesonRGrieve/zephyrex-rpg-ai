@@ -35,6 +35,49 @@ def _is_named(said: str, name: str) -> bool:
     return any(form.lower() == said.strip().lower() for form in _forms(name))
 
 
+def _head_noun(line: str) -> str:
+    """A one-line's head noun: its first word that isn't small or a stop word ("A thief with..." -> thief)."""
+    for one in re.split(r"[^\w']+", line.lower()):
+        if len(one) >= int(VOICE_GUARD["min_word"]) and one not in VOICE_GUARD["stop_words"] and "_" not in one:
+            return one
+    return ""
+
+
+def _mention_at(text: str, member: Mapping[str, Any]) -> int:
+    """Where a paragraph first mentions a member: by name, first name, or "the <head noun>"; -1 if never."""
+    found = [
+        match.start()
+        for form in _forms(str(member["name"]))
+        if (match := re.search(rf"(?<![^\W_]){re.escape(form)}(?![^\W_])", text, re.IGNORECASE)) is not None
+    ]
+    head = _head_noun(str(member.get("line") or ""))
+    if head and (match := re.search(rf"(?<![^\W_])the\s+{re.escape(head)}(?![^\W_])", text, re.IGNORECASE)):
+        found.append(match.start())
+    return min(found) if found else -1
+
+
+def _attributed(line: str, cast: Sequence[Mapping[str, Any]]) -> dict[str, Any] | None:
+    """The fallback when the narrator writes a cast member in prose (the play-test): see voiceGuard.ts."""
+    found = _sentences(line)
+    quoted = [_quotes(sentence) for _at, sentence in found]
+    if True not in quoted:
+        return None
+    first = quoted.index(True)
+    last = len(quoted) - 1 - quoted[::-1].index(True)
+    # "...?' she hisses." belongs with the speech it attributes.
+    while last + 1 < len(found) and found[last + 1][1][:1].islower():
+        last += 1
+    end = found[last][0] + len(found[last][1])
+    reach = line[:end]
+    named = sorted(((at, member) for member in cast if (at := _mention_at(reach, member)) >= 0), key=lambda one: one[0])
+    if not named:
+        return None
+    mention, member = named[0]
+    covering = next((index for index, (at, sentence) in enumerate(found) if at + len(sentence) > mention), first)
+    start = found[min(first, covering)][0]
+    return {"before": line[:start], "id": str(member["id"]), "body": line[start:end], "after": line[end:]}
+
+
 def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) -> list[dict[str, Any]]:
     """A narration's parts in order: the narrator's and each interlude's, the seat's name cutting it there."""
     parts: list[dict[str, Any]] = []
@@ -79,6 +122,13 @@ def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) ->
             if actor is not None:
                 push(actor, line)
                 continue
+        if speaker is None and (split := _attributed(line, cast)) is not None:
+            if split["before"].strip():
+                push(None, split["before"])
+            push(split["id"], split["body"])
+            if split["after"].strip():
+                push(None, split["after"])
+            continue
         push(speaker, line)
     segments: list[dict[str, Any]] = []
     for part in parts:

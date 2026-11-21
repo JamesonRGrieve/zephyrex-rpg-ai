@@ -684,18 +684,23 @@ export function castRule(
  */
 export function narrateRule(persona: PromptPersona | null, characters: readonly PromptCharacter[]): string {
   const voiced = characters.filter((character) => character.name.trim() !== '');
-  if (voiced.length === 0) return PROMPT.narrate_open;
   const seatName = persona?.name.trim() || '{{user}}';
+  // The play-test: the narrator told the person their own habits ("you never quite…").
+  const seatRule = PROMPT.narrate_seat.replaceAll('{{seat_name}}', seatName);
+  if (voiced.length === 0) return `${PROMPT.narrate_open} ${seatRule}`;
   const marks = [PROMPT.player_label, oneLine(persona?.description ?? '')].filter((mark) => mark !== '');
   const names = voiced.map((character) => {
     const line = lineOf(character, seatName);
     return line === '' ? character.name.trim() : `${character.name.trim()} (${line})`;
   });
-  return PROMPT.narrate_cast
+  const example = voiced[0]?.name.trim() ?? '';
+  const rule = PROMPT.narrate_cast
     .replaceAll('{{seat}}', `${seatName} (${marks.join('; ')})`)
     .replaceAll('{{seat_name}}', seatName)
-    .replaceAll('{{example}}', voiced[0]?.name.trim() ?? '')
+    .replaceAll('{{example}}', example)
     .replaceAll('{{names}}', names.join(', '));
+  // Small models follow a worked example far better than a rule (the play-test).
+  return `${rule} ${seatRule}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
 }
 
 /** A regeneration's forbidden span, with whom it wrote for; nothing without one. */
