@@ -1,0 +1,942 @@
+{
+  "$comment": "Recall by meaning (A19): cases both twins run (client/src/features/memory/memory.test.ts, server/extensions/ai_chat/Memory_test.py). With the contract's memory block: recent_turns 12, scan_turns 2, chunk_characters 600, recall 4, min_similarity 0.2, section_tokens 400, prefix 'Earlier in the story:\\n' (6 tokens at 4 characters a token).",
+  "line_cases": [
+    {
+      "name": "each story line with its speaker first; OOC and X-carded lines left out",
+      "user_name": "Mara",
+      "names": {
+        "c1": "Ada"
+      },
+      "turns": [
+        {
+          "id": "1",
+          "role": "user",
+          "channel": "ic",
+          "speaker_character_id": null,
+          "content": "Hello."
+        },
+        {
+          "id": "2",
+          "role": "character",
+          "channel": "ic",
+          "speaker_character_id": "c1",
+          "content": "Mind the coolant."
+        },
+        {
+          "id": "3",
+          "role": "user",
+          "channel": "ooc",
+          "speaker_character_id": null,
+          "content": "brb"
+        },
+        {
+          "id": "4",
+          "role": "narrator",
+          "channel": "ic",
+          "speaker_character_id": null,
+          "content": "The lights dim."
+        },
+        {
+          "id": "5",
+          "role": "character",
+          "channel": "ic",
+          "speaker_character_id": "gone",
+          "content": "Who?"
+        },
+        {
+          "id": "6",
+          "role": "user",
+          "channel": "roll",
+          "speaker_character_id": null,
+          "content": "rolled 7"
+        },
+        {
+          "id": "7",
+          "role": "character",
+          "channel": "ic",
+          "speaker_character_id": "c1",
+          "content": "Hidden.",
+          "x_carded": true
+        }
+      ],
+      "lines": [
+        {
+          "id": "1",
+          "text": "Mara: Hello."
+        },
+        {
+          "id": "2",
+          "text": "Ada: Mind the coolant."
+        },
+        {
+          "id": "4",
+          "text": "Narrator: The lights dim."
+        },
+        {
+          "id": "5",
+          "text": "Narrator: Who?"
+        },
+        {
+          "id": "6",
+          "text": "Mara: rolled 7"
+        }
+      ]
+    }
+  ],
+  "chunk_cases": [
+    {
+      "name": "the last recent_turns lines are never remembered",
+      "lines": [
+        {
+          "id": "r0",
+          "text": "Recent line 0."
+        },
+        {
+          "id": "r1",
+          "text": "Recent line 1."
+        },
+        {
+          "id": "r2",
+          "text": "Recent line 2."
+        },
+        {
+          "id": "r3",
+          "text": "Recent line 3."
+        },
+        {
+          "id": "r4",
+          "text": "Recent line 4."
+        },
+        {
+          "id": "r5",
+          "text": "Recent line 5."
+        },
+        {
+          "id": "r6",
+          "text": "Recent line 6."
+        },
+        {
+          "id": "r7",
+          "text": "Recent line 7."
+        },
+        {
+          "id": "r8",
+          "text": "Recent line 8."
+        },
+        {
+          "id": "r9",
+          "text": "Recent line 9."
+        },
+        {
+          "id": "r10",
+          "text": "Recent line 10."
+        },
+        {
+          "id": "r11",
+          "text": "Recent line 11."
+        }
+      ],
+      "chunks": []
+    },
+    {
+      "name": "each older line is cut on its own, short paragraphs joined",
+      "lines": [
+        {
+          "id": "a",
+          "text": "Ada: Mind the coolant."
+        },
+        {
+          "id": "b",
+          "text": "Bo: Aye.\n\n  And the valves.  "
+        },
+        {
+          "id": "r0",
+          "text": "Recent line 0."
+        },
+        {
+          "id": "r1",
+          "text": "Recent line 1."
+        },
+        {
+          "id": "r2",
+          "text": "Recent line 2."
+        },
+        {
+          "id": "r3",
+          "text": "Recent line 3."
+        },
+        {
+          "id": "r4",
+          "text": "Recent line 4."
+        },
+        {
+          "id": "r5",
+          "text": "Recent line 5."
+        },
+        {
+          "id": "r6",
+          "text": "Recent line 6."
+        },
+        {
+          "id": "r7",
+          "text": "Recent line 7."
+        },
+        {
+          "id": "r8",
+          "text": "Recent line 8."
+        },
+        {
+          "id": "r9",
+          "text": "Recent line 9."
+        },
+        {
+          "id": "r10",
+          "text": "Recent line 10."
+        },
+        {
+          "id": "r11",
+          "text": "Recent line 11."
+        }
+      ],
+      "chunks": [
+        {
+          "message_id": "a",
+          "index": 0,
+          "text": "Ada: Mind the coolant."
+        },
+        {
+          "message_id": "b",
+          "index": 0,
+          "text": "Bo: Aye.\n\nAnd the valves."
+        }
+      ]
+    },
+    {
+      "name": "a paragraph longer than chunk_characters is cut into pieces",
+      "lines": [
+        {
+          "id": "x",
+          "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "id": "r0",
+          "text": "Recent line 0."
+        },
+        {
+          "id": "r1",
+          "text": "Recent line 1."
+        },
+        {
+          "id": "r2",
+          "text": "Recent line 2."
+        },
+        {
+          "id": "r3",
+          "text": "Recent line 3."
+        },
+        {
+          "id": "r4",
+          "text": "Recent line 4."
+        },
+        {
+          "id": "r5",
+          "text": "Recent line 5."
+        },
+        {
+          "id": "r6",
+          "text": "Recent line 6."
+        },
+        {
+          "id": "r7",
+          "text": "Recent line 7."
+        },
+        {
+          "id": "r8",
+          "text": "Recent line 8."
+        },
+        {
+          "id": "r9",
+          "text": "Recent line 9."
+        },
+        {
+          "id": "r10",
+          "text": "Recent line 10."
+        },
+        {
+          "id": "r11",
+          "text": "Recent line 11."
+        }
+      ],
+      "chunks": [
+        {
+          "message_id": "x",
+          "index": 0,
+          "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "message_id": "x",
+          "index": 1,
+          "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        },
+        {
+          "message_id": "x",
+          "index": 2,
+          "text": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+        }
+      ]
+    },
+    {
+      "name": "paragraphs join while the chunk stays within chunk_characters",
+      "lines": [
+        {
+          "id": "p",
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n\ncccccccccc"
+        },
+        {
+          "id": "r0",
+          "text": "Recent line 0."
+        },
+        {
+          "id": "r1",
+          "text": "Recent line 1."
+        },
+        {
+          "id": "r2",
+          "text": "Recent line 2."
+        },
+        {
+          "id": "r3",
+          "text": "Recent line 3."
+        },
+        {
+          "id": "r4",
+          "text": "Recent line 4."
+        },
+        {
+          "id": "r5",
+          "text": "Recent line 5."
+        },
+        {
+          "id": "r6",
+          "text": "Recent line 6."
+        },
+        {
+          "id": "r7",
+          "text": "Recent line 7."
+        },
+        {
+          "id": "r8",
+          "text": "Recent line 8."
+        },
+        {
+          "id": "r9",
+          "text": "Recent line 9."
+        },
+        {
+          "id": "r10",
+          "text": "Recent line 10."
+        },
+        {
+          "id": "r11",
+          "text": "Recent line 11."
+        }
+      ],
+      "chunks": [
+        {
+          "message_id": "p",
+          "index": 0,
+          "text": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\nbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        },
+        {
+          "message_id": "p",
+          "index": 1,
+          "text": "cccccccccc"
+        }
+      ]
+    },
+    {
+      "name": "a blank line leaves nothing to remember",
+      "lines": [
+        {
+          "id": "e",
+          "text": " \n\n "
+        },
+        {
+          "id": "r0",
+          "text": "Recent line 0."
+        },
+        {
+          "id": "r1",
+          "text": "Recent line 1."
+        },
+        {
+          "id": "r2",
+          "text": "Recent line 2."
+        },
+        {
+          "id": "r3",
+          "text": "Recent line 3."
+        },
+        {
+          "id": "r4",
+          "text": "Recent line 4."
+        },
+        {
+          "id": "r5",
+          "text": "Recent line 5."
+        },
+        {
+          "id": "r6",
+          "text": "Recent line 6."
+        },
+        {
+          "id": "r7",
+          "text": "Recent line 7."
+        },
+        {
+          "id": "r8",
+          "text": "Recent line 8."
+        },
+        {
+          "id": "r9",
+          "text": "Recent line 9."
+        },
+        {
+          "id": "r10",
+          "text": "Recent line 10."
+        },
+        {
+          "id": "r11",
+          "text": "Recent line 11."
+        }
+      ],
+      "chunks": []
+    },
+    {
+      "name": "code points are counted, not UTF-16 units",
+      "lines": [
+        {
+          "id": "u",
+          "text": "🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂"
+        },
+        {
+          "id": "r0",
+          "text": "Recent line 0."
+        },
+        {
+          "id": "r1",
+          "text": "Recent line 1."
+        },
+        {
+          "id": "r2",
+          "text": "Recent line 2."
+        },
+        {
+          "id": "r3",
+          "text": "Recent line 3."
+        },
+        {
+          "id": "r4",
+          "text": "Recent line 4."
+        },
+        {
+          "id": "r5",
+          "text": "Recent line 5."
+        },
+        {
+          "id": "r6",
+          "text": "Recent line 6."
+        },
+        {
+          "id": "r7",
+          "text": "Recent line 7."
+        },
+        {
+          "id": "r8",
+          "text": "Recent line 8."
+        },
+        {
+          "id": "r9",
+          "text": "Recent line 9."
+        },
+        {
+          "id": "r10",
+          "text": "Recent line 10."
+        },
+        {
+          "id": "r11",
+          "text": "Recent line 11."
+        }
+      ],
+      "chunks": [
+        {
+          "message_id": "u",
+          "index": 0,
+          "text": "🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂🜂"
+        },
+        {
+          "message_id": "u",
+          "index": 1,
+          "text": "🜂"
+        }
+      ]
+    }
+  ],
+  "query_cases": [
+    {
+      "name": "the last scan_turns lines, one per line",
+      "lines": [
+        {
+          "id": "1",
+          "text": "one"
+        },
+        {
+          "id": "2",
+          "text": "two"
+        },
+        {
+          "id": "3",
+          "text": "three"
+        }
+      ],
+      "query": "two\nthree"
+    },
+    {
+      "name": "fewer lines than scan_turns",
+      "lines": [
+        {
+          "id": "1",
+          "text": "  only  "
+        }
+      ],
+      "query": "only"
+    },
+    {
+      "name": "no lines",
+      "lines": [],
+      "query": ""
+    }
+  ],
+  "recall_cases": [
+    {
+      "name": "the close ones, in the story's order; unrelated and opposite ones left out",
+      "query": [
+        1,
+        0
+      ],
+      "remembered": [
+        {
+          "text": "A",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 0
+        },
+        {
+          "text": "B",
+          "vector": [
+            0,
+            1
+          ],
+          "order": 1
+        },
+        {
+          "text": "C",
+          "vector": [
+            1,
+            1
+          ],
+          "order": 2
+        },
+        {
+          "text": "D",
+          "vector": [
+            -1,
+            0
+          ],
+          "order": 3
+        }
+      ],
+      "recalled": [
+        "A",
+        "C"
+      ]
+    },
+    {
+      "name": "the closest are kept first, whatever their place",
+      "query": [
+        1,
+        0
+      ],
+      "remembered": [
+        {
+          "text": "far",
+          "vector": [
+            1,
+            2
+          ],
+          "order": 0
+        },
+        {
+          "text": "m1",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 1
+        },
+        {
+          "text": "m2",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 2
+        },
+        {
+          "text": "m3",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 3
+        },
+        {
+          "text": "m4",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 4
+        }
+      ],
+      "recalled": [
+        "m1",
+        "m2",
+        "m3",
+        "m4"
+      ]
+    },
+    {
+      "name": "at most recall of them, the earlier on a tie",
+      "query": [
+        1,
+        0
+      ],
+      "remembered": [
+        {
+          "text": "m0",
+          "vector": [
+            2,
+            0
+          ],
+          "order": 0
+        },
+        {
+          "text": "m1",
+          "vector": [
+            2,
+            0
+          ],
+          "order": 1
+        },
+        {
+          "text": "m2",
+          "vector": [
+            2,
+            0
+          ],
+          "order": 2
+        },
+        {
+          "text": "m3",
+          "vector": [
+            2,
+            0
+          ],
+          "order": 3
+        },
+        {
+          "text": "m4",
+          "vector": [
+            2,
+            0
+          ],
+          "order": 4
+        }
+      ],
+      "recalled": [
+        "m0",
+        "m1",
+        "m2",
+        "m3"
+      ]
+    },
+    {
+      "name": "below min_similarity is left out (1/sqrt(26) < 0.2 <= 1/sqrt(17))",
+      "query": [
+        1,
+        0
+      ],
+      "remembered": [
+        {
+          "text": "out",
+          "vector": [
+            1,
+            5
+          ],
+          "order": 0
+        },
+        {
+          "text": "in",
+          "vector": [
+            1,
+            4
+          ],
+          "order": 1
+        }
+      ],
+      "recalled": [
+        "in"
+      ]
+    },
+    {
+      "name": "one that would overrun section_tokens is skipped, a smaller one still fits",
+      "query": [
+        1,
+        0
+      ],
+      "remembered": [
+        {
+          "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 0
+        },
+        {
+          "text": "small",
+          "vector": [
+            1,
+            0.1
+          ],
+          "order": 1
+        }
+      ],
+      "recalled": [
+        "small"
+      ]
+    },
+    {
+      "name": "a vector of another length, or of zeros, is never recalled",
+      "query": [
+        1,
+        0
+      ],
+      "remembered": [
+        {
+          "text": "long",
+          "vector": [
+            1,
+            0,
+            0
+          ],
+          "order": 0
+        },
+        {
+          "text": "zero",
+          "vector": [
+            0,
+            0
+          ],
+          "order": 1
+        }
+      ],
+      "recalled": []
+    }
+  ],
+  "text_cases": [
+    {
+      "name": "nothing recalled, no section",
+      "recalled": [],
+      "text": ""
+    },
+    {
+      "name": "the recalled chunks under the prefix",
+      "recalled": [
+        "Ada: Mind the coolant.",
+        "Bo: Aye."
+      ],
+      "text": "Earlier in the story:\nAda: Mind the coolant.\n\nBo: Aye."
+    }
+  ],
+  "url_cases": [
+    {
+      "name": "beside the chat completions",
+      "base_url": "http://h:1/v1/chat/completions",
+      "url": "http://h:1/v1/embeddings"
+    },
+    {
+      "name": "beside the text completions",
+      "base_url": "http://h:1/v1/completions",
+      "url": "http://h:1/v1/embeddings"
+    },
+    {
+      "name": "a bare base with a trailing slash",
+      "base_url": "http://h:1/v1/",
+      "url": "http://h:1/v1/embeddings"
+    }
+  ],
+  "body_cases": [
+    {
+      "name": "the model and every input, in order",
+      "model": "nomic-embed-text",
+      "inputs": [
+        "a",
+        "b"
+      ],
+      "body": {
+        "model": "nomic-embed-text",
+        "input": [
+          "a",
+          "b"
+        ]
+      }
+    }
+  ],
+  "vector_cases": [
+    {
+      "name": "in the order asked, whatever order they came in",
+      "answer": {
+        "data": [
+          {
+            "index": 1,
+            "embedding": [
+              0.5,
+              2
+            ]
+          },
+          {
+            "index": 0,
+            "embedding": [
+              1,
+              0
+            ]
+          }
+        ]
+      },
+      "count": 2,
+      "vectors": [
+        [
+          1,
+          0
+        ],
+        [
+          0.5,
+          2
+        ]
+      ]
+    },
+    {
+      "name": "without an index, in the order they came",
+      "answer": {
+        "data": [
+          {
+            "embedding": [
+              1
+            ]
+          },
+          {
+            "embedding": [
+              2
+            ]
+          }
+        ]
+      },
+      "count": 2,
+      "vectors": [
+        [
+          1
+        ],
+        [
+          2
+        ]
+      ]
+    },
+    {
+      "name": "too few",
+      "answer": {
+        "data": [
+          {
+            "index": 0,
+            "embedding": [
+              1
+            ]
+          }
+        ]
+      },
+      "count": 2,
+      "vectors": null
+    },
+    {
+      "name": "an index twice",
+      "answer": {
+        "data": [
+          {
+            "index": 0,
+            "embedding": [
+              1
+            ]
+          },
+          {
+            "index": 0,
+            "embedding": [
+              2
+            ]
+          }
+        ]
+      },
+      "count": 2,
+      "vectors": null
+    },
+    {
+      "name": "not a number",
+      "answer": {
+        "data": [
+          {
+            "index": 0,
+            "embedding": [
+              1,
+              "2"
+            ]
+          }
+        ]
+      },
+      "count": 1,
+      "vectors": null
+    },
+    {
+      "name": "an empty vector",
+      "answer": {
+        "data": [
+          {
+            "index": 0,
+            "embedding": []
+          }
+        ]
+      },
+      "count": 1,
+      "vectors": null
+    },
+    {
+      "name": "not an embeddings answer",
+      "answer": {
+        "error": "no"
+      },
+      "count": 1,
+      "vectors": null
+    }
+  ]
+}

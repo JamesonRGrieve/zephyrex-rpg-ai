@@ -42,6 +42,7 @@ import {
   pickOption,
   type ScenarioView,
   backgroundPicturePrompt,
+  DEFAULT_USER_NAME,
   portraitPicturePrompt,
   scenePicturePrompt,
   splitReasoning,
@@ -61,6 +62,8 @@ import { ownTemplate } from '~/lib/instructTemplateRecords';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
 import { dataBankText } from '~/features/chat/dataBank';
+import { type StoryLine, storyLines } from '~/features/memory/memory';
+import { memoriesFor } from '~/lib/memory';
 import { campaigns, scenarios } from '~/lib/campaignRecords';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
@@ -123,6 +126,8 @@ export async function generationInputs(
   activeLore: string[];
   images: string[];
   paused: boolean;
+  /** The branch's story lines, for recall by meaning (A19, `withMemories`). */
+  lines: StoryLine[];
 }> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
@@ -287,7 +292,34 @@ export async function generationInputs(
     activeLore: lore.active,
     images,
     paused: chatFields.paused,
+    lines: storyLines(
+      path.map((message) => ({
+        id: message.id,
+        role: message.role,
+        channel: message.channel,
+        speaker_character_id: message.speaker_character_id,
+        content: message.swipes[message.swipe_index] ?? '',
+        x_carded: message.x_carded,
+      })),
+      persona?.name ?? DEFAULT_USER_NAME,
+      new Map(promptCharacters.map((character) => [character.id, character.name])),
+    ),
   };
+}
+
+/**
+ * The prompt with the chat's older lines recalled by meaning (A19), by the person's model set to
+ * embed; unchanged for the table GM, which reads only the recent table talk.
+ */
+async function withMemories(
+  ownerId: string,
+  body: z.infer<typeof request>,
+  prompt: PromptInput,
+  lines: readonly StoryLine[],
+  signal?: AbortSignal,
+): Promise<PromptInput> {
+  if (body.mode === 'table') return prompt;
+  return { ...prompt, memories: await memoriesFor(ownerId, body.chat_id, lines, signal) };
 }
 
 /** A chat's campaign frame (A57), as frameText reads it; none when the campaign is gone. */
@@ -419,14 +451,15 @@ async function readRequest(nextRequest: NextRequest): Promise<z.infer<typeof req
 /**
  * `POST /v1/ai_chat/prompt`: the context inspector (A18). Exactly what the model would be given for
  * this request, with each message's estimated tokens, the history dropped to fit, and the lore
- * entries that would go in. A preview: the lore timers do not move and no model is asked.
+ * entries that would go in. A preview: the lore timers do not move and no chat model is asked (a
+ * model set to embed may be, to recall the chat's older lines, A19).
  */
 export async function inspectPrompt(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, activeLore } = await generationInputs(owner.id, body);
-    const assembled = promptFor(body.mode, prompt);
+    const { prompt, sampler, activeLore, lines } = await generationInputs(owner.id, body);
+    const assembled = promptFor(body.mode, await withMemories(owner.id, body, prompt, lines, nextRequest.signal));
     const messages = assembled.messages.map((message) => ({ ...message, tokens: estimateTokens(message) }));
     return Response.json({
       prompt: {
@@ -822,11 +855,11 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, endpoint, loreState, images, paused } = await generationInputs(owner.id, body);
+    const { prompt, sampler, endpoint, loreState, images, paused, lines } = await generationInputs(owner.id, body);
     // Paused (A25): no story turns until the table resumes. The table GM still answers.
     if (paused && body.mode !== 'table')
       throw new ApiError(409, { message: 'The table has paused the game', code: 'paused' });
-    const assembled = promptFor(body.mode, prompt);
+    const assembled = promptFor(body.mode, await withMemories(owner.id, body, prompt, lines, nextRequest.signal));
     // The lore timers move with the reply that read them.
     await saveLoreState(owner.id, body.chat_id, loreState);
 

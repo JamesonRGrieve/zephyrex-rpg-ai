@@ -30,6 +30,7 @@ def test_case(case: dict[str, Any]) -> None:
         regex=given.get("regex", []),
         objective=given.get("objective", ""),
         data_bank=given.get("data_bank", ""),
+        memories=given.get("memories", ""),
         safety=given.get("safety"),
         table_notes=given.get("table_notes"),
         frame=given.get("frame"),

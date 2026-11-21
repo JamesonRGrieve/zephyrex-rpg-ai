@@ -30,6 +30,7 @@ export const SECTION_LABELS: Record<PromptSectionId, string> = {
   examples: 'Example dialogue',
   lore_after_example: 'Lore after the examples',
   data_bank: 'Data bank notes',
+  memories: 'Memories (recalled by meaning)',
   summary: 'Summary',
   author_note: 'Author’s note',
   post_history: 'Post-history instructions',

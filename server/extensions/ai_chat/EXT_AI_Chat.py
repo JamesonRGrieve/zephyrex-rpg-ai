@@ -20,5 +20,12 @@ class AIChatExtension(AbstractStaticExtension):
                 optional=False,
                 semver=None,
             ),
+            EXT_Dependency(
+                name="ai_memories",
+                friendly_name="Memories",
+                reason="A chat's older lines, recalled by meaning (A19)",
+                optional=False,
+                semver=None,
+            ),
         ]
     )

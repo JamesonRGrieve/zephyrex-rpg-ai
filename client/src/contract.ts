@@ -42,6 +42,7 @@ export const PROMPT = {
     'examples',
     'lore_after_example',
     'data_bank',
+    'memories',
     'summary',
     'author_note',
     'post_history',
@@ -81,7 +82,7 @@ export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['cha
 export const INSTRUCT_CUSTOM = contract.instruct_custom;
 /** AI Horde (A48): where a text job is submitted and polled, and how long to wait. */
 export const HORDE = contract.horde;
-/** What a model can be used for (A27): replies, the GM's voices, summaries, translation, pictures, speech. */
+/** What a model can be used for (A27): replies, the GM's voices, summaries, translation, pictures, speech, search, embeddings. */
 export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly [
   'story',
   'gm',
@@ -90,6 +91,7 @@ export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly [
   'image',
   'voice',
   'search',
+  'embed',
 ];
 /** Web search sources (A42), kept as endpoints serving only the search role (cases in contract/search-cases.json). */
 export const SEARCH_APIS = contract.search_apis as unknown as readonly ['searxng', 'brave'];
@@ -101,6 +103,8 @@ export const SPEECH = {
   ...contract.speech,
   speed_range: contract.speech.speed_range as unknown as readonly [number, number],
 };
+/** Recall by meaning (A19): a chat's older lines, embedded and recalled (cases in contract/memory-cases.json). */
+export const MEMORY = contract.memory;
 export type EndpointRole = (typeof ENDPOINT_ROLES)[number];
 export type EndpointApi = (typeof ENDPOINT_APIS)[number];
 /** What an endpoint record's api can be: a model API, or a search source (A42). */

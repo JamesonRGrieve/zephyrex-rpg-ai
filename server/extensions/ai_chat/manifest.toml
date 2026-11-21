@@ -10,3 +10,7 @@ repository = "https://github.com/JamesonRGrieve/zephyrex-rpg-ai"
 [[extension_dependencies]]
 name = "ai_character"
 optional = false
+
+[[extension_dependencies]]
+name = "ai_memories"
+optional = false

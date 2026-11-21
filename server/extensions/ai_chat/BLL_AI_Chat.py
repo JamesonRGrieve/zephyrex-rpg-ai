@@ -60,7 +60,9 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
+    DEFAULT_USER_NAME,
     assemble_prompt,
     background_picture_prompt,
     estimate_tokens,
@@ -74,6 +76,7 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
     translate_prompt,
 )
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Remembering import forget_chat, memories_for  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Search import (  # type: ignore[import-not-found]
     QUERY_CHARACTERS as SEARCH_QUERY_CHARACTERS,
 )
@@ -90,6 +93,7 @@ from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[im
     LorebookEntryManager,
     LorebookManager,
 )
+from zephyrex.extensions.ai_memories.BLL_AI_Memories import MemoryManager
 from zephyrex.lib.CustomRoute import ExposeIn, custom_route
 from zephyrex.lib.EventStream import event_stream
 from zephyrex.lib.SecretEncryption import decrypt_secret, encrypt_secret
@@ -516,6 +520,8 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         timers = ChatLoreStateManager(requester_id=str(self.requester.id), model_registry=self.model_registry)
         for state in timers.list(chat_id=id):
             timers.delete(state.id)
+        # And its memories (A19).
+        forget_chat(MemoryManager(requester_id=str(self.requester.id), model_registry=self.model_registry), id)
         super().delete(id)
 
 
@@ -1745,8 +1751,50 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 pass
         return str(endpoint.instruct_template)
 
+    async def _memories(self, body: GenerateRequest) -> str:
+        """The chat's older lines recalled by meaning (A19, Remembering.py), by the requester's model
+        set to embed; nothing for the table GM, which reads only the recent table talk, and nothing
+        for a request _inputs refuses."""
+        if body.mode == "table" or body.leaf_id is None:
+            return ""
+        try:
+            chat = self._manager(ChatManager).get(id=body.chat_id)
+            persona = (
+                self._manager(PersonaManager).get(id=chat.persona_id)
+                if chat.persona_id
+                else next(iter(self._manager(PersonaManager).list(is_default=True)), None)
+            )
+            messages = self._manager(ChatMessageManager).list(chat_id=chat.id)
+            names = {
+                character_id: self._manager(CharacterManager).get(id=character_id).name
+                for character_id in chat.character_ids or []
+            }
+        except HTTPException:
+            return ""
+        if all(message.id != body.leaf_id for message in messages):
+            return ""
+        lines = story_lines(
+            [
+                {
+                    "id": message.id,
+                    "role": message.role,
+                    "channel": message.channel,
+                    "speaker_character_id": message.speaker_character_id,
+                    "content": message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else "",
+                    "x_carded": bool(getattr(message, "x_carded", False)),
+                }
+                for message in branch_to(messages, body.leaf_id)
+            ],
+            persona.name if persona is not None else DEFAULT_USER_NAME,
+            names,
+        )
+        text: str = await memories_for(
+            self._manager(MemoryManager), self._manager(ModelEndpointManager).list(), chat.id, lines
+        )
+        return text
+
     def _inputs(
-        self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply"
+        self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply", memories: str = ""
     ) -> tuple[Any, dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
         """Everything a reply needs, read as the requester sees it (lib/generate.ts, step for step)."""
         try:
@@ -1938,6 +1986,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             chat.table_notes or [],
             frame,
             scenario_of(self._manager(ScenarioManager).get(id=chat.scenario_id)) if chat.scenario_id else None,
+            memories,
         )
         if body.mode == "table":
             # The table GM (A11, A20) reads the table talk, with the story for reference only.
@@ -1980,8 +2029,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         summary="What the model would be given for this request, without asking it (the context inspector)",
     )
     async def prompt_route(self, body: GenerateEnvelope) -> InspectEnvelope:
-        # A preview: the lore timers do not move and no model is asked.
-        assembled, _request, sampler, active, _context = self._inputs(body.generate, save_timers=False)
+        # A preview: the lore timers do not move and no chat model is asked (a model set to embed may
+        # be, to recall the chat's older lines, A19).
+        assembled, _request, sampler, active, _context = self._inputs(
+            body.generate, save_timers=False, memories=await self._memories(body.generate)
+        )
         messages = [PromptMessage(**message, tokens=estimate_tokens(message)) for message in assembled.messages]
         return InspectEnvelope(
             prompt=InspectedPrompt(
@@ -2405,7 +2457,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 raise HTTPException(
                     status_code=409, detail={"message": "The table has paused the game", "code": "paused"}
                 )
-        assembled, request, _sampler, _active, _context = self._inputs(body.generate)
+        assembled, request, _sampler, _active, _context = self._inputs(
+            body.generate, memories=await self._memories(body.generate)
+        )
         if _context["endpoint"].api == "horde":
             # AI Horde (A48): asked as a job, then answered as one text completion would be.
             text = await horde_text(_context["endpoint"], _context["key"], request["json"])

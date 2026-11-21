@@ -355,3 +355,25 @@ model InstructTemplate {
 
   @@index([createdById])
 }
+
+/// A chunk of a chat's older story line, embedded for recall by meaning (A19); written by generation.
+/// `digest` is the line's text hashed, so an edited line is embedded again; `model` is the embedding
+/// model, and only vectors from the same model are compared.
+model ChatMemory {
+  id          String   @id @default(uuid())
+  createdById String
+  chatId      String
+  messageId   String
+  chunkIndex  Int
+  digest      String
+  text        String
+  model       String
+  /// The embedding, as a JSON array.
+  vector      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@unique([chatId, model, messageId, chunkIndex])
+  @@index([createdById, chatId])
+}

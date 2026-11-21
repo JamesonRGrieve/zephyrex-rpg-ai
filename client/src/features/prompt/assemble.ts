@@ -82,6 +82,8 @@ export interface PromptInput {
   objective?: string;
   /** The data bank's retrieved notes (A41, features/chat/dataBank.ts); blank for none. */
   data_bank?: string;
+  /** The chat's older lines recalled by meaning (A19, lib/memory.ts); blank for none. */
+  memories?: string;
   /** The table's safety tools (A25). */
   safety?: SafetySettings;
   /** The table's notes (A11): house rules, pacing, tone, reminders. */
@@ -473,6 +475,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     examples: speaker.example_messages.trim() === '' ? '' : `Example dialogue:\n${speaker.example_messages}`,
     lore_after_example: loreSections.after_example ?? '',
     data_bank: input.data_bank ?? '',
+    memories: input.memories ?? '',
     summary: (input.summary ?? '').trim() === '' ? '' : PROMPT.summary_prefix + (input.summary ?? ''),
   };
   const system: ModelMessage = { role: 'system', content: systemText(texts, layout, names) };

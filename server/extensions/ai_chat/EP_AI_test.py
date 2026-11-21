@@ -51,6 +51,20 @@ class FakeModel(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        if self.path.endswith("/embeddings"):
+            # Recall by meaning (A19): a line's vector counts the words "coolant" and "valve".
+            inputs = RECEIVED[-1]["body"]["input"]
+            data = [
+                {"object": "embedding", "index": index, "embedding": [text.count("coolant"), text.count("valve"), 0.01]}
+                for index, text in enumerate(inputs)
+            ]
+            body = json.dumps({"data": data}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if self.path.endswith("/audio/speech"):
             # A line spoken (A29): three bytes of "MP3".
             self.send_response(200)
@@ -671,6 +685,49 @@ class TestGenerate:
         unreachable = server.post("/v1/ai_chat/search", json=asked, headers=_headers(user))
         assert unreachable.status_code == 200 and unreachable.json()["search"]["results"] == [], unreachable.text
         assert server.post("/v1/ai_chat/search", json={"search": {"query": "  "}}, headers=_headers(user)).status_code == 422
+
+    def test_older_lines_are_recalled_by_meaning_and_forgotten_with_the_chat(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        said = ["The coolant pump is failing.", "The valve is rusted."]
+        said += [f"Nothing much {index}." for index in range(CONTRACT["memory"]["recent_turns"] - 1)]
+        said += ["Check the coolant again."]
+        parent = None
+        for index, text in enumerate(said):
+            speaker = {"role": "user"} if index % 2 == 0 else {"role": "character", "speaker_character_id": ada["id"]}
+            parent = _create(server, user, "chat_message", chat_id=chat["id"], parent_id=parent, swipes=[text], **speaker).json()["chat_message"]["id"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": parent}}
+
+        def system() -> str:
+            prompt = server.post("/v1/ai_chat/prompt", json=asked, headers=_headers(user))
+            assert prompt.status_code == 200, prompt.text
+            content: str = prompt.json()["prompt"]["messages"][0]["content"]
+            return content
+
+        RECEIVED.clear()
+        assert "Earlier in the story" not in system()
+        assert not [one for one in RECEIVED if one["path"].endswith("/embeddings")]
+
+        _create(server, user, "model_endpoint", name="Embeddings", base_url=model_url, model="nomic-embed-text", api_key="k-e", roles=["embed"])
+        assert "Earlier in the story:\nUser: The coolant pump is failing." in system()
+        embedded = [one for one in RECEIVED if one["path"].endswith("/embeddings")]
+        assert embedded[0]["authorization"] == "Bearer k-e"
+        assert embedded[0]["body"] == {
+            "model": "nomic-embed-text",
+            "input": ["User: Nothing much 10.\nAda: Check the coolant again.", "User: The coolant pump is failing.", "Ada: The valve is rusted."],
+        }
+        # Next turn, only the question is embedded.
+        system()
+        assert len([one for one in RECEIVED if one["path"].endswith("/embeddings")][-1]["body"]["input"]) == 1
+
+        memories = server.get("/v1/memory", headers=_headers(user))
+        assert memories.status_code == 200, memories.text
+        assert len(next(iter(memories.json().values()))) == 2
+        etag = server.get(f"/v1/chat/{chat['id']}", headers=_headers(user)).headers["ETag"]
+        assert server.delete(f"/v1/chat/{chat['id']}", headers=_headers(user, **{"If-Match": etag})).status_code in (200, 204)
+        assert next(iter(server.get("/v1/memory", headers=_headers(user)).json().values())) == []
 
     def test_a_line_is_read_aloud_only_by_a_model_set_to_speak(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

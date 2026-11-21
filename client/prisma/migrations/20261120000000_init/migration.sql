@@ -352,3 +352,25 @@ CREATE TABLE "InstructTemplate" (
 
 -- CreateIndex
 CREATE INDEX "InstructTemplate_createdById_idx" ON "InstructTemplate"("createdById");
+
+-- CreateTable
+CREATE TABLE "ChatMemory" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "chatId" TEXT NOT NULL,
+    "messageId" TEXT NOT NULL,
+    "chunkIndex" INTEGER NOT NULL,
+    "digest" TEXT NOT NULL,
+    "text" TEXT NOT NULL,
+    "model" TEXT NOT NULL,
+    "vector" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "ChatMemory_createdById_chatId_idx" ON "ChatMemory"("createdById", "chatId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ChatMemory_chatId_model_messageId_chunkIndex_key" ON "ChatMemory"("chatId", "model", "messageId", "chunkIndex");

@@ -271,6 +271,7 @@ def assemble_prompt(
     table_notes: Sequence[Mapping[str, Any]] | None = None,
     frame: Mapping[str, Any] | None = None,
     scenario: Mapping[str, Any] | None = None,
+    memories: str = "",
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -328,6 +329,8 @@ def assemble_prompt(
         "lore_after_example": sections.get("after_example", ""),
         # The data bank's retrieved notes (A41, DataBank.py), as one section.
         "data_bank": data_bank,
+        # The chat's older lines recalled by meaning (A19, Remembering.py), as one section.
+        "memories": memories,
         "summary": PROMPT["summary_prefix"] + summary if summary.strip() else "",
     }
     system = {"role": "system", "content": _system_text(texts, order, names)}

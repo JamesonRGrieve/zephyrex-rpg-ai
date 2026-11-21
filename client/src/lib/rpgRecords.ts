@@ -398,10 +398,11 @@ export const chats: ResourceSpec<ChatRow, z.infer<typeof chatCreate>, z.infer<ty
     return count === 0 ? null : prisma.chat.findUnique({ where: { id } });
   },
   async remove(id) {
-    // A chat's messages go with it.
+    // A chat's messages, lore timers and memories (A19) go with it.
     await prisma.$transaction([
       prisma.chatMessage.deleteMany({ where: { chatId: id } }),
       prisma.chatLoreState.deleteMany({ where: { chatId: id } }),
+      prisma.chatMemory.deleteMany({ where: { chatId: id } }),
       prisma.chat.delete({ where: { id } }),
     ]);
   },

@@ -137,6 +137,7 @@
       "examples",
       "lore_after_example",
       "data_bank",
+      "memories",
       "summary",
       "author_note",
       "post_history"
@@ -521,7 +522,8 @@
     "translate",
     "image",
     "voice",
-    "search"
+    "search",
+    "embed"
   ],
   "sampler_extras": {
     "logit_bias_range": [
@@ -575,6 +577,20 @@
     ],
     "format": "mp3",
     "audio_bytes": 6000000
+  },
+  "memory": {
+    "$comment": "Recall by meaning (A19): a chat's older story lines, cut into chunks and embedded by a model set to embed (the embed role) at its OpenAI-compatible POST /embeddings, are recalled by cosine similarity to the last scan_turns and enter the prompt's memories section within section_tokens. Lines in the last recent_turns are never recalled (they are in the context). Cases in contract/memory-cases.json. AP8: a character whose extensions[extension].across_chats is true also recalls from the person's other chats it was cast in, under elsewhere_label ({{char}} its name), within the same budget (contract/memory-across-cases.json).",
+    "path": "/embeddings",
+    "chunk_characters": 600,
+    "recent_turns": 12,
+    "scan_turns": 2,
+    "recall": 4,
+    "min_similarity": 0.2,
+    "section_tokens": 400,
+    "embed_batch": 64,
+    "prefix": "Earlier in the story:\n",
+    "extension": "zephyrex_rpg_memory",
+    "elsewhere_label": "From other chats with {{char}}:\n"
   },
   "horde": {
     "$comment": "AI Horde (A48): a text job submitted, then polled, never streamed. Its answer reaches the rest of the app as a text completion's stream would.",
