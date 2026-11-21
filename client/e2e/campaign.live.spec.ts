@@ -16,6 +16,7 @@ import { expect, type Page, test } from '@playwright/test';
 const LIVE = process.env.LIVE_MODEL_URL ?? '';
 const STORY = process.env.LIVE_STORY_MODEL ?? '';
 const SUMMARY = process.env.LIVE_SUMMARY_MODEL ?? '';
+const DECIDE = process.env.LIVE_DECIDE_MODEL ?? '';
 /** How long one model turn may take (a cold load on the lab's tier is about two minutes). */
 const TURN = 240_000;
 
@@ -115,6 +116,15 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
       roles: ['summary', 'translate'],
     });
   }
+  if (DECIDE !== '') {
+    await post(page, 'model_endpoint', 'model_endpoint', {
+      name: 'Decide',
+      base_url: LIVE,
+      model: DECIDE,
+      api: 'chat',
+      roles: ['decide'],
+    });
+  }
   const pc = (name: string, description: string) =>
     post(page, 'character', 'character', { name, description, tags: ['PC'], folder: 'The Cell' });
   await pc('Gus Veridan', '{{char}} is an ex-Imperial Navy rating, blunt and steady with a shotgun.');
@@ -162,7 +172,7 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
     page,
     'Gus speaks',
     'I lean over the vox and tell traffic control we are Administratum census officers, here on routine business.',
-    2,
+    1,
   );
 
   // As an NPC from outside the party: any character at all.
@@ -180,7 +190,7 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
     page,
     'GM starts a fight',
     'Three cultists burst out of a cargo container, autoguns raised. Combat begins: everyone act!',
-    2,
+    1,
   );
   const before = await page.getByRole('article').count();
   await page.getByRole('button', { name: 'Narrate what happens next' }).click();
@@ -200,7 +210,18 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
 
   // Session 2 goes on from the save point.
   await seat(page, 'A.Z.');
-  await say(page, 'A.Z. in session 2', 'I reach out with my mind toward Massen, feeling for whatever is wrong with him.', 2);
+  await say(page, 'A.Z. in session 2', 'I reach out with my mind toward Massen, feeling for whatever is wrong with him.', 1);
+
+  // Canon warnings (docs/DESIGN.md): a tech-priest who doesn't know the Omnissiah breaks
+  // in-universe canon. The composer shows the notice before the line is sent.
+  if (DECIDE !== '') {
+    await seat(page, 'Magnus Karlsson');
+    await page.getByLabel('Your next line').fill('Who is this Omnissiah everyone keeps praying to? Never heard of him.');
+    const notice = page.getByRole('status').filter({ hasText: /canon/i });
+    await expect(notice).toBeVisible({ timeout: 60_000 });
+    record('Canon notice for Magnus', [{ speaker: 'notice', text: (await notice.textContent()) ?? '' }]);
+    await page.getByLabel('Your next line').fill('');
+  }
 
   // Fork a new campaign from the first line of the fight.
   const fight = page.getByRole('article').filter({ hasText: 'Three cultists burst' }).first();

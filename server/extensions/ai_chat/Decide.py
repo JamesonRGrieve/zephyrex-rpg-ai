@@ -72,6 +72,9 @@ def _read_one(question: Mapping[str, Any], raw: Any) -> dict[str, Any] | None:
     if kind == "score":
         level = raw.get("score")
         levels = list(question["criteria"])
+        # The level by its name, or (as d1-2b answers) by its index into the criteria.
+        if isinstance(level, int) and not isinstance(level, bool) and 0 <= level < len(levels):
+            return {"level": levels[level], "index": level}
         return {"level": level, "index": levels.index(level)} if isinstance(level, str) and level in levels else None
     return None
 

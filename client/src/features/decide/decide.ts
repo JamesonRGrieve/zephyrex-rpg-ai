@@ -15,9 +15,7 @@ export type DecideQuestion =
   | { type: 'score'; instructions: string; criteria: readonly string[] };
 
 export type DecideAnswer =
-  | { choice: string; probability?: number }
-  | { probability: number }
-  | { level: string; index: number };
+  { choice: string; probability?: number } | { probability: number } | { level: string; index: number };
 
 type WireQuestion =
   | { type: 'choice'; instructions: string; criteria: Record<string, string> }
@@ -87,8 +85,14 @@ function readOne(question: DecideQuestion, raw: unknown): DecideAnswer | null {
       return isProbability(raw.noul) ? { probability: raw.noul } : null;
     case 'score': {
       const level = raw.score;
-      const index = typeof level === 'string' ? question.criteria.indexOf(level) : -1;
-      return index >= 0 ? { level: level as string, index } : null;
+      // The level by its name, or (as d1-2b answers) by its index into the criteria.
+      const index =
+        typeof level === 'number' && Number.isInteger(level) && level >= 0 && level < question.criteria.length
+          ? level
+          : typeof level === 'string'
+            ? question.criteria.indexOf(level)
+            : -1;
+      return index >= 0 ? { level: question.criteria[index] as string, index } : null;
     }
   }
 }
