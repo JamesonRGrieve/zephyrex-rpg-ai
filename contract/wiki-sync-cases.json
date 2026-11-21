@@ -1,0 +1,78 @@
+{
+  "$comment": "A15: a lorebook kept in sync with the wiki. Given the book's entries and a page of the wiki's world_entities (in order), what to create, update and remove. Each wiki entity has one entry, linked by wiki_entity_id: its comment is the name, its keys the name and aliases (trimmed, empty dropped, the first spelling of each kept, compared case-insensitively), its content the summary. Entries the person wrote themselves (no wiki_entity_id) are never touched. Both twins run these cases: client/src/features/lore/wikiSync.ts and server/extensions/ai_lorebook/WikiSync.py.",
+  "cases": [
+    {
+      "name": "a new entity becomes an entry",
+      "entries": [],
+      "entities": [{ "id": "w1", "kind": "location", "name": "Saltmarsh", "aliases": [], "summary": "A fishing town.", "deleted": false }],
+      "expected": {
+        "create": [{ "wiki_entity_id": "w1", "comment": "Saltmarsh", "keys": ["Saltmarsh"], "content": "A fishing town." }],
+        "update": [],
+        "remove": []
+      }
+    },
+    {
+      "name": "a changed entity updates its entry in place",
+      "entries": [{ "id": "e1", "wiki_entity_id": "w1", "comment": "Saltmarsh", "keys": ["Saltmarsh"], "content": "A fishing town." }],
+      "entities": [{ "id": "w1", "kind": "location", "name": "Saltmarsh", "aliases": ["the Marsh"], "summary": "A smugglers' town.", "deleted": false }],
+      "expected": {
+        "create": [],
+        "update": [{ "id": "e1", "comment": "Saltmarsh", "keys": ["Saltmarsh", "the Marsh"], "content": "A smugglers' town." }],
+        "remove": []
+      }
+    },
+    {
+      "name": "an unchanged entity changes nothing",
+      "entries": [{ "id": "e1", "wiki_entity_id": "w1", "comment": "Mira", "keys": ["Mira"], "content": "The gatekeeper." }],
+      "entities": [{ "id": "w1", "kind": "person", "name": "Mira", "aliases": [], "summary": "The gatekeeper.", "deleted": false }],
+      "expected": { "create": [], "update": [], "remove": [] }
+    },
+    {
+      "name": "a deleted entity removes its entry, and one never synced is nothing",
+      "entries": [{ "id": "e1", "wiki_entity_id": "w1", "comment": "Mira", "keys": ["Mira"], "content": "The gatekeeper." }],
+      "entities": [
+        { "id": "w1", "kind": "person", "name": "Mira", "aliases": [], "summary": "", "deleted": true },
+        { "id": "w2", "kind": "person", "name": "Bram", "aliases": [], "summary": "", "deleted": true }
+      ],
+      "expected": { "create": [], "update": [], "remove": ["e1"] }
+    },
+    {
+      "name": "the person's own entries are never touched, even with the same name",
+      "entries": [{ "id": "mine", "wiki_entity_id": null, "comment": "Saltmarsh", "keys": ["Saltmarsh"], "content": "My notes." }],
+      "entities": [{ "id": "w1", "kind": "location", "name": "Saltmarsh", "aliases": [], "summary": "A fishing town.", "deleted": false }],
+      "expected": {
+        "create": [{ "wiki_entity_id": "w1", "comment": "Saltmarsh", "keys": ["Saltmarsh"], "content": "A fishing town." }],
+        "update": [],
+        "remove": []
+      }
+    },
+    {
+      "name": "keys are trimmed, empty ones dropped, and repeats kept once in their first spelling",
+      "entries": [],
+      "entities": [{ "id": "w1", "kind": "faction", "name": " Iron Guild ", "aliases": ["iron guild", "", "  ", "The Guild"], "summary": "Smiths.", "deleted": false }],
+      "expected": {
+        "create": [{ "wiki_entity_id": "w1", "comment": "Iron Guild", "keys": ["Iron Guild", "The Guild"], "content": "Smiths." }],
+        "update": [],
+        "remove": []
+      }
+    },
+    {
+      "name": "an entity listed twice (changed during the sync) is taken as its last",
+      "entries": [],
+      "entities": [
+        { "id": "w1", "kind": "person", "name": "Mira", "aliases": [], "summary": "The gatekeeper.", "deleted": false },
+        { "id": "w1", "kind": "person", "name": "Mira", "aliases": [], "summary": "", "deleted": true }
+      ],
+      "expected": { "create": [], "update": [], "remove": [] }
+    },
+    {
+      "name": "two entries linked to one entity: the first is kept, the other removed",
+      "entries": [
+        { "id": "e1", "wiki_entity_id": "w1", "comment": "Mira", "keys": ["Mira"], "content": "The gatekeeper." },
+        { "id": "e2", "wiki_entity_id": "w1", "comment": "Mira", "keys": ["Mira"], "content": "The gatekeeper." }
+      ],
+      "entities": [{ "id": "w1", "kind": "person", "name": "Mira", "aliases": [], "summary": "The gatekeeper.", "deleted": false }],
+      "expected": { "create": [], "update": [], "remove": ["e2"] }
+    }
+  ]
+}

@@ -1,0 +1,53 @@
+{
+  "$comment": "A15: the lore relevance gate. Keyword-matched entries that all fit the lore budget (their token counts summed) go in as they are, with no model call. When they don't fit, a decision model is asked which to keep, offered only those entries; its pick is applied in its order, each entry kept while it still fits, anything it names that wasn't offered ignored (a model chooses only from the options it was given), and anything it leaves out dropped. Both twins run these cases: client/src/features/lore/loreGate.ts and server/extensions/ai_lorebook/LoreGate.py.",
+  "needed": [
+    { "name": "all fit: no gate", "tokens": [100, 200, 50], "budget": 400, "needed": false },
+    { "name": "exactly fits: no gate", "tokens": [200, 200], "budget": 400, "needed": false },
+    { "name": "over the budget: the gate runs", "tokens": [300, 200], "budget": 400, "needed": true },
+    { "name": "nothing matched: no gate", "tokens": [], "budget": 0, "needed": false }
+  ],
+  "apply": [
+    {
+      "name": "the pick in its order, each while it fits; one that doesn't fit is skipped, not the end",
+      "entries": [
+        { "id": "a", "tokens": 300 },
+        { "id": "b", "tokens": 150 },
+        { "id": "c", "tokens": 120 }
+      ],
+      "budget": 400,
+      "picked": ["c", "a", "b"],
+      "kept": ["c", "b"]
+    },
+    {
+      "name": "a later smaller pick still goes in after a larger one doesn't fit",
+      "entries": [
+        { "id": "a", "tokens": 300 },
+        { "id": "b", "tokens": 150 },
+        { "id": "c", "tokens": 90 }
+      ],
+      "budget": 400,
+      "picked": ["a", "b", "c"],
+      "kept": ["a", "c"]
+    },
+    {
+      "name": "names not offered are ignored, and each entry counts once",
+      "entries": [
+        { "id": "a", "tokens": 100 },
+        { "id": "b", "tokens": 100 }
+      ],
+      "budget": 150,
+      "picked": ["zzz", "b", "b", "a"],
+      "kept": ["b"]
+    },
+    {
+      "name": "what the pick leaves out is dropped",
+      "entries": [
+        { "id": "a", "tokens": 100 },
+        { "id": "b", "tokens": 100 }
+      ],
+      "budget": 500,
+      "picked": ["a"],
+      "kept": ["a"]
+    }
+  ]
+}

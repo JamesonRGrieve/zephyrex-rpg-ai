@@ -1,0 +1,66 @@
+{
+  "$comment": "AP7: spotlight balance at a multiplayer table. Over the table's last `window` story lines, each player character's share of the players' lines is counted (NPC and GM lines don't count; out-of-character lines never do). A PC whose share is under `quiet_share` of an even split, or who hasn't spoken in the window, is quiet; the quietest come first (fewest lines, then longest since they last spoke, then name), at most `max_named`. The GM reads one line naming them. Both twins run these cases: client/src/features/campaign/spotlight.ts and server/extensions/ai_campaign/Spotlight.py.",
+  "window": 30,
+  "quiet_share": 0.6,
+  "max_named": 2,
+  "note": "Draw in the quieter players: {names}.",
+  "cases": [
+    {
+      "name": "an even table has no one quiet",
+      "pcs": ["Ada", "Bram"],
+      "lines": [
+        { "speaker": "Ada", "channel": "story" },
+        { "speaker": "Bram", "channel": "story" },
+        { "speaker": "Ada", "channel": "story" },
+        { "speaker": "Bram", "channel": "story" }
+      ],
+      "quiet": [],
+      "note": ""
+    },
+    {
+      "name": "a PC who barely speaks is quiet; NPC, GM and OOC lines don't count",
+      "pcs": ["Ada", "Bram", "Cole"],
+      "lines": [
+        { "speaker": "Ada", "channel": "story" },
+        { "speaker": "Ada", "channel": "story" },
+        { "speaker": "Mira", "channel": "story" },
+        { "speaker": "GM", "channel": "story" },
+        { "speaker": "Bram", "channel": "story" },
+        { "speaker": "Ada", "channel": "story" },
+        { "speaker": "Bram", "channel": "story" },
+        { "speaker": "Cole", "channel": "ooc" },
+        { "speaker": "Cole", "channel": "ooc" },
+        { "speaker": "Cole", "channel": "story" }
+      ],
+      "quiet": ["Cole"],
+      "note": "Draw in the quieter players: Cole."
+    },
+    {
+      "name": "silent PCs come first, the longest silent first; at most two are named",
+      "pcs": ["Ada", "Bram", "Cole", "Dara"],
+      "lines": [
+        { "speaker": "Dara", "channel": "story" },
+        { "speaker": "Ada", "channel": "story" },
+        { "speaker": "Ada", "channel": "story" },
+        { "speaker": "Ada", "channel": "story" },
+        { "speaker": "Ada", "channel": "story" }
+      ],
+      "quiet": ["Bram", "Cole"],
+      "note": "Draw in the quieter players: Bram and Cole."
+    },
+    {
+      "name": "only the last window of lines counts",
+      "pcs": ["Ada", "Bram"],
+      "lines_repeat": { "first": { "speaker": "Bram", "channel": "story", "count": 40 }, "then": { "speaker": "Ada", "channel": "story", "count": 30 } },
+      "quiet": ["Bram"],
+      "note": "Draw in the quieter players: Bram."
+    },
+    {
+      "name": "one PC, or none, is never anyone to draw in",
+      "pcs": ["Ada"],
+      "lines": [{ "speaker": "GM", "channel": "story" }],
+      "quiet": [],
+      "note": ""
+    }
+  ]
+}

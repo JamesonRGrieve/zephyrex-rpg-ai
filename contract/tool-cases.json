@@ -1,0 +1,86 @@
+{
+  "$comment": "A46: tool calling for models that support it (OpenAI-compatible tool_calls). A streamed reply's tool_calls arrive in pieces by index; they are put together into whole calls in index order. Each call is checked against the tools this request offered: a name not offered, or arguments that aren't a JSON object, is refused and never run (a model chooses only from the options it was given). The follow-up turn is the assistant message naming the calls, then one tool message per call with its result or refusal. Both twins run these cases: client/src/features/chat/toolCalls.ts and server/extensions/ai_chat/ToolCalls.py.",
+  "refusals": {
+    "not_offered": "That tool was not offered.",
+    "bad_arguments": "The arguments were not a JSON object."
+  },
+  "assemble": [
+    {
+      "name": "one call, its arguments in pieces",
+      "chunks": [
+        { "index": 0, "id": "call_1", "name": "web_search", "arguments": "" },
+        { "index": 0, "arguments": "{\"query\": " },
+        { "index": 0, "arguments": "\"tides\"}" }
+      ],
+      "calls": [{ "id": "call_1", "name": "web_search", "arguments": "{\"query\": \"tides\"}" }]
+    },
+    {
+      "name": "two calls interleaved come out in index order",
+      "chunks": [
+        { "index": 1, "id": "call_b", "name": "roll", "arguments": "{\"formula\"" },
+        { "index": 0, "id": "call_a", "name": "web_search", "arguments": "{\"query\": \"x\"}" },
+        { "index": 1, "arguments": ": \"1d20\"}" }
+      ],
+      "calls": [
+        { "id": "call_a", "name": "web_search", "arguments": "{\"query\": \"x\"}" },
+        { "id": "call_b", "name": "roll", "arguments": "{\"formula\": \"1d20\"}" }
+      ]
+    },
+    {
+      "name": "no tool calls is no calls",
+      "chunks": [],
+      "calls": []
+    }
+  ],
+  "check": [
+    {
+      "name": "an offered tool with object arguments is runnable",
+      "offered": ["web_search", "roll"],
+      "calls": [{ "id": "call_1", "name": "roll", "arguments": "{\"formula\": \"1d20+3\"}" }],
+      "checked": [{ "id": "call_1", "name": "roll", "args": { "formula": "1d20+3" } }]
+    },
+    {
+      "name": "a tool not offered is refused, whatever its arguments",
+      "offered": ["web_search"],
+      "calls": [{ "id": "call_1", "name": "delete_everything", "arguments": "{}" }],
+      "checked": [{ "id": "call_1", "name": "delete_everything", "refused": "not_offered" }]
+    },
+    {
+      "name": "arguments that are not a JSON object are refused",
+      "offered": ["roll"],
+      "calls": [
+        { "id": "call_1", "name": "roll", "arguments": "1d20" },
+        { "id": "call_2", "name": "roll", "arguments": "[\"1d20\"]" },
+        { "id": "call_3", "name": "roll", "arguments": "" }
+      ],
+      "checked": [
+        { "id": "call_1", "name": "roll", "refused": "bad_arguments" },
+        { "id": "call_2", "name": "roll", "refused": "bad_arguments" },
+        { "id": "call_3", "name": "roll", "args": {} }
+      ]
+    }
+  ],
+  "follow_up": [
+    {
+      "name": "the calls, then each result or refusal in order",
+      "calls": [
+        { "id": "call_1", "name": "roll", "arguments": "{\"formula\": \"1d20\"}" },
+        { "id": "call_2", "name": "nope", "arguments": "{}" }
+      ],
+      "results": { "call_1": "{\"total\": 14}" },
+      "refused": { "call_2": "not_offered" },
+      "messages": [
+        {
+          "role": "assistant",
+          "content": null,
+          "tool_calls": [
+            { "id": "call_1", "type": "function", "function": { "name": "roll", "arguments": "{\"formula\": \"1d20\"}" } },
+            { "id": "call_2", "type": "function", "function": { "name": "nope", "arguments": "{}" } }
+          ]
+        },
+        { "role": "tool", "tool_call_id": "call_1", "content": "{\"total\": 14}" },
+        { "role": "tool", "tool_call_id": "call_2", "content": "That tool was not offered." }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,51 @@
+{
+  "$comment": "A31: the scene's location, when the VTT isn't loaded to say: the wiki location the story names most recently, looking back over the last `window` story lines (out-of-character lines never count), by a location's name or alias as a whole word, any case; within one line, the one named last. None when no location is named in the window. Both twins run these cases: client/src/features/campaign/sceneLocation.ts and server/extensions/ai_campaign/SceneLocation.py.",
+  "window": 6,
+  "locations": [
+    { "id": "l1", "name": "Saltmarsh", "aliases": ["the Marsh"] },
+    { "id": "l2", "name": "Gull Tower", "aliases": [] },
+    { "id": "l3", "name": "Old Mill", "aliases": [] }
+  ],
+  "cases": [
+    {
+      "name": "the latest line that names a location decides",
+      "lines": [
+        { "text": "They left Saltmarsh at dawn.", "channel": "story" },
+        { "text": "By noon they reached Gull Tower.", "channel": "story" },
+        { "text": "The wind howled.", "channel": "story" }
+      ],
+      "location": "l2"
+    },
+    {
+      "name": "within one line, the one named last",
+      "lines": [{ "text": "From the old mill they walked back to the Marsh.", "channel": "story" }],
+      "location": "l1"
+    },
+    {
+      "name": "out-of-character lines never count",
+      "lines": [
+        { "text": "We're at Gull Tower.", "channel": "story" },
+        { "text": "should we go to saltmarsh?", "channel": "ooc" }
+      ],
+      "location": "l2"
+    },
+    {
+      "name": "nothing named in the window is none",
+      "lines": [
+        { "text": "They rested at Saltmarsh.", "channel": "story" },
+        { "text": "1", "channel": "story" },
+        { "text": "2", "channel": "story" },
+        { "text": "3", "channel": "story" },
+        { "text": "4", "channel": "story" },
+        { "text": "5", "channel": "story" },
+        { "text": "6", "channel": "story" }
+      ],
+      "location": null
+    },
+    {
+      "name": "a name inside a longer word is not a mention",
+      "lines": [{ "text": "The Marshes stretched on.", "channel": "story" }],
+      "location": null
+    }
+  ]
+}

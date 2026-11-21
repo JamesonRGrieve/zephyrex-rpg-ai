@@ -1,0 +1,39 @@
+{
+  "$comment": "A24: a session report for the wiki's campaign log. The model is asked for it from the session's story lines (never its out-of-character lines); the entities the report names (each by its name or an alias, as a whole word, any case) are linked to the log entry. Who saves it depends on who runs the game: a human GM reviews and saves, the AI GM's are saved automatically (the operator, 2026-11-20). Both twins run these cases: client/src/features/campaign/sessionReport.ts and server/extensions/ai_campaign/SessionReport.py.",
+  "max_lines": 400,
+  "system": "You write a short session report for a tabletop campaign's log, from the session's story below. Write plain prose in the past tense, in three parts with these headings: What happened, Who was met, What changed. Name people and places as the story names them. Don't invent anything the story doesn't say, and don't continue the story.",
+  "prompt": [
+    {
+      "name": "story lines only, oldest first, each with its speaker",
+      "lines": [
+        { "speaker": "Mira", "text": "The gate is closed.", "channel": "story" },
+        { "speaker": "Ada", "text": "brb, pizza", "channel": "ooc" },
+        { "speaker": "Ada", "text": "Then we climb.", "channel": "story" }
+      ],
+      "user": "Mira: The gate is closed.\nAda: Then we climb."
+    },
+    {
+      "name": "only the last lines when the session is long",
+      "lines_count": 405,
+      "first_kept": 5
+    }
+  ],
+  "mentions": [
+    {
+      "name": "names and aliases as whole words, any case, each entity once, in the order first named",
+      "text": "They reached saltmarsh at dusk. Mira of the Gate let them in; later, MIRA lied. The Marshes were quiet.",
+      "entities": [
+        { "id": "p1", "name": "Mira", "aliases": ["Mira of the Gate"] },
+        { "id": "l1", "name": "Saltmarsh", "aliases": ["the Marsh"] },
+        { "id": "f1", "name": "Iron Guild", "aliases": [] }
+      ],
+      "mentioned": ["l1", "p1"]
+    },
+    {
+      "name": "a name inside a longer word is not a mention",
+      "text": "Miranda waved.",
+      "entities": [{ "id": "p1", "name": "Mira", "aliases": [] }],
+      "mentioned": []
+    }
+  ]
+}
