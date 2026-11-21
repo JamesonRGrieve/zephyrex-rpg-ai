@@ -1942,6 +1942,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           </SheetContent>
         </Sheet>
         <ChatSettings
+          campaign={play.isCampaign}
           profiles={profileList.data ?? []}
           open={settingsOpen}
           onOpenChange={setSettingsOpen}

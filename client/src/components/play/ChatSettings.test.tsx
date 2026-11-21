@@ -2,7 +2,6 @@
 import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
-import { LORE } from '~/contract';
 import { ChatSettings } from './ChatSettings';
 
 const VALUE = {
@@ -33,30 +32,27 @@ const VALUE = {
 };
 
 describe('ChatSettings', () => {
-  it('saves the lorebooks picked, World Info settings within range, and leaves blank settings out', async () => {
-    const onSave = vi.fn();
+  it('in a campaign, offers nothing fixed by it: no lorebooks, seat, persona, folder or campaign', async () => {
     render(
       <ChatSettings
         open
+        campaign
         onOpenChange={vi.fn()}
         value={VALUE}
-        personas={[]}
+        personas={[{ id: 'p1', name: 'Sam' }]}
         presets={[]}
         endpoints={[]}
         lorebooks={[{ id: 'b1', name: 'The Kestrel' }]}
-        onSave={onSave}
+        onSave={vi.fn()}
       />,
     );
-    await userEvent.click(await screen.findByLabelText('The Kestrel'));
-    await userEvent.type(screen.getByLabelText('Messages scanned'), '5000');
-    await userEvent.click(screen.getByLabelText('Keys match whole words only'));
-    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
-    expect(onSave).toHaveBeenCalledWith(
-      expect.objectContaining({
-        lorebook_ids: ['b1'],
-        lore_settings: { scan_depth: LORE.ranges.scan_depth[1], match_whole_words: true },
-      }),
-    );
+    expect(await screen.findByLabelText('Title')).toBeInTheDocument();
+    expect(screen.queryByText('The Kestrel')).not.toBeInTheDocument();
+    expect(screen.queryByText('Lorebooks')).not.toBeInTheDocument();
+    expect(screen.queryByText('Your seat')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('You play as')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Folder')).not.toBeInTheDocument();
+    expect(screen.queryByLabelText('Campaign')).not.toBeInTheDocument();
   });
 
   it('switches the preset and the model together to a connection profile (audit gap 8)', async () => {

@@ -127,14 +127,12 @@ export function ChatSettings({
   presets,
   endpoints,
   profiles = [],
-  lorebooks,
   folders = [],
   cast = [],
-  campaigns = [],
-  scenarios = [],
   onSave,
   onSummarize,
   drawBackground,
+  campaign = false,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -144,7 +142,8 @@ export function ChatSettings({
   endpoints: readonly Option[];
   /** Connection profiles (audit gap 8): each sets the preset and the model together. */
   profiles?: readonly ProfileOption[];
-  lorebooks: readonly Option[];
+  /** Retired (the wiki owns the world): no longer offered. */
+  lorebooks?: readonly Option[];
   /** The folders other chats use, offered as suggestions. */
   folders?: readonly string[];
   /** The chat's characters; a group's members can be left out of the turn order (A52). */
@@ -158,6 +157,12 @@ export function ChatSettings({
   onSummarize?: () => Promise<string | null>;
   /** Asks the model set to draw for a background of the place the chat is set (A30, A31). */
   drawBackground?: () => Promise<{ image: string }>;
+  /**
+   * A campaign's session (the operator, 2026-11-21: "Lorebooks still there, campaign selection etc
+   * when that's not changeable in-session"): what is fixed by the campaign, or set elsewhere in play
+   * (the seat is the app bar's, the cast is the wiki's), isn't offered.
+   */
+  campaign?: boolean;
 }): ReactElement {
   const mobile = useIsMobile();
   const [draft, setDraft] = useState(value);
@@ -180,24 +185,7 @@ export function ChatSettings({
     summary: useId(),
     system: useId(),
     note: useId(),
-    scan: useId(),
-    budget: useId(),
-    recursion: useId(),
   };
-  const setLore = <K extends keyof LoreSettingsValue>(key: K, next: LoreSettingsValue[K]) =>
-    set('lore_settings', { ...draft.lore_settings, [key]: next });
-  const loreNumber = (key: 'scan_depth' | 'token_budget' | 'recursion_steps', text: string) => {
-    const [low, high] = LORE.ranges[key];
-    const value = Number.parseInt(text, 10);
-    setLore(key, Number.isNaN(value) ? undefined : Math.min(high, Math.max(low, value)));
-  };
-  const toggleBook = (id: string) =>
-    set(
-      'lorebook_ids',
-      draft.lorebook_ids.includes(id)
-        ? draft.lorebook_ids.filter((one) => one !== id)
-        : [...draft.lorebook_ids, id].slice(0, LIMITS.lorebooks_per_chat),
-    );
   const set = <K extends keyof ChatSettingsValue>(key: K, next: ChatSettingsValue[K]) =>
     setDraft((current) => ({ ...current, [key]: next }));
 
@@ -239,419 +227,367 @@ export function ChatSettings({
             onOpenChange(false);
           }}
         >
-          <div className='grid gap-1.5'>
-            <Label htmlFor={ids.title}>Title</Label>
-            <Input
-              id={ids.title}
-              value={draft.title}
-              maxLength={LIMITS.chat_title_characters}
-              className='h-11'
-              onChange={(event) => set('title', event.target.value)}
-            />
-          </div>
-          <div className='grid gap-3 sm:grid-cols-2'>
+          <section className='grid gap-4'>
+            <h3 className='border-b pb-1 text-sm font-semibold'>The story</h3>
             <div className='grid gap-1.5'>
-              <Label htmlFor={ids.folder}>Folder</Label>
+              <Label htmlFor={ids.title}>Title</Label>
               <Input
-                id={ids.folder}
-                list={ids.folderList}
-                value={draft.folder}
-                maxLength={LIMITS.name_characters}
-                placeholder='None'
+                id={ids.title}
+                value={draft.title}
+                maxLength={LIMITS.chat_title_characters}
                 className='h-11'
-                onChange={(event) => set('folder', event.target.value)}
-              />
-              <datalist id={ids.folderList}>
-                {folders.map((name) => (
-                  <option key={name} value={name} />
-                ))}
-              </datalist>
-            </div>
-            <div className='grid gap-1.5'>
-              <Label htmlFor={ids.tags}>Tags</Label>
-              <Input
-                id={ids.tags}
-                value={tagText}
-                placeholder='heist, Vell'
-                className='h-11'
-                onChange={(event) => setTagText(event.target.value)}
+                onChange={(event) => set('title', event.target.value)}
               />
             </div>
-          </div>
-          <Choice
-            label='Campaign'
-            value={draft.campaign_id}
-            options={campaigns}
-            noneLabel='None'
-            onChange={(next) => set('campaign_id', next)}
-          />
-          <Choice
-            label='Scenario'
-            value={draft.scenario_id}
-            options={scenarios}
-            noneLabel='None'
-            onChange={(next) => set('scenario_id', next)}
-          />
-          <div className='grid gap-2'>
-            <span id={ids.seat} className='text-sm font-medium'>
-              Your seat
-            </span>
-            <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.seat} className='grid gap-2 sm:grid-cols-3'>
-              {SEATS.map((seat) => (
-                <ChoiceChip
-                  key={seat.value ?? 'plain'}
-                  checked={draft.seat === seat.value}
-                  className='h-auto min-h-11 flex-col items-start px-3 py-2 text-left'
-                  onClick={() => set('seat', seat.value)}
-                >
-                  <span className='font-medium'>{seat.label}</span>
-                  <span className='text-xs'>{seat.hint}</span>
-                </ChoiceChip>
-              ))}
-            </div>
-          </div>
-          <Choice
-            label='You play as'
-            value={draft.persona_id}
-            options={personas}
-            noneLabel='Your default persona'
-            onChange={(next) => set('persona_id', next)}
-          />
-          {profiles.length > 0 && (
-            <div className='grid gap-2'>
-              <span id={ids.profile} className='text-sm font-medium'>
-                Connection profile
-              </span>
-              <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.profile} className='flex flex-wrap gap-2'>
-                {profiles.map((profile) => (
-                  <ChoiceChip
-                    key={profile.id}
-                    checked={draft.preset_id === profile.preset_id && draft.endpoint_id === profile.endpoint_id}
-                    className='h-11 px-4'
-                    onClick={() =>
-                      setDraft((now) => ({ ...now, preset_id: profile.preset_id, endpoint_id: profile.endpoint_id }))
-                    }
-                  >
-                    {profile.name}
-                  </ChoiceChip>
-                ))}
-              </div>
-            </div>
-          )}
-          <Choice
-            label='Preset'
-            value={draft.preset_id}
-            options={presets}
-            noneLabel='Default settings'
-            onChange={(next) => set('preset_id', next)}
-          />
-          <Choice
-            label='Model'
-            value={draft.endpoint_id}
-            options={endpoints}
-            noneLabel='Your default model'
-            onChange={(next) => set('endpoint_id', next)}
-          />
-          <div className='grid gap-1.5'>
-            <Label htmlFor={ids.system}>System prompt</Label>
-            <p id={`${ids.system}-hint`} className='text-xs text-muted-foreground'>
-              Replaces the character’s own for this chat. Leave it blank to keep theirs.
-            </p>
-            <Textarea
-              id={ids.system}
-              rows={3}
-              value={draft.system_prompt}
-              maxLength={LIMITS.chat_system_prompt_characters}
-              aria-describedby={`${ids.system}-hint`}
-              onChange={(event) => set('system_prompt', event.target.value)}
-            />
-          </div>
-          <div className='grid gap-1.5'>
-            <Label htmlFor={ids.note}>Author’s note</Label>
-            <p id={`${ids.note}-hint`} className='text-xs text-muted-foreground'>
-              A reminder the model reads close to the end of the chat, e.g. the mood or what happens next.
-            </p>
-            <Textarea
-              id={ids.note}
-              rows={4}
-              value={draft.author_note}
-              maxLength={LIMITS.author_note_characters}
-              aria-describedby={`${ids.note}-hint`}
-              onChange={(event) => set('author_note', event.target.value)}
-            />
-          </div>
-          <div className='grid gap-1.5'>
-            <Label htmlFor={ids.summary}>Summary</Label>
-            <p id={`${ids.summary}-hint`} className='text-xs text-muted-foreground'>
-              The story so far, as the model reads it, so a long chat keeps what fell out of the window.
-            </p>
-            <Textarea
-              id={ids.summary}
-              rows={5}
-              value={draft.summary}
-              maxLength={LIMITS.chat_summary_characters}
-              aria-describedby={`${ids.summary}-hint`}
-              onChange={(event) => set('summary', event.target.value)}
-            />
-            {onSummarize !== undefined && (
-              <Button
-                type='button'
-                variant='outline'
-                className='h-11 justify-self-start'
-                disabled={summarizing}
-                onClick={() => {
-                  setSummarizing(true);
-                  void onSummarize()
-                    .then((text) => {
-                      if (text !== null && text !== '') set('summary', text);
-                    })
-                    .finally(() => setSummarizing(false));
-                }}
-              >
-                <Sparkles aria-hidden /> {summarizing ? 'Summarising…' : 'Summarise the story so far'}
-              </Button>
+            {!campaign && (
+              <>
+                <div className='grid gap-3 sm:grid-cols-2'>
+                  <div className='grid gap-1.5'>
+                    <Label htmlFor={ids.folder}>Folder</Label>
+                    <Input
+                      id={ids.folder}
+                      list={ids.folderList}
+                      value={draft.folder}
+                      maxLength={LIMITS.name_characters}
+                      placeholder='None'
+                      className='h-11'
+                      onChange={(event) => set('folder', event.target.value)}
+                    />
+                    <datalist id={ids.folderList}>
+                      {folders.map((name) => (
+                        <option key={name} value={name} />
+                      ))}
+                    </datalist>
+                  </div>
+                  <div className='grid gap-1.5'>
+                    <Label htmlFor={ids.tags}>Tags</Label>
+                    <Input
+                      id={ids.tags}
+                      value={tagText}
+                      placeholder='heist, Vell'
+                      className='h-11'
+                      onChange={(event) => setTagText(event.target.value)}
+                    />
+                  </div>
+                </div>
+              </>
             )}
-          </div>
-          <div className='grid gap-1.5'>
-            <span className='text-sm font-medium'>Background</span>
-            <div className='flex flex-wrap items-center gap-3'>
-              {draft.background !== null && (
-                <img referrerPolicy='no-referrer' src={draft.background} alt='' className='h-16 w-28 rounded-md border object-cover' />
-              )}
-              <label
-                htmlFor={ids.background}
-                className='inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border px-4 text-sm'
-              >
-                <ImageUp className='size-4' aria-hidden /> {draft.background === null ? 'Choose a picture' : 'Change'}
-              </label>
-              <input
-                id={ids.background}
-                type='file'
-                accept={PICTURE_TYPES.join(',')}
-                className='sr-only'
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-                  event.target.value = '';
-                  if (file === undefined) return;
-                  void pictureFromFile(file).then((picture) => {
-                    setPictureProblem('refused' in picture ? picture.refused : null);
-                    if ('url' in picture) set('background', picture.url);
-                  });
-                }}
+            <div className='grid gap-1.5'>
+              <Label htmlFor={ids.note}>Author’s note</Label>
+              <p id={`${ids.note}-hint`} className='text-xs text-muted-foreground'>
+                A reminder the model reads close to the end of the chat, e.g. the mood or what happens next.
+              </p>
+              <Textarea
+                id={ids.note}
+                rows={4}
+                value={draft.author_note}
+                maxLength={LIMITS.author_note_characters}
+                aria-describedby={`${ids.note}-hint`}
+                onChange={(event) => set('author_note', event.target.value)}
               />
-              {drawBackground !== undefined && (
-                <DrawPictureButton
-                  label='Draw a background'
-                  draw={drawBackground}
-                  onDrawn={(image) => set('background', image)}
-                  onProblem={setPictureProblem}
-                />
-              )}
-              {draft.background !== null && (
-                <Button type='button' variant='ghost' className='h-11' onClick={() => set('background', null)}>
-                  Remove
+            </div>
+            <div className='grid gap-1.5'>
+              <Label htmlFor={ids.summary}>Summary</Label>
+              <p id={`${ids.summary}-hint`} className='text-xs text-muted-foreground'>
+                The story so far, as the model reads it, so a long chat keeps what fell out of the window.
+              </p>
+              <Textarea
+                id={ids.summary}
+                rows={5}
+                value={draft.summary}
+                maxLength={LIMITS.chat_summary_characters}
+                aria-describedby={`${ids.summary}-hint`}
+                onChange={(event) => set('summary', event.target.value)}
+              />
+              {onSummarize !== undefined && (
+                <Button
+                  type='button'
+                  variant='outline'
+                  className='h-11 justify-self-start'
+                  disabled={summarizing}
+                  onClick={() => {
+                    setSummarizing(true);
+                    void onSummarize()
+                      .then((text) => {
+                        if (text !== null && text !== '') set('summary', text);
+                      })
+                      .finally(() => setSummarizing(false));
+                  }}
+                >
+                  <Sparkles aria-hidden /> {summarizing ? 'Summarising…' : 'Summarise the story so far'}
                 </Button>
               )}
             </div>
-            {pictureProblem !== null && (
-              <p role='alert' className='text-sm text-destructive'>
-                {pictureProblem}
+          </section>
+          <section className='grid gap-4'>
+            <h3 className='border-b pb-1 text-sm font-semibold'>The narrator</h3>
+            <fieldset className='grid gap-3 rounded-lg border p-3'>
+              <legend className='px-1 text-sm font-medium'>Narrator style</legend>
+              <p className='text-xs text-muted-foreground'>
+                The narrator&apos;s model is picked by its reputation for these, and tuned to them. Spice and darkness stay
+                within the content rating.
               </p>
-            )}
-          </div>
-          {cast.length > 1 && (
-            <fieldset className='grid gap-2'>
-              <legend className='text-sm font-medium'>Takes turns</legend>
-              <p className='text-xs text-muted-foreground'>Members left out only speak when you pick them.</p>
-              {cast.map((member) => (
-                <label key={member.id} className='flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm'>
-                  <input
-                    type='checkbox'
-                    className='size-5'
-                    checked={!draft.muted_ids.includes(member.id)}
-                    onChange={() =>
-                      set(
-                        'muted_ids',
-                        draft.muted_ids.includes(member.id)
-                          ? draft.muted_ids.filter((id) => id !== member.id)
-                          : [...draft.muted_ids, member.id],
-                      )
-                    }
-                  />
-                  {member.name}
-                </label>
-              ))}
-            </fieldset>
-          )}
-          {cast.length > 1 && (
-            <GroupModes value={draft.group_settings ?? {}} onChange={(next) => set('group_settings', next)} />
-          )}
-          <fieldset className='grid gap-3 rounded-lg border p-3'>
-            <legend className='px-1 text-sm font-medium'>Narrator style</legend>
-            <p className='text-xs text-muted-foreground'>
-              The narrator&apos;s model is picked by its reputation for these, and tuned to them. Spice and darkness stay
-              within the content rating.
-            </p>
-            {NARRATOR_STYLE.sliders.map((slider) => {
-              const value = draft.narrator_style[slider];
-              const any = value === undefined || value === null;
-              return (
-                <div key={slider} className='grid gap-1'>
-                  <div className='flex items-center justify-between gap-2 text-sm'>
-                    <span className='capitalize'>{slider}</span>
-                    <label className='flex min-h-11 items-center gap-2 text-xs text-muted-foreground'>
-                      <input
-                        type='checkbox'
-                        className='size-4'
-                        checked={any}
-                        onChange={(event) =>
-                          set('narrator_style', { ...draft.narrator_style, [slider]: event.target.checked ? null : 0.5 })
-                        }
-                      />
-                      Any
-                    </label>
+              {NARRATOR_STYLE.sliders.map((slider) => {
+                const value = draft.narrator_style[slider];
+                const any = value === undefined || value === null;
+                return (
+                  <div key={slider} className='grid gap-1'>
+                    <div className='flex items-center justify-between gap-2 text-sm'>
+                      <span className='capitalize'>{slider}</span>
+                      <label className='flex min-h-11 items-center gap-2 text-xs text-muted-foreground'>
+                        <input
+                          type='checkbox'
+                          className='size-4'
+                          checked={any}
+                          onChange={(event) =>
+                            set('narrator_style', { ...draft.narrator_style, [slider]: event.target.checked ? null : 0.5 })
+                          }
+                        />
+                        Any
+                      </label>
+                    </div>
+                    <input
+                      type='range'
+                      min={0}
+                      max={1}
+                      step={0.1}
+                      aria-label={slider}
+                      disabled={any}
+                      value={any ? 0.5 : value}
+                      onChange={(event) =>
+                        set('narrator_style', { ...draft.narrator_style, [slider]: Number(event.target.value) })
+                      }
+                    />
                   </div>
-                  <input
-                    type='range'
-                    min={0}
-                    max={1}
-                    step={0.1}
-                    aria-label={slider}
-                    disabled={any}
-                    value={any ? 0.5 : value}
-                    onChange={(event) =>
-                      set('narrator_style', { ...draft.narrator_style, [slider]: Number(event.target.value) })
-                    }
-                  />
-                </div>
-              );
-            })}
-          </fieldset>
-          <fieldset className='grid gap-3 rounded-lg border p-3'>
-            <legend className='px-1 text-sm font-medium'>Table safety</legend>
-            <label className='flex min-h-11 items-center gap-2 text-sm'>
-              <input
-                type='checkbox'
-                className='size-4'
-                checked={draft.canon_checks}
-                onChange={(event) => set('canon_checks', event.target.checked)}
-              />
-              Canon warnings (yellow and red notices when a line breaks canon)
-            </label>
-            <div className='grid gap-2'>
-              <span id={ids.rating} className='text-sm'>
-                Content rating
-              </span>
-              <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.rating} className='flex flex-wrap gap-2'>
-                {([null, ...SAFETY.ratings] as const).map((rating) => (
-                  <ChoiceChip
-                    key={rating ?? 'none'}
-                    checked={draft.content_rating === rating}
-                    className='h-11 px-4'
-                    onClick={() => set('content_rating', rating)}
-                  >
-                    {rating === null ? 'Not set' : RATING_LABELS[rating]}
-                  </ChoiceChip>
+                );
+              })}
+            </fieldset>
+          </section>
+          <section className='grid gap-4'>
+            <h3 className='border-b pb-1 text-sm font-semibold'>The table</h3>
+            {cast.length > 1 && (
+              <fieldset className='grid gap-2'>
+                <legend className='text-sm font-medium'>Takes turns</legend>
+                <p className='text-xs text-muted-foreground'>Members left out only speak when you pick them.</p>
+                {cast.map((member) => (
+                  <label key={member.id} className='flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm'>
+                    <input
+                      type='checkbox'
+                      className='size-5'
+                      checked={!draft.muted_ids.includes(member.id)}
+                      onChange={() =>
+                        set(
+                          'muted_ids',
+                          draft.muted_ids.includes(member.id)
+                            ? draft.muted_ids.filter((id) => id !== member.id)
+                            : [...draft.muted_ids, member.id],
+                        )
+                      }
+                    />
+                    {member.name}
+                  </label>
                 ))}
-              </div>
-            </div>
-            <div className='grid gap-1.5'>
-              <Label htmlFor={ids.lines}>Lines (never, even off-screen)</Label>
-              <Input
-                id={ids.lines}
-                value={linesText}
-                placeholder='spiders, harm to children'
-                className='h-11'
-                onChange={(event) => setLinesText(event.target.value)}
-              />
-            </div>
-            <div className='grid gap-1.5'>
-              <Label htmlFor={ids.veils}>Veils (off-screen only)</Label>
-              <Input
-                id={ids.veils}
-                value={veilsText}
-                placeholder='torture, romance'
-                className='h-11'
-                onChange={(event) => setVeilsText(event.target.value)}
-              />
-            </div>
-          </fieldset>
-          <TableNotesEditor value={draft.table_notes} onChange={(next) => set('table_notes', next)} />
-          <ObjectivesEditor value={draft.objectives} onChange={(next) => set('objectives', next)} />
-          <fieldset className='grid gap-2'>
-            <legend className='text-sm font-medium'>Lorebooks</legend>
-            {lorebooks.length === 0 && <p className='text-sm text-muted-foreground'>No lorebooks yet.</p>}
-            {lorebooks.map((book) => (
-              <label key={book.id} className='flex min-h-11 items-center gap-3 rounded-md border px-3 text-sm'>
+              </fieldset>
+            )}
+            {!campaign && (
+              <>
+                <div className='grid gap-2'>
+                  <span id={ids.seat} className='text-sm font-medium'>
+                    Your seat
+                  </span>
+                  <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.seat} className='grid gap-2 sm:grid-cols-3'>
+                    {SEATS.map((seat) => (
+                      <ChoiceChip
+                        key={seat.value ?? 'plain'}
+                        checked={draft.seat === seat.value}
+                        className='h-auto min-h-11 flex-col items-start px-3 py-2 text-left'
+                        onClick={() => set('seat', seat.value)}
+                      >
+                        <span className='font-medium'>{seat.label}</span>
+                        <span className='text-xs'>{seat.hint}</span>
+                      </ChoiceChip>
+                    ))}
+                  </div>
+                </div>
+                <Choice
+                  label='You play as'
+                  value={draft.persona_id}
+                  options={personas}
+                  noneLabel='Your default persona'
+                  onChange={(next) => set('persona_id', next)}
+                />
+                {cast.length > 1 && (
+                  <GroupModes value={draft.group_settings ?? {}} onChange={(next) => set('group_settings', next)} />
+                )}
+              </>
+            )}
+            <TableNotesEditor value={draft.table_notes} onChange={(next) => set('table_notes', next)} />
+            <ObjectivesEditor value={draft.objectives} onChange={(next) => set('objectives', next)} />
+          </section>
+          <section className='grid gap-4'>
+            <h3 className='border-b pb-1 text-sm font-semibold'>Safety</h3>
+            <fieldset className='grid gap-3 rounded-lg border p-3'>
+              <legend className='px-1 text-sm font-medium'>Table safety</legend>
+              <label className='flex min-h-11 items-center gap-2 text-sm'>
                 <input
                   type='checkbox'
-                  className='size-5'
-                  checked={draft.lorebook_ids.includes(book.id)}
-                  onChange={() => toggleBook(book.id)}
+                  className='size-4'
+                  checked={draft.canon_checks}
+                  onChange={(event) => set('canon_checks', event.target.checked)}
                 />
-                {book.name}
+                Canon warnings (yellow and red notices when a line breaks canon)
               </label>
-            ))}
-          </fieldset>
-          <fieldset className='grid gap-3'>
-            <legend className='text-sm font-medium'>World Info settings</legend>
-            <div className='grid gap-3 sm:grid-cols-3'>
+              <div className='grid gap-2'>
+                <span id={ids.rating} className='text-sm'>
+                  Content rating
+                </span>
+                <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.rating} className='flex flex-wrap gap-2'>
+                  {([null, ...SAFETY.ratings] as const).map((rating) => (
+                    <ChoiceChip
+                      key={rating ?? 'none'}
+                      checked={draft.content_rating === rating}
+                      className='h-11 px-4'
+                      onClick={() => set('content_rating', rating)}
+                    >
+                      {rating === null ? 'Not set' : RATING_LABELS[rating]}
+                    </ChoiceChip>
+                  ))}
+                </div>
+              </div>
               <div className='grid gap-1.5'>
-                <Label htmlFor={ids.scan}>Messages scanned</Label>
+                <Label htmlFor={ids.lines}>Lines (never, even off-screen)</Label>
                 <Input
-                  id={ids.scan}
-                  type='number'
-                  inputMode='numeric'
+                  id={ids.lines}
+                  value={linesText}
+                  placeholder='spiders, harm to children'
                   className='h-11'
-                  placeholder={String(LORE.defaults.scan_depth)}
-                  value={draft.lore_settings.scan_depth ?? ''}
-                  onChange={(event) => loreNumber('scan_depth', event.target.value)}
+                  onChange={(event) => setLinesText(event.target.value)}
                 />
               </div>
               <div className='grid gap-1.5'>
-                <Label htmlFor={ids.budget}>Token budget</Label>
+                <Label htmlFor={ids.veils}>Veils (off-screen only)</Label>
                 <Input
-                  id={ids.budget}
-                  type='number'
-                  inputMode='numeric'
+                  id={ids.veils}
+                  value={veilsText}
+                  placeholder='torture, romance'
                   className='h-11'
-                  placeholder={String(LORE.defaults.token_budget)}
-                  value={draft.lore_settings.token_budget ?? ''}
-                  onChange={(event) => loreNumber('token_budget', event.target.value)}
+                  onChange={(event) => setVeilsText(event.target.value)}
                 />
               </div>
+            </fieldset>
+          </section>
+          <section className='grid gap-4'>
+            <h3 className='border-b pb-1 text-sm font-semibold'>Look</h3>
+            <div className='grid gap-1.5'>
+              <span className='text-sm font-medium'>Background</span>
+              <div className='flex flex-wrap items-center gap-3'>
+                {draft.background !== null && (
+                  <img
+                    referrerPolicy='no-referrer'
+                    src={draft.background}
+                    alt=''
+                    className='h-16 w-28 rounded-md border object-cover'
+                  />
+                )}
+                <label
+                  htmlFor={ids.background}
+                  className='inline-flex h-11 cursor-pointer items-center gap-2 rounded-md border px-4 text-sm'
+                >
+                  <ImageUp className='size-4' aria-hidden /> {draft.background === null ? 'Choose a picture' : 'Change'}
+                </label>
+                <input
+                  id={ids.background}
+                  type='file'
+                  accept={PICTURE_TYPES.join(',')}
+                  className='sr-only'
+                  onChange={(event) => {
+                    const file = event.target.files?.[0];
+                    event.target.value = '';
+                    if (file === undefined) return;
+                    void pictureFromFile(file).then((picture) => {
+                      setPictureProblem('refused' in picture ? picture.refused : null);
+                      if ('url' in picture) set('background', picture.url);
+                    });
+                  }}
+                />
+                {drawBackground !== undefined && (
+                  <DrawPictureButton
+                    label='Draw a background'
+                    draw={drawBackground}
+                    onDrawn={(image) => set('background', image)}
+                    onProblem={setPictureProblem}
+                  />
+                )}
+                {draft.background !== null && (
+                  <Button type='button' variant='ghost' className='h-11' onClick={() => set('background', null)}>
+                    Remove
+                  </Button>
+                )}
+              </div>
+              {pictureProblem !== null && (
+                <p role='alert' className='text-sm text-destructive'>
+                  {pictureProblem}
+                </p>
+              )}
+            </div>
+          </section>
+          <details className='rounded-lg border'>
+            <summary className='flex min-h-11 cursor-pointer items-center px-3 text-sm font-semibold'>Advanced</summary>
+            <div className='grid gap-4 p-3'>
+              <p className='text-xs text-muted-foreground'>
+                The narrator&apos;s model is chosen by the sliders above; set one here only to override it.
+              </p>
+              {profiles.length > 0 && (
+                <div className='grid gap-2'>
+                  <span id={ids.profile} className='text-sm font-medium'>
+                    Connection profile
+                  </span>
+                  <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.profile} className='flex flex-wrap gap-2'>
+                    {profiles.map((profile) => (
+                      <ChoiceChip
+                        key={profile.id}
+                        checked={draft.preset_id === profile.preset_id && draft.endpoint_id === profile.endpoint_id}
+                        className='h-11 px-4'
+                        onClick={() =>
+                          setDraft((now) => ({ ...now, preset_id: profile.preset_id, endpoint_id: profile.endpoint_id }))
+                        }
+                      >
+                        {profile.name}
+                      </ChoiceChip>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <Choice
+                label='Preset'
+                value={draft.preset_id}
+                options={presets}
+                noneLabel='Default settings'
+                onChange={(next) => set('preset_id', next)}
+              />
+              <Choice
+                label='Model'
+                value={draft.endpoint_id}
+                options={endpoints}
+                noneLabel='Your default model'
+                onChange={(next) => set('endpoint_id', next)}
+              />
               <div className='grid gap-1.5'>
-                <Label htmlFor={ids.recursion}>Recursion steps</Label>
-                <Input
-                  id={ids.recursion}
-                  type='number'
-                  inputMode='numeric'
-                  className='h-11'
-                  placeholder={String(LORE.defaults.recursion_steps)}
-                  value={draft.lore_settings.recursion_steps ?? ''}
-                  onChange={(event) => loreNumber('recursion_steps', event.target.value)}
+                <Label htmlFor={ids.system}>System prompt</Label>
+                <p id={`${ids.system}-hint`} className='text-xs text-muted-foreground'>
+                  Replaces the character’s own for this chat. Leave it blank to keep theirs.
+                </p>
+                <Textarea
+                  id={ids.system}
+                  rows={3}
+                  value={draft.system_prompt}
+                  maxLength={LIMITS.chat_system_prompt_characters}
+                  aria-describedby={`${ids.system}-hint`}
+                  onChange={(event) => set('system_prompt', event.target.value)}
                 />
               </div>
             </div>
-            <label className='flex min-h-11 items-center gap-3 text-sm'>
-              <input
-                type='checkbox'
-                className='size-5'
-                checked={draft.lore_settings.case_sensitive ?? false}
-                onChange={(event) => setLore('case_sensitive', event.target.checked)}
-              />
-              Keys are case-sensitive
-            </label>
-            <label className='flex min-h-11 items-center gap-3 text-sm'>
-              <input
-                type='checkbox'
-                className='size-5'
-                checked={draft.lore_settings.match_whole_words ?? false}
-                onChange={(event) => setLore('match_whole_words', event.target.checked)}
-              />
-              Keys match whole words only
-            </label>
-          </fieldset>
+          </details>
           <Button type='submit' className='h-11'>
             Save
           </Button>
