@@ -610,6 +610,48 @@ class TestGenerate:
         server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
         assert {key: RECEIVED[0]["body"][key] for key in ("logit_bias", "negative_prompt", "guidance_scale")} == {"logit_bias": {"50256": -100}, "negative_prompt": "purple prose", "guidance_scale": 1.5}
 
+    def test_a_presets_further_samplers_reach_only_the_apis_that_take_them(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        chat_api = _create(server, user, "model_endpoint", name="Chat", base_url=model_url, model="tiny", is_default=True).json()["model_endpoint"]
+        text_api = _create(server, user, "model_endpoint", name="Text", base_url=model_url, model="tiny", api="text").json()["model_endpoint"]
+        bad = server.post("/v1/generation_preset", json={"generation_preset": {"name": "x", "samplers": {"min_p": 3}}}, headers=_headers(user))
+        assert bad.status_code == 422, bad.text
+        samplers = {"min_p": 0.05, "presence_penalty": 0.4, "dry_base": 2, "seed": 7}
+        preset = _create(server, user, "generation_preset", name="Tuned", samplers=samplers).json()["generation_preset"]
+        assert preset["samplers"] == samplers
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], preset_id=preset["id"]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        sent = {}
+        for endpoint in (chat_api, text_api):
+            RECEIVED.clear()
+            asked = {"chat_id": chat["id"], "leaf_id": line["id"], "endpoint_id": endpoint["id"]}
+            server.post("/v1/ai_chat/generate", json={"generate": asked}, headers=_headers(user))
+            body = RECEIVED[0]["body"]
+            sent[endpoint["name"]] = {key: body[key] for key in ("min_p", "presence_penalty", "seed", "dry_base") if key in body}
+        # DRY's base never goes without its multiplier; min-P never to a chat API.
+        assert sent == {"Chat": {"presence_penalty": 0.4, "seed": 7}, "Text": {"min_p": 0.05, "presence_penalty": 0.4, "seed": 7}}
+
+    def test_macros_read_the_chat_and_its_variables_and_a_reply_keeps_what_they_set(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada", description="A pilot.").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        system = "You are {{char}} ({{description}}) on {{model}}. Mood: {{getvar::mood}}.{{setvar::seen::yes}} Said: {{lastUserMessage}}"
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], system_prompt=system, variables={"mood": "grim"}).json()["chat"]
+        assert chat["variables"] == {"mood": "grim"}
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ready?"]).json()["chat_message"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+        prompt = server.post("/v1/ai_chat/prompt", json=asked, headers=_headers(user)).json()["prompt"]
+        assert prompt["messages"][0]["content"].startswith("You are Ada (A pilot.) on tiny. Mood: grim. Said: Ready?")
+        # The preview keeps nothing; a reply keeps what its macros set.
+        assert server.get(f"/v1/chat/{chat['id']}", headers=_headers(user)).json()["chat"]["variables"] == {"mood": "grim"}
+        server.post("/v1/ai_chat/generate", json=asked, headers=_headers(user))
+        kept = server.get(f"/v1/chat/{chat['id']}", headers=_headers(user)).json()["chat"]["variables"]
+        assert kept == {"mood": "grim", "seen": "yes"}
+        too_many = {f"v{index}": "1" for index in range(CONTRACT["limits"]["chat_variables"] + 1)}
+        refused = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "variables": too_many}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+
     def test_a_sprite_is_chosen_only_from_the_characters_own_labels(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

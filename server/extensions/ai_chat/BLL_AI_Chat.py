@@ -24,6 +24,7 @@ import random
 import re
 import time
 from collections.abc import AsyncIterator, Mapping, Sequence
+from datetime import UTC, datetime
 from typing import Any, ClassVar
 
 import httpx
@@ -78,6 +79,7 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
 )
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Remembering import forget_chat, memories_for  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Samplers import sampler_params, sampler_problem  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Search import (  # type: ignore[import-not-found]
     QUERY_CHARACTERS as SEARCH_QUERY_CHARACTERS,
 )
@@ -267,6 +269,23 @@ def _base_url(url: Any) -> Any:
 
 
 class ChatChecks(PlainModel):
+    @field_validator("variables", check_fields=False)
+    @classmethod
+    def _checked_variables(cls, value: Any) -> Any:
+        """The chat's macro and STscript variables (audit gap 1): names to text, within the limits."""
+        if value is None:
+            return None
+        longest = LIMITS["variable_value_characters"]
+        if len(value) > LIMITS["chat_variables"] or any(
+            not 1 <= len(name) <= MAX_NAME or not isinstance(text, str) or len(text) > longest
+            for name, text in value.items()
+        ):
+            raise ValueError(
+                f"At most {LIMITS['chat_variables']} variables, each named in at most {MAX_NAME} characters"
+                f" and at most {LIMITS['variable_value_characters']} characters long"
+            )
+        return value
+
     @field_validator("title", check_fields=False)
     @classmethod
     def _checked_title(cls, value: Any) -> Any:
@@ -404,6 +423,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     campaign_id: str | None = Field(None, description="The campaign it belongs to; its frame is read every turn")
     scenario_id: str | None = Field(None, description="The scenario it runs; the GM's view of it is read every turn")
     paused: bool = Field(False, description="No story turns until the table resumes")
+    variables: dict[str, str] = Field(
+        default_factory=dict, description="The chat's macro and STscript variables, name to text"
+    )
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
@@ -431,6 +453,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         paused: bool = False
         campaign_id: str | None = None
         scenario_id: str | None = None
+        variables: dict[str, str] = Field(default_factory=dict)
 
     class Update(ChatChecks, BaseModel):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -456,6 +479,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         paused: bool | None = None
         campaign_id: str | None = None
         scenario_id: str | None = None
+        variables: dict[str, str] | None = None
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -502,6 +526,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("folder", "")
         kwargs.setdefault("muted_ids", [])
         kwargs.setdefault("objectives", [])
+        kwargs.setdefault("variables", {})
         kwargs.setdefault("lines", [])
         kwargs.setdefault("veils", [])
         kwargs.setdefault("table_notes", [])
@@ -710,6 +735,14 @@ class PresetChecks(PlainModel):
             raise ValueError(f"guidance_scale is {low} to {high}")
         return value
 
+    @field_validator("samplers", check_fields=False)
+    @classmethod
+    def _checked_samplers(cls, value: Any) -> Any:
+        problem = None if value is None else sampler_problem(value)
+        if problem is not None:
+            raise ValueError(problem)
+        return value
+
 
 class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["GenerationPresetManager"]]
@@ -729,6 +762,9 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
     )
     negative_prompt: str = Field("", description="What classifier-free guidance steers away from")
     guidance_scale: float | None = Field(None, description="How hard guidance steers (null: none)")
+    samplers: dict[str, Any] = Field(
+        default_factory=dict, description="SillyTavern's further samplers (audit gap 2): only the ones set"
+    )
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI sampler presets"
 
@@ -745,6 +781,7 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         logit_bias: dict[str, float] = Field(default_factory=dict)
         negative_prompt: str = Field("", max_length=LIMITS["card_field_characters"])
         guidance_scale: float | None = None
+        samplers: dict[str, Any] = Field(default_factory=dict)
 
     class Update(PresetChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -759,6 +796,7 @@ class GenerationPresetModel(ApplicationModel, UpdateMixinModel, metaclass=ModelM
         logit_bias: dict[str, float] | None = None
         negative_prompt: str | None = Field(None, max_length=LIMITS["card_field_characters"])
         guidance_scale: float | None = None
+        samplers: dict[str, Any] | None = None
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -773,6 +811,7 @@ class GenerationPresetManager(AbstractBLLManager[GenerationPresetModel], RouterM
         kwargs.setdefault("prompt_layout", [])
         kwargs.setdefault("logit_bias", {})
         kwargs.setdefault("negative_prompt", "")
+        kwargs.setdefault("samplers", {})
         for setting, value in PRESET_DEFAULTS.items():
             kwargs.setdefault(setting, value)
         return super().create(**kwargs)
@@ -1557,6 +1596,57 @@ def with_images(messages: list[dict[str, str]], images: Sequence[str]) -> list[d
     ]
 
 
+def macro_context(
+    chat: Any, path: Sequence[Any], cast: Sequence[Mapping[str, Any]], speaker_id: str, persona: Any, model: str
+) -> dict[str, Any]:
+    """What SillyTavern's macros read in a reply's prompt (audit gap 1), as lib/generate.ts's
+    macroContext: the speaker's card and the persona, the group, the branch's last lines, how long since
+    the person's last line, the clock (UTC: the server doesn't know the person's zone), a random source,
+    and the chat's variables."""
+    speaker = next((character for character in cast if character["id"] == speaker_id), None)
+    user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
+    lines = [message for message in path if message.channel in PROMPT["story_channels"]]
+
+    def last_of(role: str | None = None) -> Any:
+        return next((message for message in reversed(lines) if role is None or message.role == role), None)
+
+    def text_of(message: Any) -> str:
+        if message is None or message.swipe_index >= len(message.swipes):
+            return ""
+        return str(message.swipes[message.swipe_index])
+
+    last_user = last_of("user")
+    now = datetime.now(UTC)
+    chat_context: dict[str, Any] = {
+        "chat_id": chat.id,
+        "last_message": text_of(last_of()),
+        "last_user_message": text_of(last_user),
+        "last_char_message": text_of(last_of("character")),
+        "last_message_id": path[-1].id if path else "",
+    }
+    if last_user is not None and getattr(last_user, "created_at", None) is not None:
+        created = last_user.created_at if last_user.created_at.tzinfo else last_user.created_at.replace(tzinfo=UTC)
+        chat_context["idle_seconds"] = max(0.0, (now - created).total_seconds())
+    return {
+        "group": ", ".join(character["name"] for character in cast) if len(cast) > 1 else "",
+        "not_char": ", ".join([*(character["name"] for character in cast if character["id"] != speaker_id), user_name]),
+        "fields": {
+            "persona": persona["description"] if persona is not None else "",
+            "description": speaker["description"] if speaker else "",
+            "personality": speaker["personality"] if speaker else "",
+            "scenario": speaker["scenario"] if speaker else "",
+            "mesExamples": speaker["example_messages"] if speaker else "",
+            "charPrompt": speaker["system_prompt"] if speaker else "",
+            "charInstruction": speaker["post_history_instructions"] if speaker else "",
+            "model": model,
+        },
+        "chat": chat_context,
+        "now": {"epoch_ms": now.timestamp() * 1000, "utc_offset_minutes": 0},
+        "random": random.random,
+        "local": dict(chat.variables or {}),
+    }
+
+
 def upstream_body(
     endpoint: Any,
     sampler: Mapping[str, Any],
@@ -1590,6 +1680,8 @@ def upstream_body(
         **({"logit_bias": sampler["logit_bias"]} if sampler.get("logit_bias") else {}),
         **({"negative_prompt": sampler["negative_prompt"]} if (sampler.get("negative_prompt") or "").strip() else {}),
         **({"guidance_scale": sampler["guidance_scale"]} if sampler.get("guidance_scale") is not None else {}),
+        # SillyTavern's further samplers (audit gap 2): only the ones set, only to APIs that take them.
+        **sampler_params(sampler.get("samplers") or {}, endpoint.api or "chat"),
     }
 
 
@@ -1802,6 +1894,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         )
         return text
 
+    def _save_variables(self, chat_id: str, variables: Mapping[str, Mapping[str, str]] | None) -> None:
+        """The chat's variables after a reply's macros set them (audit gap 1), written only when they
+        changed (as lib/generate.ts's saveVariables)."""
+        if variables is None:
+            return
+        chats = self._manager(ChatManager)
+        if dict(variables["local"]) != dict(chats.get(id=chat_id).variables or {}):
+            chats.update(chat_id, variables=dict(variables["local"]))
+
     def _inputs(
         self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply", memories: str = ""
     ) -> tuple[Any, dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
@@ -1911,6 +2012,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     "logit_bias",
                     "negative_prompt",
                     "guidance_scale",
+                    "samplers",
                 )
             }
 
@@ -1996,6 +2098,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             frame,
             scenario_of(self._manager(ScenarioManager).get(id=chat.scenario_id)) if chat.scenario_id else None,
             memories,
+            macro_context(chat, path, cast, speaker_id, persona, endpoint.model),
         )
         if body.mode == "table":
             # The table GM (A11, A20) reads the table talk, with the story for reference only.
@@ -2497,6 +2600,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         assembled, request, _sampler, _active, _context = self._inputs(
             body.generate, memories=await self._memories(body.generate)
         )
+        self._save_variables(body.generate.chat_id, assembled.variables)
         if _context["endpoint"].api == "horde":
             # AI Horde (A48): asked as a job, then answered as one text completion would be.
             text = await horde_text(_context["endpoint"], _context["key"], request["json"])

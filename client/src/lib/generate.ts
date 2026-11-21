@@ -64,6 +64,7 @@ import { regexScripts } from '~/lib/regexRecords';
 import { dataBankText } from '~/features/chat/dataBank';
 import { type StoryLine, storyLines } from '~/features/memory/memory';
 import { memoriesFor, type Speaker } from '~/lib/memory';
+import { samplerParams, type SamplerValues } from '~/features/prompt/samplers';
 import { campaigns, scenarios } from '~/lib/campaignRecords';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
@@ -94,6 +95,8 @@ export interface Sampler {
   logit_bias?: Record<string, number>;
   negative_prompt?: string;
   guidance_scale?: number | null;
+  /** SillyTavern's further samplers (audit gap 2): only the ones set. */
+  samplers?: SamplerValues;
 }
 
 export interface Endpoint {
@@ -152,6 +155,7 @@ export async function generationInputs(
     paused: boolean;
     campaign_id: string | null;
     scenario_id: string | null;
+    variables: Record<string, string>;
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -177,6 +181,7 @@ export async function generationInputs(
 
   const messages = (await chatMessages.list(ownerId, new URLSearchParams({ chat_id: chat.id }))).map((row) => ({
     id: row.id,
+    created_at: row.createdAt,
     ...(chatMessages.fields(row) as {
       parent_id: string | null;
       role: PromptTurn['role'];
@@ -279,6 +284,7 @@ export async function generationInputs(
       scenario: chatFields.scenario_id === null ? null : await runningScenario(ownerId, chatFields.scenario_id),
       data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
+      macros: macroContext(chat.id, path, promptCharacters, speakerId, persona, endpointRow.model, chatFields.variables),
     },
     sampler,
     endpoint: {
@@ -333,6 +339,58 @@ async function withMemories(
   return { ...prompt, memories: await memoriesFor(ownerId, body.chat_id, lines, signal, speaker) };
 }
 
+/**
+ * What SillyTavern's macros read in a reply's prompt (audit gap 1): the speaker's card and the
+ * persona, the group, the branch's last lines, how long since the person's last line, this server's
+ * clock (lite runs where the person is), a random source, and the chat's variables.
+ */
+function macroContext(
+  chatId: string,
+  path: readonly { id: string; created_at: Date; role: string; channel: string; swipes: string[]; swipe_index: number }[],
+  cast: readonly PromptInput['characters'][number][],
+  speakerId: string,
+  persona: { name: string; description: string } | null,
+  model: string,
+  variables: Readonly<Record<string, string>>,
+): NonNullable<PromptInput['macros']> {
+  const speaker = cast.find((character) => character.id === speakerId);
+  const userName = persona?.name ?? DEFAULT_USER_NAME;
+  const story = new Set<string>(PROMPT.story_channels);
+  const lines = path.filter((message) => story.has(message.channel));
+  const lastOf = (role?: string) =>
+    [...lines].reverse().find((message) => role === undefined || message.role === role);
+  const textOf = (message: (typeof lines)[number] | undefined) => message?.swipes[message.swipe_index] ?? '';
+  const lastUser = lastOf('user');
+  const now = Date.now();
+  return {
+    group: cast.length > 1 ? cast.map((character) => character.name).join(', ') : '',
+    not_char: [...cast.filter((character) => character.id !== speakerId).map((character) => character.name), userName].join(
+      ', ',
+    ),
+    fields: {
+      persona: persona?.description ?? '',
+      description: speaker?.description ?? '',
+      personality: speaker?.personality ?? '',
+      scenario: speaker?.scenario ?? '',
+      mesExamples: speaker?.example_messages ?? '',
+      charPrompt: speaker?.system_prompt ?? '',
+      charInstruction: speaker?.post_history_instructions ?? '',
+      model,
+    },
+    chat: {
+      chat_id: chatId,
+      last_message: textOf(lastOf()),
+      last_user_message: textOf(lastUser),
+      last_char_message: textOf(lastOf('character')),
+      last_message_id: path.at(-1)?.id ?? '',
+      ...(lastUser === undefined ? {} : { idle_seconds: Math.max(0, (now - lastUser.created_at.getTime()) / 1000) }),
+    },
+    now: { epoch_ms: now, utc_offset_minutes: -new Date(now).getTimezoneOffset() },
+    random: Math.random,
+    local: variables,
+  };
+}
+
 /** A chat's campaign frame (A57), as frameText reads it; none when the campaign is gone. */
 async function campaignFrame(ownerId: string, campaignId: string): Promise<CampaignFrame | null> {
   const row = await campaigns.find(campaignId, ownerId);
@@ -362,6 +420,20 @@ async function dataBankDocuments(ownerId: string, chatId: string, characterIds: 
   const rank = (row: (typeof rows)[number]) =>
     row.scope === 'global' ? -2 : row.scope === 'chat' ? -1 : characterIds.indexOf(row.scopeId ?? '');
   return rows.sort((a, b) => rank(a) - rank(b)).map((row) => row.text);
+}
+
+/**
+ * The chat's variables after a reply's macros set them (audit gap 1); written only when they changed,
+ * and without touching the chat's version, so an open editor's next save isn't refused as stale.
+ */
+export async function saveVariables(
+  ownerId: string,
+  chatId: string,
+  before: Readonly<Record<string, string>>,
+  after: Readonly<Record<string, string>> | undefined,
+): Promise<void> {
+  if (after === undefined || JSON.stringify(after) === JSON.stringify(before)) return;
+  await prisma.chat.updateMany({ where: { id: chatId, createdById: ownerId }, data: { variables: JSON.stringify(after) } });
 }
 
 /** A chat's lore timers, kept beside the chat so writing them never makes its version stale. */
@@ -433,6 +505,8 @@ export function upstreamBody(
     ...(Object.keys(sampler.logit_bias ?? {}).length === 0 ? {} : { logit_bias: sampler.logit_bias }),
     ...((sampler.negative_prompt ?? '').trim() === '' ? {} : { negative_prompt: sampler.negative_prompt }),
     ...(sampler.guidance_scale == null ? {} : { guidance_scale: sampler.guidance_scale }),
+    // SillyTavern's further samplers (audit gap 2): only the ones set, only to APIs that take them.
+    ...samplerParams(sampler.samplers ?? {}, endpoint.api),
   };
 }
 
@@ -884,8 +958,9 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
     if (paused && body.mode !== 'table')
       throw new ApiError(409, { message: 'The table has paused the game', code: 'paused' });
     const assembled = promptFor(body.mode, await withMemories(owner.id, body, prompt, lines, speaker, nextRequest.signal));
-    // The lore timers move with the reply that read them.
+    // The lore timers move with the reply that read them, and so do the variables its macros set.
     await saveLoreState(owner.id, body.chat_id, loreState);
+    await saveVariables(owner.id, body.chat_id, prompt.macros?.local ?? {}, assembled.variables?.local);
 
     const upstream = await askModel(
       endpoint,

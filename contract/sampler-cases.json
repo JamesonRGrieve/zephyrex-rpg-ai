@@ -1,0 +1,200 @@
+{
+  "$comment": "SillyTavern's further samplers (audit gap 2): cases both twins run (client/src/features/prompt/samplers.test.ts, server/extensions/ai_chat/Samplers_test.py), against the contract's samplers block.",
+  "param_cases": [
+    {
+      "name": "nothing set, nothing sent",
+      "values": {},
+      "api": "chat",
+      "params": {}
+    },
+    {
+      "name": "a sampler at its off value isn't sent",
+      "values": {
+        "min_p": 0,
+        "typical_p": 1,
+        "seed": -1,
+        "banned_strings": []
+      },
+      "api": "text",
+      "params": {}
+    },
+    {
+      "name": "a chat API gets only the penalties and the seed",
+      "values": {
+        "min_p": 0.05,
+        "presence_penalty": 0.5,
+        "frequency_penalty": 0.3,
+        "seed": 42,
+        "dry_multiplier": 0.8
+      },
+      "api": "chat",
+      "params": {
+        "presence_penalty": 0.5,
+        "frequency_penalty": 0.3,
+        "seed": 42
+      }
+    },
+    {
+      "name": "a text API gets each under every name its backends read",
+      "values": {
+        "min_p": 0.05,
+        "typical_p": 0.9,
+        "tfs": 0.95,
+        "repetition_penalty_range": 1024,
+        "mirostat_mode": 2,
+        "mirostat_tau": 4
+      },
+      "api": "text",
+      "params": {
+        "min_p": 0.05,
+        "typical_p": 0.9,
+        "typical": 0.9,
+        "tfs": 0.95,
+        "tfs_z": 0.95,
+        "repetition_penalty_range": 1024,
+        "rep_pen_range": 1024,
+        "repeat_last_n": 1024,
+        "mirostat_mode": 2,
+        "mirostat": 2,
+        "mirostat_tau": 4
+      }
+    },
+    {
+      "name": "DRY's settings only with its multiplier",
+      "values": {
+        "dry_base": 2,
+        "dry_allowed_length": 3
+      },
+      "api": "text",
+      "params": {}
+    },
+    {
+      "name": "DRY with its multiplier; one at its off value stays out",
+      "values": {
+        "dry_multiplier": 0.8,
+        "dry_base": 2,
+        "dry_allowed_length": 2
+      },
+      "api": "text",
+      "params": {
+        "dry_multiplier": 0.8,
+        "dry_base": 2
+      }
+    },
+    {
+      "name": "AI Horde gets the samplers it takes, not the text-only ones",
+      "values": {
+        "top_n_sigma": 1,
+        "min_p": 0.1,
+        "banned_strings": [
+          "foo"
+        ],
+        "presence_penalty": 0.2
+      },
+      "api": "horde",
+      "params": {
+        "min_p": 0.1
+      }
+    },
+    {
+      "name": "banned strings and the sampler order, as lists",
+      "values": {
+        "banned_strings": [
+          "As an AI"
+        ],
+        "sampler_order": [
+          "top_k",
+          "min_p"
+        ]
+      },
+      "api": "text",
+      "params": {
+        "banned_strings": [
+          "As an AI"
+        ],
+        "banned_tokens": [
+          "As an AI"
+        ],
+        "samplers": [
+          "top_k",
+          "min_p"
+        ]
+      }
+    },
+    {
+      "name": "XTC's threshold only with its probability",
+      "values": {
+        "xtc_threshold": 0.2
+      },
+      "api": "text",
+      "params": {}
+    }
+  ],
+  "problem_cases": [
+    {
+      "name": "none set is fine",
+      "values": {},
+      "problem": null
+    },
+    {
+      "name": "a name that isn't a sampler",
+      "values": {
+        "wobble": 1
+      },
+      "problem": "wobble isn't a sampler"
+    },
+    {
+      "name": "out of range",
+      "values": {
+        "min_p": 1.5
+      },
+      "problem": "min_p is from 0 to 1"
+    },
+    {
+      "name": "a fraction where a whole number goes",
+      "values": {
+        "mirostat_mode": 1.5
+      },
+      "problem": "mirostat_mode is a whole number"
+    },
+    {
+      "name": "XTC's threshold above its range",
+      "values": {
+        "xtc_threshold": 0.6
+      },
+      "problem": "xtc_threshold is from 0 to 0.5"
+    },
+    {
+      "name": "text where a list goes",
+      "values": {
+        "banned_strings": "foo"
+      },
+      "problem": "banned_strings takes up to 64 lines of at most 200 characters"
+    },
+    {
+      "name": "text where a number goes",
+      "values": {
+        "seed": "1"
+      },
+      "problem": "seed is from -1 to 2147483647"
+    },
+    {
+      "name": "a fractional bound printed as written",
+      "values": {
+        "dynatemp_exponent": 0.005
+      },
+      "problem": "dynatemp_exponent is from 0.01 to 10"
+    },
+    {
+      "name": "values in range are fine",
+      "values": {
+        "min_p": 0.05,
+        "seed": 7,
+        "banned_strings": [
+          "x"
+        ]
+      },
+      "problem": null
+    }
+  ]
+}

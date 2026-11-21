@@ -528,6 +528,506 @@
     "embed",
     "decide"
   ],
+  "samplers": {
+    "$comment": "SillyTavern's samplers beyond the four every preset has (audit gap 2). A preset keeps only the ones set, in its `samplers` object. One is sent upstream only when it's set away from `neutral`, only to the API families in `apis` (chat, text, horde), and only when the sampler it `requires` is itself set away from neutral; it is sent under every name in `wire`, so llama.cpp, KoboldCpp, Ooba and TabbyAPI each find theirs. A `strings` sampler's range is how many items it may hold, each at most `string_characters`. Cases in contract/sampler-cases.json.",
+    "string_characters": 200,
+    "groups": [
+      "truncation",
+      "penalties",
+      "dry_xtc",
+      "mirostat",
+      "dynamic_temperature",
+      "other"
+    ],
+    "params": [
+      {
+        "name": "min_p",
+        "kind": "number",
+        "range": [
+          0,
+          1
+        ],
+        "neutral": 0,
+        "wire": [
+          "min_p"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "truncation"
+      },
+      {
+        "name": "typical_p",
+        "kind": "number",
+        "range": [
+          0,
+          1
+        ],
+        "neutral": 1,
+        "wire": [
+          "typical_p",
+          "typical"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "truncation"
+      },
+      {
+        "name": "top_a",
+        "kind": "number",
+        "range": [
+          0,
+          1
+        ],
+        "neutral": 0,
+        "wire": [
+          "top_a"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "truncation"
+      },
+      {
+        "name": "tfs",
+        "kind": "number",
+        "range": [
+          0,
+          1
+        ],
+        "neutral": 1,
+        "wire": [
+          "tfs",
+          "tfs_z"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "truncation"
+      },
+      {
+        "name": "top_n_sigma",
+        "kind": "number",
+        "range": [
+          0,
+          10
+        ],
+        "neutral": 0,
+        "wire": [
+          "top_n_sigma",
+          "nsigma"
+        ],
+        "apis": [
+          "text"
+        ],
+        "group": "truncation"
+      },
+      {
+        "name": "epsilon_cutoff",
+        "kind": "number",
+        "range": [
+          0,
+          9
+        ],
+        "neutral": 0,
+        "wire": [
+          "epsilon_cutoff"
+        ],
+        "apis": [
+          "text"
+        ],
+        "group": "truncation"
+      },
+      {
+        "name": "eta_cutoff",
+        "kind": "number",
+        "range": [
+          0,
+          20
+        ],
+        "neutral": 0,
+        "wire": [
+          "eta_cutoff"
+        ],
+        "apis": [
+          "text"
+        ],
+        "group": "truncation"
+      },
+      {
+        "name": "presence_penalty",
+        "kind": "number",
+        "range": [
+          -2,
+          2
+        ],
+        "neutral": 0,
+        "wire": [
+          "presence_penalty"
+        ],
+        "apis": [
+          "chat",
+          "text"
+        ],
+        "group": "penalties"
+      },
+      {
+        "name": "frequency_penalty",
+        "kind": "number",
+        "range": [
+          -2,
+          2
+        ],
+        "neutral": 0,
+        "wire": [
+          "frequency_penalty"
+        ],
+        "apis": [
+          "chat",
+          "text"
+        ],
+        "group": "penalties"
+      },
+      {
+        "name": "repetition_penalty_range",
+        "kind": "integer",
+        "range": [
+          0,
+          65536
+        ],
+        "neutral": 0,
+        "wire": [
+          "repetition_penalty_range",
+          "rep_pen_range",
+          "repeat_last_n"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "penalties"
+      },
+      {
+        "name": "repetition_penalty_slope",
+        "kind": "number",
+        "range": [
+          0,
+          10
+        ],
+        "neutral": 1,
+        "wire": [
+          "rep_pen_slope"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "penalties"
+      },
+      {
+        "name": "dry_multiplier",
+        "kind": "number",
+        "range": [
+          0,
+          5
+        ],
+        "neutral": 0,
+        "wire": [
+          "dry_multiplier"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dry_xtc"
+      },
+      {
+        "name": "dry_base",
+        "kind": "number",
+        "range": [
+          1,
+          4
+        ],
+        "neutral": 1.75,
+        "wire": [
+          "dry_base"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dry_xtc",
+        "requires": "dry_multiplier"
+      },
+      {
+        "name": "dry_allowed_length",
+        "kind": "integer",
+        "range": [
+          0,
+          20
+        ],
+        "neutral": 2,
+        "wire": [
+          "dry_allowed_length"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dry_xtc",
+        "requires": "dry_multiplier"
+      },
+      {
+        "name": "dry_penalty_last_n",
+        "kind": "integer",
+        "range": [
+          0,
+          65536
+        ],
+        "neutral": 0,
+        "wire": [
+          "dry_penalty_last_n"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dry_xtc",
+        "requires": "dry_multiplier"
+      },
+      {
+        "name": "dry_sequence_breakers",
+        "kind": "strings",
+        "range": [
+          0,
+          32
+        ],
+        "neutral": [],
+        "wire": [
+          "dry_sequence_breakers"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dry_xtc",
+        "requires": "dry_multiplier"
+      },
+      {
+        "name": "xtc_probability",
+        "kind": "number",
+        "range": [
+          0,
+          1
+        ],
+        "neutral": 0,
+        "wire": [
+          "xtc_probability"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dry_xtc"
+      },
+      {
+        "name": "xtc_threshold",
+        "kind": "number",
+        "range": [
+          0,
+          0.5
+        ],
+        "neutral": 0.1,
+        "wire": [
+          "xtc_threshold"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dry_xtc",
+        "requires": "xtc_probability"
+      },
+      {
+        "name": "mirostat_mode",
+        "kind": "integer",
+        "range": [
+          0,
+          2
+        ],
+        "neutral": 0,
+        "wire": [
+          "mirostat_mode",
+          "mirostat"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "mirostat"
+      },
+      {
+        "name": "mirostat_tau",
+        "kind": "number",
+        "range": [
+          0,
+          20
+        ],
+        "neutral": 5,
+        "wire": [
+          "mirostat_tau"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "mirostat",
+        "requires": "mirostat_mode"
+      },
+      {
+        "name": "mirostat_eta",
+        "kind": "number",
+        "range": [
+          0,
+          1
+        ],
+        "neutral": 0.1,
+        "wire": [
+          "mirostat_eta"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "mirostat",
+        "requires": "mirostat_mode"
+      },
+      {
+        "name": "dynatemp_range",
+        "kind": "number",
+        "range": [
+          0,
+          5
+        ],
+        "neutral": 0,
+        "wire": [
+          "dynatemp_range"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dynamic_temperature"
+      },
+      {
+        "name": "dynatemp_exponent",
+        "kind": "number",
+        "range": [
+          0.01,
+          10
+        ],
+        "neutral": 1,
+        "wire": [
+          "dynatemp_exponent"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "dynamic_temperature",
+        "requires": "dynatemp_range"
+      },
+      {
+        "name": "smoothing_factor",
+        "kind": "number",
+        "range": [
+          0,
+          10
+        ],
+        "neutral": 0,
+        "wire": [
+          "smoothing_factor"
+        ],
+        "apis": [
+          "text",
+          "horde"
+        ],
+        "group": "other"
+      },
+      {
+        "name": "smoothing_curve",
+        "kind": "number",
+        "range": [
+          1,
+          10
+        ],
+        "neutral": 1,
+        "wire": [
+          "smoothing_curve"
+        ],
+        "apis": [
+          "text"
+        ],
+        "group": "other",
+        "requires": "smoothing_factor"
+      },
+      {
+        "name": "seed",
+        "kind": "integer",
+        "range": [
+          -1,
+          2147483647
+        ],
+        "neutral": -1,
+        "wire": [
+          "seed"
+        ],
+        "apis": [
+          "chat",
+          "text"
+        ],
+        "group": "other"
+      },
+      {
+        "name": "banned_strings",
+        "kind": "strings",
+        "range": [
+          0,
+          64
+        ],
+        "neutral": [],
+        "wire": [
+          "banned_strings",
+          "banned_tokens"
+        ],
+        "apis": [
+          "text"
+        ],
+        "group": "other"
+      },
+      {
+        "name": "sampler_order",
+        "kind": "strings",
+        "range": [
+          0,
+          16
+        ],
+        "neutral": [],
+        "wire": [
+          "samplers"
+        ],
+        "apis": [
+          "text"
+        ],
+        "group": "other"
+      }
+    ]
+  },
   "sampler_extras": {
     "logit_bias_range": [
       -100,

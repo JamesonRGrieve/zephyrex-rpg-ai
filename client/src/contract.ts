@@ -73,6 +73,22 @@ export type DepthRole = (typeof DEPTH_ROLES)[number];
 
 /** Logit bias and CFG (A47): passed to the model only when set. */
 export const SAMPLER_EXTRAS = contract.sampler_extras;
+/** One of SillyTavern's further samplers (audit gap 2): its range, its off value, its names on the wire, the APIs that take it. */
+export interface SamplerParam {
+  name: string;
+  kind: 'number' | 'integer' | 'strings';
+  range: readonly [number, number];
+  neutral: number | readonly string[];
+  wire: readonly string[];
+  apis: readonly ('chat' | 'text' | 'horde')[];
+  group: string;
+  requires?: string;
+}
+/** The further samplers, in the order the preset editor shows them (cases in contract/sampler-cases.json). */
+export const SAMPLERS = {
+  ...contract.samplers,
+  params: contract.samplers.params as unknown as readonly SamplerParam[],
+};
 
 /** Text-completion prompt markup (features/prompt/instruct.ts; cases in contract/instruct-cases.json). */
 export const INSTRUCT_TEMPLATES = contract.instruct_templates;

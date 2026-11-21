@@ -40,6 +40,7 @@ import {
   INSTRUCT_TEMPLATES,
   type InstructTemplateId,
 } from '~/contract';
+import { samplerProblem } from '~/features/prompt/samplers';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -557,6 +558,7 @@ const PRESET_COLUMNS: Columns = {
   logit_bias: jsonObject('logitBias'),
   negative_prompt: plain('negativePrompt'),
   guidance_scale: plain('guidanceScale'),
+  samplers: jsonObject('samplers'),
 };
 
 const ranged = (setting: keyof typeof SAMPLER_RANGES) =>
@@ -608,6 +610,11 @@ const presetFields = {
     .min(SAMPLER_EXTRAS.guidance_scale_range[0] as number)
     .max(SAMPLER_EXTRAS.guidance_scale_range[1] as number)
     .nullable(),
+  /** SillyTavern's further samplers (audit gap 2): only the ones set, each in its contract range. */
+  samplers: z.record(z.string(), z.union([z.number(), z.array(z.string())])).superRefine((values, context) => {
+    const problem = samplerProblem(values);
+    if (problem !== null) context.addIssue({ code: 'custom', message: problem });
+  }),
 };
 const presetCreate = z.object({
   name,
@@ -622,6 +629,7 @@ const presetCreate = z.object({
   logit_bias: presetFields.logit_bias.default({}),
   negative_prompt: presetFields.negative_prompt.default(''),
   guidance_scale: presetFields.guidance_scale.default(null),
+  samplers: presetFields.samplers.default({}),
 });
 const presetUpdate = z.object({ name, ...presetFields }).partial();
 

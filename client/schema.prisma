@@ -131,6 +131,8 @@ model GenerationPreset {
   logitBias         String   @default("{}")
   negativePrompt    String   @default("")
   guidanceScale     Float?
+  /// SillyTavern's further samplers (audit gap 2): only the ones set, as a JSON object (features/prompt/samplers.ts).
+  samplers          String   @default("{}")
   createdAt         DateTime @default(now())
   updatedAt         DateTime
   updatedById       String?

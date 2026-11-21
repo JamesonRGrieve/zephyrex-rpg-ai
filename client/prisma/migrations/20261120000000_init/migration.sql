@@ -106,6 +106,7 @@ CREATE TABLE "GenerationPreset" (
     "logitBias" TEXT NOT NULL DEFAULT '{}',
     "negativePrompt" TEXT NOT NULL DEFAULT '',
     "guidanceScale" REAL,
+    "samplers" TEXT NOT NULL DEFAULT '{}',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

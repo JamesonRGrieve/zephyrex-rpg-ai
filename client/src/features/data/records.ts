@@ -143,6 +143,8 @@ export const presetSchema = z.object({
   logit_bias: z.record(z.string(), z.number()),
   negative_prompt: z.string(),
   guidance_scale: z.number().nullable(),
+  /** SillyTavern's further samplers (audit gap 2): only the ones set. */
+  samplers: z.record(z.string(), z.union([z.number(), z.array(z.string())])).default({}),
 });
 export type Preset = z.infer<typeof presetSchema>;
 

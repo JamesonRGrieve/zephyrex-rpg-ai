@@ -12,7 +12,10 @@ import type { PromptSection } from '~/features/prompt/assemble';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, PRESET_DEFAULTS, SAMPLER_RANGES, type SamplerSetting, SAMPLER_EXTRAS } from '~/contract';
 import { type Preset, presets, refreshedByRecords } from '~/features/data/records';
+import { presetFromSillyTavern } from '~/features/import/stPreset';
+import type { SamplerValue } from '~/features/prompt/samplers';
 import { ManagedList } from './ManagedList';
+import { MoreSamplers } from './MoreSamplers';
 
 type Samplers = Record<SamplerSetting, number>;
 
@@ -101,8 +104,33 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
   );
   const [negative, setNegative] = useState(preset?.negative_prompt ?? '');
   const [guidance, setGuidance] = useState(preset?.guidance_scale?.toString() ?? '');
+  const [further, setFurther] = useState<Record<string, SamplerValue>>(preset?.samplers ?? {});
+  const [imported, setImported] = useState<string | null>(null);
   const writes = useWrites(refreshedByRecords);
-  const ids = { name: useId(), stops: useId(), bias: useId(), negative: useId(), guidance: useId() };
+  const ids = { name: useId(), stops: useId(), bias: useId(), negative: useId(), guidance: useId(), file: useId() };
+
+  // A SillyTavern preset read in (audit gap 2): what it sets replaces the form's, and what didn't map is named.
+  const importFile = async (file: File | undefined) => {
+    if (file === undefined) return;
+    let json: unknown = null;
+    try {
+      json = JSON.parse(await file.text());
+    } catch {
+      setImported('That file isn’t a SillyTavern preset (not JSON).');
+      return;
+    }
+    const read = presetFromSillyTavern(json);
+    setValues((current) => ({ ...current, ...read.base }));
+    setFurther(read.samplers);
+    if (read.negative_prompt !== undefined) setNegative(read.negative_prompt);
+    if (read.guidance_scale !== undefined) setGuidance(String(read.guidance_scale));
+    if (name.trim() === '') setName(file.name.replace(/\.json$/i, ''));
+    setImported(
+      read.unmapped.length === 0
+        ? 'Read in. Save to keep it.'
+        : `Read in. Not brought over: ${read.unmapped.join(', ')}. Save to keep it.`,
+    );
+  };
 
   const save = async () => {
     const [low, high] = SAMPLER_EXTRAS.guidance_scale_range as [number, number];
@@ -115,6 +143,7 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
       logit_bias: parseLogitBias(bias),
       negative_prompt: negative,
       guidance_scale: Number.isNaN(scale) ? null : Math.min(high, Math.max(low, scale)),
+      samplers: further,
     };
     if (await writes.run(preset === null ? create(fields) : update(preset, fields), 'Not saved', 'Saved')) done();
   };
@@ -212,12 +241,30 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
           </div>
         </div>
       </details>
+      <MoreSamplers value={further} onChange={setFurther} />
+      <div className='grid gap-1.5'>
+        <Label htmlFor={ids.file}>Import a SillyTavern preset</Label>
+        <Input
+          id={ids.file}
+          type='file'
+          accept='application/json,.json'
+          className='h-11'
+          aria-describedby={`${ids.file}-status`}
+          onChange={(event) => void importFile(event.target.files?.[0])}
+        />
+        <p id={`${ids.file}-status`} role='status' className='text-xs text-muted-foreground'>
+          {imported ?? 'A text- or chat-completion preset; what has no counterpart here is listed.'}
+        </p>
+      </div>
       <WriteProblem problem={writes.problem} />
       <div className='flex gap-2'>
         <Button type='submit' className='h-11 flex-1' disabled={name.trim() === ''}>
           Save
         </Button>
-        <Button type='button' variant='outline' className='h-11' onClick={() => setValues(samplersOf(PRESET_DEFAULTS))}>
+        <Button type='button' variant='outline' className='h-11' onClick={() => {
+            setValues(samplersOf(PRESET_DEFAULTS));
+            setFurther({});
+          }}>
           Defaults
         </Button>
       </div>
