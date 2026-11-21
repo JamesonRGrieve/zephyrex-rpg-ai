@@ -73,7 +73,10 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
   await expect.poll(() => page.getByRole('article', { name: 'Narrator' }).count()).toBeGreaterThan(narrations);
   await expect(page.getByRole('button', { name: 'Stop the reply' })).toHaveCount(0);
   await seat(page, 'Massen');
+  await expect(page.getByRole('list', { name: 'In this chat' })).toContainText('Massen');
+  // An NPC joins the party only while played: leaving his seat, Massen leaves the party.
   await seat(page, null);
+  await expect(page.getByRole('list', { name: 'In this chat' })).not.toContainText('Massen');
 
   // End the session: Session 2 starts at its marker.
   await page.getByRole('button', { name: 'More for this chat' }).click();

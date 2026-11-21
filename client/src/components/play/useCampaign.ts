@@ -30,7 +30,7 @@ export interface CampaignState {
   playingId: string | null;
   /** The characters the AI plays. */
   aiIds: string[];
-  setSeat: (playingId: string | null) => Promise<void>;
+  setSeat: (playingId: string | null, isPartyMember?: (id: string) => boolean) => Promise<void>;
   ending: boolean;
   endSession: (leaf: ChatMessage | null) => Promise<string | null>;
   fork: (at: ChatMessage, path: readonly ChatMessage[]) => Promise<string | null>;
@@ -59,15 +59,25 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
   const freshChat = async (): Promise<Chat> =>
     chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${chat.id}`)), 'chat'));
 
-  const setSeat = async (next: string | null) => {
+  /**
+   * Takes a seat. An NPC taken over joins the party while played: when the seat moves off a
+   * character who isn't a party member (`isPartyMember`, the PC tag), they leave it again.
+   */
+  const setSeat = async (next: string | null, isPartyMember: (id: string) => boolean = () => true) => {
     if (play === null) return;
+    const previous = play.playing_id;
     await updatePlay(play, { playing_id: next });
     const current = await freshChat();
-    // One write to the chat: the seat, and a character from outside the party joining it while played.
-    const joins = next !== null && !current.character_ids.includes(next);
+    const leaving = previous !== null && previous !== next && !isPartyMember(previous) ? previous : null;
+    const kept = current.character_ids.filter((id) => id !== leaving);
+    const joins = next !== null && !kept.includes(next);
+    const cast = joins ? [...kept, next] : kept;
+    // One write to the chat: the seat, and who is in the party now.
     await updateChat(current, {
       seat: next === null ? 'gm' : 'player',
-      ...(joins ? { character_ids: [...current.character_ids, next], mode: 'group' as const } : {}),
+      ...(cast.length === current.character_ids.length && !joins
+        ? {}
+        : { character_ids: cast, mode: cast.length > 1 ? ('group' as const) : ('character' as const) }),
     });
   };
 

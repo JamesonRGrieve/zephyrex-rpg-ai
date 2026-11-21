@@ -113,6 +113,7 @@ import { sessionName } from '~/features/data/playRecords';
 import { useCampaign } from './useCampaign';
 import { useEndSession } from './useEndSession';
 import type { CanonNoticeValue } from './CanonNotice';
+import { PARTY_TAG } from './CampaignStart';
 import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { Recap } from './Recap';
@@ -1110,7 +1111,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               }))}
               onChange={(next) =>
                 void play
-                  .setSeat(next)
+                  .setSeat(next, (id) => castById.get(id)?.tags.includes(PARTY_TAG) ?? false)
                   .catch((error: unknown) =>
                     notify('The seat was not changed', error instanceof Error ? error.message : undefined),
                   )
