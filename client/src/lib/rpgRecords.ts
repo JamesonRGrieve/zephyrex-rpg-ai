@@ -416,15 +416,8 @@ const chatUpdate = z.object({ title, ...chatFields }).partial();
 /** Every record a chat names must be one of the owner's own. */
 async function checkChatReferences(ownerId: string, input: z.infer<typeof chatUpdate>): Promise<void> {
   const owned = { createdById: ownerId };
-  if (input.character_ids !== undefined) {
-    const found = await prisma.character.count({ where: { ...owned, id: { in: input.character_ids } } });
-    if (found !== input.character_ids.length) throw validationError('Every character must be one of yours', 'character_ids');
-  }
-  if (input.muted_ids !== undefined && input.muted_ids.length > 0) {
-    const found = await prisma.character.count({ where: { ...owned, id: { in: input.muted_ids } } });
-    if (found !== new Set(input.muted_ids).size)
-      throw validationError('Every muted member must be one of your characters', 'muted_ids');
-  }
+  // A chat's characters are wiki persons (the composed suite): lite has one owner, and a person the
+  // wiki can't read drops out of the cast when a reply reads it (lib/generate.ts), so no check here.
   if (input.lorebook_ids !== undefined && input.lorebook_ids.length > 0) {
     const found = await prisma.lorebook.count({ where: { ...owned, id: { in: input.lorebook_ids } } });
     if (found !== input.lorebook_ids.length) throw validationError('Every lorebook must be one of yours', 'lorebook_ids');

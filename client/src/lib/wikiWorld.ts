@@ -6,19 +6,38 @@
  * (no such route), there is no world lore.
  */
 import { WORLD_LORE } from '~/contract';
-import type { WorldEntity } from '~/features/lore/worldLore';
+import type { CastEntity } from '~/features/prompt/worldCast';
 
-/** A campaign's world entities, or none. */
-export type WorldReader = (campaignId: string) => Promise<WorldEntity[]>;
+/**
+ * The wiki's world entities: a campaign's (with its setting's canon), and specific ones by id (a
+ * sandbox's persons from other campaigns; GET /api/v1/world_entity?ids=, wiki world_entities_by_id).
+ * None that can't be read.
+ */
+export interface WorldReader {
+  campaign: (campaignId: string) => Promise<CastEntity[]>;
+  byIds: (ids: readonly string[]) => Promise<CastEntity[]>;
+}
 
-export const NO_WORLD: WorldReader = async () => [];
+export const NO_WORLD: WorldReader = { campaign: async () => [], byIds: async () => [] };
 
 /** A reader that asks this app's own wiki resource, with the request's cookies (the caller's access). */
 export function wikiReader(request: Request): WorldReader {
   const origin = new URL(request.url).origin;
   const cookie = request.headers.get('cookie');
-  return async (campaignId) => {
-    const found: WorldEntity[] = [];
+  const ask = async (query: URLSearchParams): Promise<{ rows: CastEntity[]; next: string | null } | null> => {
+    const answer = await fetch(`${origin}/api/v1/world_entity?${query.toString()}`, {
+      headers: cookie === null ? {} : { cookie },
+      signal: request.signal,
+    }).catch(() => null);
+    if (answer === null || !answer.ok) return null;
+    const body: unknown = await answer.json().catch(() => null);
+    const rows: unknown = Reflect.get(Object(body), 'world_entities');
+    if (!Array.isArray(rows)) return null;
+    const next: unknown = Reflect.get(Object(body), 'next');
+    return { rows: rows as CastEntity[], next: typeof next === 'string' && next !== '' ? next : null };
+  };
+  const campaign = async (campaignId: string) => {
+    const found: CastEntity[] = [];
     let after: string | null = null;
     for (let page = 0; page < WORLD_LORE.max_pages; page += 1) {
       const query = new URLSearchParams({
@@ -27,19 +46,15 @@ export function wikiReader(request: Request): WorldReader {
         limit: String(WORLD_LORE.page_limit),
         ...(after === null ? {} : { after }),
       });
-      const answer = await fetch(`${origin}/api/v1/world_entity?${query.toString()}`, {
-        headers: cookie === null ? {} : { cookie },
-        signal: request.signal,
-      }).catch(() => null);
-      if (answer === null || !answer.ok) return found;
-      const body: unknown = await answer.json().catch(() => null);
-      const rows: unknown = Reflect.get(Object(body), 'world_entities');
-      if (!Array.isArray(rows)) return found;
-      found.push(...(rows as WorldEntity[]));
-      const next: unknown = Reflect.get(Object(body), 'next');
-      if (typeof next !== 'string' || next === '') return found;
-      after = next;
+      const page = await ask(query);
+      if (page === null) return found;
+      found.push(...page.rows);
+      if (page.next === null) return found;
+      after = page.next;
     }
     return found;
   };
+  const byIds = async (ids: readonly string[]) =>
+    ids.length === 0 ? [] : ((await ask(new URLSearchParams({ ids: ids.join(',') })))?.rows ?? []);
+  return { campaign, byIds };
 }

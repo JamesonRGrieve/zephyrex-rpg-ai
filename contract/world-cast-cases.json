@@ -1,0 +1,108 @@
+{
+  "$comment": "A chat's cast and seat from the wiki (the composed suite): cases both twins run (client/src/features/prompt/worldCast.test.ts, server/extensions/ai_chat/WorldCast_test.py).",
+  "entities": [
+    {
+      "id": "p1",
+      "kind": "person",
+      "name": "Vey",
+      "summary": "An inquisitor.",
+      "voice": {
+        "personality": "Cold."
+      }
+    },
+    {
+      "id": "p2",
+      "kind": "person",
+      "name": "Kade",
+      "summary": "A guard.",
+      "deleted": true
+    },
+    {
+      "id": "l1",
+      "kind": "location",
+      "name": "Hive",
+      "summary": "A hive."
+    },
+    {
+      "id": "p3",
+      "kind": "person",
+      "name": "Iris",
+      "summary": " A medic. "
+    }
+  ],
+  "cast_cases": [
+    {
+      "name": "persons in the chat's order",
+      "character_ids": [
+        "p3",
+        "p1"
+      ],
+      "cast": [
+        {
+          "id": "p3",
+          "name": "Iris",
+          "description": "A medic.",
+          "personality": "",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": "",
+          "first_message": ""
+        },
+        {
+          "id": "p1",
+          "name": "Vey",
+          "description": "An inquisitor.",
+          "personality": "Cold.",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": "",
+          "first_message": ""
+        }
+      ]
+    },
+    {
+      "name": "a deleted person, another kind, and an unknown id drop out",
+      "character_ids": [
+        "p2",
+        "l1",
+        "nobody",
+        "p1"
+      ],
+      "cast": [
+        {
+          "id": "p1",
+          "name": "Vey",
+          "description": "An inquisitor.",
+          "personality": "Cold.",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": "",
+          "first_message": ""
+        }
+      ]
+    }
+  ],
+  "seat_cases": [
+    {
+      "name": "the seated person",
+      "seated": "p3",
+      "persona": {
+        "name": "Iris",
+        "description": "A medic."
+      }
+    },
+    {
+      "name": "no one seated",
+      "seated": null,
+      "persona": null
+    },
+    {
+      "name": "a seat on someone no longer a person",
+      "seated": "p2",
+      "persona": null
+    }
+  ]
+}

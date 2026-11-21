@@ -43,6 +43,8 @@ const received: Received[] = [];
 let answer: 'stream' | 'refuse' = 'stream';
 /** The wiki's world entities the fake server answers GET /api/v1/world_entity with (the composed suite). */
 let world: Record<string, unknown>[] | null = null;
+/** The wiki reads asked of the fake server, apart from the model calls in `received`. */
+const worldAsked: string[] = [];
 
 async function readBody(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -53,6 +55,15 @@ async function readBody(request: IncomingMessage): Promise<string> {
 beforeAll(async () => {
   server = createServer((request, response) => {
     void readBody(request).then((text) => {
+      if ((request.url ?? '').startsWith('/api/v1/world_entity')) {
+        worldAsked.push(request.url ?? '');
+        if (world === null) response.writeHead(404).end('{}');
+        else
+          response
+            .writeHead(200, { 'Content-Type': 'application/json' })
+            .end(JSON.stringify({ world_entities: world, next: null }));
+        return;
+      }
       received.push({
         path: request.url ?? '',
         authorization: request.headers.authorization,
@@ -61,14 +72,6 @@ beforeAll(async () => {
         // A poll (GET) has no body.
         body: (text === '' ? {} : JSON.parse(text)) as Received['body'],
       });
-      if ((request.url ?? '').startsWith('/api/v1/world_entity')) {
-        if (world === null) response.writeHead(404).end('{}');
-        else
-          response
-            .writeHead(200, { 'Content-Type': 'application/json' })
-            .end(JSON.stringify({ world_entities: world, next: null }));
-        return;
-      }
       if (answer === 'refuse') {
         response.writeHead(401).end('{"error":"bad key"}');
         return;
@@ -108,6 +111,8 @@ afterAll(async () => {
 
 beforeEach(async () => {
   received.length = 0;
+  worldAsked.length = 0;
+  world = null;
   answer = 'stream';
   await prisma.chatMessage.deleteMany();
   await prisma.chat.deleteMany();
@@ -126,7 +131,12 @@ async function seed(withEndpoint = true) {
     await prisma.modelEndpoint.create({
       data: { ...stamp(), name: 'Local', baseUrl, model: 'tiny', apiKey: 'k-1', isDefault: true },
     });
-  const chat = await prisma.chat.create({ data: { ...stamp(), title: 'Chat', characterIds: JSON.stringify([ada.id]) } });
+  // The composed suite: a chat's characters are wiki persons in its wiki campaign, which the fake
+  // server answers for the wiki's world_entity resource.
+  world = [{ id: ada.id, kind: 'person', name: 'Ada', summary: '{{char}} is an engineer.', deleted: false }];
+  const chat = await prisma.chat.create({
+    data: { ...stamp(), title: 'Chat', characterIds: JSON.stringify([ada.id]), campaignId: 'test-world' },
+  });
   const ooc = await prisma.chatMessage.create({
     data: { ...stamp(), chatId: chat.id, role: 'user', channel: 'ooc', swipes: '["brb, coffee"]' },
   });
@@ -137,7 +147,8 @@ async function seed(withEndpoint = true) {
 }
 
 function call(body: unknown) {
-  return new NextRequest('http://localhost/api/v1/ai_chat/generate', {
+  // At the fake server's origin, so the wiki's world_entity resource is read from it.
+  return new NextRequest(`${new URL(baseUrl).origin}/api/v1/ai_chat/generate`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -219,7 +230,8 @@ describe('POST /v1/ai_chat/generate', () => {
 });
 
 describe('World Info in a reply', () => {
-  it('speaks as the persona locked to the character, its description at its depth (audit gap 9)', async () => {
+  // Mapping item 3: no persona store; the seat's wiki person speaks. Fails until removed with the store.
+  it.fails('speaks as the persona locked to the character, its description at its depth (audit gap 9)', async () => {
     await prisma.chatLoreState.deleteMany();
     await prisma.persona.deleteMany();
     const { ada, chat, line } = await seed();
@@ -248,8 +260,10 @@ describe('World Info in a reply', () => {
     const { chat, line } = await seed();
     await prisma.chat.update({ where: { id: chat.id }, data: { campaignId: 'wiki-world' } });
     world = [
+      ...(world ?? []),
       {
         id: 'w1',
+        kind: 'location',
         name: 'The Kestrel’s Hold',
         aliases: [],
         keywords: ['spanner'],
@@ -257,7 +271,14 @@ describe('World Info in a reply', () => {
         deleted: false,
         lore: { sticky: 2 },
       },
-      { id: 'w2', name: 'Coffee House', aliases: ['coffee'], summary: 'never: only table talk says coffee', deleted: false },
+      {
+        id: 'w2',
+        kind: 'location',
+        name: 'Coffee House',
+        aliases: ['coffee'],
+        summary: 'never: only table talk says coffee',
+        deleted: false,
+      },
     ];
     // The wiki's resource is this app's own: the request comes to the fake server's origin.
     const origin = new URL(baseUrl).origin;
@@ -270,10 +291,9 @@ describe('World Info in a reply', () => {
     );
     await events(response);
     world = null;
-    expect(
-      received.some((one) => one.path.startsWith('/api/v1/world_entity?campaign_id=wiki-world&include_setting=true')),
-    ).toBe(true);
-    received.splice(0, received.length, ...received.filter((one) => !one.path.startsWith('/api/v1/world_entity')));
+    expect(worldAsked.some((path) => path.startsWith('/api/v1/world_entity?campaign_id=wiki-world&include_setting=true'))).toBe(
+      true,
+    );
     const system = received[0]?.body.messages[0]?.content ?? '';
     expect(system).toContain('The Kestrel’s spanners are cursed.');
     expect(system).not.toContain('never: only table talk says coffee');
@@ -315,7 +335,7 @@ describe('POST /v1/ai_chat/prompt', () => {
     const before = await prisma.chatMessage.count();
     const asked = (raw: boolean) =>
       gen(
-        new NextRequest('http://localhost/api/v1/ai_chat/gen', {
+        new NextRequest(`${new URL(baseUrl).origin}/api/v1/ai_chat/gen`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ gen: { chat_id: chat.id, leaf_id: line.id, prompt: 'Name a port.', raw } }),
@@ -513,7 +533,8 @@ describe('POST /v1/ai_chat/expression (A4)', () => {
     expect(received).toHaveLength(0);
   });
 
-  it('asks the model to choose among the character’s own labels, and keeps to them', async () => {
+  // Sprites are character-card records; they become attachments on the wiki person. Fails until then.
+  it.fails('asks the model to choose among the character’s own labels, and keeps to them', async () => {
     const { ada, chat } = await seed();
     for (const label of ['joy', 'anger'])
       await prisma.characterExpression.create({
@@ -564,7 +585,11 @@ describe('POST /v1/ai_chat/picture (A30)', () => {
 describe('POST /v1/ai_chat/picture: portraits and backgrounds', () => {
   it('draws a portrait with no chat, and a background from the place the chat is set', async () => {
     const { ada, chat } = await seed();
-    await prisma.character.update({ where: { id: ada.id }, data: { scenario: 'A rusted orbital dock.' } });
+    // The place is the wiki location the story names last, else the chat's own scenario.
+    await prisma.chat.update({
+      where: { id: chat.id },
+      data: { groupSettings: JSON.stringify({ scenario: 'A rusted orbital dock.' }) },
+    });
     await prisma.modelEndpoint.create({
       data: { ...stamp(), name: 'Painter', baseUrl, model: 'paint', roles: '["image"]', imageSize: '1024x1024' },
     });

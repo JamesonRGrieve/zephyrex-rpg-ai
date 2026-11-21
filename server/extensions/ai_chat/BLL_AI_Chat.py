@@ -42,6 +42,7 @@ from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[im
 )
 
 # Resolve only at runtime, through the extensions namespace path.
+from zephyrex.extensions.ai_campaign.SceneLocation import scene_location  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_character.BLL_AI_Character import (  # type: ignore[import-not-found]
     CharacterExpressionManager,
     CharacterManager,
@@ -81,10 +82,8 @@ from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-
     native_request,
     openai_payload,
 )
-from zephyrex.extensions.ai_chat.PersonaPick import persona_for  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
     ai_cast,
-    played_persona,
     session_start_index,
     sessions_summary,
 )
@@ -116,8 +115,9 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_body,
     speech_url,
 )
+from zephyrex.extensions.ai_chat.WikiReads import persons_for  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.WorldCast import seat_person, world_cast  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.WorldLore import (  # type: ignore[import-not-found]
-    WORLD_LORE,
     wiki_campaign_of,
     world_lore_entries,
 )
@@ -561,6 +561,37 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         title: StringSearchModel | None = None
 
 
+def background_place(entities: Sequence[Mapping[str, Any]], history: Sequence[Mapping[str, Any]], scenario: str) -> str:
+    """A background's place: the wiki location the story names last (SceneLocation over the campaign's
+    locations), else the chat's own scenario (lib/generate.ts backgroundPlace)."""
+    locations = [
+        {**entity, "aliases": list(entity.get("aliases") or [])}
+        for entity in entities
+        if entity.get("kind") == "location" and not entity.get("deleted")
+    ]
+    story = set(PROMPT["story_channels"])
+    lines = [
+        {"text": str(turn["content"]), "channel": "story" if turn["channel"] in story else str(turn["channel"])}
+        for turn in history
+    ]
+    at = scene_location(lines, locations)
+    location = next((entity for entity in locations if entity["id"] == at), None)
+    return str((location or {}).get("summary") or "").strip() or scenario.strip()
+
+
+def wiki_campaign_for(frames: Any, campaign_id: str | None) -> str | None:
+    """A chat's wiki campaign: its campaign_id, or, while campaign frames remain, the wiki campaign of
+    the frame it names (WorldLore.wiki_campaign_of). Remove with the frames."""
+    if campaign_id is None:
+        return None
+    try:
+        frame = frames.get(id=campaign_id)
+    except HTTPException:
+        return campaign_id
+    wiki: str | None = wiki_campaign_of(campaign_id, {campaign_id: getattr(frame, "wiki_campaign_id", None)})
+    return wiki
+
+
 class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
     _model = ChatModel
 
@@ -574,11 +605,12 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         except HTTPException as error:
             raise not_yours(field) from error
 
-    def _check_references(self, fields: dict[str, Any]) -> None:
-        for character_id in fields.get("character_ids") or []:
-            self._owned(CharacterManager, character_id, "character_ids")
-        for character_id in fields.get("muted_ids") or []:
-            self._owned(CharacterManager, character_id, "muted_ids")
+    def _check_references(self, fields: dict[str, Any], current_campaign: str | None = None) -> None:
+        # A chat's characters are wiki persons (the composed suite), ones the requester can see.
+        campaign = fields.get("campaign_id") or current_campaign
+        for field in ("character_ids", "muted_ids"):
+            if fields.get(field):
+                self._check_persons(list(fields[field]), field, campaign)
         for book_id in fields.get("lorebook_ids") or []:
             self._owned(LorebookManager, book_id, "lorebook_ids")
         for field, manager in (
@@ -591,6 +623,18 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
                 self._owned(manager, fields[field], field)
         if fields.get("campaign_id") is not None:
             self._check_campaign(fields["campaign_id"])
+
+    def _check_persons(self, ids: list[str], field: str, campaign_id: str | None) -> None:
+        """Every id is a wiki person the requester can see: in the chat's campaign, or read by id
+        through the wiki (world_entities_by_id, when the wiki has it); the framework's 422 otherwise."""
+        wiki = wiki_campaign_for(self._sibling(CampaignFrameManager), campaign_id)
+        seen = {
+            str(entity["id"])
+            for entity in persons_for(self.model_registry, str(self.requester.id), wiki, ids)
+            if entity.get("kind") == "person" and not entity.get("deleted")
+        }
+        if any(id_ not in seen for id_ in ids):
+            raise not_yours(field)
 
     def _check_campaign(self, campaign_id: str) -> None:
         """A chat's campaign is a wiki campaign the requester can see (the composed suite), asked of the
@@ -634,7 +678,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         return super().create(**kwargs)
 
     def update(self, id: str, **kwargs: Any) -> Any:
-        self._check_references(kwargs)
+        self._check_references(kwargs, getattr(self.get(id=id), "campaign_id", None))
         return super().update(id, **kwargs)
 
     def delete(self, id: str) -> None:
@@ -2080,14 +2124,20 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             return ""
         try:
             chat = self._manager(ChatManager).get(id=body.chat_id)
-            persona = persona_for(chat.persona_id, chat.character_ids or [], self._manager(PersonaManager).list())
             messages = self._manager(ChatMessageManager).list(chat_id=chat.id)
-            cast = {
-                character_id: self._manager(CharacterManager).get(id=character_id)
-                for character_id in chat.character_ids or []
-            }
         except HTTPException:
             return ""
+        # The cast and the seat from the wiki, as _inputs reads them (the composed suite).
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        wanted = [*(chat.character_ids or []), *([playing_id] if playing_id is not None else [])]
+        entities = persons_for(self.model_registry, str(self.requester.id), wiki, wanted)
+        persona = seat_person(entities, playing_id)
+        cast = {character["id"]: character for character in world_cast(entities, chat.character_ids or [])}
         if all(message.id != body.leaf_id for message in messages):
             return ""
         lines = story_lines(
@@ -2103,8 +2153,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 }
                 for message in branch_to(messages, body.leaf_id)
             ],
-            persona.name if persona is not None else DEFAULT_USER_NAME,
-            {character_id: row.name for character_id, row in cast.items()},
+            persona["name"] if persona is not None else DEFAULT_USER_NAME,
+            {character_id: character["name"] for character_id, character in cast.items()},
         )
         # Narrating (A20), the GM speaks: no character's memory across chats applies.
         speaker = None if body.mode == "narrate" else cast.get(body.speaker_id or next(iter(cast), ""))
@@ -2113,7 +2163,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             self._manager(ModelEndpointManager).list(),
             chat.id,
             lines,
-            None if speaker is None else {"id": speaker.id, "name": speaker.name, "extensions": speaker.extensions},
+            None if speaker is None else {"id": speaker["id"], "name": speaker["name"], "extensions": {}},
             lambda: self._manager(ChatManager).list(),
         )
         return text
@@ -2137,49 +2187,6 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         except HTTPException:
             return None
 
-    def _wiki_campaign(self, campaign_id: str | None) -> str | None:
-        """A chat's wiki campaign: its campaign_id, or, while campaign frames remain, the wiki campaign
-        of the frame it names (WorldLore.wiki_campaign_of). Remove with the frames."""
-        if campaign_id is None:
-            return None
-        try:
-            frame = self._manager(CampaignFrameManager).get(id=campaign_id)
-        except HTTPException:
-            return campaign_id
-        wiki: str | None = wiki_campaign_of(campaign_id, {campaign_id: getattr(frame, "wiki_campaign_id", None)})
-        return wiki
-
-    def _world_entities(self, wiki_campaign: str | None) -> list[dict[str, Any]]:
-        """A wiki campaign's entities and its setting's canon, paged, under the requester's access;
-        none without the wiki or a campaign."""
-        if wiki_campaign is None:
-            return []
-        read = loaded_ability(self.model_registry, "rpg_core", "world_entities")
-        if read is None:
-            return []
-        found: list[dict[str, Any]] = []
-        after: str | None = None
-        for _ in range(WORLD_LORE["max_pages"]):
-            page = read(
-                self.model_registry,
-                str(self.requester.id),
-                wiki_campaign,
-                after=after,
-                limit=WORLD_LORE["page_limit"],
-                include_setting=True,
-            )
-            if inspect.isawaitable(page):
-                # A reply is assembled synchronously; an asynchronous wiki gives no lore.
-                close = getattr(page, "close", None)
-                if callable(close):
-                    close()
-                return found
-            found.extend(page.get("world_entities") or [])
-            after = page.get("next")
-            if not after:
-                break
-        return found
-
     def _inputs(
         self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply", memories: str = ""
     ) -> tuple[Any, dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
@@ -2192,58 +2199,32 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 detail={"message": "Request searched ChatModel and could not find the required record."},
             ) from error
 
-        characters = self._manager(CharacterManager)
-        cast = []
-        for character_id in chat.character_ids or []:
-            row = characters.get(id=character_id)
-            cast.append(
-                {
-                    key: getattr(row, key)
-                    for key in (
-                        "id",
-                        "name",
-                        "description",
-                        "personality",
-                        "scenario",
-                        "example_messages",
-                        "system_prompt",
-                        "post_history_instructions",
-                        # The card's extensions: its Character's Note (gap 7).
-                        "extensions",
-                    )
-                }
-            )
+        # The composed suite (docs/DESIGN.md): the chat's wiki campaign's world entities are read once,
+        # through the wiki's abilities, for World Info, the cast and the seat. A chat's characters are
+        # wiki persons; one the campaign doesn't hold is read by id, and one that can't be read drops out.
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, session_marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        wiki_campaign = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        wanted = [*(chat.character_ids or []), *([playing_id] if playing_id is not None else [])]
+        entities = persons_for(self.model_registry, str(self.requester.id), wiki_campaign, wanted)
+        cast = [{**character, "extensions": {}} for character in world_cast(entities, chat.character_ids or [])]
         # Narrating (A20), the GM speaks, so no character is named as the speaker.
-        speaker_id = "" if body.mode == "narrate" else body.speaker_id or (cast[0]["id"] if cast else None)
-        if speaker_id is None or (body.mode != "narrate" and all(character["id"] != speaker_id for character in cast)):
+        # Translating reads no cast, so it needs no speaker.
+        no_speaker = body.mode == "narrate" or (purpose == "translate" and not cast)
+        speaker_id = "" if no_speaker else body.speaker_id or (cast[0]["id"] if cast else None)
+        if speaker_id is None or (not no_speaker and all(character["id"] != speaker_id for character in cast)):
             raise HTTPException(
                 status_code=422,
                 detail={"message": "The speaker must be a character in the chat", "code": "validation_error"},
             )
 
-        # Who the person speaks as (audit gap 9): the chat's choice, else a persona locked to one of its
-        # characters, else the default; a played character (the play model, below) stands in for any.
-        persona_row = persona_for(chat.persona_id, chat.character_ids or [], self._manager(PersonaManager).list())
-        persona = (
-            None
-            if persona_row is None
-            else {
-                "name": persona_row.name,
-                "description": persona_row.description,
-                "description_position": persona_row.description_position,
-                "description_depth": persona_row.description_depth,
-                "description_role": persona_row.description_role,
-            }
-        )
-        # A campaign (docs/DESIGN.md, The play model): the character the person plays is who they are and
-        # leaves the cast the AI plays; replies read the current session, earlier ones by their summaries.
-        from zephyrex.extensions.ai_chat.BLL_AI_Session import play_context  # type: ignore[import-not-found]
-
-        playing_id, session_marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        # Who the person speaks as: the wiki person the seat holds (the composed suite); no persona store.
+        # The person they play leaves the cast the AI plays; replies read the current session.
+        persona = seat_person(entities, playing_id)
         if playing_id is not None:
-            played = characters.get(id=playing_id)
-            persona = played_persona({"name": played.name, "description": played.description}, persona)
-            persona_row = None
             kept = set(ai_cast([character["id"] for character in cast], playing_id))
             cast = [character for character in cast if character["id"] in kept]
 
@@ -2284,7 +2265,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         ]
         # World Info runs over the wiki (the composed suite): the chat's wiki campaign's entities and
         # its setting's canon, through the wiki's world_entities ability; no wiki campaign, no lore.
-        entries = world_lore_entries(self._world_entities(self._wiki_campaign(chat.campaign_id)))
+        entries = world_lore_entries(entities)
         timers = self._manager(ChatLoreStateManager)
         settings = {
             "scan_depth": LORE["defaults"]["scan_depth"],
@@ -2452,6 +2433,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             "endpoint": endpoint,
             "key": key,
             "template": template,
+            # Where a background is set (the composed suite): the wiki location the story names last,
+            # else the chat's own scenario.
+            "place": background_place(entities, history, str((chat.group_settings or {}).get("scenario") or "")),
         }
         return assembled, request, sampler, lore.active, context
 
@@ -2700,9 +2684,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             GenerateRequest(chat_id=asked.chat_id or "", leaf_id=asked.leaf_id), save_timers=False
         )
         if asked.kind == "background":
-            scenario = context["cast"][0]["scenario"] if context["cast"] else ""
             background: str = background_picture_prompt(
-                context["cast"], context["persona"], context["history"], scenario or "", asked.prompt
+                context["cast"], context["persona"], context["history"], context["place"], asked.prompt
             )
             return background
         scene: str = scene_picture_prompt(context["cast"], context["persona"], context["history"], asked.prompt)

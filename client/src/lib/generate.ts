@@ -33,16 +33,16 @@ import {
   PROMPT,
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
-import { aiCast, playedPersona, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
+import { aiCast, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
 import { groupStops } from '~/features/chat/group';
-import { personaFor } from '~/features/prompt/personaPick';
 import { genMessages } from '~/features/prompt/gen';
 import { wikiCampaignOf, worldLoreEntries } from '~/features/lore/worldLore';
+import { type CastEntity, seatPerson, worldCast } from '~/features/prompt/worldCast';
+import { sceneLocation } from '~/features/campaign/sceneLocation';
 import { NO_WORLD, type WorldReader, wikiReader } from '~/lib/wikiWorld';
 import { type ExtraBody, storedExtraBody, withExtraBody } from '~/features/models/extraBody';
 import type { GroupSettings } from '~/features/chat/groupSettings';
 import type { Injection } from '~/features/chat/injections';
-import type { Persona as PersonaRecord } from '~/features/data/records';
 import { activateLore, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import {
   type AssembledPrompt,
@@ -87,7 +87,7 @@ import { campaigns, scenarios } from '~/lib/campaignRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { askDecider, decider } from '~/lib/decider';
 import { prisma } from '~/lib/prisma';
-import { chatMessages, chats, characters, endpoints, personas, presets } from '~/lib/rpgRecords';
+import { chatMessages, chats, characters, endpoints, presets } from '~/lib/rpgRecords';
 
 const request = z.object({
   chat_id: z.string().min(1),
@@ -154,6 +154,11 @@ export async function generationInputs(
   lines: StoryLine[];
   /** The replying character, whose flag says whether recall reaches its other chats (AP8). */
   speaker: Speaker | null;
+  /**
+   * Where a background is set: the wiki location the story names last (sceneLocation over the
+   * campaign's locations), else the chat's own scenario; empty when neither says.
+   */
+  place: string;
 }> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
@@ -180,49 +185,49 @@ export async function generationInputs(
     injections: Injection[];
   };
 
-  const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
-  const ordered = chatFields.character_ids.flatMap((id) => cast.filter((character) => character.id === id));
-  const promptCharacters = ordered.map((row) => ({
-    id: row.id,
-    ...(characters.fields(row) as Omit<PromptInput['characters'][number], 'id'>),
+  // The composed suite (docs/DESIGN.md): the chat's wiki campaign's world entities are read once,
+  // through the wiki's API, for World Info, the cast and the seat. A chat's characters are wiki
+  // persons; one the campaign doesn't hold (a sandbox's, from elsewhere) is read by id, and one that
+  // can't be read drops out.
+  const frameRow =
+    chatFields.campaign_id === null
+      ? null
+      : await prisma.campaignFrame.findFirst({ where: { id: chatFields.campaign_id, createdById: ownerId } });
+  const wikiCampaign = wikiCampaignOf(
+    chatFields.campaign_id,
+    new Map(frameRow === null ? [] : [[frameRow.id, frameRow.wikiCampaignId]]),
+  );
+  const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+  const playingId = play?.playingId ?? null;
+  const campaignEntities = wikiCampaign === null ? [] : await world.campaign(wikiCampaign);
+  const heldPersons = new Set(
+    campaignEntities.filter((entity) => entity.kind === 'person' && entity.deleted !== true).map((entity) => entity.id),
+  );
+  const wanted = [...chatFields.character_ids, ...(playingId === null ? [] : [playingId])];
+  const elsewhere = await world.byIds([...new Set(wanted.filter((id) => !heldPersons.has(id)))]);
+  const entities = [...campaignEntities, ...elsewhere];
+  const promptCharacters = worldCast(entities, chatFields.character_ids).map((character) => ({
+    ...character,
+    extensions: {},
   }));
   // Narrating (A20), the GM speaks, so no character is named as the speaker.
-  const speakerId = body.mode === 'narrate' ? '' : (body.speaker_id ?? promptCharacters[0]?.id);
+  // Translating reads no cast, so it needs no speaker.
+  const noSpeaker = body.mode === 'narrate' || (purpose === 'translate' && promptCharacters.length === 0);
+  const speakerId = noSpeaker ? '' : (body.speaker_id ?? promptCharacters[0]?.id);
   if (
     speakerId === undefined ||
-    (body.mode !== 'narrate' && !promptCharacters.some((character) => character.id === speakerId))
+    (!noSpeaker && !promptCharacters.some((character) => character.id === speakerId))
   ) {
     throw validationError('The speaker must be a character in the chat', 'speaker_id');
   }
 
   // A campaign (docs/DESIGN.md, The play model): the character the person plays is who they are,
   // and leaves the cast the AI plays; replies read the current session, earlier ones by summary.
-  const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
-  const playingId = play?.playingId ?? null;
-  const playedRow =
-    playingId === null ? null : await prisma.character.findFirst({ where: { id: playingId, createdById: ownerId } });
   const aiIds = new Set(aiCast(chatFields.character_ids, playingId));
   const aiCharacters = promptCharacters.filter((character) => aiIds.has(character.id));
 
-  // Who the person speaks as (audit gap 9): the chat's choice, else a persona locked to one of its
-  // characters, else the default; a played character (the play model) stands in for any of them.
-  const personaRows = (await personas.list(ownerId, new URLSearchParams())).map((row) => ({
-    ...(personas.fields(row) as Omit<PersonaRecord, 'id' | 'created_at' | 'updated_at'>),
-    id: row.id,
-  }));
-  const picked = personaFor(chatFields.persona_id, chatFields.character_ids, personaRows);
-  const persona = playedPersona(
-    playedRow === null ? null : { id: playedRow.id, name: playedRow.name, description: playedRow.description },
-    picked === null
-      ? null
-      : {
-          name: picked.name,
-          description: picked.description,
-          description_position: picked.description_position,
-          description_depth: picked.description_depth,
-          description_role: picked.description_role,
-        },
-  );
+  // Who the person speaks as: the wiki person the seat holds (the composed suite); no persona store.
+  const persona = seatPerson(entities, playingId);
 
   const messages = (await chatMessages.list(ownerId, new URLSearchParams({ chat_id: chat.id }))).map((row) => ({
     id: row.id,
@@ -273,15 +278,7 @@ export async function generationInputs(
     .map((turn) => turn.content);
   // World Info runs over the wiki (the composed suite): the chat's wiki campaign's entities and its
   // setting's canon, read through the wiki's API; no wiki campaign, no world lore.
-  const frameRow =
-    chatFields.campaign_id === null
-      ? null
-      : await prisma.campaignFrame.findFirst({ where: { id: chatFields.campaign_id, createdById: ownerId } });
-  const wikiCampaign = wikiCampaignOf(
-    chatFields.campaign_id,
-    new Map(frameRow === null ? [] : [[frameRow.id, frameRow.wikiCampaignId]]),
-  );
-  const entries = wikiCampaign === null ? [] : worldLoreEntries(await world(wikiCampaign));
+  const entries = worldLoreEntries(entities);
   const stateRow = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
   const priorState: LoreState = stateRow === null ? {} : (JSON.parse(stateRow.state) as LoreState);
   const settings: LoreSettings = {
@@ -414,11 +411,9 @@ export async function generationInputs(
       persona?.name ?? DEFAULT_USER_NAME,
       new Map(promptCharacters.map((character) => [character.id, character.name])),
     ),
-    speaker: ((row) =>
-      row === undefined
-        ? null
-        : { id: row.id, name: row.name, extensions: characters.fields(row).extensions as Record<string, unknown> })(
-      ordered.find((row) => row.id === speakerId),
+    place: backgroundPlace(entities, history, chatFields.group_settings.scenario ?? ''),
+    speaker: ((row) => (row === undefined ? null : { id: row.id, name: row.name, extensions: {} }))(
+      promptCharacters.find((character) => character.id === speakerId),
     ),
   };
 }
@@ -495,6 +490,20 @@ function macroContext(
 async function campaignFrame(ownerId: string, campaignId: string): Promise<CampaignFrame | null> {
   const row = await campaigns.find(campaignId, ownerId);
   return row === null ? null : (campaigns.fields(row) as unknown as CampaignFrame);
+}
+
+/** A background's place: the wiki location the story names last, else the chat's own scenario. */
+function backgroundPlace(entities: readonly CastEntity[], history: readonly PromptTurn[], scenario: string): string {
+  const story = new Set<string>(PROMPT.story_channels);
+  const locations = entities
+    .filter((entity) => entity.kind === 'location' && entity.deleted !== true)
+    .map((entity) => ({ ...entity, aliases: [...((entity as { aliases?: string[] }).aliases ?? [])] }));
+  const at = sceneLocation(
+    history.map((turn) => ({ text: turn.content, channel: story.has(turn.channel) ? 'story' : turn.channel })),
+    locations,
+  );
+  const location = locations.find((entity) => entity.id === at);
+  return (location?.summary ?? '').trim() || scenario.trim();
 }
 
 /** The scenario a chat runs (A59, A60), as scenarioText reads it; none when it is gone. */
@@ -851,13 +860,13 @@ export async function gen(nextRequest: NextRequest): Promise<Response> {
     const parsed = genRequest.safeParse(Reflect.get(envelope, 'gen'));
     if (!parsed.success) throw validationError('A gen object with a chat_id and a prompt is required', 'gen');
     const asked = parsed.data;
-    const { prompt, sampler, endpoint } = await generationInputs(owner.id, {
-      chat_id: asked.chat_id,
-      leaf_id: asked.leaf_id,
-      speaker_id: asked.speaker_id,
-      mode: 'reply',
-      endpoint_id: null,
-    });
+    const { prompt, sampler, endpoint } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: asked.speaker_id, mode: 'reply', endpoint_id: null },
+      Math.random,
+      'reply',
+      wikiReader(nextRequest),
+    );
     const chat = asked.raw ? null : promptFor('reply', prompt);
     const messages = genMessages(chat?.messages ?? [], asked.prompt, asked.raw, chat?.prefill ?? '');
     const stream = await askModel(endpoint, upstreamBody(endpoint, sampler, messages, 'reply'), nextRequest.signal);
@@ -1073,22 +1082,26 @@ const pictureRequest = z
  * chat line, an avatar, a background) with the record's own update.
  */
 /** What the picture route asks the image model to draw, for each kind. */
-async function picturePrompt(ownerId: string, asked: z.infer<typeof pictureRequest>): Promise<string> {
+async function picturePrompt(
+  ownerId: string,
+  asked: z.infer<typeof pictureRequest>,
+  world: WorldReader = NO_WORLD,
+): Promise<string> {
   if (asked.kind === 'portrait') {
     const row = await characters.find(asked.character_id ?? '', ownerId);
     if (row === null) throw notFound(characters.modelName);
     const fields = characters.fields(row) as { name: string; description: string };
     return portraitPicturePrompt(fields, asked.prompt);
   }
-  const { prompt: input } = await generationInputs(ownerId, {
-    chat_id: asked.chat_id ?? '',
-    leaf_id: asked.leaf_id,
-    speaker_id: null,
-    mode: 'reply',
-    endpoint_id: null,
-  });
+  const { prompt: input, place } = await generationInputs(
+    ownerId,
+    { chat_id: asked.chat_id ?? '', leaf_id: asked.leaf_id, speaker_id: null, mode: 'reply', endpoint_id: null },
+    Math.random,
+    'reply',
+    world,
+  );
   return asked.kind === 'background'
-    ? backgroundPicturePrompt(input, input.characters[0]?.scenario ?? '', asked.prompt)
+    ? backgroundPicturePrompt(input, place, asked.prompt)
     : scenePicturePrompt(input, asked.prompt);
 }
 
@@ -1105,7 +1118,7 @@ export async function picture(nextRequest: NextRequest): Promise<Response> {
     const row = drawing.find((one) => one.isDefault) ?? drawing[0];
     if (row === undefined)
       throw new ApiError(409, { message: 'Set a model to draw pictures first', code: 'no_image_model' });
-    const prompt = await picturePrompt(owner.id, asked);
+    const prompt = await picturePrompt(owner.id, asked, wikiReader(nextRequest));
     const answer = await fetch(imagesUrl(row.baseUrl), {
       method: 'POST',
       headers: {
