@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { authMagicLinkExtension } from '@zephyrex/auth-magic-link';
+import { oauthConsumerExtension } from 'zephyrex/extensions/oauth_consumer';
 import type { ZephyrexClientExtension, ZephyrexConfig } from 'zephyrex';
 import { RpgAiLogo } from './brand/RpgAiLogo';
 
@@ -58,6 +59,12 @@ export const APP_NAME = 'Zephyrex RPG AI';
 export const APP_SHORT_NAME = 'RPG AI';
 export const APP_DESCRIPTION = 'AI characters and a game master who know your world and roll real dice.';
 
+const OAUTH_PROVIDERS = (process.env.NEXT_PUBLIC_OAUTH_PROVIDERS ?? '')
+  .split(',')
+  .map((name) => name.trim())
+  .filter(Boolean);
+const OAUTH_LABEL = process.env.NEXT_PUBLIC_OAUTH_LABEL || 'Zephyrex';
+
 const config: ZephyrexConfig = {
   server: {
     // Same-origin: the browser calls `/api/v1/...` on this app, answered by its own lite handlers
@@ -80,6 +87,10 @@ const config: ZephyrexConfig = {
         enabled: true,
         authPath: '/user',
         authModes: { basic: false },
+        // Sign-in through the operator's identity provider (server ai_chat/SignIn.py), named at build
+        // time: NEXT_PUBLIC_OAUTH_PROVIDERS lists the instances, NEXT_PUBLIC_OAUTH_LABEL names the button.
+        oauthProviders: OAUTH_PROVIDERS,
+        ...(OAUTH_PROVIDERS.length === 0 ? {} : { oauthLabels: Object.fromEntries(OAUTH_PROVIDERS.map((name) => [name, OAUTH_LABEL])) }),
         home: HOME_PATH,
         deletionNote:
           'Your characters, personas, chats, presets and model settings are deleted with your account, and you are signed out.',
@@ -93,7 +104,9 @@ const config: ZephyrexConfig = {
       children: [{ title: 'Privacy Policy', url: '/docs/privacy' }],
     },
   ],
-  extensions: HOSTED ? [rpgAiExtension, authMagicLinkExtension] : [rpgAiExtension],
+  extensions: HOSTED
+    ? [rpgAiExtension, authMagicLinkExtension, ...(OAUTH_PROVIDERS.length === 0 ? [] : [oauthConsumerExtension])]
+    : [rpgAiExtension],
 };
 
 export default config;

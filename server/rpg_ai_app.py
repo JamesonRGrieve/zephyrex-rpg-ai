@@ -31,6 +31,11 @@ os.environ.setdefault("TRUSTED_PROXIES", "127.0.0.1/32,::1/128")
 # older lines are kept for recall by meaning, A19). ai_lorebook, ai_character and ai_chat (this
 # repo) add what only Zephyrex RPG AI needs.
 EXTENSIONS = "auth_session,auth_magic_link,email,genealogy,ai_memories,ai_lorebook,ai_character,ai_campaign,ai_chat"
+# Sign-in through the operator's identity provider (Authentik; ai_chat/SignIn.py), when one is
+# configured: oauth_consumer needs FRAMEWORK_FERNET_KEY and the OIDC_CONSUMER_* settings, so it is
+# loaded only where its issuer is set.
+if os.environ.get("OIDC_CONSUMER_ISSUER_URL", "").strip():
+    EXTENSIONS = f"auth_session,oauth_consumer,{EXTENSIONS.removeprefix('auth_session,')}"
 EXTENSIONS_PATH = "./extensions"
 SERVER_PORT = int(os.environ.get("RPG_AI_SERVER_PORT", "2000"))
 # Loopback only: browsers reach the server through the client's /api proxy on the same host.
