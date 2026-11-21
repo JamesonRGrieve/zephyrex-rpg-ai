@@ -18,8 +18,9 @@ concurrency:
 
 jobs:
   deploy:
-    # The Zephyrex Forgejo runner: rootless podman on a VM, a fresh container per job.
-    runs-on: zephyrex-podman
+    # A Zephyrex Forgejo runner's size tier (SOP CI Runners: the smallest a job runs on). A Next
+    # build and the server bundle take the normal tier (5–8 vCPU); a fresh container per job.
+    runs-on: normal
     container:
       # node:24-trixie: Node 24 on Debian 13, the CT's release (the image Cule's deploy pins).
       image: docker.io/library/node@sha256:611b2e34ec1dd43a7bd4a334f146be7b0b51e8827acb86f94ca4c078cc53bba5
