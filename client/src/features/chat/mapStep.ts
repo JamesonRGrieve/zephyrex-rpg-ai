@@ -29,6 +29,10 @@ export async function mapStep(chatId: string, leafId: string): Promise<MapChange
   const moved = moves.flatMap((move) => {
     const person = Reflect.get(Object(move), 'person_id');
     const place = Reflect.get(Object(move), 'to_name');
+    const from = Reflect.get(Object(move), 'from');
+    const to = Reflect.get(Object(move), 'to');
+    // Staying put is no move.
+    if (from !== undefined && from === to) return [];
     return typeof person === 'string' && typeof place === 'string' ? [{ person, place }] : [];
   });
   return moved.length === 0 ? null : { moved, scene: null };

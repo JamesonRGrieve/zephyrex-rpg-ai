@@ -879,12 +879,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (change === null && arrivals.length === 0) return;
     // The map and the Context panel read the scene and its tokens: read them again.
     void globalMutate((key) => typeof key === 'string' && /scene|token/.test(key));
-    const said = [
-      change?.scene == null ? null : `Scene: ${change.scene}`,
-      ...(change?.moved ?? []).map((move) => `${castById.get(move.person)?.name ?? 'Someone'} → ${move.place}`),
-      ...arrivals.map((name) => `${name} arrives`),
-    ].filter((line): line is string => line !== null);
-    notify('The map moved', said.join(' · '));
+    // Quiet (the operator, 2026-11-21: "Why is it putting a title with the location on every
+    // response"): the map and the Context panel show where everyone is; the story says who arrives.
   };
   const storyWrite = async (request: Parameters<typeof reply.write>[0]) => {
     let result = await timedWrite(request);
