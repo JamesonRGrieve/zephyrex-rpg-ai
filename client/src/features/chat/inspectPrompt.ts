@@ -236,3 +236,33 @@ export async function cutMessages(messageIds: readonly string[]): Promise<void> 
     throw new Error(typeof message === 'string' ? message : `The messages could not be cut (${response.status})`);
   }
 }
+
+export const NEXT_TURN_PATH = '/api/v1/ai_chat/next_turn';
+
+export interface NextTurn {
+  /** False when there's no decision model or no usable answer: keep the turn order. */
+  decided: boolean;
+  kind: 'character' | 'gm' | 'pause' | null;
+  character_id: string | null;
+}
+
+/**
+ * Who speaks next, by the decision model (the operator, 2026-11-21): a character, the GM interjecting,
+ * or a pause for the person's input, by their seat (features/chat/turnDecision.ts). Undecided on any
+ * failure, so the caller always has its turn order to fall back on.
+ */
+export async function decideNextTurn(chatId: string, leafId: string | null): Promise<NextTurn> {
+  const undecided: NextTurn = { decided: false, kind: null, character_id: null };
+  const response = await fetch(NEXT_TURN_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ next_turn: { chat_id: chatId, leaf_id: leafId } }),
+  }).catch(() => null);
+  if (response === null || !response.ok) return undecided;
+  const answer: unknown = Reflect.get(Object(await response.json().catch(() => null)), 'next_turn');
+  const kind: unknown = Reflect.get(Object(answer), 'kind');
+  const id: unknown = Reflect.get(Object(answer), 'character_id');
+  if (Reflect.get(Object(answer), 'decided') !== true || (kind !== 'character' && kind !== 'gm' && kind !== 'pause'))
+    return undecided;
+  return { decided: true, kind, character_id: typeof id === 'string' ? id : null };
+}

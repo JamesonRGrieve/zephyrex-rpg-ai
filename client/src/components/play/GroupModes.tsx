@@ -17,8 +17,15 @@ import { GROUP_SETTINGS } from '~/contract';
 import type { GroupSettings } from '~/features/chat/groupSettings';
 
 const CARD_LABELS = { swap: 'The speaker’s card', join: 'Every member’s card' } as const;
-const ORDER_LABELS = { natural: 'Natural', list: 'In order', pooled: 'Everyone once' } as const;
+const ORDER_LABELS = {
+  decide: 'Decided by the model',
+  natural: 'Natural',
+  list: 'In order',
+  pooled: 'Everyone once',
+} as const;
 const ORDER_HINTS = {
+  decide:
+    'The decision model picks who speaks next, or that the GM steps in, or pauses for you; natural order when it can’t.',
   natural: 'Whoever the last line names speaks next; otherwise the most talkative.',
   list: 'Each member in the cast’s order.',
   pooled: 'Everyone speaks once after your line before anyone speaks twice.',
@@ -44,6 +51,7 @@ export function GroupModes({
   const set = <K extends keyof GroupSettings>(key: K, next: GroupSettings[K]) => onChange({ ...value, [key]: next });
   const cardMode = value.card_mode ?? 'swap';
   const order = value.order ?? 'natural';
+  const natural = order === 'natural' || order === 'decide';
   const [low, high] = GROUP_SETTINGS.auto_seconds;
   return (
     <fieldset className='grid gap-4 rounded-lg border p-3'>
@@ -105,7 +113,7 @@ export function GroupModes({
           {ORDER_HINTS[order]}
         </p>
       </div>
-      {order === 'natural' && (
+      {natural && (
         <div className='flex min-h-11 items-center justify-between gap-3'>
           <Label htmlFor={ids.self}>Let a member answer themself</Label>
           <Switch id={ids.self} checked={value.allow_self ?? false} onCheckedChange={(next) => set('allow_self', next)} />

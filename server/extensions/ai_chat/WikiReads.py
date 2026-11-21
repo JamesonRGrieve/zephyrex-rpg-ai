@@ -80,3 +80,20 @@ def persons_for(
     held = {str(entity["id"]) for entity in entities if entity.get("kind") == "person" and not entity.get("deleted")}
     missing = [id_ for id_ in dict.fromkeys(ids) if id_ not in held]
     return [*entities, *world_entities_by_id(model_registry, requester_id, missing)]
+
+
+def campaign_documents(model_registry: Any, requester_id: str, campaign_id: str | None) -> list[dict[str, Any]]:
+    """A campaign's documents for the data bank (mapping item 4: journals, lore and each entry's whole
+    text), through the wiki's campaign_documents ability; none without it or a campaign."""
+    if campaign_id is None:
+        return []
+    read = loaded_ability(model_registry, "rpg_core", "campaign_documents")
+    if read is None:
+        return []
+    try:
+        rows = _sync(read(model_registry, requester_id, campaign_id))
+    except HTTPException:
+        return []
+    if isinstance(rows, dict):
+        rows = rows.get("campaign_documents")
+    return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []

@@ -6,47 +6,81 @@
       "name": "a group reply: stops for the person then the others",
       "mode": "reply",
       "speaker": "A.Z.",
-      "cast": ["Gus Veridan", "A.Z.", "Magnus Karlsson"],
+      "cast": [
+        "Gus Veridan",
+        "A.Z.",
+        "Magnus Karlsson"
+      ],
       "person": "Massen",
-      "stops": ["\nMassen:", "\nGus Veridan:", "\nMagnus Karlsson:"]
+      "stops": [
+        "\nMassen:",
+        "\nGus Veridan:",
+        "\nMagnus Karlsson:"
+      ]
     },
     {
       "name": "one on one: a stop for the person",
       "mode": "reply",
       "speaker": "Sam",
-      "cast": ["Sam"],
+      "cast": [
+        "Sam"
+      ],
       "person": "You",
-      "stops": ["\nYou:"]
+      "stops": [
+        "\nYou:"
+      ]
     },
     {
       "name": "a continued reply in a group stops for the person and the rest",
       "mode": "continue",
       "speaker": "Gus Veridan",
-      "cast": ["Gus Veridan", "A.Z."],
+      "cast": [
+        "Gus Veridan",
+        "A.Z."
+      ],
       "person": "You",
-      "stops": ["\nYou:", "\nA.Z.:"]
+      "stops": [
+        "\nYou:",
+        "\nA.Z.:"
+      ]
     },
     {
-      "name": "the GM narrating: a stop for the person only",
+      "name": "the GM narrating: stops for the person and every cast member (the narrator never speaks for them)",
       "mode": "narrate",
       "speaker": "",
-      "cast": ["Gus Veridan", "A.Z."],
+      "cast": [
+        "Gus Veridan",
+        "A.Z."
+      ],
       "person": "Massen",
-      "stops": ["\nMassen:"]
+      "stops": [
+        "\nMassen:",
+        "\nGus Veridan:",
+        "\nA.Z.:"
+      ]
     },
     {
       "name": "writing the person's line: stops for the cast",
       "mode": "impersonate",
       "speaker": "",
-      "cast": ["Gus Veridan", "A.Z."],
+      "cast": [
+        "Gus Veridan",
+        "A.Z."
+      ],
       "person": "You",
-      "stops": ["\nGus Veridan:", "\nA.Z.:"]
+      "stops": [
+        "\nGus Veridan:",
+        "\nA.Z.:"
+      ]
     },
     {
       "name": "the table GM: nothing",
       "mode": "table",
       "speaker": "",
-      "cast": ["Gus Veridan", "A.Z."],
+      "cast": [
+        "Gus Veridan",
+        "A.Z."
+      ],
       "person": "You",
       "stops": []
     },
@@ -54,9 +88,22 @@
       "name": "at most four stops, no duplicates, no blank names, never the speaker",
       "mode": "reply",
       "speaker": "A",
-      "cast": ["A", "B", "C", "B", " ", "D", "E"],
+      "cast": [
+        "A",
+        "B",
+        "C",
+        "B",
+        " ",
+        "D",
+        "E"
+      ],
       "person": "",
-      "stops": ["\nB:", "\nC:", "\nD:", "\nE:"]
+      "stops": [
+        "\nB:",
+        "\nC:",
+        "\nD:",
+        "\nE:"
+      ]
     }
   ]
 }

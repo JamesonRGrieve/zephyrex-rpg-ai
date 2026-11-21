@@ -16,9 +16,18 @@ import type { CastEntity } from '~/features/prompt/worldCast';
 export interface WorldReader {
   campaign: (campaignId: string) => Promise<CastEntity[]>;
   byIds: (ids: readonly string[]) => Promise<CastEntity[]>;
+  /** A campaign's documents for the data bank (mapping item 4; GET /api/v1/campaign_document). */
+  documents: (campaignId: string) => Promise<WikiDocument[]>;
 }
 
-export const NO_WORLD: WorldReader = { campaign: async () => [], byIds: async () => [] };
+export interface WikiDocument {
+  id: string;
+  kind: string;
+  name: string;
+  text: string;
+}
+
+export const NO_WORLD: WorldReader = { campaign: async () => [], byIds: async () => [], documents: async () => [] };
 
 /** A reader that asks this app's own wiki resource, with the request's cookies (the caller's access). */
 export function wikiReader(request: Request): WorldReader {
@@ -56,5 +65,14 @@ export function wikiReader(request: Request): WorldReader {
   };
   const byIds = async (ids: readonly string[]) =>
     ids.length === 0 ? [] : ((await ask(new URLSearchParams({ ids: ids.join(',') })))?.rows ?? []);
-  return { campaign, byIds };
+  const documents = async (campaignId: string): Promise<WikiDocument[]> => {
+    const answer = await fetch(
+      `${origin}/api/v1/campaign_document?${new URLSearchParams({ campaign_id: campaignId }).toString()}`,
+      { headers: cookie === null ? {} : { cookie }, signal: request.signal },
+    ).catch(() => null);
+    if (answer === null || !answer.ok) return [];
+    const rows: unknown = Reflect.get(Object(await answer.json().catch(() => null)), 'campaign_documents');
+    return Array.isArray(rows) ? (rows as WikiDocument[]) : [];
+  };
+  return { campaign, byIds, documents };
 }

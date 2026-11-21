@@ -2,7 +2,8 @@
 /**
  * Group guards (SillyTavern's name stop strings): in a scene with several speakers, a reply ends
  * where it starts someone else's line. "\nName:" for the person, then the cast, never the
- * speaker; narrating, only the person's; writing the person's own line, the cast's.
+ * speaker; narrating, the person's and every cast member's (the narrator never speaks for them);
+ * writing the person's own line, the cast's.
  *
  * SillyTavern's group nudge (a trailing system line naming the speaker) is left out: against the
  * lab's Cydonia 24B it made replies worse (markdown headings, invented characters and rolls) in
@@ -18,7 +19,8 @@ export type GuardMode = 'reply' | 'continue' | 'impersonate' | 'table' | 'narrat
 export function groupStops(mode: GuardMode, speaker: string, cast: readonly string[], person: string): string[] {
   if (mode === 'table') return [];
   const others = cast.filter((name) => name !== speaker);
-  const names = mode === 'impersonate' ? others : mode === 'narrate' ? [person] : [person, ...others];
+  // The narrator never speaks for anyone at the table (the operator's play-test): every name stops it.
+  const names = mode === 'impersonate' ? others : [person, ...others];
   return [...new Set(names.map((name) => name.trim()).filter((name) => name !== '' && name !== speaker))]
     .slice(0, cases.max_stops)
     .map((name) => `\n${name}:`);

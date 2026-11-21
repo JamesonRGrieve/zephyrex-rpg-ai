@@ -111,7 +111,8 @@ export function nextSpeaker(
   if (characterIds.length === 0) return null;
   const order = options.order ?? 'natural';
   if (order === 'pooled' && characterIds.length > 1) return pooledSpeaker(characterIds, branch, muted);
-  const natural = order === 'natural';
+  // Decided by the model (POST /v1/ai_chat/next_turn): when it can't decide, natural order stands in.
+  const natural = order === 'natural' || order === 'decide';
   if (natural && names !== undefined && characterIds.length > 1) {
     const named = mentionedSpeaker(characterIds, branch, muted, names, options.allowSelf ?? false);
     if (named !== null) return named;

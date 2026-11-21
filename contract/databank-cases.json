@@ -114,5 +114,41 @@
       ],
       "text": "Notes that may be relevant:\nalpha one\n\nalpha two\n\nalpha three"
     }
+  ],
+  "wiki_cases": [
+    {
+      "name": "name order, then id; empty texts drop out (mapping item 4)",
+      "documents": [
+        {
+          "id": "j2",
+          "kind": "journal",
+          "name": "Session 2",
+          "text": "The hive burned."
+        },
+        {
+          "id": "l1",
+          "kind": "location",
+          "name": "Hive Solenne",
+          "text": "A hive world."
+        },
+        {
+          "id": "j1",
+          "kind": "journal",
+          "name": "Session 2",
+          "text": "Vey arrived."
+        },
+        {
+          "id": "x",
+          "kind": "faction",
+          "name": "Arbites",
+          "text": "  "
+        }
+      ],
+      "texts": [
+        "A hive world.",
+        "Vey arrived.",
+        "The hive burned."
+      ]
+    }
   ]
 }

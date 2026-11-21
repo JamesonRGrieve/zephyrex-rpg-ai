@@ -2,9 +2,9 @@
 """Group guards (SillyTavern's name stop strings).
 
 In a scene with several speakers, a reply ends where it starts someone else's line: "\\nName:" for the
-person, then the cast, never the speaker; narrating, only the person's; writing the person's own line,
-the cast's. SillyTavern's group nudge is left out (it made the lab's Cydonia 24B worse; group.ts says
-how). The twin of client/src/features/chat/group.ts, held to contract/group-cases.json.
+person, then the cast, never the speaker; narrating, the person's and every cast member's; writing the
+person's own line, the cast's. SillyTavern's group nudge is left out (it made the lab's Cydonia 24B
+worse; group.ts says how). The twin of client/src/features/chat/group.ts, held to contract/group-cases.json.
 """
 
 import json
@@ -21,7 +21,8 @@ def group_stops(mode: str, speaker: str, cast: Sequence[str], person: str) -> li
     if mode == "table":
         return []
     others = [name for name in cast if name != speaker]
-    names = others if mode == "impersonate" else [person] if mode == "narrate" else [person, *others]
+    # The narrator never speaks for anyone at the table (the operator's play-test): every name stops it.
+    names = others if mode == "impersonate" else [person, *others]
     unique: list[str] = []
     for name in (name.strip() for name in names):
         if name and name != speaker and name not in unique:

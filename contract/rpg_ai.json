@@ -78,7 +78,7 @@
     "context_tokens": 8192
   },
   "prompt": {
-    "default_system_prompt": "Write {{char}}'s next reply in a fictional chat between {{char}} and {{user}}. Stay in character, and write only {{char}}'s part.",
+    "default_system_prompt": "Write {{char}}'s next reply in a fictional chat between {{char}} and {{user}}. Stay in character, and write only {{char}}'s part. Never write what {{user}} says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.",
     "author_note_depth": 4,
     "characters_per_token": 4,
     "message_overhead_tokens": 4,
@@ -115,8 +115,9 @@
     "translate_prompt": "Translate the user's text into {{language}}. Keep its meaning, tone, names and any *action* markup. Write only the translation.",
     "objective_prompt": "{{char}}'s current task: {{task}} Work toward it naturally, without stating it.",
     "objective_depth": 2,
-    "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the people in it and what comes of what the characters did, in a few vivid paragraphs. Never speak, act or decide for {{user}}.",
+    "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}} or for any of the characters in the cast, and stop where one of them would react.",
     "cast_heading": "The characters:",
+    "group_max_tokens": 350,
     "narrator_name": "Narrator"
   },
   "lore": {
@@ -759,10 +760,21 @@
     "depth_max": 1000,
     "default_depth": 4
   },
+  "decide_turn": {
+    "$comment": "Who speaks next, by the decision model (the operator, 2026-11-21: \"use the decision model to determine who speaks next or if the GM should interject\", \"or if it should pause for player input (dependent on player role)\"): a choice among the cast the AI plays (unmuted, never the person's seat), the AI GM interjecting (not when the person is the GM), or a pause for the person's input. What the model is told depends on the person's seat; {{player}} is the person's character, or their name. The recent story is the state. features/chat/turnDecision.ts, ai_chat/TurnDecision.py, contract/turn-decision-cases.json.",
+    "instructions": {
+      "gm": "You choose who speaks next in a roleplay where the player is the GM. Pick a character whose voice the scene needs now. Pick the pause when the story needs the GM to rule, narrate or respond: a question to the GM, a call for a roll, a scene beat. Don't pause while the party is only bantering.",
+      "character": "You choose who speaks next in a roleplay where the player plays {{player}}. Pick a character whose voice the scene needs now, or the GM when the scene needs narration or a consequence. Pick the pause when {{player}} is addressed, it's {{player}}'s moment to act, or a choice is {{player}}'s to make. Never let another character answer or act for {{player}}.",
+      "none": "You choose who speaks next in a roleplay with {{player}}. Pick a character whose voice the scene needs now, or the pause when it's {{player}}'s turn to speak or act."
+    },
+    "gm": "The GM interjects",
+    "pause": {"gm": "Pause for the GM", "character": "Pause for {{player}}", "none": "Pause for {{player}}"},
+    "window": 12
+  },
   "group_settings": {
     "$comment": "Group chat modes (audit gap 6), a chat's group_settings: card_mode swap (the speaker's card) or join (every member's card, each between the join prefix and suffix); order natural, list or pooled; allow_self (natural order may pick who just spoke); auto_seconds (the next member replies by itself after that long idle, 0 off); scenario (replaces each card's scenario). features/chat/turns.ts, features/prompt/assemble.ts, ai_chat/Prompt.py.",
     "card_modes": ["swap", "join"],
-    "orders": ["natural", "list", "pooled"],
+    "orders": ["decide", "natural", "list", "pooled"],
     "join_prefix": "<{{char}}>",
     "join_suffix": "</{{char}}>",
     "affix_characters": 200,

@@ -107,5 +107,226 @@
       "seated": "p2",
       "persona": null
     }
+  ],
+  "known_cases": [
+    {
+      "name": "another character: a GM-only person is a name, a GM-only journal is gone",
+      "entities": [
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "summary": "Hides the field logs.",
+          "voice": {
+            "personality": "Evasive."
+          },
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "vey",
+          "kind": "person",
+          "name": "Vey",
+          "summary": "A pilot.",
+          "voice": null,
+          "lore": null
+        },
+        {
+          "id": "truth",
+          "kind": "journal",
+          "name": "Truth of the Logs",
+          "summary": "Calloway erased them.",
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "The coolant bay.",
+          "lore": null,
+          "gm_only": false
+        }
+      ],
+      "viewer": "vey",
+      "gm": false,
+      "known": [
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "summary": "",
+          "voice": null,
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "vey",
+          "kind": "person",
+          "name": "Vey",
+          "summary": "A pilot.",
+          "voice": null,
+          "lore": null
+        },
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "The coolant bay.",
+          "lore": null,
+          "gm_only": false
+        }
+      ]
+    },
+    {
+      "name": "the GM-only person's own voice knows itself",
+      "entities": [
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "summary": "Hides the field logs.",
+          "voice": {
+            "personality": "Evasive."
+          },
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "vey",
+          "kind": "person",
+          "name": "Vey",
+          "summary": "A pilot.",
+          "voice": null,
+          "lore": null
+        },
+        {
+          "id": "truth",
+          "kind": "journal",
+          "name": "Truth of the Logs",
+          "summary": "Calloway erased them.",
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "The coolant bay.",
+          "lore": null,
+          "gm_only": false
+        }
+      ],
+      "viewer": "cal",
+      "gm": false,
+      "known": [
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "summary": "Hides the field logs.",
+          "voice": {
+            "personality": "Evasive."
+          },
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "vey",
+          "kind": "person",
+          "name": "Vey",
+          "summary": "A pilot.",
+          "voice": null,
+          "lore": null
+        },
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "The coolant bay.",
+          "lore": null,
+          "gm_only": false
+        }
+      ]
+    },
+    {
+      "name": "the GM knows everything",
+      "entities": [
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "summary": "Hides the field logs.",
+          "voice": {
+            "personality": "Evasive."
+          },
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "vey",
+          "kind": "person",
+          "name": "Vey",
+          "summary": "A pilot.",
+          "voice": null,
+          "lore": null
+        },
+        {
+          "id": "truth",
+          "kind": "journal",
+          "name": "Truth of the Logs",
+          "summary": "Calloway erased them.",
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "The coolant bay.",
+          "lore": null,
+          "gm_only": false
+        }
+      ],
+      "viewer": null,
+      "gm": true,
+      "known": [
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "summary": "Hides the field logs.",
+          "voice": {
+            "personality": "Evasive."
+          },
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "vey",
+          "kind": "person",
+          "name": "Vey",
+          "summary": "A pilot.",
+          "voice": null,
+          "lore": null
+        },
+        {
+          "id": "truth",
+          "kind": "journal",
+          "name": "Truth of the Logs",
+          "summary": "Calloway erased them.",
+          "lore": null,
+          "gm_only": true
+        },
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "The coolant bay.",
+          "lore": null,
+          "gm_only": false
+        }
+      ]
+    }
   ]
 }

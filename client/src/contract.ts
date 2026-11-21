@@ -103,6 +103,8 @@ export const NATIVE_APIS = contract.native_apis;
 export const EXTRA_BODY = contract.extra_body;
 /** World Info over the wiki (the composed suite): lore defaults and the wiki's positions mapped to this app's. */
 export const WORLD_LORE = contract.world_lore;
+/** Who speaks next, by the decision model: its question and options' labels. */
+export const DECIDE_TURN = contract.decide_turn;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];
@@ -114,7 +116,7 @@ export const GROUP_SETTINGS = contract.group_settings as unknown as Omit<
   'card_modes' | 'orders' | 'auto_seconds'
 > & {
   card_modes: readonly ['swap', 'join'];
-  orders: readonly ['natural', 'list', 'pooled'];
+  orders: readonly ['decide', 'natural', 'list', 'pooled'];
   auto_seconds: readonly [number, number];
 };
 export const PERSONA = contract.persona as unknown as Omit<typeof contract.persona, 'positions' | 'roles'> & {

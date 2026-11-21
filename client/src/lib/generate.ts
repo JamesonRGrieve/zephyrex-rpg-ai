@@ -31,13 +31,15 @@ import {
   PICTURE,
   PRESET_DEFAULTS,
   PROMPT,
+  TABLE,
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { aiCast, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
 import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
+import { turnPick, turnQuestion, turnSeat, turnState } from '~/features/chat/turnDecision';
 import { wikiCampaignOf, worldLoreEntries } from '~/features/lore/worldLore';
-import { type CastEntity, seatPerson, worldCast } from '~/features/prompt/worldCast';
+import { type CastEntity, seatPerson, worldCast, worldKnownTo } from '~/features/prompt/worldCast';
 import { sceneLocation } from '~/features/campaign/sceneLocation';
 import { NO_WORLD, type WorldReader, wikiReader } from '~/lib/wikiWorld';
 import { type ExtraBody, storedExtraBody, withExtraBody } from '~/features/models/extraBody';
@@ -71,7 +73,7 @@ import { type InstructTemplate, instructStops, renderInstruct } from '~/features
 import { activatedTemplate, ownTemplate } from '~/lib/instructTemplateRecords';
 import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
-import { dataBankText } from '~/features/chat/dataBank';
+import { dataBankText, wikiDocumentTexts } from '~/features/chat/dataBank';
 import { type StoryLine, storyLines } from '~/features/memory/memory';
 import { memoriesFor, type Speaker } from '~/lib/memory';
 import { samplerParams, type SamplerValues } from '~/features/prompt/samplers';
@@ -205,12 +207,15 @@ export async function generationInputs(
   );
   const wanted = [...chatFields.character_ids, ...(playingId === null ? [] : [playingId])];
   const elsewhere = await world.byIds([...new Set(wanted.filter((id) => !heldPersons.has(id)))]);
-  const entities = [...campaignEntities, ...elsewhere];
-  const promptCharacters = worldCast(entities, chatFields.character_ids);
+  const allEntities = [...campaignEntities, ...elsewhere];
+  const castIds = worldCast(allEntities, chatFields.character_ids).map((character) => character.id);
   // Narrating (A20), the GM speaks, so no character is named as the speaker.
   // Translating reads no cast, so it needs no speaker.
-  const noSpeaker = body.mode === 'narrate' || (purpose === 'translate' && promptCharacters.length === 0);
-  const speakerId = noSpeaker ? '' : (body.speaker_id ?? promptCharacters[0]?.id);
+  const noSpeaker = body.mode === 'narrate' || (purpose === 'translate' && castIds.length === 0);
+  const speakerId = noSpeaker ? '' : (body.speaker_id ?? castIds[0]);
+  // GM secrets (E): a GM-only record reaches the GM's prompts and that person's own voice only.
+  const entities = worldKnownTo(allEntities, speakerId ?? null, body.mode === 'narrate' || body.mode === 'table');
+  const promptCharacters = worldCast(entities, chatFields.character_ids);
   if (speakerId === undefined || (!noSpeaker && !promptCharacters.some((character) => character.id === speakerId))) {
     throw validationError('The speaker must be a character in the chat', 'speaker_id');
   }
@@ -326,6 +331,10 @@ export async function generationInputs(
     purpose === 'reply'
       ? {
           ...sampler,
+          // In proportion (the operator's play-test): a group turn or the narrator's is short.
+          ...((aiCharacters.length > 1 || body.mode === 'narrate') && body.mode !== 'impersonate'
+            ? { max_tokens: Math.min(sampler.max_tokens, PROMPT.group_max_tokens) }
+            : {}),
           stop: [
             ...new Set([
               ...sampler.stop,
@@ -363,7 +372,11 @@ export async function generationInputs(
       // The chat's /inject injections (audit gap 5).
       injections: chatFields.injections,
       scenario: chatFields.scenario_id === null ? null : await runningScenario(ownerId, chatFields.scenario_id),
-      data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
+      // The data bank from the wiki (mapping item 4): the campaign's documents.
+      data_bank: dataBankText(
+        wikiDocumentTexts(wikiCampaign === null ? [] : await world.documents(wikiCampaign)),
+        storyTexts,
+      ),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),
       // A text API's own template may carry SillyTavern's context template (audit gap 4).
       ...(typeof instructTemplate === 'string' || (endpointRow.api !== 'text' && endpointRow.api !== 'horde')
@@ -504,25 +517,6 @@ function backgroundPlace(entities: readonly CastEntity[], history: readonly Prom
 async function runningScenario(ownerId: string, scenarioId: string): Promise<ScenarioView | null> {
   const row = await scenarios.find(scenarioId, ownerId);
   return row === null ? null : (scenarios.fields(row) as unknown as ScenarioView);
-}
-
-/** The data bank's documents for a chat (A41): everyone's, the chat's own and its cast's. */
-async function dataBankDocuments(ownerId: string, chatId: string, characterIds: readonly string[]): Promise<string[]> {
-  const rows = await prisma.dataDocument.findMany({
-    where: {
-      createdById: ownerId,
-      OR: [
-        { scope: 'global' },
-        { scope: 'chat', scopeId: chatId },
-        { scope: 'character', scopeId: { in: [...characterIds] } },
-      ],
-    },
-    orderBy: { name: 'asc' },
-  });
-  // In the server's order: everyone's, then the chat's, then each cast member's in turn.
-  const rank = (row: (typeof rows)[number]) =>
-    row.scope === 'global' ? -2 : row.scope === 'chat' ? -1 : characterIds.indexOf(row.scopeId ?? '');
-  return rows.sort((a, b) => rank(a) - rank(b)).map((row) => row.text);
 }
 
 /**
@@ -906,6 +900,69 @@ export async function translate(nextRequest: NextRequest): Promise<Response> {
       throw new ApiError(502, { message: 'The model stopped mid-translation', code: 'model_refused' });
     });
     return Response.json({ translate: { ...asked, text: text.trim() } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const nextTurnRequest = z.object({
+  chat_id: z.string().min(1),
+  leaf_id: z.string().min(1).nullable().default(null),
+});
+
+/**
+ * `POST /v1/ai_chat/next_turn` (the operator, 2026-11-21): who speaks next, by the decision model: a
+ * character of the cast the AI plays, the AI GM interjecting, or a pause for the person's input,
+ * told by the person's seat (features/chat/turnDecision.ts). Request `{ "next_turn": { "chat_id",
+ * "leaf_id" } }`; answer `{ "next_turn": { "decided", "kind", "character_id" } }`. `decided` is false
+ * (and the caller keeps its turn order) without a decision model or a usable answer. Nothing is written.
+ */
+export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
+  const undecided = Response.json({ next_turn: { decided: false, kind: null, character_id: null } });
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = nextTurnRequest.safeParse(Reflect.get(envelope, 'next_turn'));
+    if (!parsed.success) throw validationError('A next_turn object with a chat_id is required', 'next_turn');
+    const asked = parsed.data;
+    const deciding = await decider(owner.id);
+    if (deciding === null) return undecided;
+    const chat = await chats.find(asked.chat_id, owner.id);
+    if (chat === null) throw notFound(chats.modelName);
+    const fields = chats.fields(chat) as { seat: string | null; muted_ids: string[] };
+    const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+    const playingId = play?.playingId ?? null;
+    const { prompt } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null },
+      Math.random,
+      'reply',
+      wikiReader(nextRequest),
+    );
+    const player = prompt.persona?.name ?? DEFAULT_USER_NAME;
+    const seat = turnSeat(fields.seat, playingId !== null);
+    const { question, picks } = turnQuestion(prompt.characters, fields.muted_ids, playingId, seat, player);
+    const names = new Map(prompt.characters.map((character) => [character.id, character.name]));
+    const story = new Set<string>(PROMPT.story_channels);
+    const state = turnState(
+      prompt.history
+        .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
+        .map((turn) => ({
+          name:
+            turn.role === 'user'
+              ? player
+              : turn.role === 'character'
+                ? (names.get(turn.speaker_character_id ?? '') ?? PROMPT.narrator_name)
+                : TABLE.gm_name,
+          text: turn.content,
+        })),
+    );
+    const answers = await askDecider(deciding, state, { next: question }, nextRequest.signal);
+    const pick = turnPick(answers?.next, picks);
+    if (pick === null) return undecided;
+    return Response.json({
+      next_turn: { decided: true, kind: pick.kind, character_id: pick.kind === 'character' ? pick.id : null },
+    });
   } catch (error) {
     return apiErrorResponse(error);
   }

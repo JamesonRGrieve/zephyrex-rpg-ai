@@ -1,0 +1,279 @@
+{
+  "$comment": "Who speaks next, by the decision model: cases both twins run (client/src/features/chat/turnDecision.test.ts, server/extensions/ai_chat/TurnDecision_test.py).",
+  "seat_cases": [
+    {
+      "name": "the GM's seat",
+      "chat_seat": "gm",
+      "playing": false,
+      "seat": "gm"
+    },
+    {
+      "name": "a player at the table",
+      "chat_seat": "player",
+      "playing": false,
+      "seat": "character"
+    },
+    {
+      "name": "playing a character in a campaign",
+      "chat_seat": null,
+      "playing": true,
+      "seat": "character"
+    },
+    {
+      "name": "a plain chat",
+      "chat_seat": null,
+      "playing": false,
+      "seat": "none"
+    }
+  ],
+  "question_cases": [
+    {
+      "name": "a character's seat: the AI's cast (muted and seated left out, a shared name told apart), the GM, and the pause for the player's character",
+      "cast": [
+        {
+          "id": "a",
+          "name": "Ada"
+        },
+        {
+          "id": "b",
+          "name": "Bram"
+        },
+        {
+          "id": "c",
+          "name": "Cass"
+        },
+        {
+          "id": "d",
+          "name": "Ada"
+        }
+      ],
+      "muted": [
+        "c"
+      ],
+      "seated": "b",
+      "seat": "character",
+      "player": "Bram",
+      "question": {
+        "type": "choice",
+        "instructions": "You choose who speaks next in a roleplay where the player plays Bram. Pick a character whose voice the scene needs now, or the GM when the scene needs narration or a consequence. Pick the pause when Bram is addressed, it's Bram's moment to act, or a choice is Bram's to make. Never let another character answer or act for Bram.",
+        "criteria": [
+          "Ada",
+          "Ada (2)",
+          "The GM interjects",
+          "Pause for Bram"
+        ]
+      },
+      "picks": {
+        "Ada": {
+          "kind": "character",
+          "id": "a"
+        },
+        "Ada (2)": {
+          "kind": "character",
+          "id": "d"
+        },
+        "The GM interjects": {
+          "kind": "gm"
+        },
+        "Pause for Bram": {
+          "kind": "pause"
+        }
+      }
+    },
+    {
+      "name": "the GM's seat: no AI GM to interject; the pause is for the GM",
+      "cast": [
+        {
+          "id": "a",
+          "name": "Ada"
+        },
+        {
+          "id": "b",
+          "name": "Bram"
+        }
+      ],
+      "muted": [],
+      "seated": null,
+      "seat": "gm",
+      "player": "Sam",
+      "question": {
+        "type": "choice",
+        "instructions": "You choose who speaks next in a roleplay where the player is the GM. Pick a character whose voice the scene needs now. Pick the pause when the story needs the GM to rule, narrate or respond: a question to the GM, a call for a roll, a scene beat. Don't pause while the party is only bantering.",
+        "criteria": [
+          "Ada",
+          "Bram",
+          "Pause for the GM"
+        ]
+      },
+      "picks": {
+        "Ada": {
+          "kind": "character",
+          "id": "a"
+        },
+        "Bram": {
+          "kind": "character",
+          "id": "b"
+        },
+        "Pause for the GM": {
+          "kind": "pause"
+        }
+      }
+    },
+    {
+      "name": "no seat: a plain chat with the person",
+      "cast": [
+        {
+          "id": "a",
+          "name": "Ada"
+        }
+      ],
+      "muted": [],
+      "seated": null,
+      "seat": "none",
+      "player": "Sam",
+      "question": {
+        "type": "choice",
+        "instructions": "You choose who speaks next in a roleplay with Sam. Pick a character whose voice the scene needs now, or the pause when it's Sam's turn to speak or act.",
+        "criteria": [
+          "Ada",
+          "The GM interjects",
+          "Pause for Sam"
+        ]
+      },
+      "picks": {
+        "Ada": {
+          "kind": "character",
+          "id": "a"
+        },
+        "The GM interjects": {
+          "kind": "gm"
+        },
+        "Pause for Sam": {
+          "kind": "pause"
+        }
+      }
+    }
+  ],
+  "pick_cases": [
+    {
+      "name": "a character",
+      "answer": {
+        "choice": "Ada (2)"
+      },
+      "pick": {
+        "kind": "character",
+        "id": "d"
+      }
+    },
+    {
+      "name": "the GM",
+      "answer": {
+        "choice": "The GM interjects"
+      },
+      "pick": {
+        "kind": "gm"
+      }
+    },
+    {
+      "name": "the pause",
+      "answer": {
+        "choice": "Pause for Bram"
+      },
+      "pick": {
+        "kind": "pause"
+      }
+    },
+    {
+      "name": "an option that isn't one",
+      "answer": {
+        "choice": "Zed"
+      },
+      "pick": null
+    },
+    {
+      "name": "no choice",
+      "answer": {
+        "probability": 0.4
+      },
+      "pick": null
+    },
+    {
+      "name": "no answer",
+      "answer": null,
+      "pick": null
+    }
+  ],
+  "pick_picks": {
+    "Ada (2)": {
+      "kind": "character",
+      "id": "d"
+    },
+    "The GM interjects": {
+      "kind": "gm"
+    },
+    "Pause for Bram": {
+      "kind": "pause"
+    }
+  },
+  "state_case": {
+    "lines": [
+      {
+        "name": "N",
+        "text": "0"
+      },
+      {
+        "name": "N",
+        "text": "1"
+      },
+      {
+        "name": "N",
+        "text": "2"
+      },
+      {
+        "name": "N",
+        "text": "3"
+      },
+      {
+        "name": "N",
+        "text": "4"
+      },
+      {
+        "name": "N",
+        "text": "5"
+      },
+      {
+        "name": "N",
+        "text": "6"
+      },
+      {
+        "name": "N",
+        "text": "7"
+      },
+      {
+        "name": "N",
+        "text": "8"
+      },
+      {
+        "name": "N",
+        "text": "9"
+      },
+      {
+        "name": "N",
+        "text": "10"
+      },
+      {
+        "name": "N",
+        "text": "11"
+      },
+      {
+        "name": "N",
+        "text": "12"
+      },
+      {
+        "name": "N",
+        "text": "13"
+      }
+    ],
+    "state": "N: 2\nN: 3\nN: 4\nN: 5\nN: 6\nN: 7\nN: 8\nN: 9\nN: 10\nN: 11\nN: 12\nN: 13"
+  }
+}

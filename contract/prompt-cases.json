@@ -85,7 +85,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -137,7 +137,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part. Never write what User says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "user",
@@ -327,7 +327,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nThe world is a ring of islands.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nDragons hoard memories.\n\nShips are named for storms.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nAda hates the sea."
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part. Never write what User says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nThe world is a ring of islands.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nDragons hoard memories.\n\nShips are named for storms.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nAda hates the sea."
         },
         {
           "role": "system",
@@ -542,7 +542,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nSummary of the story so far:\nThe crew reached Vell; the engine is failing."
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part. Never write what User says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nSummary of the story so far:\nThe crew reached Vell; the engine is failing."
         },
         {
           "role": "user",
@@ -610,7 +610,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part. Never write what User says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -650,7 +650,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part. Never write what User says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -700,7 +700,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "user",
@@ -1360,7 +1360,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are the game master, narrating this story. Describe what happens next: the world, the people in it and what comes of what the characters did, in a few vivid paragraphs. Never speak, act or decide for Sam.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
+          "content": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for Sam or for any of the characters in the cast, and stop where one of them would react.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
         },
         {
           "role": "assistant",
@@ -1424,7 +1424,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are the game master, narrating this story. Describe what happens next: the world, the people in it and what comes of what the characters did, in a few vivid paragraphs. Never speak, act or decide for Sam.\n\nHow you run the game, as the table asked: Terse and cinematic. End each scene on a question to the players.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\nNever roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
+          "content": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for Sam or for any of the characters in the cast, and stop where one of them would react.\n\nHow you run the game, as the table asked: Terse and cinematic. End each scene on a question to the players.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\nNever roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
         },
         {
           "role": "assistant",
@@ -1475,7 +1475,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\nNever roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\nNever roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -1713,7 +1713,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -1761,7 +1761,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "system",
@@ -1809,7 +1809,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "system",
@@ -1857,7 +1857,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -2098,7 +2098,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "A grim tale.\n\nWrite Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nKeep Ada terse."
+          "content": "A grim tale.\n\nWrite Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nKeep Ada terse."
         },
         {
           "role": "assistant",

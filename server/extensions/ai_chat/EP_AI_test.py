@@ -559,21 +559,22 @@ class TestGenerate:
         )
         assert too_many.status_code == 422, too_many.text
 
-    @pytest.mark.xfail(reason="mapping item 4: the data bank moves to wiki entries and attachments", strict=True)
-    def test_the_data_bank_finds_what_the_story_is_about(self, server: TestClient, model_url: str) -> None:
+    @pytest.mark.xfail(reason="mapping item 4: waiting on the wiki's campaign_documents ability (relayed)", strict=True)
+    def test_the_data_bank_reads_the_wiki_campaigns_documents(self, server: TestClient, model_url: str) -> None:
+        # The composed suite: the data bank retrieves from the chat's wiki campaign's documents (whole
+        # entry texts), through the wiki's campaign_documents ability, in name order.
         user = create_user(server)
         ada = _cast(server, user, "character", name="Ada").json()["character"]
         _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        said = lambda text: [{"type": "p", "children": [{"text": text}]}]  # noqa: E731 - a test's shorthand
+        campaign = _campaign(server, user)
+        _create(server, user, "location", name="Bay Two", kind="building", campaign_id=campaign, entry=said("The coolant spare is in bay two."))
+        _create(server, user, "location", name="Galley", kind="building", campaign_id=campaign, entry=said("Bram's stew is famous."))
         chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
-        _create(server, user, "data_document", name="Ship", text="The coolant spare is in bay two.")
-        _create(server, user, "data_document", name="Ada", text="Ada once rebuilt a coolant pump.", scope="character", scope_id=ada["id"])
-        _create(server, user, "data_document", name="Food", text="Bram's stew is famous.")
-        unnamed = server.post("/v1/data_document", json={"data_document": {"name": "x", "text": "y", "scope": "chat"}}, headers=_headers(user))
-        assert unnamed.status_code == 422, unnamed.text
         line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Where is the coolant?"]).json()["chat_message"]
         prompt = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)).json()["prompt"]
         system = prompt["messages"][0]["content"]
-        assert "Notes that may be relevant:\nThe coolant spare is in bay two.\n\nAda once rebuilt a coolant pump." in system
+        assert "Notes that may be relevant:\nThe coolant spare is in bay two." in system
         assert "stew" not in system
 
     def test_safety_tools_reach_the_model_and_an_x_carded_line_does_not(self, server: TestClient, model_url: str) -> None:
@@ -809,6 +810,23 @@ class TestGenerate:
         messages = server.post("/v1/ai_chat/prompt", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)).json()["prompt"]["messages"]
         assert messages[0]["content"].startswith("A grim tale.\n\n")
         assert {"role": messages[-1]["role"], "content": messages[-1]["content"]} == {"role": "user", "content": "It is raining."}
+
+    def test_next_turn_is_undecided_without_a_usable_decision(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-21: the decision model picks who speaks next; without one, or without a
+        # usable answer, the caller keeps its turn order.
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        bram = _cast(server, user, "character", name="Bram").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Crew", character_ids=[ada["id"], bram["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["*yawn*"]).json()["chat_message"]
+        asked = {"next_turn": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+        undecided = {"decided": False, "kind": None, "character_id": None}
+        assert server.post("/v1/ai_chat/next_turn", json=asked, headers=_headers(user)).json()["next_turn"] == undecided
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        answer = server.post("/v1/ai_chat/next_turn", json=asked, headers=_headers(user))
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["next_turn"] == undecided
 
     def test_cut_takes_out_only_the_lines_named(self, server: TestClient) -> None:
         # Audit gap 5: STscript's /cut; the cut lines' replies move up to their parents.

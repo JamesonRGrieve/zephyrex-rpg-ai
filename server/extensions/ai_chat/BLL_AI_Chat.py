@@ -61,7 +61,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     PROMPT,
     SAMPLER_RANGES,
 )
-from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.DataBank import data_bank_text, wiki_document_texts  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.ExtraBody import extra_body_problem, with_extra_body  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Gen import gen_messages  # type: ignore[import-not-found]
@@ -115,8 +115,18 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_body,
     speech_url,
 )
-from zephyrex.extensions.ai_chat.WikiReads import persons_for  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.WorldCast import seat_person, world_cast  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-not-found]
+    turn_pick,
+    turn_question,
+    turn_seat,
+    turn_state,
+)
+from zephyrex.extensions.ai_chat.WikiReads import campaign_documents, persons_for  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.WorldCast import (  # type: ignore[import-not-found]
+    seat_person,
+    world_cast,
+    world_known_to,
+)
 from zephyrex.extensions.ai_chat.WorldLore import (  # type: ignore[import-not-found]
     wiki_campaign_of,
     world_lore_entries,
@@ -1630,6 +1640,29 @@ class MovedEnvelope(PlainModel):
     move: Moved
 
 
+class NextTurnRequest(PlainModel):
+    """Who speaks next, by the decision model (the operator, 2026-11-21)."""
+
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+
+
+class NextTurnRequestEnvelope(PlainModel):
+    next_turn: NextTurnRequest
+
+
+class NextTurn(PlainModel):
+    #: False (the caller keeps its turn order) without a decision model or a usable answer.
+    decided: bool
+    #: character, gm or pause.
+    kind: str | None = None
+    character_id: str | None = None
+
+
+class NextTurnEnvelope(PlainModel):
+    next_turn: NextTurn
+
+
 class CutRequest(PlainModel):
     """STscript's /cut (audit gap 5): the messages to take out, all of one chat."""
 
@@ -2222,6 +2255,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 status_code=422,
                 detail={"message": "The speaker must be a character in the chat", "code": "validation_error"},
             )
+        # GM secrets (E): a GM-only record reaches the GM's prompts and that person's own voice only.
+        entities = world_known_to(entities, speaker_id, body.mode in ("narrate", "table"))
+        cast = world_cast(entities, chat.character_ids or [])
 
         # Who the person speaks as: the wiki person the seat holds (the composed suite); no persona store.
         # The person they play leaves the cast the AI plays; replies read the current session.
@@ -2413,6 +2449,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 persona["name"] if persona is not None else DEFAULT_USER_NAME,
             )
             sampler = {**sampler, "stop": list(dict.fromkeys([*sampler["stop"], *stops]))}
+            # In proportion (the operator's play-test): a group turn or the narrator's is short.
+            if (len(cast) > 1 or body.mode == "narrate") and body.mode != "impersonate":
+                sampler = {**sampler, "max_tokens": min(int(sampler["max_tokens"]), int(PROMPT["group_max_tokens"]))}
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         # "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.
         # Anthropic's and Google's own APIs (audit gap 8) take no pictures yet.
@@ -2534,24 +2573,12 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         return TranslateEnvelope(translate=TranslateRequest(chat_id=asked.chat_id, text=text, language=asked.language))
 
     def _data_bank(self, chat: Any, story: list[str]) -> str:
-        """The data bank's notes for this turn (A41): everyone's documents, the chat's and its cast's."""
-        documents = self._manager(DataDocumentManager)
-
-        def named(rows: Any) -> list[Any]:
-            # Each group by name, as the lite edition orders them: the order breaks retrieval ties.
-            return sorted(rows, key=lambda row: row.name)
-
-        found = [
-            *named(documents.list(scope="global")),
-            *named(documents.list(scope="chat", scope_id=chat.id)),
-            *(
-                document
-                for character_id in chat.character_ids or []
-                for document in named(documents.list(scope="character", scope_id=character_id))
-            ),
-        ]
+        """The data bank's notes for this turn (A41), from the wiki (the composed suite, mapping item 4):
+        the chat's wiki campaign's documents, through the wiki's campaign_documents ability."""
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        documents = campaign_documents(self.model_registry, str(self.requester.id), wiki)
         # The extension modules are imported by the framework at run time, so mypy sees them as Any.
-        text: str = data_bank_text([document.text for document in found], story)
+        text: str = data_bank_text(wiki_document_texts(documents), story)
         return text
 
     @custom_route(
@@ -2873,6 +2900,64 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         messages.update_trusted(parent.id, **lower)
         messages.update_trusted(message.id, **upper)
         return MovedEnvelope(move=Moved(message_id=parent.id))
+
+    @custom_route(
+        method="POST",
+        path="/next_turn",
+        input_model=NextTurnRequestEnvelope,
+        output_model=NextTurnEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Who speaks next, by the decision model: a character, the GM interjecting, or a pause for the person",
+    )
+    async def next_turn_route(self, body: NextTurnRequestEnvelope) -> NextTurnEnvelope:
+        undecided = NextTurnEnvelope(next_turn=NextTurn(decided=False))
+        deciding = self._decider()
+        if deciding is None:
+            return undecided
+        asked = body.next_turn
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id, mode="narrate"), save_timers=False
+        )
+        persona = context["persona"]
+        player = persona["name"] if persona is not None else DEFAULT_USER_NAME
+        seat = turn_seat(chat.seat, playing_id is not None)
+        question, picks = turn_question(context["cast"], chat.muted_ids or [], playing_id, seat, player)
+        names = {character["id"]: character["name"] for character in context["cast"]}
+        story = set(PROMPT["story_channels"])
+        state = turn_state(
+            [
+                {
+                    "name": player
+                    if turn["role"] == "user"
+                    else names.get(turn["speaker_character_id"] or "", PROMPT["narrator_name"])
+                    if turn["role"] == "character"
+                    else CONTRACT["table"]["gm_name"],
+                    "text": turn["content"],
+                }
+                for turn in context["history"]
+                if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+            ]
+        )
+        answers = await ask_decider(
+            deciding.base_url,
+            deciding.model,
+            decrypt_secret(deciding.api_key) if deciding.api_key else "",
+            state,
+            {"next": question},
+            getattr(deciding, "extra_body", None),
+        )
+        pick = turn_pick((answers or {}).get("next"), picks)
+        if pick is None:
+            return undecided
+        return NextTurnEnvelope(next_turn=NextTurn(decided=True, kind=pick["kind"], character_id=pick.get("id")))
 
     @custom_route(
         method="POST",

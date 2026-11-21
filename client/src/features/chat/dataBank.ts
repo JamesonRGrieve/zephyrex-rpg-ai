@@ -69,3 +69,15 @@ export function dataBankText(documents: readonly string[], story: readonly strin
   const found = retrieve(documents, story);
   return found.length === 0 ? '' : DATA_BANK.prefix + found.join('\n\n');
 }
+
+/**
+ * The data bank's documents from the wiki (the composed suite, mapping item 4): the chat's wiki
+ * campaign's documents (campaign_documents: journals, lore and each entry's whole text), their texts
+ * in name order, then id, so retrieval's ties break the same way everywhere. Empty texts drop out.
+ */
+export function wikiDocumentTexts(documents: readonly { id: string; name: string; text: string }[]): string[] {
+  return [...documents]
+    .filter((document) => document.text.trim() !== '')
+    .sort((a, b) => (a.name < b.name ? -1 : a.name > b.name ? 1 : a.id < b.id ? -1 : a.id > b.id ? 1 : 0))
+    .map((document) => document.text);
+}

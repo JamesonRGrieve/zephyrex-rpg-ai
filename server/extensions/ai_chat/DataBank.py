@@ -19,7 +19,8 @@ edition; the chunking and the place in the prompt stay.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
+from typing import Any
 
 from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
 
@@ -46,7 +47,9 @@ def chunks_of(text: str) -> list[str]:
 
 
 def words_of(text: str) -> set[str]:
-    return {word for word in _WORD.findall(text.lower()) if len(word) >= BANK["min_word_characters"] and word not in STOP}
+    return {
+        word for word in _WORD.findall(text.lower()) if len(word) >= BANK["min_word_characters"] and word not in STOP
+    }
 
 
 def retrieve(documents: Sequence[str], story: Sequence[str]) -> list[str]:
@@ -54,8 +57,10 @@ def retrieve(documents: Sequence[str], story: Sequence[str]) -> list[str]:
     wanted = words_of("\n".join(story[-BANK["scan_turns"] :])) if story else set()
     if not wanted:
         return []
-    scored = [(len(words_of(chunk) & wanted), order, chunk) for order, chunk in enumerate(chunk for document in documents for chunk in chunks_of(document))]
-    best = sorted((entry for entry in scored if entry[0] > 0), key=lambda entry: (-entry[0], entry[1]))[: BANK["chunks"]]
+    chunks = [chunk for document in documents for chunk in chunks_of(document)]
+    scored = [(len(words_of(chunk) & wanted), order, chunk) for order, chunk in enumerate(chunks)]
+    found = sorted((entry for entry in scored if entry[0] > 0), key=lambda entry: (-entry[0], entry[1]))
+    best = found[: BANK["chunks"]]
     return [chunk for _score, _order, chunk in sorted(best, key=lambda entry: entry[1])]
 
 
@@ -63,3 +68,10 @@ def data_bank_text(documents: Sequence[str], story: Sequence[str]) -> str:
     """The prompt section: the retrieved chunks under the contract's prefix, or nothing."""
     found = retrieve(documents, story)
     return BANK["prefix"] + "\n\n".join(found) if found else ""
+
+
+def wiki_document_texts(documents: Sequence[Mapping[str, Any]]) -> list[str]:
+    """The data bank's documents from the wiki (the composed suite, mapping item 4): the chat's wiki
+    campaign's documents, their texts in name order, then id; empty texts drop out."""
+    kept = [document for document in documents if str(document.get("text") or "").strip()]
+    return [str(document["text"]) for document in sorted(kept, key=lambda d: (str(d["name"]), str(d["id"])))]

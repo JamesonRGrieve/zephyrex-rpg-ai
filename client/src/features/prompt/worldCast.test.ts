@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/world-cast-cases.json';
-import { type CastEntity, seatPerson, worldCast } from './worldCast';
+import { type CastEntity, seatPerson, worldCast, worldKnownTo } from './worldCast';
 
 const entities = cases.entities as CastEntity[];
 
@@ -12,5 +12,8 @@ describe('the world cast cases both twins run', () => {
   });
   it.each(cases.seat_cases)('$name', ({ seated, persona }) => {
     expect(seatPerson(entities, seated)).toEqual(persona);
+  });
+  it.each(cases.known_cases)('$name', ({ entities, viewer, gm, known }) => {
+    expect(worldKnownTo(entities as CastEntity[], viewer, gm)).toEqual(known);
   });
 });

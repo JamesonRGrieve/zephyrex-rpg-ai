@@ -32,3 +32,17 @@ def seat_person(entities: Sequence[Mapping[str, Any]], seated_id: str | None) ->
     if person is None:
         return None
     return {"name": str(person["name"]), "description": str(person.get("summary") or "").strip()}
+
+
+def world_known_to(entities: Sequence[Mapping[str, Any]], viewer_id: str | None, gm: bool) -> list[dict[str, Any]]:
+    """What one voice may know of the world: a GM-only record reaches only the GM's prompts and that
+    person's own voice; to anyone else a GM-only person is a name, and other GM-only records are gone."""
+    if gm:
+        return [dict(entity) for entity in entities]
+    known: list[dict[str, Any]] = []
+    for entity in entities:
+        if not entity.get("gm_only") or entity.get("id") == viewer_id:
+            known.append(dict(entity))
+        elif entity.get("kind") == "person":
+            known.append({**entity, "summary": "", "voice": None, "lore": None})
+    return known

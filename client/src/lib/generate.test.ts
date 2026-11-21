@@ -43,6 +43,8 @@ const received: Received[] = [];
 let answer: 'stream' | 'refuse' = 'stream';
 /** The wiki's world entities the fake server answers GET /api/v1/world_entity with (the composed suite). */
 let world: Record<string, unknown>[] | null = null;
+/** The wiki's campaign documents the fake server answers GET /api/v1/campaign_document with (mapping item 4). */
+let documents: Record<string, unknown>[] = [];
 /** The wiki reads asked of the fake server, apart from the model calls in `received`. */
 const worldAsked: string[] = [];
 
@@ -55,6 +57,13 @@ async function readBody(request: IncomingMessage): Promise<string> {
 beforeAll(async () => {
   server = createServer((request, response) => {
     void readBody(request).then((text) => {
+      if ((request.url ?? '').startsWith('/api/v1/campaign_document')) {
+        worldAsked.push(request.url ?? '');
+        response
+          .writeHead(200, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ campaign_documents: documents }));
+        return;
+      }
       if ((request.url ?? '').startsWith('/api/v1/world_entity')) {
         worldAsked.push(request.url ?? '');
         if (world === null) response.writeHead(404).end('{}');
@@ -113,6 +122,7 @@ beforeEach(async () => {
   received.length = 0;
   worldAsked.length = 0;
   world = null;
+  documents = [];
   answer = 'stream';
   await prisma.chatMessage.deleteMany();
   await prisma.chat.deleteMany();
@@ -291,9 +301,9 @@ describe('World Info in a reply', () => {
     );
     await events(response);
     world = null;
-    expect(worldAsked.some((path) => path.startsWith('/api/v1/world_entity?campaign_id=wiki-world&include_setting=true'))).toBe(
-      true,
-    );
+    expect(
+      worldAsked.some((path) => path.startsWith('/api/v1/world_entity?campaign_id=wiki-world&include_setting=true')),
+    ).toBe(true);
     const system = received[0]?.body.messages[0]?.content ?? '';
     expect(system).toContain('The Kestrel’s spanners are cursed.');
     expect(system).not.toContain('never: only table talk says coffee');
@@ -403,19 +413,19 @@ describe('POST /v1/ai_chat/translate', () => {
 });
 
 describe('the data bank', () => {
-  it('puts the notes the story is about into the prompt: everyone’s, the chat’s and the cast’s', async () => {
-    await prisma.dataDocument.deleteMany();
-    const { ada, chat, line } = await seed();
-    await prisma.dataDocument.create({ data: { ...stamp(), name: 'Tools', text: 'The spanner rack is by the hatch.' } });
-    await prisma.dataDocument.create({
-      data: { ...stamp(), name: 'Ada', text: 'Ada keeps her own spanner.', scope: 'character', scopeId: ada.id },
-    });
-    await prisma.dataDocument.create({ data: { ...stamp(), name: 'Food', text: 'Bram cooks stew.' } });
+  it('puts the wiki campaign’s documents the story is about into the prompt, in name order (mapping item 4)', async () => {
+    const { chat, line } = await seed();
+    documents = [
+      { id: 'd2', kind: 'journal', name: 'Tools', text: 'The spanner rack is by the hatch.' },
+      { id: 'd1', kind: 'person', name: 'Ada', text: 'Ada keeps her own spanner.' },
+      { id: 'd3', kind: 'journal', name: 'Food', text: 'Bram cooks stew.' },
+    ];
     const body = (await (await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }))).json()) as {
       prompt: { messages: { content: string }[] };
     };
     const system = body.prompt.messages[0]?.content ?? '';
-    expect(system).toContain('Notes that may be relevant:\nThe spanner rack is by the hatch.\n\nAda keeps her own spanner.');
+    expect(system).toContain('Notes that may be relevant:\nAda keeps her own spanner.\n\nThe spanner rack is by the hatch.');
+    expect(worldAsked.some((path) => path.startsWith(`/api/v1/campaign_document?campaign_id=test-world`))).toBe(true);
     expect(system).not.toContain('stew');
   });
 });

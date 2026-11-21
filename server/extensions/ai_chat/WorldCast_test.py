@@ -8,7 +8,11 @@ from typing import Any
 
 import pytest
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.WorldCast import seat_person, world_cast  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.WorldCast import (  # type: ignore[import-not-found]
+    seat_person,
+    world_cast,
+    world_known_to,
+)
 
 CASES: dict[str, Any] = json.loads((REPOSITORY_ROOT / "contract" / "world-cast-cases.json").read_text())
 
@@ -21,3 +25,8 @@ def test_a_chats_cast_from_the_wiki(case: dict[str, Any]) -> None:
 @pytest.mark.parametrize("case", CASES["seat_cases"], ids=[case["name"] for case in CASES["seat_cases"]])
 def test_the_seated_person(case: dict[str, Any]) -> None:
     assert seat_person(CASES["entities"], case["seated"]) == case["persona"]
+
+
+@pytest.mark.parametrize("case", CASES["known_cases"], ids=[case["name"] for case in CASES["known_cases"]])
+def test_what_one_voice_may_know(case: dict[str, Any]) -> None:
+    assert world_known_to(case["entities"], case["viewer"], case["gm"]) == case["known"]
