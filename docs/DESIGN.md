@@ -219,7 +219,11 @@ binding; the owner of each piece is named.
   party's scene are narrated. Moves are GM-side; the person sees only what their characters see.
 - **Last known locations.** The right-hand panel lists the characters present, and the last known
   location of everyone else, as the party last saw them (never their live position).
-- **The right-hand panel's sections are mutually exclusive accordions.**
+- **The right-hand panel's sections are mutually exclusive accordions,** and every piece of
+  context lives there, not in the story: who is present, last known locations, the character
+  sheet, combat order, inventory, looting.
+- **Chat and map swap in one tap,** from a control on both views (the map is the VTT's scene view
+  of the campaign's current scene).
 
 **Characters**
 
