@@ -235,6 +235,9 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
         seat,
         campaign_id: world.id,
         folder: world.name.slice(0, LIMITS.name_characters),
+        // The decision model runs the table by default (the operator, 2026-11-21): who speaks next,
+        // the GM interjecting, or a pause for the person.
+        group_settings: { order: 'decide' },
       });
       const opening = await createMessage({
         chat_id: chat.id,

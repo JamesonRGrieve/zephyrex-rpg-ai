@@ -12,7 +12,9 @@
  */
 import { type Person, people } from '@zephyrex-rpg/wiki/features/data/records';
 import { useMemo } from 'react';
-import type { SWRResponse } from 'swr';
+import useSWR, { type SWRResponse } from 'swr';
+import { useClient } from 'zephyrex';
+import { z } from 'zod';
 import { type Character, characters } from './records';
 
 /** The tag that marks a player character: the default party. */
@@ -45,6 +47,31 @@ export function personAsCast(person: Pick<Person, 'id' | 'name' | 'description' 
   };
 }
 
+/** The most ids one world_entity read takes (the wiki's limits.world_entity_ids). */
+const IDS_PER_READ = 100;
+
+const pictureRows = z.object({
+  world_entities: z.array(z.object({ id: z.string(), picture: z.string().nullish() })),
+});
+
+const NO_PICTURES: ReadonlyMap<string, string> = new Map();
+
+/** Each person's picture (the wiki's world_entity read by ids), as the app's own /api path. */
+function usePictures(ids: readonly string[]): ReadonlyMap<string, string> {
+  const client = useClient();
+  const key = ids.length === 0 ? null : ['rpg-ai', 'cast-pictures', ...[...ids].sort()];
+  const { data } = useSWR(key, async () => {
+    const found = new Map<string, string>();
+    for (let start = 0; start < ids.length; start += IDS_PER_READ) {
+      const chunk = ids.slice(start, start + IDS_PER_READ);
+      const body = pictureRows.parse(await client.get('/v1/world_entity', { ids: chunk.join(',') }));
+      for (const row of body.world_entities) if (row.picture) found.set(row.id, `/api${row.picture}`);
+    }
+    return found;
+  });
+  return data ?? NO_PICTURES;
+}
+
 /** The persons, then the cards no person shadows. */
 export function mergeCast(persons: readonly Character[], cards: readonly Character[]): Character[] {
   const ids = new Set(persons.map((person) => person.id));
@@ -58,12 +85,17 @@ export function mergeCast(persons: readonly Character[], cards: readonly Charact
 export function useCast(campaignId?: string | null): Pick<SWRResponse<Character[], Error>, 'data' | 'error' | 'isLoading'> {
   const personList = people.useList(campaignId === undefined || campaignId === null ? undefined : { campaign_id: campaignId });
   const cardList = characters.useList();
+  const persons = useMemo(() => (personList.data ?? []).filter((person) => !person.is_template), [personList.data]);
+  const pictures = usePictures(persons.map((person) => person.id));
   const data = useMemo(
     () =>
       personList.data === undefined && cardList.data === undefined
         ? undefined
-        : mergeCast((personList.data ?? []).filter((person) => !person.is_template).map(personAsCast), cardList.data ?? []),
-    [personList.data, cardList.data],
+        : mergeCast(
+            persons.map((person) => ({ ...personAsCast(person), avatar: pictures.get(person.id) ?? null })),
+            cardList.data ?? [],
+          ),
+    [personList.data, cardList.data, persons, pictures],
   );
   return { data, error: personList.error ?? cardList.error, isLoading: personList.isLoading || cardList.isLoading };
 }

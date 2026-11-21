@@ -3,6 +3,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('./records', () => ({}));
+vi.mock('zephyrex', () => ({ useClient: () => ({}) }));
 vi.mock('@zephyrex-rpg/wiki/features/data/records', () => ({}));
 
 const { mergeCast, PARTY_TAG, personAsCast } = await import('./cast');

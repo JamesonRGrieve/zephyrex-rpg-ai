@@ -55,6 +55,7 @@ import {
   translateText,
   genText,
   cutMessages,
+  decideNextTurn,
 } from '~/features/chat/inspectPrompt';
 import { speakingStore, useSpeaking } from '~/features/speech/speaking';
 import { ScriptPrompt } from './ScriptPrompt';
@@ -225,6 +226,9 @@ export function messageViews(
     };
   });
 }
+
+/** At most this many decided turns follow one line before the table waits for the person. */
+const DECIDE_ROUND_LIMIT = 4;
 
 function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const list = messages.useList({ chat_id: chat.id });
@@ -812,6 +816,26 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (chat.seat === null) {
       await replyAfter(start.id, path);
       return;
+    }
+    // The decision model runs the table (the operator, 2026-11-21): after each line it picks who
+    // speaks next, the AI GM interjecting, or a pause for the person, by their seat. Undecided (no
+    // decide model, or no usable answer) falls back to the order below.
+    if (groupModes.order === 'decide') {
+      const aiIds = new Set(play.isCampaign ? play.aiIds : chat.character_ids);
+      let current = [...path];
+      let parent: ChatMessage = start;
+      for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
+        const next = await decideNextTurn(chat.id, parent.id);
+        if (!next.decided) break;
+        if (next.kind === 'pause') return;
+        if (next.kind === 'character' && (next.character_id === null || !aiIds.has(next.character_id))) return;
+        const saved =
+          next.kind === 'gm' ? await narrateAfter(parent.id) : await replyAfter(parent.id, current, next.character_id ?? undefined);
+        if (saved === null) return;
+        parent = saved;
+        current = [...current, saved];
+      }
+      if (parent !== start) return;
     }
     const turns = roundTurns({
       seat: chat.seat,
