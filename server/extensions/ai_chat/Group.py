@@ -30,7 +30,13 @@ def group_stops(mode: str, speaker: str, cast: Sequence[str], person: str, recen
     if mode == "impersonate" or not seat:
         seat_stops: list[str] = []
     else:
-        seat_stops = [f"\n{seat}", f"\n*{first}"]
+        # Only the seat's structured line forms (the operator: "Things need to still happen to my character,
+        # just not by my character"): prose about them goes on, and the save-time seat_cut takes what acts.
+        lead = first if len(first) >= 3 and first.lower() not in ("the", "a", "an") else seat
+        if mode == "narrate":
+            seat_stops = [f"\n{seat} (", f"\n{seat}:", f"\n*{lead}", f"\n{lead} ("]
+        else:
+            seat_stops = [f"\n{seat} (", f"\n*{lead}"]
     # Structured lines (PlayerLines.py): a line opening with a name is that person's, say or do; the
     # narrator may write the cast's lines, a voice only its own.
     cast_stops = [

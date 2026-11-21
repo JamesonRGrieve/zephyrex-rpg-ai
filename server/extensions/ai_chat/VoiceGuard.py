@@ -241,3 +241,26 @@ def plain_dashes(text: str) -> str:
     text = re.sub(r"[ \t]*(?:—|--)(?=[\"”’'*)]|[ \t]*(?:\n|$))", "...", text)  # noqa: RUF001
     text = re.sub(r"[ \t]*(?:—|--)[ \t]*(?=[\"“‘']?[A-Z])", ". ", text)  # noqa: RUF001
     return re.sub(r"[ \t]*(?:—|--)[ \t]*", ", ", text)
+
+
+def seat_cut(text: str, seat: str) -> str:
+    """A narration cut before its first sentence that acts for the person's seat: one whose subject is the
+    seat (its name, its first name, or "you") followed by a verb other than one of perceiving."""
+    if not seat.strip():
+        return text
+    names = sorted([*_forms(seat), "you"], key=lambda name: -len(name))
+    narrator = re.escape(PLAYER_LINES["narrator"])
+    alternatives = "|".join(re.escape(name) for name in names)
+    subject = re.compile(
+        rf"(?:{narrator}:\s*)?[\"“*]?(?:{alternatives})\s+([^\W\d_][\w']*)",
+        re.IGNORECASE,
+    )
+    for at, sentence in _sentences(text):
+        hit = subject.match(sentence)
+        if hit is None:
+            continue
+        verb = hit.group(1)
+        if verb.lower() in VOICE_GUARD["seat_perception"] or not verb[:1].islower():
+            continue
+        return text[:at].rstrip()
+    return text

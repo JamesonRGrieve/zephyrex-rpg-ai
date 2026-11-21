@@ -13,6 +13,7 @@ from zephyrex.extensions.ai_chat.VoiceGuard import (  # type: ignore[import-not-
     meta_break,
     narrate_segments,
     plain_dashes,
+    seat_cut,
     speaks_for,
     stranger_in,
 )
@@ -48,3 +49,8 @@ def test_breaking_character(case: dict[str, Any]) -> None:
 @pytest.mark.parametrize("case", CASES["dash_cases"], ids=[case["name"] for case in CASES["dash_cases"]])
 def test_no_em_dashes(case: dict[str, Any]) -> None:
     assert plain_dashes(case["text"]) == case["plain"]
+
+
+@pytest.mark.parametrize("case", CASES["seat_cut_cases"], ids=[case["name"] for case in CASES["seat_cut_cases"]])
+def test_acting_for_the_seat_is_cut(case: dict[str, Any]) -> None:
+    assert seat_cut(case["text"], case["seat"]) == case["cut"]

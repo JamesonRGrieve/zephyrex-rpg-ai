@@ -13,7 +13,7 @@
       ],
       "person": "Massen",
       "stops": [
-        "\nMassen",
+        "\nMassen (",
         "\n*Massen",
         "\nGus Veridan",
         "\nMagnus Karlsson"
@@ -28,7 +28,7 @@
       ],
       "person": "You",
       "stops": [
-        "\nYou",
+        "\nYou (",
         "\n*You"
       ]
     },
@@ -42,7 +42,7 @@
       ],
       "person": "You",
       "stops": [
-        "\nYou",
+        "\nYou (",
         "\n*You",
         "\nA.Z."
       ]
@@ -57,7 +57,8 @@
       ],
       "person": "Massen",
       "stops": [
-        "\nMassen",
+        "\nMassen (",
+        "\nMassen:",
         "\n*Massen"
       ]
     },
@@ -108,7 +109,7 @@
       ]
     },
     {
-      "name": "narrating with a seat of two names: its line start and its first name's action",
+      "name": "narrating with a seat of two names: its first name's line start and action (they cover the full name)",
       "mode": "narrate",
       "speaker": "",
       "cast": [
@@ -117,8 +118,10 @@
       ],
       "person": "Tessaly Kord",
       "stops": [
-        "\nTessaly Kord",
-        "\n*Tessaly"
+        "\nTessaly Kord (",
+        "\nTessaly Kord:",
+        "\n*Tessaly",
+        "\nTessaly ("
       ]
     },
     {
@@ -136,7 +139,7 @@
         "Kord"
       ],
       "stops": [
-        "\nTessaly Kord",
+        "\nTessaly Kord (",
         "\n*Tessaly",
         "\nThe Acolyte",
         "\nKord"

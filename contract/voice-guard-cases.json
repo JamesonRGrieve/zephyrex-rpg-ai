@@ -448,5 +448,73 @@
       "text": "The door seals.",
       "plain": "The door seals."
     }
+  ],
+  "seat_cut_cases": [
+    {
+      "name": "the novel's fault: the seat's name acting ends the narration before it",
+      "seat": "Tessaly Kord",
+      "text": "Narrator: The door opens. Tessaly nods and steps through.",
+      "cut": "Narrator: The door opens."
+    },
+    {
+      "name": "\"you\" acting is the seat too",
+      "seat": "Tessaly Kord",
+      "text": "The hatch hisses. You step forward, pistol raised.",
+      "cut": "The hatch hisses."
+    },
+    {
+      "name": "perceiving is allowed",
+      "seat": "Tessaly Kord",
+      "text": "You see a light in the dark. It flickers.",
+      "cut": "You see a light in the dark. It flickers."
+    },
+    {
+      "name": "a possessive is no subject",
+      "seat": "Tessaly Kord",
+      "text": "Wren laughs. Tessaly Kord's lamp gutters.",
+      "cut": "Wren laughs. Tessaly Kord's lamp gutters."
+    },
+    {
+      "name": "the seat's structured line cuts there",
+      "seat": "Tessaly Kord",
+      "text": "Narrator: Rain.\nTessaly Kord draws her pistol.",
+      "cut": "Narrator: Rain."
+    },
+    {
+      "name": "another character acting is fine",
+      "seat": "Tessaly Kord",
+      "text": "Wren draws her blade.",
+      "cut": "Wren draws her blade."
+    },
+    {
+      "name": "things happen to the seat: an outside force as the subject",
+      "seat": "Tessaly Kord",
+      "text": "A las-bolt clips Tessaly's shoulder. The deck heaves.",
+      "cut": "A las-bolt clips Tessaly's shoulder. The deck heaves."
+    },
+    {
+      "name": "the passive is what happens to them",
+      "seat": "Tessaly Kord",
+      "text": "The deck heaves and Tessaly is thrown against the bulkhead.",
+      "cut": "The deck heaves and Tessaly is thrown against the bulkhead."
+    },
+    {
+      "name": "an involuntary reaction stays",
+      "seat": "Tessaly Kord",
+      "text": "Tessaly staggers as the deck heaves.",
+      "cut": "Tessaly staggers as the deck heaves."
+    },
+    {
+      "name": "a feeling is the seat's own: cut",
+      "seat": "Tessaly Kord",
+      "text": "The lights die. Tessaly feels a cold dread.",
+      "cut": "The lights die."
+    },
+    {
+      "name": "a choice is the seat's own: cut",
+      "seat": "Tessaly Kord",
+      "text": "Wren points. Tessaly answers her.",
+      "cut": "Wren points."
+    }
   ]
 }

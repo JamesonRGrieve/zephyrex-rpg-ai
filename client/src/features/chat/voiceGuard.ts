@@ -253,3 +253,26 @@ export function plainDashes(text: string): string {
     .replace(/[ \t]*(?:—|--)[ \t]*(?=["“‘']?[A-Z])/gu, '. ')
     .replace(/[ \t]*(?:—|--)[ \t]*/gu, ', ');
 }
+
+/**
+ * A narration cut before its first sentence that acts for the person's seat (the operator: "an entire
+ * novel including both acting and speaking for my character"), no model call: a sentence whose subject
+ * is the seat (its name, its first name, or "you") followed by a verb other than one of perceiving
+ * ("You see…" stays). The text before it is kept.
+ */
+export function seatCut(text: string, seat: string): string {
+  const names = [...nameForms(seat), 'you'].filter((name) => name !== '').sort((a, b) => b.length - a.length);
+  if (seat.trim() === '') return text;
+  const subject = new RegExp(
+    `^(?:${PLAYER_LINES.narrator}:\\s*)?["“*]?(?:${names.map(escaped).join('|')})\\s+(\\p{Ll}[\\p{L}']*)`,
+    'iu',
+  );
+  for (const sentence of sentences(text)) {
+    const hit = subject.exec(sentence.text);
+    if (hit === null) continue;
+    const verb = (hit[1] ?? '').toLowerCase();
+    if (VOICE_GUARD.seat_perception.includes(verb) || !/^\p{Ll}/u.test(hit[1] ?? '')) continue;
+    return text.slice(0, sentence.at).trimEnd();
+  }
+  return text;
+}

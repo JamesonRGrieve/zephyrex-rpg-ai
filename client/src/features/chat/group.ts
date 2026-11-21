@@ -30,7 +30,15 @@ export function groupStops(
   const seat = person.trim();
   const first = seat.split(/\s+/)[0] ?? '';
   // Nobody writes for the person's seat (the operator's play-test): its line-start forms come first.
-  const seatStops = mode === 'impersonate' || seat === '' ? [] : [`\n${seat}`, `\n*${first}`];
+  // Only the seat's structured line forms (the operator: "Things need to still happen to my character,
+  // just not by my character"): prose about them goes on, and the save-time seatCut takes what acts.
+  const lead = first.length >= 3 && !['the', 'a', 'an'].includes(first.toLowerCase()) ? first : seat;
+  const seatStops =
+    mode === 'impersonate' || seat === ''
+      ? []
+      : mode === 'narrate'
+        ? [`\n${seat} (`, `\n${seat}:`, `\n*${lead}`, `\n${lead} (`]
+        : [`\n${seat} (`, `\n*${lead}`];
   // Structured lines (playerLines.ts): a line opening with a name is that person's, say or do; the
   // narrator may write the cast's lines, a voice only its own.
   const castStops = (mode === 'narrate' ? [] : others)
