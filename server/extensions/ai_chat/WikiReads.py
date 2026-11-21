@@ -143,3 +143,15 @@ async def move_person(model_registry: Any, requester_id: str, person_id: str, lo
     if move is None:
         return False
     return await _call(move, model_registry, requester_id, person_id, location_id, reason=reason) is not None
+
+
+async def ensure_person(
+    model_registry: Any, requester_id: str, campaign_id: str, name: str, summary: str
+) -> dict[str, Any] | None:
+    """Someone the narrator voiced who isn't a person yet, made one (the wiki's ensure_person: a GM-only npc
+    in the campaign, the same one if the name is already there); None without the ability or when refused."""
+    ensure = loaded_ability(model_registry, "rpg_core", "ensure_person")
+    if ensure is None:
+        return None
+    person = await _call(ensure, model_registry, requester_id, campaign_id, name, summary=summary)
+    return dict(person) if isinstance(person, dict) and person.get("id") else None

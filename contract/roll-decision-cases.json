@@ -110,31 +110,15 @@
       }
     },
     {
-      "name": "systemless: the light dice style (narrative)",
+      "name": "no game system at all: no roll and no question (mechanics are never a model's)",
       "options": null,
       "mode": "narrative",
       "actor": "Kord",
-      "questions": {
-        "roll": {
-          "type": "choice",
-          "instructions": "Kord just acted. Does the outcome need a roll? Pick one only when the outcome is truly uncertain and something real is at stake; otherwise pick no roll, and the story decides.",
-          "criteria": [
-            "No roll",
-            "Roll 2d6"
-          ]
-        }
-      },
-      "picks": {
-        "No roll": {
-          "kind": "none"
-        },
-        "Roll 2d6": {
-          "kind": "formula"
-        }
-      }
+      "questions": {},
+      "picks": {}
     },
     {
-      "name": "a pack but no sheet: the light dice style (hybrid reads as narrative)",
+      "name": "a system but no sheet: still the system's own tests (the operator: a 5e character rolled 2d8, not a d20)",
       "options": {
         "characteristics": [
           {
@@ -174,7 +158,18 @@
           "instructions": "Kord just acted. Does the outcome need a roll? Pick one only when the outcome is truly uncertain and something real is at stake; otherwise pick no roll, and the story decides.",
           "criteria": [
             "No roll",
-            "Roll 2d6"
+            "Agility",
+            "Tech-Use",
+            "Dodge"
+          ]
+        },
+        "difficulty": {
+          "type": "choice",
+          "instructions": "How hard is it, given the situation?",
+          "criteria": [
+            "easy",
+            "challenging",
+            "hard"
           ]
         }
       },
@@ -182,8 +177,20 @@
         "No roll": {
           "kind": "none"
         },
-        "Roll 2d6": {
-          "kind": "formula"
+        "Agility": {
+          "kind": "test",
+          "name": "agility",
+          "label": "Agility"
+        },
+        "Tech-Use": {
+          "kind": "test",
+          "name": "tech-use",
+          "label": "Tech-Use"
+        },
+        "Dodge": {
+          "kind": "test",
+          "name": "dodge",
+          "label": "Dodge"
         }
       }
     },
@@ -278,7 +285,8 @@
         "kind": "test",
         "name": "tech-use",
         "difficulty": "hard",
-        "label": "Tech-Use (hard)"
+        "label": "Tech-Use (hard)",
+        "source": "system"
       }
     },
     {
@@ -296,7 +304,8 @@
         "kind": "test",
         "name": "dodge",
         "difficulty": "challenging",
-        "label": "Dodge (challenging)"
+        "label": "Dodge (challenging)",
+        "source": "system"
       }
     },
     {
@@ -309,20 +318,6 @@
       "pack": true,
       "pick": {
         "kind": "none"
-      }
-    },
-    {
-      "name": "systemless: the light dice",
-      "answers": {
-        "roll": {
-          "choice": "Roll 2d6"
-        }
-      },
-      "pack": false,
-      "pick": {
-        "kind": "formula",
-        "formula": "2d6",
-        "label": "2d6"
       }
     },
     {
@@ -380,6 +375,53 @@
     {
       "line": "Wren hacks the terminal.",
       "attempt": true
+    }
+  ],
+  "options_5e": {
+    "characteristics": [
+      {
+        "slug": "strength",
+        "name": "Strength"
+      }
+    ],
+    "skills": [
+      {
+        "slug": "athletics",
+        "name": "Athletics"
+      }
+    ],
+    "difficulties": [
+      {
+        "slug": "easy"
+      },
+      {
+        "slug": "medium"
+      },
+      {
+        "slug": "hard"
+      }
+    ],
+    "default_difficulty": "medium",
+    "has_sheet": false
+  },
+  "pick_cases_5e": [
+    {
+      "name": "a 5e character with no sheet: an Athletics test, which the VTT rolls on a d20",
+      "answers": {
+        "roll": {
+          "choice": "Athletics"
+        },
+        "difficulty": {
+          "choice": "hard"
+        }
+      },
+      "pick": {
+        "kind": "test",
+        "name": "athletics",
+        "difficulty": "hard",
+        "label": "Athletics (hard)",
+        "source": "system"
+      }
     }
   ]
 }

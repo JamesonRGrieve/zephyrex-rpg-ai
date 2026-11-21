@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/player-lines-cases.json';
-import { type PlayerLine, formatPlayerLines, lineSpeaker, parsePlayerLines, stripMarkup } from './playerLines';
+import { type PlayerLine, formatPlayerLines, lineSpeaker, locationLine, parsePlayerLines, stripMarkup } from './playerLines';
 
 describe('the structured lines cases both twins run', () => {
   it.each(cases.parse_cases)('$name', ({ text, items }) => {
@@ -13,6 +13,9 @@ describe('the structured lines cases both twins run', () => {
     expect(formatPlayerLines(cases.target_format_case.items as PlayerLine[], cases.people)).toBe(
       cases.target_format_case.text,
     );
+  });
+  it.each(cases.location_cases.cases)('$name', ({ text, line }) => {
+    expect(locationLine(text, cases.location_cases.locations)).toEqual(line);
   });
   it.each(cases.markup_cases)('$name', ({ text, plain }) => {
     expect(stripMarkup(text)).toBe(plain);

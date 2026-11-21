@@ -22,6 +22,12 @@ export interface WorldReader {
   advanceClock: (campaignId: string, minutes: number, reason: string) => Promise<WikiClock | null>;
   /** A person moved (GM only; POST /api/v1/person_move); false when refused. */
   movePerson: (personId: string, locationId: string, reason: string) => Promise<boolean>;
+  /** Someone the narrator voiced, made a GM-only npc (POST /api/v1/campaign/{id}/person); null when refused. */
+  ensurePerson: (
+    campaignId: string,
+    name: string,
+    summary: string,
+  ) => Promise<{ id: string; name: string; created: boolean } | null>;
 }
 
 /** The wiki's campaign clock: minutes from day 1, 00:00, as its day and "HH:MM". */
@@ -44,6 +50,7 @@ export const NO_WORLD: WorldReader = {
   documents: async () => [],
   advanceClock: async () => null,
   movePerson: async () => false,
+  ensurePerson: async () => null,
 };
 
 /** A reader that asks this app's own wiki resource, with the request's cookies (the caller's access). */
@@ -116,5 +123,19 @@ export function wikiReader(request: Request): WorldReader {
     (await post('/api/v1/person_move', {
       person_move: { person_id: personId, to_location_id: locationId, reason },
     })) !== null;
-  return { campaign, byIds, documents, advanceClock, movePerson };
+  const ensurePerson = async (
+    campaignId: string,
+    name: string,
+    summary: string,
+  ): Promise<{ id: string; name: string; created: boolean } | null> => {
+    const person: unknown = Reflect.get(
+      Object(await post(`/api/v1/campaign/${encodeURIComponent(campaignId)}/person`, { person: { name, summary } })),
+      'person',
+    );
+    const id: unknown = Reflect.get(Object(person), 'id');
+    if (typeof id !== 'string') return null;
+    const named: unknown = Reflect.get(Object(person), 'name');
+    return { id, name: typeof named === 'string' ? named : name, created: Reflect.get(Object(person), 'created') === true };
+  };
+  return { campaign, byIds, documents, advanceClock, movePerson, ensurePerson };
 }

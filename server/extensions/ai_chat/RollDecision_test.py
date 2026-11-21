@@ -39,3 +39,9 @@ def test_a_light_rolls_outcome(case: dict[str, Any]) -> None:
 @pytest.mark.parametrize("case", CASES["attempt_cases"], ids=[case["line"] for case in CASES["attempt_cases"]])
 def test_an_attempt(case: dict[str, Any]) -> None:
     assert is_attempt(case["line"]) is case["attempt"]
+
+
+@pytest.mark.parametrize("case", CASES["pick_cases_5e"], ids=[case["name"] for case in CASES["pick_cases_5e"]])
+def test_a_system_test_without_a_sheet(case: dict[str, Any]) -> None:
+    _questions, picks = roll_questions(CASES["options_5e"], "narrative", "Fennick")
+    assert roll_pick(case["answers"], picks, CASES["options_5e"]) == case["pick"]

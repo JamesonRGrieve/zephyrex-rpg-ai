@@ -15,10 +15,17 @@ import { lineSpeaker } from './playerLines';
 const SEAT = '\u0000seat';
 
 export interface Segment {
-  /** The cast member speaking in an interlude, or null for the narrator. */
+  /** The cast member speaking in an interlude, or null for the narrator (or someone not yet a person). */
   speaker_id: string | null;
+  /** Someone who isn't a person yet ("The Barkeep"), for the caller to make one; null otherwise. */
+  speaker_name: string | null;
   text: string;
 }
+
+/** A name as the narrator writes an unnamed NPC's: "The Barkeep", "Captain Rho", "Old Tom". */
+const NAMEISH = /^(?:(?:The|A|An)\s+)?[A-Z][A-Za-z'-]*(?:\s+(?:of\s+|the\s+)?[A-Z][A-Za-z'-]*){0,3}$/u;
+/** A say line's speaker and its parenthesis: `X (to Y): …`, `X (vox to Y): …`, `X (voxcast): …`. */
+const SAY_FORM = /^([^:(\n"“*]{1,40}?)\s*\((?:to\b|vox\b|voxcast)[^)]*\)\s*:/iu;
 
 const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const word = (text: string, needle: string): boolean =>
@@ -93,11 +100,16 @@ export function narrateSegments(
   cast: readonly { id: string; name: string; line?: string }[],
   seat: string,
 ): Segment[] {
-  const parts: { speaker_id: string | null; lines: string[] }[] = [];
-  const push = (who: string | null, line: string): void => {
+  const parts: { speaker_id: string | null; speaker_name: string | null; lines: string[] }[] = [];
+  const push = (who: string | null, line: string, name: string | null = null): void => {
     const last = parts.at(-1);
-    if (last !== undefined && last.speaker_id === who) last.lines.push(line);
-    else parts.push({ speaker_id: who, lines: [line] });
+    if (last !== undefined && last.speaker_id === who && last.speaker_name === name) last.lines.push(line);
+    else parts.push({ speaker_id: who, speaker_name: name, lines: [line] });
+  };
+  // Someone the narrator voices who isn't a person yet (the play-test's barkeep): not the narrator.
+  const stranger = (said: string): string | null => {
+    const name = said.trim();
+    return NAMEISH.test(name) && name.toLowerCase() !== PLAYER_LINES.narrator.toLowerCase() ? name : null;
   };
   const leads = (line: string, name: string): boolean =>
     nameForms(name).some((form) => new RegExp(`^\\*\\s*${escaped(form)}($|[^\\p{L}\\p{N}])`, 'iu').test(line));
@@ -126,6 +138,10 @@ export function narrateSegments(
       push(cast.find((member) => isNamed(tagged[1] ?? '', member.name))?.id ?? null, tagged[2] ?? '');
       continue;
     }
+    if (tagged !== null && stranger(tagged[1] ?? '') !== null) {
+      push(null, tagged[2] ?? '', stranger(tagged[1] ?? ''));
+      continue;
+    }
     if (trimmed.startsWith('*')) {
       if (seat.trim() !== '' && leads(trimmed, seat)) break;
       const actor = cast.find((member) => leads(trimmed, member.name));
@@ -138,6 +154,11 @@ export function narrateSegments(
     if (opener === SEAT) break;
     if (opener !== null) {
       push(opener, line);
+      continue;
+    }
+    const sayer = SAY_FORM.exec(trimmed);
+    if (sayer !== null && stranger(sayer[1] ?? '') !== null) {
+      push(null, line, stranger(sayer[1] ?? ''));
       continue;
     }
     if (speaker === null) {
@@ -156,8 +177,9 @@ export function narrateSegments(
     const body = part.lines.join('\n').trim();
     if (body === '') continue;
     const last = segments.at(-1);
-    if (last !== undefined && last.speaker_id === part.speaker_id) last.text = `${last.text}\n\n${body}`;
-    else segments.push({ speaker_id: part.speaker_id, text: body });
+    if (last !== undefined && last.speaker_id === part.speaker_id && last.speaker_name === part.speaker_name)
+      last.text = `${last.text}\n\n${body}`;
+    else segments.push({ speaker_id: part.speaker_id, speaker_name: part.speaker_name, text: body });
   }
   return segments;
 }

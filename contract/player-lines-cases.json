@@ -282,6 +282,11 @@
       "name": "a colour off the palette is left as written",
       "text": "[pink]soft[/pink]",
       "plain": "[pink]soft[/pink]"
+    },
+    {
+      "name": "a location banner reads as its place",
+      "text": "[location: The Gull Tower]\nNarrator: Wind howls.",
+      "plain": "The Gull Tower.\nNarrator: Wind howls."
     }
   ],
   "target_format_case": {
@@ -304,5 +309,51 @@
       }
     ],
     "text": "Tessaly Kord (at the Neverborn) punches it.\nTessaly Kord (at Wren) shoves her aside."
+  },
+  "location_cases": {
+    "locations": [
+      {
+        "id": "gull",
+        "name": "The Gull Tower",
+        "aliases": [
+          "the tower"
+        ]
+      },
+      {
+        "id": "bay",
+        "name": "Bay Two"
+      }
+    ],
+    "cases": [
+      {
+        "name": "matched by name, case aside",
+        "text": "[location: the gull tower]\nNarrator: Wind.",
+        "line": {
+          "name": "The Gull Tower",
+          "location_id": "gull"
+        }
+      },
+      {
+        "name": "matched by alias",
+        "text": "\n[location: The Tower]",
+        "line": {
+          "name": "The Gull Tower",
+          "location_id": "gull"
+        }
+      },
+      {
+        "name": "a place the wiki doesn't know keeps its name",
+        "text": "[location: The Docks]",
+        "line": {
+          "name": "The Docks",
+          "location_id": null
+        }
+      },
+      {
+        "name": "no banner on the first line: none",
+        "text": "Narrator: Wind.\n[location: Bay Two]",
+        "line": null
+      }
+    ]
   }
 }

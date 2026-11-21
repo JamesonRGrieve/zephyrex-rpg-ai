@@ -836,12 +836,13 @@ class TestGenerate:
         chat = _chat(server, user, "chat", title="Crew", character_ids=[kord["id"]]).json()["chat"]
         line = _create(server, user, "chat_message", chat_id=chat["id"], role="character", speaker_character_id=kord["id"], swipes=["I force the hatch."]).json()["chat_message"]
         asked = {"needs_roll": {"chat_id": chat["id"], "leaf_id": line["id"], "character_id": kord["id"]}}
-        undecided = {"decided": False, "kind": None, "person_id": None, "name": None, "difficulty": None, "formula": None, "label": None}
+        undecided = {"decided": False, "kind": None, "person_id": None, "name": None, "difficulty": None, "formula": None, "label": None, "source": None}
         assert server.post("/v1/ai_chat/needs_roll", json=asked, headers=_headers(user)).json()["needs_roll"] == undecided
         _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
         answer = server.post("/v1/ai_chat/needs_roll", json=asked, headers=_headers(user))
         assert answer.status_code == 200, answer.text
-        assert answer.json()["needs_roll"] == undecided
+        # No game system for this character: no roll, decided at once (mechanics are never a model's).
+        assert answer.json()["needs_roll"] == {**undecided, "decided": True, "kind": "none"}
         stranger = {"needs_roll": {**asked["needs_roll"], "character_id": "nobody"}}
         assert server.post("/v1/ai_chat/needs_roll", json=stranger, headers=_headers(user)).status_code == 422
 

@@ -20,6 +20,10 @@ VOICE_GUARD: dict[str, Any] = CONTRACT["voice_guard"]
 PLAYER_LINES: dict[str, Any] = CONTRACT["player_lines"]
 # The seat, among the people a line may open with.
 _SEAT = "\u0000seat"
+# A name as the narrator writes an unnamed NPC's: "The Barkeep", "Captain Rho", "Old Tom".
+_NAMEISH = re.compile(r"(?:(?:The|A|An)\s+)?[A-Z][A-Za-z'-]*(?:\s+(?:of\s+|the\s+)?[A-Z][A-Za-z'-]*){0,3}")
+# A say line's speaker and its parenthesis: `X (to Y): ...`, `X (vox to Y): ...`, `X (voxcast): ...`.
+_SAY_FORM = re.compile(r"([^:(\n\"“*]{1,40}?)\s*\((?:to\b|vox\b|voxcast)[^)]*\)\s*:", re.IGNORECASE)
 _SENTENCE = re.compile(r"[^.!?]*(?:[.!?]+[\"”’']?(?=\s|$))?")  # noqa: RUF001
 
 
@@ -86,11 +90,16 @@ def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) ->
     """A narration's parts in order: the narrator's and each interlude's, the seat's name cutting it there."""
     parts: list[dict[str, Any]] = []
 
-    def push(who: str | None, line: str) -> None:
-        if parts and parts[-1]["speaker_id"] == who:
+    def push(who: str | None, line: str, name: str | None = None) -> None:
+        if parts and parts[-1]["speaker_id"] == who and parts[-1]["speaker_name"] == name:
             parts[-1]["lines"].append(line)
         else:
-            parts.append({"speaker_id": who, "lines": [line]})
+            parts.append({"speaker_id": who, "speaker_name": name, "lines": [line]})
+
+    def stranger(said: str) -> str | None:
+        # Someone the narrator voices who isn't a person yet (the play-test's barkeep): not the narrator.
+        name = said.strip()
+        return name if _NAMEISH.fullmatch(name) and name.lower() != str(PLAYER_LINES["narrator"]).lower() else None
 
     def leads(line: str, name: str) -> bool:
         return any(re.match(rf"\*\s*{re.escape(form)}(?![^\W_])", line, re.IGNORECASE) for form in _forms(name))
@@ -125,6 +134,9 @@ def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) ->
                 break
             push(member_of(tagged.group(1)), tagged.group(2))
             continue
+        if tagged is not None and stranger(tagged.group(1)) is not None:
+            push(None, tagged.group(2), stranger(tagged.group(1)))
+            continue
         if trimmed.startswith("*"):
             if seat.strip() and leads(trimmed, seat):
                 break
@@ -137,6 +149,10 @@ def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) ->
             break
         if opener is not None:
             push(opener, line)
+            continue
+        sayer = _SAY_FORM.match(trimmed)
+        if sayer is not None and stranger(sayer.group(1)) is not None:
+            push(None, line, stranger(sayer.group(1)))
             continue
         if speaker is None and (split := _attributed(line, cast)) is not None:
             if split["before"].strip():
@@ -151,10 +167,12 @@ def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) ->
         body = "\n".join(part["lines"]).strip()
         if not body:
             continue
-        if segments and segments[-1]["speaker_id"] == part["speaker_id"]:
-            segments[-1]["text"] = f"{segments[-1]['text']}\n\n{body}"
+        last = segments[-1] if segments else None
+        who = (part["speaker_id"], part["speaker_name"])
+        if last is not None and (last["speaker_id"], last["speaker_name"]) == who:
+            last["text"] = f"{last['text']}\n\n{body}"
         else:
-            segments.append({"speaker_id": part["speaker_id"], "text": body})
+            segments.append({"speaker_id": part["speaker_id"], "speaker_name": part["speaker_name"], "text": body})
     return segments
 
 

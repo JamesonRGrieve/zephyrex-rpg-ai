@@ -72,7 +72,9 @@ def _make(server: TestClient, user: Any, resource: str, **fields: Any) -> dict[s
 
 def _session(server: TestClient, user: Any, wiki_campaign_id: str | None) -> str:
     _make(server, user, "model_endpoint", name="Local", base_url="http://127.0.0.1:9/v1", model="m", is_default=True)
-    ada = _make(server, user, "character", name="Ada")
+    # The composed suite: a chat's cast is wiki persons.
+    world = _make(server, user, "campaign", name="Ada's world")["id"]
+    ada = _make(server, user, "person", name="Ada", kind="npc", campaign_id=world)
     frame = _make(server, user, "campaign_frame", name="The Kestrel", wiki_campaign_id=wiki_campaign_id)
     chat = _make(server, user, "chat", title="Night watch", character_ids=[ada["id"]], campaign_id=frame["id"])
     first = _make(

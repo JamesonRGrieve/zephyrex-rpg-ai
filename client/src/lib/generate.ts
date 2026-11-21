@@ -963,6 +963,53 @@ export async function statusLine(nextRequest: NextRequest): Promise<Response> {
   }
 }
 
+const ensurePersonRequest = z.object({
+  chat_id: z.string().min(1),
+  name: z.string().trim().min(1).max(LIMITS.model_name_characters),
+  line: z.string().max(2000).default(''),
+});
+
+/**
+ * `POST /v1/ai_chat/ensure_person` (the operator's play-test: "her second line is still credited to the
+ * narrator"): someone the narrator voiced who isn't a person yet becomes a GM-only wiki npc (the
+ * wiki's own ensure, the same person if the name is there) and joins the chat's cast. Answer
+ * `{ "ensure_person": { "id", "name", "created" } }`; 409 when the wiki can't (no campaign, not the GM).
+ */
+export async function ensurePerson(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = ensurePersonRequest.safeParse(Reflect.get(envelope, 'ensure_person'));
+    if (!parsed.success)
+      throw validationError('An ensure_person object with a chat_id and name is required', 'ensure_person');
+    const asked = parsed.data;
+    const chat = await chats.find(asked.chat_id, owner.id);
+    if (chat === null) throw notFound(chats.modelName);
+    const fields = chats.fields(chat) as { campaign_id: string | null; character_ids: string[] };
+    const frameRow =
+      fields.campaign_id === null
+        ? null
+        : await prisma.campaignFrame.findFirst({ where: { id: fields.campaign_id, createdById: owner.id } });
+    const wikiCampaign = wikiCampaignOf(
+      fields.campaign_id,
+      new Map(frameRow === null ? [] : [[frameRow.id, frameRow.wikiCampaignId]]),
+    );
+    const person =
+      wikiCampaign === null ? null : await wikiReader(nextRequest).ensurePerson(wikiCampaign, asked.name, asked.line.trim());
+    if (person === null)
+      throw new ApiError(409, { message: "The wiki can't make this person here", code: 'no_wiki_person' });
+    if (!fields.character_ids.includes(person.id)) {
+      await prisma.chat.updateMany({
+        where: { id: chat.id, createdById: owner.id },
+        data: { characterIds: JSON.stringify([...fields.character_ids, person.id]) },
+      });
+    }
+    return Response.json({ ensure_person: person });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
 const genRequest = z.object({
   chat_id: z.string().min(1),
   leaf_id: z.string().min(1).nullable().default(null),
@@ -1168,7 +1215,7 @@ const needsRollRequest = z.object({
  * narrator narrate it. Nothing is written.
  */
 export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
-  const blank = { person_id: null, name: null, difficulty: null, formula: null, label: null };
+  const blank = { person_id: null, name: null, difficulty: null, formula: null, label: null, source: null };
   const undecided = Response.json({ needs_roll: { decided: false, kind: null, ...blank } });
   try {
     const owner = localOwner(nextRequest);
@@ -1209,12 +1256,10 @@ export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
           story.has(turn.channel) &&
           (asked.character_id === playingId ? turn.role === 'user' : turn.speaker_character_id === asked.character_id),
       );
-    const { questions, picks } = rollQuestions(
-      options,
-      frame?.resolutionMode ?? 'narrative',
-      actor,
-      acted !== undefined && isAttempt(acted.content),
-    );
+    // The play-test: a laugh about a fireplace got a roll. No attempt, no roll, and no model call.
+    if (acted === undefined || !isAttempt(acted.content))
+      return Response.json({ needs_roll: { decided: true, kind: 'none', ...blank } });
+    const { questions, picks } = rollQuestions(options, frame?.resolutionMode ?? 'narrative', actor, true);
     const state = turnState(
       prompt.history
         .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
@@ -1228,6 +1273,8 @@ export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
           text: turn.content,
         })),
     );
+    // No system, no roll (the operator: mechanics are never a model's): lite has no VTT pack.
+    if (Object.keys(questions).length === 0) return Response.json({ needs_roll: { decided: true, kind: 'none', ...blank } });
     const pick = rollPick(await askDecider(deciding, state, questions, nextRequest.signal), picks, options);
     if (pick === null) return undecided;
     return Response.json({
@@ -1236,8 +1283,8 @@ export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
         kind: pick.kind,
         ...blank,
         ...(pick.kind === 'none' ? {} : { person_id: asked.character_id, label: pick.label }),
+        source: pick.kind === 'test' ? pick.source : null,
         ...(pick.kind === 'test' ? { name: pick.name, difficulty: pick.difficulty } : {}),
-        ...(pick.kind === 'formula' ? { formula: pick.formula } : {}),
       },
     });
   } catch (error) {

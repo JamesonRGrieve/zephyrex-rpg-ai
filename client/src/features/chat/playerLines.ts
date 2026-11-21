@@ -177,9 +177,31 @@ export function formatPlayerLines(items: readonly PlayerLine[], people: readonly
  */
 export function stripMarkup(text: string): string {
   const colours = PROMPT.markup.colours.join('|');
-  return text
-    .split('\n')
-    .filter((line) => !/^\s*\[(?:screen:[^\]]*|\/screen)\]\s*$/iu.test(line))
-    .join('\n')
-    .replace(new RegExp(`\\[(?:${colours})\\]([\\s\\S]*?)\\[\\/(?:${colours})\\]`, 'giu'), '$1');
+  return (
+    text
+      .split('\n')
+      .filter((line) => !/^\s*\[(?:screen:[^\]]*|\/screen)\]\s*$/iu.test(line))
+      // A location banner reads as its place (the operator: a scene's move shown as a banner).
+      .map((line) => line.replace(/^\s*\[location:\s*(.+?)\s*\]\s*$/iu, '$1.'))
+      .join('\n')
+      .replace(new RegExp(`\\[(?:${colours})\\]([\\s\\S]*?)\\[\\/(?:${colours})\\]`, 'giu'), '$1')
+  );
+}
+
+/**
+ * A narration's location banner (its first line `[location: Place]`), matched to a wiki location by
+ * name or alias, case aside: the same place map_step and the world use. Null without a banner.
+ */
+export function locationLine(
+  text: string,
+  locations: readonly { id: string; name: string; aliases?: readonly string[] }[],
+): { name: string; location_id: string | null } | null {
+  const first = text.split('\n').find((line) => line.trim() !== '') ?? '';
+  const banner = /^\s*\[location:\s*(.+?)\s*\]\s*$/iu.exec(first);
+  if (banner === null) return null;
+  const said = (banner[1] ?? '').toLowerCase();
+  const found = locations.find((location) =>
+    [location.name, ...(location.aliases ?? [])].some((name) => name.trim().toLowerCase() === said),
+  );
+  return { name: found?.name ?? banner[1] ?? '', location_id: found?.id ?? null };
 }

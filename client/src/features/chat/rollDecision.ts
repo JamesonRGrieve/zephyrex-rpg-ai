@@ -2,7 +2,7 @@
 /**
  * Whether a character's action needs a roll, and which (the operator, 2026-11-21; DESIGN's
  * needs_roll): the decision model chooses only among the campaign's system pack's options (the VTT's
- * test_options for the acting character) or, without a pack or a sheet, the light dice style. The
+ * test_options for the acting character), sheet or no sheet; with no system, no roll at all. The
  * caller rolls it through the VTT, posts the result as a roll line, and the narrator narrates it.
  * Pure, and held to contract/roll-decision-cases.json, which the SaaS server's RollDecision.py runs too.
  */
@@ -20,10 +20,9 @@ export interface TestOptions {
 
 export type RollPick =
   | { kind: 'none' }
-  | { kind: 'test'; name: string; difficulty: string; label: string }
-  | { kind: 'formula'; formula: string; label: string };
+  | { kind: 'test'; name: string; difficulty: string; label: string; source: 'system' };
 
-type Option = { kind: 'none' } | { kind: 'test'; name: string; label: string } | { kind: 'formula' };
+type Option = { kind: 'none' } | { kind: 'test'; name: string; label: string };
 
 /**
  * Whether a line attempts something uncertain (the operator's play-test: "tries to slice the door's
@@ -48,11 +47,10 @@ export function rollQuestions(
   const instructions = (
     attempt ? DECIDE_ROLL.attempt : DECIDE_ROLL.instructions[mode === 'mechanical' ? 'mechanical' : 'narrative']
   ).replaceAll('{{actor}}', actor);
+  // Mechanics are never a model's (the operator: "Why ... did it roll 2d8 instead of a d20"): only the
+  // campaign's system's own tests, sheet or no sheet; with no system, no roll and no question.
+  if (options === null) return { questions: {}, picks: {} };
   const picks: Record<string, Option> = attempt ? {} : { [DECIDE_ROLL.none]: { kind: 'none' } };
-  if (options === null || !options.has_sheet) {
-    picks[DECIDE_ROLL.light.option] = { kind: 'formula' };
-    return { questions: { roll: { type: 'choice', instructions, criteria: Object.keys(picks) } }, picks };
-  }
   for (const option of [...options.characteristics, ...options.skills]) {
     if (!(option.name in picks)) picks[option.name] = { kind: 'test', name: option.slug, label: option.name };
   }
@@ -80,15 +78,13 @@ export function rollPick(
   const option = picks[answer.choice];
   if (option === undefined) return null;
   if (option.kind === 'none') return { kind: 'none' };
-  if (option.kind === 'formula')
-    return { kind: 'formula', formula: DECIDE_ROLL.light.formula, label: DECIDE_ROLL.light.formula };
   const asked = answers?.difficulty;
   const slugs = (options?.difficulties ?? []).map((difficulty) => difficulty.slug);
   const difficulty =
     asked !== undefined && asked !== null && 'choice' in asked && slugs.includes(asked.choice)
       ? asked.choice
       : (options?.default_difficulty ?? '');
-  return { kind: 'test', name: option.name, difficulty, label: `${option.label} (${difficulty})` };
+  return { kind: 'test', name: option.name, difficulty, label: `${option.label} (${difficulty})`, source: 'system' };
 }
 
 /** The light dice style's outcome for a total (e.g. 2d6: 10+ full success, 7–9 partial, else a miss). */

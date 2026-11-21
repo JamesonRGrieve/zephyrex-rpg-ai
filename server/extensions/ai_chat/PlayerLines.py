@@ -177,5 +177,32 @@ def strip_markup(text: str) -> str:
     contents stay; a palette colour's tags go and its words stay."""
     colours = "|".join(re.escape(colour) for colour in PROMPT["markup"]["colours"])
     screen = re.compile(r"\s*\[(?:screen:[^\]]*|/screen)\]\s*", re.IGNORECASE)
-    kept = [line for line in text.split("\n") if not screen.fullmatch(line)]
+    banner = re.compile(r"\s*\[location:\s*(.+?)\s*\]\s*", re.IGNORECASE)
+    # A location banner reads as its place (the operator: a scene's move shown as a banner).
+    kept = [
+        banner.sub(r"\1.", line) if banner.fullmatch(line) else line
+        for line in text.split("\n")
+        if not screen.fullmatch(line)
+    ]
     return re.sub(rf"\[(?:{colours})\](.*?)\[/(?:{colours})\]", r"\1", "\n".join(kept), flags=re.IGNORECASE | re.DOTALL)
+
+
+def location_line(text: str, locations: Sequence[Mapping[str, Any]]) -> dict[str, str | None] | None:
+    """A narration's location banner (its first line ``[location: Place]``), matched to a wiki location by
+    name or alias, case aside. None without a banner."""
+    first = next((line for line in text.split("\n") if line.strip()), "")
+    banner = re.fullmatch(r"\s*\[location:\s*(.+?)\s*\]\s*", first, re.IGNORECASE)
+    if banner is None:
+        return None
+    said = banner.group(1).lower()
+    found = next(
+        (
+            location
+            for location in locations
+            if any(str(name).strip().lower() == said for name in [location["name"], *(location.get("aliases") or [])])
+        ),
+        None,
+    )
+    if found is None:
+        return {"name": banner.group(1), "location_id": None}
+    return {"name": str(found["name"]), "location_id": str(found["id"])}

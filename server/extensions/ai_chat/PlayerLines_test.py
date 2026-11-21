@@ -11,6 +11,7 @@ from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: i
 from zephyrex.extensions.ai_chat.PlayerLines import (  # type: ignore[import-not-found]
     format_player_lines,
     line_speaker,
+    location_line,
     parse_player_lines,
     strip_markup,
 )
@@ -37,3 +38,11 @@ def test_a_lines_speaker(case: dict[str, Any]) -> None:
 @pytest.mark.parametrize("case", CASES["markup_cases"], ids=[case["name"] for case in CASES["markup_cases"]])
 def test_markup_stripped(case: dict[str, Any]) -> None:
     assert strip_markup(case["text"]) == case["plain"]
+
+
+LOCATIONS = CASES["location_cases"]
+
+
+@pytest.mark.parametrize("case", LOCATIONS["cases"], ids=[case["name"] for case in LOCATIONS["cases"]])
+def test_a_location_banner(case: dict[str, Any]) -> None:
+    assert location_line(case["text"], LOCATIONS["locations"]) == case["line"]

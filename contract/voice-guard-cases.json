@@ -18,14 +18,17 @@
       "segments": [
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "The lights flicker."
         },
         {
           "speaker_id": "var",
+          "speaker_name": null,
           "text": "\"Hold.\" He raises a fist."
         },
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "Something moves in the vents."
         }
       ]
@@ -47,10 +50,12 @@
       "segments": [
         {
           "speaker_id": "ilsa",
+          "speaker_name": null,
           "text": "I taste fear."
         },
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "A voice crackles.\nSilence."
         }
       ]
@@ -72,6 +77,7 @@
       "segments": [
         {
           "speaker_id": "var",
+          "speaker_name": null,
           "text": "Vardane turns to you."
         }
       ]
@@ -93,22 +99,27 @@
       "segments": [
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "The hold shudders."
         },
         {
           "speaker_id": "aco",
+          "speaker_name": null,
           "text": "The Acolyte's eyes widen… 'Chief Petty Officer, you will provide a full report. Immediately.'"
         },
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "The lamps gutter."
         },
         {
           "speaker_id": "var",
+          "speaker_name": null,
           "text": "*Vardane rises slowly, hand on his blade.*"
         },
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "The door seals."
         }
       ]
@@ -130,6 +141,7 @@
       "segments": [
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "*The engines whine.*\nThe deck tilts."
         }
       ]
@@ -151,6 +163,7 @@
       "segments": [
         {
           "speaker_id": "var",
+          "speaker_name": null,
           "text": "Vardane looks over."
         }
       ]
@@ -174,14 +187,17 @@
       "segments": [
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "Dust hangs in the alley."
         },
         {
           "speaker_id": "wren",
+          "speaker_name": null,
           "text": "The thief emerges from a doorway… 'Could've just called out,' she says, brushing off her sleeves."
         },
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "The alley is quiet again."
         }
       ]
@@ -205,6 +221,7 @@
       "segments": [
         {
           "speaker_id": "wren",
+          "speaker_name": null,
           "text": "The thief—you know her as Wren… 'What the hell is wrong with you?' she hisses."
         }
       ]
@@ -228,10 +245,12 @@
       "segments": [
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "Rain lashes the stacks."
         },
         {
           "speaker_id": "var",
+          "speaker_name": null,
           "text": "Vardane turns. \"Move.\""
         }
       ]
@@ -255,6 +274,7 @@
       "segments": [
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "A voice on the vox crackles. 'Report.'"
         }
       ]
@@ -278,6 +298,7 @@
       "segments": [
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "The way the light falls on the wet stone."
         }
       ]
@@ -295,15 +316,46 @@
       "segments": [
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "The lights flicker."
         },
         {
           "speaker_id": "wren",
+          "speaker_name": null,
           "text": "Wren (to everyone, whispers): \"Down.\"\nWren drops behind a crate."
         },
         {
           "speaker_id": null,
+          "speaker_name": null,
           "text": "Boots on the stairs."
+        }
+      ]
+    },
+    {
+      "name": "the play-test's barkeep: someone not yet a person gets their own parts, named; the world stays the narrator's",
+      "seat": "Fennick",
+      "cast": [
+        {
+          "id": "wren",
+          "name": "Wren"
+        }
+      ],
+      "text": "The Barkeep pauses mid-wipe and stares at Fennick.\nNarrator: The half-orc is helped out the door.\nThe Barkeep (to Fennick): \"Keep it out of the hearth. What's your actual question, small one?\"\nOld Tom: Aye.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "text": "The Barkeep pauses mid-wipe and stares at Fennick.\nThe half-orc is helped out the door."
+        },
+        {
+          "speaker_id": null,
+          "speaker_name": "The Barkeep",
+          "text": "The Barkeep (to Fennick): \"Keep it out of the hearth. What's your actual question, small one?\""
+        },
+        {
+          "speaker_id": null,
+          "speaker_name": "Old Tom",
+          "text": "Aye."
         }
       ]
     }

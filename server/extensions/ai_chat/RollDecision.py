@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Whether a character's action needs a roll, and which (the operator, 2026-11-21; DESIGN's needs_roll):
 a choice among the campaign's system pack's options (the VTT's test_options for the acting character)
-or, without a pack or a sheet, the light dice style.
+sheet or no sheet; with no system, no roll at all.
 
 The twin of client/src/features/chat/rollDecision.ts, held to contract/roll-decision-cases.json.
 """
@@ -33,10 +33,11 @@ def roll_questions(
     usual = DECIDE_ROLL["instructions"]["mechanical" if mode == "mechanical" else "narrative"]
     template = DECIDE_ROLL["attempt"] if attempt else usual
     instructions = str(template).replace("{{actor}}", actor)
+    # Mechanics are never a model's: only the campaign's system's own tests, sheet or no sheet; with no
+    # system, no roll and no question.
+    if options is None:
+        return {}, {}
     picks: dict[str, dict[str, str]] = {} if attempt else {DECIDE_ROLL["none"]: {"kind": "none"}}
-    if options is None or not options.get("has_sheet"):
-        picks[DECIDE_ROLL["light"]["option"]] = {"kind": "formula"}
-        return {"roll": {"type": "choice", "instructions": instructions, "criteria": list(picks)}}, picks
     for option in [*options["characteristics"], *options["skills"]]:
         if option["name"] not in picks:
             picks[option["name"]] = {"kind": "test", "name": option["slug"], "label": option["name"]}
@@ -63,9 +64,6 @@ def roll_pick(
         return None
     if option["kind"] == "none":
         return {"kind": "none"}
-    if option["kind"] == "formula":
-        formula = str(DECIDE_ROLL["light"]["formula"])
-        return {"kind": "formula", "formula": formula, "label": formula}
     asked = (answers or {}).get("difficulty")
     slugs = [difficulty["slug"] for difficulty in (options or {}).get("difficulties", [])]
     if isinstance(asked, Mapping) and asked.get("choice") in slugs:
@@ -73,7 +71,7 @@ def roll_pick(
     else:
         difficulty = str((options or {}).get("default_difficulty") or "")
     label = f"{option['label']} ({difficulty})"
-    return {"kind": "test", "name": option["name"], "difficulty": difficulty, "label": label}
+    return {"kind": "test", "name": option["name"], "difficulty": difficulty, "label": label, "source": "system"}
 
 
 def light_outcome(total: int) -> str:

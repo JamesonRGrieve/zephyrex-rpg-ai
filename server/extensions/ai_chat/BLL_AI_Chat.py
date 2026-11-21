@@ -148,6 +148,7 @@ from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-no
 from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
     advance_clock,
     campaign_documents,
+    ensure_person,
     move_person,
     persons_for,
     test_options,
@@ -1767,6 +1768,8 @@ class NeedsRoll(PlainModel):
     difficulty: str | None = None
     formula: str | None = None
     label: str | None = None
+    #: "system" when the roll is the campaign's system's own test; mechanics are never a model's.
+    source: str | None = None
 
 
 class NeedsRollEnvelope(PlainModel):
@@ -1855,6 +1858,28 @@ class StatusLineText(PlainModel):
 
 class StatusLineEnvelope(PlainModel):
     status_line: StatusLineText
+
+
+class EnsurePersonRequest(PlainModel):
+    """Someone the narrator voiced who isn't a person yet (the operator's play-test: the barkeep)."""
+
+    chat_id: str = Field(..., min_length=1)
+    name: str = Field(..., min_length=1, max_length=MAX_NAME)
+    line: str = Field("", max_length=2000)
+
+
+class EnsurePersonRequestEnvelope(PlainModel):
+    ensure_person: EnsurePersonRequest
+
+
+class EnsuredPerson(PlainModel):
+    id: str
+    name: str
+    created: bool = False
+
+
+class EnsurePersonEnvelope(PlainModel):
+    ensure_person: EnsuredPerson
 
 
 class CutRequest(PlainModel):
@@ -3341,7 +3366,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             ),
             None,
         )
-        questions, picks = roll_questions(options, mode, actor, acted is not None and is_attempt(acted["content"]))
+        # The play-test: a laugh about a fireplace got a roll. No attempt, no roll, and no model call.
+        if acted is None or not is_attempt(acted["content"]):
+            return NeedsRollEnvelope(needs_roll=NeedsRoll(decided=True, kind="none"))
+        questions, picks = roll_questions(options, mode, actor, True)
+        # No system, no roll (the operator: mechanics are never a model's).
+        if not questions:
+            return NeedsRollEnvelope(needs_roll=NeedsRoll(decided=True, kind="none"))
         state = turn_state(
             [
                 {
@@ -3375,8 +3406,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 person_id=asked.character_id if rolled else None,
                 name=pick.get("name"),
                 difficulty=pick.get("difficulty"),
-                formula=pick.get("formula"),
                 label=pick.get("label"),
+                source=pick.get("source"),
             )
         )
 
@@ -3652,6 +3683,38 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if await move_person(self.model_registry, requester, str(move["person_id"]), str(move["to"]), "the story")
         ]
         return answer(moves, None)
+
+    @custom_route(
+        method="POST",
+        path="/ensure_person",
+        input_model=EnsurePersonRequestEnvelope,
+        output_model=EnsurePersonEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Someone the narrator voiced, made a GM-only wiki person and added to the chat's cast",
+    )
+    async def ensure_person_route(self, body: EnsurePersonRequestEnvelope) -> EnsurePersonEnvelope:
+        asked = body.ensure_person
+        chats = self._manager(ChatManager)
+        chat = chats.get(id=asked.chat_id)
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        requester = str(self.requester.id)
+        name, line = asked.name.strip(), asked.line.strip()
+        person = await ensure_person(self.model_registry, requester, wiki, name, line) if wiki is not None else None
+        if person is None:
+            raise HTTPException(
+                status_code=409,
+                detail={"message": "The wiki can't make this person here", "code": "no_wiki_person"},
+            )
+        cast = list(chat.character_ids or [])
+        if person["id"] not in cast:
+            chats.update(chat.id, character_ids=[*cast, str(person["id"])])
+        return EnsurePersonEnvelope(
+            ensure_person=EnsuredPerson(
+                id=str(person["id"]), name=str(person.get("name") or asked.name), created=bool(person.get("created"))
+            )
+        )
 
     @custom_route(
         method="POST",

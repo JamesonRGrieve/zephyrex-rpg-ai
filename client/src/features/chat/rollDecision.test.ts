@@ -13,6 +13,11 @@ describe('the roll decision cases both twins run', () => {
       picks: one.picks,
     });
   });
+  it.each(cases.pick_cases_5e)('$name', ({ answers, pick }) => {
+    const options = cases.options_5e as TestOptions;
+    const { picks } = rollQuestions(options, 'narrative', 'Fennick');
+    expect(rollPick(answers as Record<string, DecideAnswer>, picks, options)).toEqual(pick);
+  });
   it.each(cases.attempt_cases)('an attempt: $line', ({ line, attempt }) => {
     expect(isAttempt(line)).toBe(attempt);
   });

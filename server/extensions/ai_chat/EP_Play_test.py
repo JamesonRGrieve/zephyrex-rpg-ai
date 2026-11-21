@@ -30,6 +30,13 @@ def _create(server: TestClient, user: Any, resource: str, **fields: Any) -> dict
     return response.json()[resource]
 
 
+def _person(server: TestClient, user: Any, name: str, description: str = "") -> dict[str, Any]:
+    """A wiki person in the user's own campaign (the composed suite: a chat's cast is wiki persons)."""
+    campaign = _create(server, user, "campaign", name=f"{name}'s world")["id"]
+    entry = [{"type": "p", "children": [{"text": description}]}] if description else None
+    return _create(server, user, "person", name=name, kind="npc", campaign_id=campaign, entry=entry)
+
+
 def _line(server: TestClient, user: Any, chat_id: str, parent: str | None, **fields: Any) -> str:
     return _create(server, user, "chat_message", chat_id=chat_id, parent_id=parent, **fields)["id"]
 
@@ -37,8 +44,8 @@ def _line(server: TestClient, user: Any, chat_id: str, parent: str | None, **fie
 class TestCampaignPlay:
     def test_sessions_compact_and_the_seat_is_the_person(self, server: TestClient) -> None:
         user = create_user(server)
-        gus = _create(server, user, "character", name="Gus", description="{{char}} is an ex-Navy rating.")
-        az = _create(server, user, "character", name="A.Z.", description="A sanctioned psyker.")
+        gus = _person(server, user, "Gus", "Gus is an ex-Navy rating.")
+        az = _person(server, user, "A.Z.", "A sanctioned psyker.")
         _create(
             server,
             user,
@@ -84,7 +91,7 @@ class TestCampaignPlay:
 
     def test_only_your_own_chat_has_sessions_and_a_play_state(self, server: TestClient) -> None:
         owner, stranger = create_user(server), create_user(server)
-        ada = _create(server, owner, "character", name="Ada")
+        ada = _person(server, owner, "Ada")
         chat = _create(server, owner, "chat", title="Mine", character_ids=[ada["id"]])
         opening = _line(server, owner, chat["id"], None, role="narrator", swipes=["Hello."])
         for resource, fields in (

@@ -702,7 +702,8 @@ export function narrateRule(persona: PromptPersona | null, characters: readonly 
   // Small models follow a worked example far better than a rule (the play-test).
   // The play-test: a whole novel, acting and speaking for the person's character.
   const length = PROMPT.narrate_length.replaceAll('{{seat_name}}', seatName);
-  return `${rule} ${seatRule} ${length} ${PROMPT.narrate_targets} ${PROMPT.narrate_markup}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
+  const markup = `${PROMPT.narrate_location} ${PROMPT.narrate_markup}`;
+  return `${rule} ${seatRule} ${length} ${PROMPT.narrate_targets} ${markup}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
 }
 
 /** A regeneration's forbidden span, with whom it wrote for; nothing without one. */
