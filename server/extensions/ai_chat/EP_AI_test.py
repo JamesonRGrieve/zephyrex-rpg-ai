@@ -559,7 +559,6 @@ class TestGenerate:
         )
         assert too_many.status_code == 422, too_many.text
 
-    @pytest.mark.xfail(reason="mapping item 4: waiting on the wiki's campaign_documents ability (relayed)", strict=True)
     def test_the_data_bank_reads_the_wiki_campaigns_documents(self, server: TestClient, model_url: str) -> None:
         # The composed suite: the data bank retrieves from the chat's wiki campaign's documents (whole
         # entry texts), through the wiki's campaign_documents ability, in name order.

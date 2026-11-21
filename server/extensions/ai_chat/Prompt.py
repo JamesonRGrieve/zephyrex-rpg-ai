@@ -30,6 +30,7 @@ from typing import Any
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import render_story_string  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Macros import MacroContext, expand_all, expand_macros  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Party import one_line  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import apply_regex  # type: ignore[import-not-found]
 
 PERSONA: dict[str, Any] = CONTRACT["persona"]
@@ -422,6 +423,63 @@ def _history_message(
     return {"role": "user", "content": f"{name}: {turn['content']}" if named else turn["content"]}
 
 
+def _line_of(character: Mapping[str, Any], user: str) -> str:
+    """A character's one-line, its own name and the person's filled in (no macro side effects)."""
+    description = str(character.get("description") or "")
+    filled = description.replace("{{char}}", str(character["name"]).strip()).replace("{{user}}", user)
+    line: str = one_line(filled)
+    return line
+
+
+def cast_rule(
+    template: str, persona: Mapping[str, Any] | None, characters: Sequence[Mapping[str, Any]], speaker_id: str
+) -> str:
+    """Whom a voice never writes for, by name and how they look: the person's seat first (marked as the
+    player), then every cast member but the speaker; nothing when there's no one."""
+    names: list[str] = []
+    seat = str(persona["name"]).strip() if persona is not None else ""
+    if persona is not None and seat:
+        marks = [PROMPT["player_label"], one_line(str(persona.get("description") or ""))]
+        names.append(f"{seat} ({'; '.join(mark for mark in marks if mark)})")
+    for character in characters:
+        name = str(character["name"]).strip()
+        if not name or character.get("id") == speaker_id:
+            continue
+        line = _line_of(character, seat or "{{user}}")
+        names.append(f"{name} ({line})" if line else name)
+    return template.replace("{{names}}", ", ".join(names)) if names else ""
+
+
+def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping[str, Any]]) -> str:
+    """The narrator's rule: never the person's seat (named first, as the player); any other cast member
+    only in an @@Name interlude, each named with how they look."""
+    voiced = [character for character in characters if str(character["name"]).strip()]
+    if not voiced:
+        return str(PROMPT["narrate_open"])
+    seat_name = (str(persona["name"]).strip() if persona is not None else "") or "{{user}}"
+    marks = [PROMPT["player_label"], one_line(str((persona or {}).get("description") or ""))]
+    names = []
+    for character in voiced:
+        line = _line_of(character, seat_name)
+        name = str(character["name"]).strip()
+        names.append(f"{name} ({line})" if line else name)
+    return str(
+        PROMPT["narrate_cast"]
+        .replace("{{seat}}", f"{seat_name} ({'; '.join(mark for mark in marks if mark)})")
+        .replace("{{seat_name}}", seat_name)
+        .replace("{{example}}", str(voiced[0]["name"]).strip())
+        .replace("{{names}}", ", ".join(names))
+    )
+
+
+def forbid_text(forbid: Mapping[str, Any] | None) -> str:
+    """A regeneration's forbidden span, with whom it wrote for; nothing without one."""
+    if not forbid or not str(forbid.get("span") or "").strip():
+        return ""
+    names = ", ".join(str(name) for name in forbid.get("names") or [])
+    return str(PROMPT["forbid_prompt"]).replace("{{names}}", names).replace("{{span}}", str(forbid["span"]).strip())
+
+
 def assemble_prompt(
     characters: Sequence[Mapping[str, Any]],
     speaker_id: str,
@@ -447,6 +505,8 @@ def assemble_prompt(
     template: Mapping[str, Any] | None = None,
     group_modes: Mapping[str, Any] | None = None,
     injections: Sequence[Mapping[str, Any]] = (),
+    forbid: Mapping[str, Any] | None = None,
+    party: str = "",
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -500,9 +560,18 @@ def assemble_prompt(
     if system_prompt.strip():
         main = system_prompt
     elif narrating:
-        main = "\n\n".join(part for part in (PROMPT["narrate_prompt"], gm_style_text(frame)) if part)
+        ruled = narrate_rule(persona, characters)
+        narrate = " ".join(part for part in (PROMPT["narrate_prompt"], ruled) if part)
+        main = "\n\n".join(part for part in (narrate, gm_style_text(frame)) if part)
     else:
         main = speaker["system_prompt"] if speaker["system_prompt"].strip() else PROMPT["default_system_prompt"]
+        # Nobody speaks for anyone else: every other voice at the table, by name and look.
+        ruled = cast_rule(PROMPT["voice_cast"], persona, characters, speaker["id"])
+        main = " ".join(part for part in (main, ruled) if part)
+    # A regeneration after the voice guard caught a span (VoiceGuard.py): it's forbidden, by name.
+    forbidden = forbid_text(forbid)
+    if forbidden:
+        main = f"{main}\n\n{forbidden}"
     # The narrator reads every character, in brief: each one's description with its own name filled in.
     cast_text = "\n".join(
         [PROMPT["cast_heading"]]
@@ -555,9 +624,9 @@ def assemble_prompt(
         "lore_before_char": sections.get("before_char", ""),
         "description": "\n\n".join(card for card in (member_card(character) for character in characters) if card)
         if joining
-        else cast_text
-        if narrating and any(character["description"].strip() for character in characters)
-        else speaker["description"],
+        else "\n\n".join(part for part in (cast_text, party) if part.strip())
+        if narrating and (party.strip() or any(character["description"].strip() for character in characters))
+        else "\n\n".join(part for part in (speaker["description"], party) if part.strip()),
         "personality": f"{{{{char}}}}'s personality: {speaker['personality']}"
         if not joining and speaker["personality"].strip()
         else "",

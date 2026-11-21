@@ -115,9 +115,16 @@
     "translate_prompt": "Translate the user's text into {{language}}. Keep its meaning, tone, names and any *action* markup. Write only the translation.",
     "objective_prompt": "{{char}}'s current task: {{task}} Work toward it naturally, without stating it.",
     "objective_depth": 2,
-    "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}} or for any of the characters in the cast, and stop where one of them would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.",
+    "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}}, and stop where {{user}} would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.",
     "cast_heading": "The characters:",
     "group_max_tokens": 350,
+    "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. You may give any other character a moment in their own voice, only as an interlude: a line with only @@ and their name (e.g. @@{{example}}), then their words and actions as they would say and do them, then a line @@Narrator before your narration goes on. Outside an interlude, never write what they say, think or decide. The characters you may voice: {{names}}.",
+    "narrate_open": "You never write dialogue, thoughts, decisions or actions for anyone at the table. Describe them only as others see them, and stop the moment one would act or speak.",
+    "interlude_mark": "@@",
+    "narrator_mark": "Narrator",
+    "voice_cast": "Never write dialogue, thoughts, decisions or actions for: {{names}}.",
+    "player_label": "the player",
+    "forbid_prompt": "Your last attempt wrote this for {{names}}, which you must never do: \u00ab{{span}}\u00bb. Write it again without that.",
     "narrator_name": "Narrator"
   },
   "lore": {
@@ -803,6 +810,36 @@
     "$comment": "A campaign's opening tells the person where they are, never asks (the operator, 2026-11-21: \"It should also not ask where I am. It should tell me.\"): the framing's Opening Situation, then the seat's told position. Where each person starts: their wiki location_id, else the location of the VTT scene holding their token, else (the seat only) the framing's default. Others told as with you are those starting there, never a GM-only one. features/campaign/opening.ts, ai_campaign/Opening.py, contract/opening-cases.json.",
     "told": "You are at {{location}}.",
     "with": "With you: {{names}}."
+  },
+  "world_tick": {
+    "$comment": "NPCs piloted on the map as in-world time advances (the operator, 2026-11-21: \"Each character should have its own routine and motivations and the GM/decision agent should pilot them on the map as time advances\"). A tick runs on a scene change, a time skip, or every every_turns story turns (turn_minutes each), for the campaign's GM only. Each NPC not present and not the seat gets bounded options, all real wiki locations: stay, its routine slot now, its location's parent, children and siblings, and places its motivations name (max_options). One decide question per NPC (max_npcs); with no answer it follows its routine slot, else stays. Players know only where they last saw someone (last_seen). features/world/worldTick.ts, ai_chat/WorldTick.py, contract/world-tick-cases.json.",
+    "every_turns": 6,
+    "turn_minutes": 10,
+    "max_options": 8,
+    "max_npcs": 12,
+    "stay": "Stay at {{place}}",
+    "instructions": "It is day {{day}}, {{time}}. Where is {{name}} now? {{activity}}{{motivations}}Pick where their routine and motivations take them, or stay.",
+    "activity": "Their routine has them {{activity}} at this hour. ",
+    "motivations": "They want: {{motivations}}. ",
+    "state": "Day {{day}}, {{time}}. The party is at {{place}}.",
+    "nowhere": "somewhere unknown",
+    "last_seen": "{{name}} was last seen at {{place}}."
+  },
+  "party": {
+    "$comment": "Party members know each other (the operator, 2026-11-21: \"A member of the characters party also didn't know who they were after being on a voidship together for who knows how long. This is bad.\"). The party is the chat's PCs (wiki tag PC; every cast member when no record carries tags) plus whoever the person plays. Every party voice reads the others, each with their one-line (the summary's first sentence), its relationships to them (the wiki's relationships), and the party's shared knowledge (the campaign's journals named as a briefing, never gm_only); the narrator reads all of it. features/prompt/party.ts, ai_chat/Party.py, contract/party-cases.json.",
+    "tag": "PC",
+    "voice": "{{char}} has travelled with this party a long time and knows each of them by name, face and role: {{members}}.",
+    "narrator": "The party, who know each other well: {{members}}.",
+    "relationship": "{{char}} and {{name}}: {{note}}",
+    "briefing_heading": "What the party knows (shared):",
+    "briefing_names": ["player briefing", "who you are", "handout", "cover story"]
+  },
+  "voice_guard": {
+    "$comment": "A free-text check, no model call (the operator, 2026-11-21: \"Catching it after generation is a horrendous waste of compute\"; the prompts and stop strings hold the rule). A sentence that quotes dialogue and names someone the text must never write for (by name, first name, or two words of their one-line descriptor) is a match, as is a party voice treating another as a stranger; the caller regenerates once with the span forbidden. features/chat/voiceGuard.ts, ai_chat/VoiceGuard.py, contract/voice-guard-cases.json.",
+    "descriptor_words": 2,
+    "min_word": 4,
+    "stop_words": ["with", "from", "that", "this", "their", "there", "they", "into", "over", "very", "your", "have", "been", "were", "what", "when", "where", "which", "while"],
+    "stranger_phrases": ["who are you", "who're you", "who the hell are you", "i don't know you", "do i know you", "have we met", "never seen you", "never met you"]
   },
   "group_settings": {
     "$comment": "Group chat modes (audit gap 6), a chat's group_settings: card_mode swap (the speaker's card) or join (every member's card, each between the join prefix and suffix); order natural, list or pooled; allow_self (natural order may pick who just spoke); auto_seconds (the next member replies by itself after that long idle, 0 off); scenario (replaces each card's scenario). features/chat/turns.ts, features/prompt/assemble.ts, ai_chat/Prompt.py.",

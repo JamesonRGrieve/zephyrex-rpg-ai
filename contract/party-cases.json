@@ -1,0 +1,214 @@
+{
+  "$comment": "Party members know each other: cases both twins run (client/src/features/prompt/party.test.ts, server/extensions/ai_chat/Party_test.py).",
+  "entities": [
+    {
+      "id": "tess",
+      "kind": "person",
+      "name": "Tessaly Kord",
+      "summary": "A woman with a brass hand. She scavenges.",
+      "tags": [
+        "PC"
+      ]
+    },
+    {
+      "id": "var",
+      "kind": "person",
+      "name": "Vardane",
+      "summary": "The cell's grim leader.",
+      "tags": [
+        "PC"
+      ],
+      "relationships": [
+        {
+          "to_id": "tess",
+          "kind": "rescuer",
+          "note": "he pulled her out of the hive fire"
+        },
+        {
+          "to_id": "ilsa",
+          "kind": "rival",
+          "note": null
+        },
+        {
+          "to_id": "cal",
+          "kind": null,
+          "note": null
+        }
+      ]
+    },
+    {
+      "id": "ilsa",
+      "kind": "person",
+      "name": "Ilsa Marrow",
+      "summary": "A psyker.",
+      "tags": [
+        "PC"
+      ]
+    },
+    {
+      "id": "cal",
+      "kind": "person",
+      "name": "Calloway",
+      "summary": "An enginseer.",
+      "tags": [
+        "NPC"
+      ]
+    },
+    {
+      "id": "brief",
+      "kind": "journal",
+      "name": "Player Briefing: Who You Are",
+      "summary": "You are a cell of four, eighteen months aboard the Escapade."
+    },
+    {
+      "id": "truth",
+      "kind": "journal",
+      "name": "Player Briefing (GM copy)",
+      "summary": "Calloway erased the logs.",
+      "gm_only": true
+    }
+  ],
+  "party_cases": [
+    {
+      "name": "the seat first, then the cast's PCs (an NPC isn't party)",
+      "cast": [
+        "var",
+        "cal",
+        "ilsa"
+      ],
+      "seated": "tess",
+      "party": [
+        {
+          "id": "tess",
+          "name": "Tessaly Kord",
+          "line": "A woman with a brass hand."
+        },
+        {
+          "id": "var",
+          "name": "Vardane",
+          "line": "The cell's grim leader."
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow",
+          "line": "A psyker."
+        }
+      ]
+    },
+    {
+      "name": "no record carries tags: every cast member is party",
+      "entities": [
+        {
+          "id": "tess",
+          "kind": "person",
+          "name": "Tessaly Kord",
+          "summary": "A woman with a brass hand. She scavenges."
+        },
+        {
+          "id": "var",
+          "kind": "person",
+          "name": "Vardane",
+          "summary": "The cell's grim leader.",
+          "relationships": [
+            {
+              "to_id": "tess",
+              "kind": "rescuer",
+              "note": "he pulled her out of the hive fire"
+            },
+            {
+              "to_id": "ilsa",
+              "kind": "rival",
+              "note": null
+            },
+            {
+              "to_id": "cal",
+              "kind": null,
+              "note": null
+            }
+          ]
+        },
+        {
+          "id": "ilsa",
+          "kind": "person",
+          "name": "Ilsa Marrow",
+          "summary": "A psyker."
+        },
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "summary": "An enginseer."
+        },
+        {
+          "id": "brief",
+          "kind": "journal",
+          "name": "Player Briefing: Who You Are",
+          "summary": "You are a cell of four, eighteen months aboard the Escapade."
+        },
+        {
+          "id": "truth",
+          "kind": "journal",
+          "name": "Player Briefing (GM copy)",
+          "summary": "Calloway erased the logs.",
+          "gm_only": true
+        }
+      ],
+      "cast": [
+        "var",
+        "cal"
+      ],
+      "seated": "tess",
+      "party": [
+        {
+          "id": "tess",
+          "name": "Tessaly Kord",
+          "line": "A woman with a brass hand."
+        },
+        {
+          "id": "var",
+          "name": "Vardane",
+          "line": "The cell's grim leader."
+        },
+        {
+          "id": "cal",
+          "name": "Calloway",
+          "line": "An enginseer."
+        }
+      ]
+    }
+  ],
+  "briefing": [
+    "You are a cell of four, eighteen months aboard the Escapade."
+  ],
+  "text_cases": [
+    {
+      "name": "a party voice: the others, its relationships (notes, else the tie's kind), and the shared briefing",
+      "speaker": "var",
+      "text": "{{char}} has travelled with this party a long time and knows each of them by name, face and role: Tessaly Kord (A woman with a brass hand.), Ilsa Marrow (A psyker.).\n{{char}} and Tessaly Kord: he pulled her out of the hive fire\n{{char}} and Ilsa Marrow: rival\nWhat the party knows (shared):\nYou are a cell of four, eighteen months aboard the Escapade."
+    },
+    {
+      "name": "the narrator: everyone, and the briefing",
+      "speaker": null,
+      "text": "The party, who know each other well: Tessaly Kord (A woman with a brass hand.), Vardane (The cell's grim leader.), Ilsa Marrow (A psyker.).\nWhat the party knows (shared):\nYou are a cell of four, eighteen months aboard the Escapade."
+    },
+    {
+      "name": "a voice outside the party: nothing",
+      "speaker": "cal",
+      "text": ""
+    }
+  ],
+  "line_cases": [
+    {
+      "summary": "A woman with a brass hand. She scavenges.",
+      "line": "A woman with a brass hand."
+    },
+    {
+      "summary": "No full stop here\nSecond line.",
+      "line": "No full stop here"
+    },
+    {
+      "summary": "",
+      "line": ""
+    }
+  ]
+}

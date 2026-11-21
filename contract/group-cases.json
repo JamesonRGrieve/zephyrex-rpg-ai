@@ -3,7 +3,7 @@
   "max_stops": 4,
   "cases": [
     {
-      "name": "a group reply: stops for the person then the others",
+      "name": "a group reply: the person's line-start forms, then the others",
       "mode": "reply",
       "speaker": "A.Z.",
       "cast": [
@@ -14,12 +14,13 @@
       "person": "Massen",
       "stops": [
         "\nMassen:",
+        "\n*Massen",
         "\nGus Veridan:",
         "\nMagnus Karlsson:"
       ]
     },
     {
-      "name": "one on one: a stop for the person",
+      "name": "one on one: the person's line-start forms",
       "mode": "reply",
       "speaker": "Sam",
       "cast": [
@@ -27,7 +28,8 @@
       ],
       "person": "You",
       "stops": [
-        "\nYou:"
+        "\nYou:",
+        "\n*You"
       ]
     },
     {
@@ -41,11 +43,12 @@
       "person": "You",
       "stops": [
         "\nYou:",
+        "\n*You",
         "\nA.Z.:"
       ]
     },
     {
-      "name": "the GM narrating: stops for the person and every cast member (the narrator never speaks for them)",
+      "name": "the GM narrating: stops only at the person's seat (the cast it may voice in @@ interludes)",
       "mode": "narrate",
       "speaker": "",
       "cast": [
@@ -54,9 +57,9 @@
       ],
       "person": "Massen",
       "stops": [
+        "\n@@Massen",
         "\nMassen:",
-        "\nGus Veridan:",
-        "\nA.Z.:"
+        "\n*Massen"
       ]
     },
     {
@@ -103,6 +106,22 @@
         "\nC:",
         "\nD:",
         "\nE:"
+      ]
+    },
+    {
+      "name": "narrating with a seat of two names: its interlude, its line, and its first name's forms",
+      "mode": "narrate",
+      "speaker": "",
+      "cast": [
+        "Vardane",
+        "Kord"
+      ],
+      "person": "Tessaly Kord",
+      "stops": [
+        "\n@@Tessaly Kord",
+        "\nTessaly Kord:",
+        "\n*Tessaly",
+        "\n@@Tessaly"
       ]
     }
   ]

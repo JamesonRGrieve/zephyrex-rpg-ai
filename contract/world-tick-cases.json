@@ -1,0 +1,312 @@
+{
+  "$comment": "NPCs piloted on the map as in-world time advances: cases both twins run (client/src/features/world/worldTick.test.ts, server/extensions/ai_chat/WorldTick_test.py).",
+  "locations": [
+    {
+      "id": "ship",
+      "name": "The Ship",
+      "parent_id": null
+    },
+    {
+      "id": "bridge",
+      "name": "the Bridge",
+      "parent_id": "ship"
+    },
+    {
+      "id": "enginarium",
+      "name": "Enginarium",
+      "parent_id": "ship"
+    },
+    {
+      "id": "bay2",
+      "name": "Bay Two",
+      "parent_id": "enginarium"
+    },
+    {
+      "id": "galley",
+      "name": "Galley",
+      "parent_id": "ship"
+    },
+    {
+      "id": "hab",
+      "name": "Hab Deck",
+      "parent_id": "ship"
+    }
+  ],
+  "persons": [
+    {
+      "id": "var",
+      "name": "Vardane",
+      "location_id": "bridge",
+      "routine": [
+        {
+          "from": "08:00",
+          "to": "12:00",
+          "days": [
+            1
+          ],
+          "location_id": "bay2",
+          "activity": "inspecting the pipes"
+        },
+        {
+          "from": "06:00",
+          "to": "14:00",
+          "location_id": "bridge",
+          "activity": "on watch"
+        },
+        {
+          "from": "14:00",
+          "to": "22:00",
+          "location_id": "galley",
+          "activity": "eating and arguing"
+        },
+        {
+          "from": "22:00",
+          "to": "06:00",
+          "location_id": "hab",
+          "activity": "asleep"
+        }
+      ],
+      "motivations": [
+        "find out who erased the logs in Bay Two"
+      ]
+    },
+    {
+      "id": "kord",
+      "name": "Kord",
+      "location_id": "bay2",
+      "routine": null,
+      "motivations": null
+    },
+    {
+      "id": "ilsa",
+      "name": "Ilsa Marrow",
+      "location_id": null,
+      "routine": null,
+      "motivations": null
+    }
+  ],
+  "clock": {
+    "day": 3,
+    "time": "15:00"
+  },
+  "slot_cases": [
+    {
+      "name": "an afternoon slot",
+      "clock": {
+        "day": 3,
+        "time": "15:00"
+      },
+      "location_id": "galley"
+    },
+    {
+      "name": "an overnight slot, before midnight",
+      "clock": {
+        "day": 3,
+        "time": "23:00"
+      },
+      "location_id": "hab"
+    },
+    {
+      "name": "an overnight slot, after midnight (it began the day before)",
+      "clock": {
+        "day": 4,
+        "time": "03:00"
+      },
+      "location_id": "hab"
+    },
+    {
+      "name": "a slot on its day of the week comes first",
+      "clock": {
+        "day": 8,
+        "time": "09:00"
+      },
+      "location_id": "bay2"
+    },
+    {
+      "name": "off its day, the everyday slot",
+      "clock": {
+        "day": 9,
+        "time": "09:00"
+      },
+      "location_id": "bridge"
+    },
+    {
+      "name": "no routine: no slot",
+      "clock": {
+        "day": 3,
+        "time": "15:00"
+      },
+      "routine": null,
+      "location_id": null
+    }
+  ],
+  "options_case": {
+    "person": "var",
+    "options": [
+      "bridge",
+      "galley",
+      "ship",
+      "enginarium",
+      "hab",
+      "bay2"
+    ]
+  },
+  "questions_case": {
+    "still": [
+      "kord"
+    ],
+    "questions": {
+      "var": {
+        "type": "choice",
+        "instructions": "It is day 3, 15:00. Where is Vardane now? Their routine has them eating and arguing at this hour. They want: find out who erased the logs in Bay Two. Pick where their routine and motivations take them, or stay.",
+        "criteria": [
+          "Stay at the Bridge",
+          "Galley",
+          "The Ship",
+          "Enginarium",
+          "Hab Deck",
+          "Bay Two"
+        ]
+      }
+    },
+    "picks": {
+      "var": {
+        "Stay at the Bridge": "bridge",
+        "Galley": "galley",
+        "The Ship": "ship",
+        "Enginarium": "enginarium",
+        "Hab Deck": "hab",
+        "Bay Two": "bay2"
+      }
+    },
+    "fallbacks": {
+      "var": "galley"
+    }
+  },
+  "move_cases": [
+    {
+      "name": "a pick moves them",
+      "answers": {
+        "var": {
+          "choice": "Bay Two"
+        }
+      },
+      "moves": [
+        {
+          "person_id": "var",
+          "from": "bridge",
+          "to": "bay2"
+        }
+      ]
+    },
+    {
+      "name": "staying is no move",
+      "answers": {
+        "var": {
+          "choice": "Stay at the Bridge"
+        }
+      },
+      "moves": []
+    },
+    {
+      "name": "a pick that isn't an option: the routine slot",
+      "answers": {
+        "var": {
+          "choice": "Mars"
+        }
+      },
+      "moves": [
+        {
+          "person_id": "var",
+          "from": "bridge",
+          "to": "galley"
+        }
+      ]
+    },
+    {
+      "name": "no answers: the routine slot",
+      "answers": null,
+      "moves": [
+        {
+          "person_id": "var",
+          "from": "bridge",
+          "to": "galley"
+        }
+      ]
+    }
+  ],
+  "arrival_cases": [
+    {
+      "name": "into the party's scene from outside it arrives; within it doesn't",
+      "scene": "enginarium",
+      "moves": [
+        {
+          "person_id": "var",
+          "from": "bridge",
+          "to": "bay2"
+        },
+        {
+          "person_id": "kord",
+          "from": "enginarium",
+          "to": "bay2"
+        }
+      ],
+      "arrivals": [
+        "var"
+      ]
+    },
+    {
+      "name": "no scene: no arrivals",
+      "scene": null,
+      "moves": [
+        {
+          "person_id": "var",
+          "from": "bridge",
+          "to": "bay2"
+        }
+      ],
+      "arrivals": []
+    }
+  ],
+  "state_cases": [
+    {
+      "place": "Bay Two",
+      "state": "Day 3, 15:00. The party is at Bay Two."
+    },
+    {
+      "place": null,
+      "state": "Day 3, 15:00. The party is at somewhere unknown."
+    }
+  ],
+  "last_seen_case": {
+    "before": {
+      "var": {
+        "location_id": "bridge",
+        "day": 2,
+        "time": "10:00"
+      }
+    },
+    "present": [
+      "kord"
+    ],
+    "location_of": {
+      "kord": "bay2",
+      "var": "galley"
+    },
+    "after": {
+      "var": {
+        "location_id": "bridge",
+        "day": 2,
+        "time": "10:00"
+      },
+      "kord": {
+        "location_id": "bay2",
+        "day": 3,
+        "time": "15:00"
+      }
+    },
+    "lines": [
+      "Vardane was last seen at the Bridge."
+    ]
+  }
+}

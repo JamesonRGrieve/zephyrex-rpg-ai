@@ -1,0 +1,147 @@
+{
+  "$comment": "The narrator's interludes and the free-text check: cases both twins run (client/src/features/chat/voiceGuard.test.ts, server/extensions/ai_chat/VoiceGuard_test.py).",
+  "segment_cases": [
+    {
+      "name": "narration, an interlude credited to its speaker, then narration again",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "text": "The lights flicker.\n@@Vardane\n\"Hold.\" He raises a fist.\n@@Narrator\nSomething moves in the vents.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "The lights flicker."
+        },
+        {
+          "speaker_id": "var",
+          "text": "\"Hold.\" He raises a fist."
+        },
+        {
+          "speaker_id": null,
+          "text": "Something moves in the vents."
+        }
+      ]
+    },
+    {
+      "name": "a first name and any case find the speaker; an unknown name folds into narration",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "text": "@@ilsa\nI taste fear.\n@@Captain Rho\nA voice crackles.\n@@NARRATOR\nSilence.",
+      "segments": [
+        {
+          "speaker_id": "ilsa",
+          "text": "I taste fear."
+        },
+        {
+          "speaker_id": null,
+          "text": "A voice crackles.\nSilence."
+        }
+      ]
+    },
+    {
+      "name": "the seat's interlude cuts the narration there",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "text": "Vardane turns to you.\n@@Tessaly\n\"Fine,\" I say.\n@@Narrator\nMore.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "Vardane turns to you."
+        }
+      ]
+    }
+  ],
+  "speaks_cases": [
+    {
+      "name": "the play-test's leak: the seat by its descriptor, then its quoted line (prod chat 801b6c70)",
+      "text": "The hatch grinds open. The woman with the brass hand blinked, then laughed… 'I'm looking for my cell…'",
+      "refs": [
+        {
+          "name": "Tessaly Kord",
+          "line": "A woman with a brass hand and a scavenger's eye."
+        }
+      ],
+      "hit": {
+        "at": 23,
+        "span": "The woman with the brass hand blinked, then laughed… 'I'm looking for my cell…'"
+      }
+    },
+    {
+      "name": "by name, the quote in the next sentence",
+      "text": "Dust settles. Tessaly shrugs. \"Let's go.\"",
+      "refs": [
+        {
+          "name": "Tessaly Kord",
+          "line": "A woman with a brass hand and a scavenger's eye."
+        }
+      ],
+      "hit": {
+        "at": 14,
+        "span": "Tessaly shrugs. \"Let's go.\""
+      }
+    },
+    {
+      "name": "described as others see her, with no words of hers: no match",
+      "text": "Tessaly Kord stands by the hatch, her brass hand catching the light.",
+      "refs": [
+        {
+          "name": "Tessaly Kord",
+          "line": "A woman with a brass hand and a scavenger's eye."
+        }
+      ],
+      "hit": null
+    },
+    {
+      "name": "an apostrophe inside a word isn't a quote",
+      "text": "Tessaly's hand is cold.",
+      "refs": [
+        {
+          "name": "Tessaly Kord",
+          "line": "A woman with a brass hand and a scavenger's eye."
+        }
+      ],
+      "hit": null
+    }
+  ],
+  "stranger_cases": [
+    {
+      "name": "a party member addressing another as a stranger fails",
+      "text": "Vardane squints. \"Who are you, and why are you on my ship?\"",
+      "hit": {
+        "at": 17,
+        "span": "\"Who are you, and why are you on my ship?\""
+      }
+    },
+    {
+      "name": "knowing each other: no match",
+      "text": "Vardane nods. \"Tessaly. Took you long enough.\"",
+      "hit": null
+    }
+  ]
+}

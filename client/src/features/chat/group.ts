@@ -19,9 +19,22 @@ export type GuardMode = 'reply' | 'continue' | 'impersonate' | 'table' | 'narrat
 export function groupStops(mode: GuardMode, speaker: string, cast: readonly string[], person: string): string[] {
   if (mode === 'table') return [];
   const others = cast.filter((name) => name !== speaker);
-  // The narrator never speaks for anyone at the table (the operator's play-test): every name stops it.
-  const names = mode === 'impersonate' ? others : [person, ...others];
-  return [...new Set(names.map((name) => name.trim()).filter((name) => name !== '' && name !== speaker))]
-    .slice(0, cases.max_stops)
-    .map((name) => `\n${name}:`);
+  const seat = person.trim();
+  const first = seat.split(/\s+/)[0] ?? '';
+  // Nobody writes for the person's seat (the operator's play-test): its line-start forms come first.
+  // The narrator may voice the cast only in @@Name interludes, so it stops only at the seat.
+  const seatStops =
+    mode === 'impersonate' || seat === ''
+      ? []
+      : mode === 'narrate'
+        ? [`\n@@${seat}`, `\n${seat}:`, `\n*${first}`, `\n@@${first}`]
+        : [`\n${seat}:`, `\n*${first}`];
+  const castStops =
+    mode === 'narrate'
+      ? []
+      : others
+          .map((name) => name.trim())
+          .filter((name) => name !== '' && name !== speaker && name !== seat)
+          .map((name) => `\n${name}:`);
+  return [...new Set([...seatStops, ...castStops])].slice(0, cases.max_stops);
 }

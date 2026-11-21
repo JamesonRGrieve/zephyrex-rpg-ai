@@ -82,6 +82,7 @@ from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-
     native_request,
     openai_payload,
 )
+from zephyrex.extensions.ai_chat.Party import party_briefing, party_of, party_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
     ai_cast,
     session_start_index,
@@ -1541,6 +1542,8 @@ class GenerateRequest(PlainModel):
     mode: str = "reply"
     # AP4: this turn asked of another of the person's models, to compare (kept as another swipe).
     endpoint_id: str | None = None
+    # A regeneration after the voice guard (VoiceGuard.py) caught a span: {names, span}, forbidden.
+    forbid: dict[str, Any] | None = None
 
     @field_validator("mode")
     @classmethod
@@ -2466,6 +2469,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             chat.group_settings or {},
             # The chat's /inject injections (audit gap 5).
             chat.injections or [],
+            forbid=body.forbid,
+            # Party members know each other (the operator, 2026-11-21): roster, relationships, briefing.
+            party=party_text(
+                party_of(entities, chat.character_ids or [], playing_id),
+                None if body.mode == "narrate" else speaker_id,
+                entities,
+                party_briefing(entities),
+            ),
         )
         if body.mode == "table":
             # The table GM (A11, A20) reads the table talk, with the story for reference only.

@@ -44,6 +44,7 @@ import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandAll, expandMacros, type MacroContext, type MacroNames } from './macros';
 import { renderStoryString } from './instruct';
+import { oneLine } from './party';
 
 export interface PromptCharacter {
   id: string;
@@ -151,6 +152,10 @@ export interface PromptInput {
     depth: number;
     role: 'system' | 'user' | 'assistant';
   }[];
+  /** A regeneration's forbidden span, with whom it wrote for (features/chat/voiceGuard.ts). */
+  forbid?: { names: readonly string[]; span: string } | null;
+  /** The party block this voice reads (features/prompt/party.ts partyText): roster, relationships, briefing. */
+  party?: string;
   group?: {
     card_mode?: (typeof GROUP_SETTINGS.card_modes)[number];
     join_prefix?: string;
@@ -642,6 +647,61 @@ function noteBlock(note: string, lore: LoreSections): string {
     .join('\n');
 }
 
+/** A character's one-line, its own name and the person's filled in (no macro side effects). */
+const lineOf = (character: PromptCharacter, user: string): string =>
+  oneLine(character.description.replaceAll('{{char}}', character.name.trim()).replaceAll('{{user}}', user));
+
+/**
+ * Whom a voice never writes for, by name and how they look: the person's seat first (marked as the
+ * player), then every cast member but the speaker; nothing when there's no one.
+ */
+export function castRule(
+  template: string,
+  persona: PromptPersona | null,
+  characters: readonly PromptCharacter[],
+  speakerId: string,
+): string {
+  const names: string[] = [];
+  const seat = persona?.name.trim() ?? '';
+  if (persona !== null && seat !== '') {
+    const marks = [PROMPT.player_label, oneLine(persona.description)].filter((mark) => mark !== '');
+    names.push(`${seat} (${marks.join('; ')})`);
+  }
+  for (const character of characters) {
+    const name = character.name.trim();
+    if (name === '' || character.id === speakerId) continue;
+    const line = lineOf(character, seat || '{{user}}');
+    names.push(line === '' ? name : `${name} (${line})`);
+  }
+  return names.length === 0 ? '' : template.replaceAll('{{names}}', names.join(', '));
+}
+
+/**
+ * The narrator's rule: never the person's seat (named first, as the player); any other cast member
+ * only in an @@Name interlude, each named with how they look.
+ */
+export function narrateRule(persona: PromptPersona | null, characters: readonly PromptCharacter[]): string {
+  const voiced = characters.filter((character) => character.name.trim() !== '');
+  if (voiced.length === 0) return PROMPT.narrate_open;
+  const seatName = persona?.name.trim() || '{{user}}';
+  const marks = [PROMPT.player_label, oneLine(persona?.description ?? '')].filter((mark) => mark !== '');
+  const names = voiced.map((character) => {
+    const line = lineOf(character, seatName);
+    return line === '' ? character.name.trim() : `${character.name.trim()} (${line})`;
+  });
+  return PROMPT.narrate_cast
+    .replaceAll('{{seat}}', `${seatName} (${marks.join('; ')})`)
+    .replaceAll('{{seat_name}}', seatName)
+    .replaceAll('{{example}}', voiced[0]?.name.trim() ?? '')
+    .replaceAll('{{names}}', names.join(', '));
+}
+
+/** A regeneration's forbidden span, with whom it wrote for; nothing without one. */
+export function forbidText(forbid: PromptInput['forbid']): string {
+  if (forbid === null || forbid === undefined || forbid.span.trim() === '') return '';
+  return PROMPT.forbid_prompt.replaceAll('{{names}}', forbid.names.join(', ')).replaceAll('{{span}}', forbid.span.trim());
+}
+
 export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const narrating = input.mode === 'narrate';
   // Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -709,18 +769,33 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
       .join('\n');
   };
   const persona = input.persona;
+  const party = input.party ?? '';
   // The persona's description where it's placed (audit gap 9); in the persona section by default.
   const personaLine = persona === null || persona.description.trim() === '' ? '' : `{{user}}: ${persona.description}`;
   const personaAt = persona?.description_position ?? 'prompt';
   const texts: Partial<Record<PromptSectionId, string>> = {
-    main:
+    main: [
       override.trim() !== ''
         ? override
         : narrating
-          ? [PROMPT.narrate_prompt, gmStyleText(input.frame)].filter((part) => part !== '').join('\n\n')
-          : speaker.system_prompt.trim() !== ''
-            ? speaker.system_prompt
-            : PROMPT.default_system_prompt,
+          ? [
+              [PROMPT.narrate_prompt, narrateRule(persona, input.characters)].filter((part) => part !== '').join(' '),
+              gmStyleText(input.frame),
+            ]
+              .filter((part) => part !== '')
+              .join('\n\n')
+          : // Nobody speaks for anyone else: every other voice at the table, by name and look.
+            [
+              speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
+              castRule(PROMPT.voice_cast, persona, input.characters, speaker.id),
+            ]
+              .filter((part) => part !== '')
+              .join(' '),
+      // A regeneration after the voice guard caught a span: it's forbidden, by name.
+      forbidText(input.forbid),
+    ]
+      .filter((part) => part !== '')
+      .join('\n\n'),
     safety: safetyText(input.safety),
     table_notes: tableNotesText(input.table_notes),
     campaign: frameText(input.frame),
@@ -732,9 +807,9 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
           .map(memberCard)
           .filter((card) => card !== '')
           .join('\n\n')
-      : narrating && input.characters.some((character) => character.description.trim() !== '')
-        ? castText
-        : speaker.description,
+      : narrating && (party.trim() !== '' || input.characters.some((character) => character.description.trim() !== ''))
+        ? [castText, party].filter((part) => part.trim() !== '').join('\n\n')
+        : [speaker.description, party].filter((part) => part.trim() !== '').join('\n\n'),
     personality: joining || speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
     scenario:
       groupScenario !== ''

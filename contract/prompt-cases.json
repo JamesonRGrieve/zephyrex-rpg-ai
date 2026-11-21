@@ -58,7 +58,9 @@
     {
       "name": "one character: the card, the persona and the turns",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -85,7 +87,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Sam (the player; Sam is a new deckhand.).\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -101,7 +103,9 @@
     {
       "name": "out-of-character table talk and GM whispers never enter the story; a roll does",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "",
@@ -153,7 +157,10 @@
     {
       "name": "a group: other characters are named, the author's note sits four turns from the end, post-history instructions come last",
       "input": {
-        "characters": ["ada", "bram"],
+        "characters": [
+          "ada",
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": {
           "name": "Sam",
@@ -198,7 +205,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are Bram.\n\nBram is the ship's cook."
+          "content": "You are Bram. Never write dialogue, thoughts, decisions or actions for: Sam (the player), Ada (Ada is a ship's engineer.).\n\nBram is the ship's cook."
         },
         {
           "role": "user",
@@ -234,7 +241,9 @@
     {
       "name": "a full window drops the oldest turns and keeps the system text",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -280,7 +289,9 @@
     {
       "name": "lore around the card, the examples and the author's note, and at a depth with its role",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "[Tense.]",
@@ -355,7 +366,9 @@
     {
       "name": "continue: the character's last message comes after the instructions and the continue nudge, for the model to carry on",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": {
           "name": "Sam",
@@ -383,7 +396,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are Bram.\n\nBram is the ship's cook."
+          "content": "You are Bram. Never write dialogue, thoughts, decisions or actions for: Sam (the player).\n\nBram is the ship's cook."
         },
         {
           "role": "user",
@@ -407,7 +420,9 @@
     {
       "name": "impersonate: the person's own next line is asked for at the end",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": {
           "name": "Sam",
@@ -435,7 +450,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are Bram.\n\nBram is the ship's cook."
+          "content": "You are Bram. Never write dialogue, thoughts, decisions or actions for: Sam (the player).\n\nBram is the ship's cook."
         },
         {
           "role": "user",
@@ -459,7 +474,9 @@
     {
       "name": "the prompt manager: the chat's system prompt, sections reordered, turned off and cut to their budget",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -523,7 +540,9 @@
     {
       "name": "a summary goes in as its own section, before the author's note",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "",
@@ -554,7 +573,9 @@
     {
       "name": "prompt-only regex scripts rewrite the history by depth; others leave it alone",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "",
@@ -562,7 +583,10 @@
           {
             "find": "/\\*[^*]*\\*/g",
             "replace": "",
-            "placements": ["user_input", "ai_output"],
+            "placements": [
+              "user_input",
+              "ai_output"
+            ],
             "display_only": false,
             "prompt_only": true,
             "min_depth": 1,
@@ -572,7 +596,10 @@
           {
             "find": "/coolant/g",
             "replace": "COOLANT",
-            "placements": ["user_input", "ai_output"],
+            "placements": [
+              "user_input",
+              "ai_output"
+            ],
             "display_only": true,
             "prompt_only": false,
             "min_depth": null,
@@ -582,7 +609,9 @@
           {
             "find": "/spanner/",
             "replace": "wrench",
-            "placements": ["user_input"],
+            "placements": [
+              "user_input"
+            ],
             "display_only": false,
             "prompt_only": true,
             "min_depth": null,
@@ -626,7 +655,10 @@
     {
       "name": "reasoning blocks are never read back to the model, the speaker's or another's",
       "input": {
-        "characters": ["ada", "bram"],
+        "characters": [
+          "ada",
+          "bram"
+        ],
         "speaker_id": "c-ada",
         "persona": null,
         "author_note": "",
@@ -650,7 +682,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part. Never write what User says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and User. Stay in character, and write only Ada's part. Never write what User says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Bram (Bram is the ship's cook.).\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: User has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -666,7 +698,9 @@
     {
       "name": "the chat's current task sits two turns from the end",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -700,7 +734,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Sam (the player).\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "user",
@@ -724,7 +758,9 @@
     {
       "name": "the data bank's notes sit after the examples' lore and before the summary",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -760,7 +796,9 @@
     {
       "name": "a context template's story string (audit gap 4) stands in for the card's sections, its chat start closing it, and every turn named",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -801,7 +839,9 @@
     {
       "name": "the person's own prompts (audit gap 3): one in the system message at its place, one at a depth, one turned off",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -877,7 +917,9 @@
     {
       "name": "start reply with (audit gap 3): the reply's opening is the last message, its macros filled",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -923,7 +965,9 @@
     {
       "name": "start reply with, turned off, adds nothing",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -965,7 +1009,9 @@
     {
       "name": "SillyTavern's macros filled through the whole prompt, the variables carried along (audit gap 1)",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1010,7 +1056,9 @@
     {
       "name": "recalled memories (A19) sit after the data bank's notes and before the summary",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1047,14 +1095,22 @@
     {
       "name": "the table's safety tools follow the system prompt, and an X-carded turn is never read",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
         "safety": {
           "content_rating": "teen",
-          "lines": ["harm to children", " "],
-          "veils": ["torture", "romance"]
+          "lines": [
+            "harm to children",
+            " "
+          ],
+          "veils": [
+            "torture",
+            "romance"
+          ]
         },
         "history": [
           {
@@ -1103,7 +1159,9 @@
     {
       "name": "table notes follow the safety tools, one labelled line each",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1155,7 +1213,9 @@
     {
       "name": "the campaign frame sits after the table notes, each part only when set",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1168,7 +1228,11 @@
             "grounded_fantastic": 2,
             "slow_pulpy": 1
           },
-          "themes": ["loyalty", " ", "the cost of freedom"],
+          "themes": [
+            "loyalty",
+            " ",
+            "the cost of freedom"
+          ],
           "pillars": {
             "combat": 1,
             "exploration": 3,
@@ -1176,7 +1240,10 @@
             "mystery": 0
           },
           "structure": "episodic",
-          "truths": ["The Guild owns every port.", " "],
+          "truths": [
+            "The Guild owns every port.",
+            " "
+          ],
           "characters": "Sam owes Ada a life debt.",
           "resolution_mode": "narrative"
         },
@@ -1210,7 +1277,9 @@
     {
       "name": "the running scenario is the GM's view: clocks near full flagged, clues found or not, beats to come",
       "input": {
-        "characters": ["bram"],
+        "characters": [
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": null,
         "author_note": "",
@@ -1237,7 +1306,11 @@
               "agenda": "x"
             }
           ],
-          "places": ["the engine room", "bay two", " "],
+          "places": [
+            "the engine room",
+            "bay two",
+            " "
+          ],
           "clocks": [
             {
               "name": "The pump fails",
@@ -1288,7 +1361,10 @@
               "done": false
             }
           ],
-          "outcomes": ["Reyes is caught", " "]
+          "outcomes": [
+            "Reyes is caught",
+            " "
+          ]
         },
         "history": [
           {
@@ -1320,7 +1396,10 @@
     {
       "name": "narrating, the GM speaks: every character named and described in brief, its own narration as its voice",
       "input": {
-        "characters": ["ada", "bram"],
+        "characters": [
+          "ada",
+          "bram"
+        ],
         "speaker_id": "",
         "persona": {
           "name": "Sam",
@@ -1360,7 +1439,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for Sam or for any of the characters in the cast, and stop where one of them would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
+          "content": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for Sam, and stop where Sam would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it. You never write dialogue, thoughts, decisions or actions for Sam (the player): describe Sam only as others see them, and stop the moment Sam would act or speak. You may give any other character a moment in their own voice, only as an interlude: a line with only @@ and their name (e.g. @@Ada), then their words and actions as they would say and do them, then a line @@Narrator before your narration goes on. Outside an interlude, never write what they say, think or decide. The characters you may voice: Ada (Ada is a ship's engineer.), Bram (Bram is the ship's cook.).\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
         },
         {
           "role": "assistant",
@@ -1380,7 +1459,10 @@
     {
       "name": "narrating with the campaign's GM style (A20): in the GM's own voice, not in the shared frame",
       "input": {
-        "characters": ["ada", "bram"],
+        "characters": [
+          "ada",
+          "bram"
+        ],
         "speaker_id": "",
         "persona": {
           "name": "Sam",
@@ -1424,7 +1506,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for Sam or for any of the characters in the cast, and stop where one of them would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.\n\nHow you run the game, as the table asked: Terse and cinematic. End each scene on a question to the players.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\nNever roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
+          "content": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for Sam, and stop where Sam would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it. You never write dialogue, thoughts, decisions or actions for Sam (the player): describe Sam only as others see them, and stop the moment Sam would act or speak. You may give any other character a moment in their own voice, only as an interlude: a line with only @@ and their name (e.g. @@Ada), then their words and actions as they would say and do them, then a line @@Narrator before your narration goes on. Outside an interlude, never write what they say, think or decide. The characters you may voice: Ada (Ada is a ship's engineer.), Bram (Bram is the ship's cook.).\n\nHow you run the game, as the table asked: Terse and cinematic. End each scene on a question to the players.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\nNever roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.\n\nThe characters:\n- Ada: Ada is a ship's engineer.\n- Bram: Bram is the ship's cook."
         },
         {
           "role": "assistant",
@@ -1444,7 +1526,9 @@
     {
       "name": "a character's reply reads the campaign frame but never the GM's style (A20)",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -1475,7 +1559,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\nNever roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Sam (the player; Sam is a new deckhand.).\n\nThe campaign (the table agreed to this; keep to it):\nPremise: A heist on the Kestrel.\nNever roll dice, invent numbers or resolve a test in the story yourself: when an outcome is uncertain, say which test it calls for (the skill or characteristic, and why) and stop there; the table or the VTT rolls it.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -1491,7 +1575,9 @@
     {
       "name": "the speaker's Character's Note (V2 depth_prompt) sits at its depth with its role, macros filled (gap 7)",
       "input": {
-        "characters": ["cass"],
+        "characters": [
+          "cass"
+        ],
         "speaker_id": "c-cass",
         "persona": {
           "name": "Sam",
@@ -1524,7 +1610,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are Cass.\n\nCass is the pilot."
+          "content": "You are Cass. Never write dialogue, thoughts, decisions or actions for: Sam (the player).\n\nCass is the pilot."
         },
         {
           "role": "user",
@@ -1548,7 +1634,9 @@
     {
       "name": "a Character's Note without depth or role takes SillyTavern's defaults (depth 4, system) and follows the author's note there (gap 7)",
       "input": {
-        "characters": ["dara"],
+        "characters": [
+          "dara"
+        ],
         "speaker_id": "c-dara",
         "persona": {
           "name": "Sam",
@@ -1593,7 +1681,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are Dara.\n\nDara is a spy."
+          "content": "You are Dara. Never write dialogue, thoughts, decisions or actions for: Sam (the player).\n\nDara is a spy."
         },
         {
           "role": "user",
@@ -1629,7 +1717,9 @@
     {
       "name": "a hidden line stays in the chat but out of what the model reads (/hide, gap 10)",
       "input": {
-        "characters": ["cass"],
+        "characters": [
+          "cass"
+        ],
         "speaker_id": "c-cass",
         "persona": {
           "name": "Sam",
@@ -1663,7 +1753,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are Cass.\n\nCass is the pilot."
+          "content": "You are Cass. Never write dialogue, thoughts, decisions or actions for: Sam (the player).\n\nCass is the pilot."
         },
         {
           "role": "user",
@@ -1683,7 +1773,9 @@
     {
       "name": "persona at a depth (audit gap 9): out of the system prompt, into the chat at its depth and role",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -1713,7 +1805,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Sam (the player; Sam is a new deckhand.).\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -1733,7 +1825,9 @@
     {
       "name": "persona at the top of the author's note (audit gap 9)",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -1761,7 +1855,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Sam (the player; Sam is a new deckhand.).\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "system",
@@ -1781,7 +1875,9 @@
     {
       "name": "persona at the bottom of the author's note, with no note of its own (audit gap 9)",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -1809,7 +1905,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Sam (the player; Sam is a new deckhand.).\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "system",
@@ -1829,7 +1925,9 @@
     {
       "name": "persona placed nowhere (audit gap 9): only macros read it",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -1857,7 +1955,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Sam (the player; Sam is a new deckhand.).\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
         },
         {
           "role": "assistant",
@@ -1873,7 +1971,10 @@
     {
       "name": "a group joining cards (audit gap 6): every member's card between its prefix and suffix, no card's own sections after",
       "input": {
-        "characters": ["ada", "bram"],
+        "characters": [
+          "ada",
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": {
           "name": "Sam",
@@ -1921,7 +2022,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are Bram.\n\n<Ada>\nAda is a ship's engineer.\nAda's personality: dry, kind\nScenario: Sam has just come aboard.\n</Ada>\n\n<Bram>\nBram is the ship's cook.\n</Bram>"
+          "content": "You are Bram. Never write dialogue, thoughts, decisions or actions for: Sam (the player), Ada (Ada is a ship's engineer.).\n\n<Ada>\nAda is a ship's engineer.\nAda's personality: dry, kind\nScenario: Sam has just come aboard.\n</Ada>\n\n<Bram>\nBram is the ship's cook.\n</Bram>"
         },
         {
           "role": "user",
@@ -1957,7 +2058,10 @@
     {
       "name": "a group scenario (audit gap 6) replaces the speaker's card scenario",
       "input": {
-        "characters": ["ada", "bram"],
+        "characters": [
+          "ada",
+          "bram"
+        ],
         "speaker_id": "c-bram",
         "persona": {
           "name": "Sam",
@@ -2005,7 +2109,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "You are Bram.\n\nBram is the ship's cook.\n\nScenario: A storm batters the Bram's galley."
+          "content": "You are Bram. Never write dialogue, thoughts, decisions or actions for: Sam (the player), Ada (Ada is a ship's engineer.).\n\nBram is the ship's cook.\n\nScenario: A storm batters the Bram's galley."
         },
         {
           "role": "user",
@@ -2041,7 +2145,9 @@
     {
       "name": "the chat's /inject injections (audit gap 5): before and after the system prompt, and in the chat at their depth and role",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "speaker_id": "c-ada",
         "persona": {
           "name": "Sam",
@@ -2098,7 +2204,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "A grim tale.\n\nWrite Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nKeep Ada terse."
+          "content": "A grim tale.\n\nWrite Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part. Never write what Sam says, does, thinks or feels, and never speak or act for anyone else. Keep it short: one to three short paragraphs, in proportion to the line you answer; a small action gets a small reaction, or none. Never write dialogue, thoughts, decisions or actions for: Sam (the player; Sam is a new deckhand.).\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nSam: Sam is a new deckhand.\n\nExample dialogue:\n<START>\nAda: Mind the coolant.\n\nKeep Ada terse."
         },
         {
           "role": "assistant",
@@ -2120,7 +2226,9 @@
     {
       "name": "the instruction, then every story turn named, table talk left out",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2169,7 +2277,9 @@
     {
       "name": "a long branch keeps its newest turns",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2246,7 +2356,9 @@
     {
       "name": "the table GM reads the safety tools, notes, summary and recent story, and answers the table talk",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2301,7 +2413,9 @@
         "summary": "They boarded the Kestrel.",
         "safety": {
           "content_rating": "teen",
-          "lines": ["spiders"],
+          "lines": [
+            "spiders"
+          ],
           "veils": []
         },
         "table_notes": [
@@ -2342,7 +2456,9 @@
     {
       "name": "a full window drops the oldest table talk",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2397,7 +2513,9 @@
         "summary": "They boarded the Kestrel.",
         "safety": {
           "content_rating": "teen",
-          "lines": ["spiders"],
+          "lines": [
+            "spiders"
+          ],
           "veils": []
         },
         "table_notes": [
@@ -2422,7 +2540,9 @@
     {
       "name": "the table GM answers in the campaign's GM style (A20)",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2477,7 +2597,9 @@
         "summary": "They boarded the Kestrel.",
         "safety": {
           "content_rating": "teen",
-          "lines": ["spiders"],
+          "lines": [
+            "spiders"
+          ],
           "veils": []
         },
         "table_notes": [
@@ -2524,31 +2646,56 @@
     {
       "name": "the first named option, ignoring case",
       "answer": "Anger, mostly. Not joy.",
-      "options": ["Joy", "anger", "fear", "neutral"],
+      "options": [
+        "Joy",
+        "anger",
+        "fear",
+        "neutral"
+      ],
       "picked": "anger"
     },
     {
       "name": "a word inside a sentence",
       "answer": "I think this is fear",
-      "options": ["Joy", "anger", "fear", "neutral"],
+      "options": [
+        "Joy",
+        "anger",
+        "fear",
+        "neutral"
+      ],
       "picked": "fear"
     },
     {
       "name": "no option named",
       "answer": "Hmm.",
-      "options": ["Joy", "anger", "fear", "neutral"],
+      "options": [
+        "Joy",
+        "anger",
+        "fear",
+        "neutral"
+      ],
       "picked": null
     },
     {
       "name": "an option only inside a longer word does not count",
       "answer": "joyful",
-      "options": ["Joy", "anger", "fear", "neutral"],
+      "options": [
+        "Joy",
+        "anger",
+        "fear",
+        "neutral"
+      ],
       "picked": null
     }
   ],
   "expression_prompt_case": {
     "line": "*grins* We made it!",
-    "options": ["Joy", "anger", "fear", "neutral"],
+    "options": [
+      "Joy",
+      "anger",
+      "fear",
+      "neutral"
+    ],
     "messages": [
       {
         "role": "system",
@@ -2564,7 +2711,9 @@
     {
       "name": "the last story turns as a scene, named, without reasoning, table talk or X-carded turns",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2615,7 +2764,9 @@
     {
       "name": "the person's own words, when given",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2700,7 +2851,11 @@
     },
     {
       "name": "a text completion's text, and junk lines, as before",
-      "payloads": ["{\"choices\": [{\"text\": \"Hi\"}]}", "not json", " "],
+      "payloads": [
+        "{\"choices\": [{\"text\": \"Hi\"}]}",
+        "not json",
+        " "
+      ],
       "text": "Hi"
     }
   ],
@@ -2746,7 +2901,9 @@
     {
       "name": "the chat's scenario is the place",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2799,7 +2956,9 @@
     {
       "name": "no scenario: the last story turns",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""
@@ -2852,7 +3011,9 @@
     {
       "name": "the person's own words instead",
       "input": {
-        "characters": ["ada"],
+        "characters": [
+          "ada"
+        ],
         "persona": {
           "name": "Sam",
           "description": ""

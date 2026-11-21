@@ -38,6 +38,7 @@ import { aiCast, sessionStartIndex, sessionsSummary } from '~/features/chat/play
 import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
 import { rollPick, rollQuestions } from '~/features/chat/rollDecision';
+import { partyBriefing, partyOf, partyText } from '~/features/prompt/party';
 import { presentCast, turnPick, turnQuestion, turnSeat, turnState } from '~/features/chat/turnDecision';
 import { wikiCampaignOf, worldLoreEntries } from '~/features/lore/worldLore';
 import { type CastEntity, seatPerson, worldCast, worldKnownTo } from '~/features/prompt/worldCast';
@@ -99,6 +100,14 @@ const request = z.object({
   mode: z.enum(['reply', 'continue', 'impersonate', 'table', 'narrate']).default('reply'),
   /** AP4: this turn asked of another of the person's models, to compare (kept as another swipe). */
   endpoint_id: z.string().min(1).nullable().default(null),
+  /** A regeneration after the voice guard (features/chat/voiceGuard.ts) caught a span: it's forbidden. */
+  forbid: z
+    .object({
+      names: z.array(z.string().max(LIMITS.model_name_characters)).max(LIMITS.characters_per_chat),
+      span: z.string().max(4000),
+    })
+    .nullable()
+    .default(null),
 });
 
 const NO_QUERY = new URLSearchParams();
@@ -374,6 +383,14 @@ export async function generationInputs(
       group: chatFields.group_settings,
       // The chat's /inject injections (audit gap 5).
       injections: chatFields.injections,
+      forbid: body.forbid,
+      // Party members know each other (the operator, 2026-11-21): roster, relationships, briefing.
+      party: partyText(
+        partyOf(entities, chatFields.character_ids, playingId),
+        body.mode === 'narrate' ? null : speakerId,
+        entities,
+        partyBriefing(entities),
+      ),
       scenario: chatFields.scenario_id === null ? null : await runningScenario(ownerId, chatFields.scenario_id),
       // The data bank from the wiki (mapping item 4): the campaign's documents.
       data_bank: dataBankText(
@@ -857,7 +874,14 @@ export async function gen(nextRequest: NextRequest): Promise<Response> {
     const asked = parsed.data;
     const { prompt, sampler, endpoint } = await generationInputs(
       owner.id,
-      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: asked.speaker_id, mode: 'reply', endpoint_id: null },
+      {
+        chat_id: asked.chat_id,
+        leaf_id: asked.leaf_id,
+        speaker_id: asked.speaker_id,
+        mode: 'reply',
+        endpoint_id: null,
+        forbid: null,
+      },
       Math.random,
       'reply',
       wikiReader(nextRequest),
@@ -894,7 +918,7 @@ export async function translate(nextRequest: NextRequest): Promise<Response> {
     const asked = parsed.data;
     const { sampler, endpoint } = await generationInputs(
       owner.id,
-      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply', endpoint_id: null },
+      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply', endpoint_id: null, forbid: null },
       Math.random,
       'translate',
     );
@@ -941,7 +965,7 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
     const playingId = play?.playingId ?? null;
     const { prompt, world } = await generationInputs(
       owner.id,
-      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null },
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null, forbid: null },
       Math.random,
       'reply',
       wikiReader(nextRequest),
@@ -1054,7 +1078,7 @@ export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
     const playingId = play?.playingId ?? null;
     const { prompt } = await generationInputs(
       owner.id,
-      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null },
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null, forbid: null },
       Math.random,
       'reply',
       wikiReader(nextRequest),
@@ -1198,7 +1222,7 @@ export async function expression(nextRequest: NextRequest): Promise<Response> {
     }
     const { sampler, endpoint } = await generationInputs(
       owner.id,
-      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply', endpoint_id: null },
+      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply', endpoint_id: null, forbid: null },
       Math.random,
       'summary',
     );
@@ -1274,7 +1298,14 @@ async function picturePrompt(
   }
   const { prompt: input, place } = await generationInputs(
     ownerId,
-    { chat_id: asked.chat_id ?? '', leaf_id: asked.leaf_id, speaker_id: null, mode: 'reply', endpoint_id: null },
+    {
+      chat_id: asked.chat_id ?? '',
+      leaf_id: asked.leaf_id,
+      speaker_id: null,
+      mode: 'reply',
+      endpoint_id: null,
+      forbid: null,
+    },
     Math.random,
     'reply',
     world,

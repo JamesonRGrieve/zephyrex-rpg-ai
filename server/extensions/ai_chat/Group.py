@@ -21,10 +21,23 @@ def group_stops(mode: str, speaker: str, cast: Sequence[str], person: str) -> li
     if mode == "table":
         return []
     others = [name for name in cast if name != speaker]
-    # The narrator never speaks for anyone at the table (the operator's play-test): every name stops it.
-    names = others if mode == "impersonate" else [person, *others]
+    seat = person.strip()
+    first = seat.split()[0] if seat else ""
+    # Nobody writes for the person's seat (the operator's play-test): its line-start forms come first.
+    # The narrator may voice the cast only in @@Name interludes, so it stops only at the seat.
+    if mode == "impersonate" or not seat:
+        seat_stops: list[str] = []
+    elif mode == "narrate":
+        seat_stops = [f"\n@@{seat}", f"\n{seat}:", f"\n*{first}", f"\n@@{first}"]
+    else:
+        seat_stops = [f"\n{seat}:", f"\n*{first}"]
+    cast_stops = (
+        []
+        if mode == "narrate"
+        else [f"\n{name}:" for name in (name.strip() for name in others) if name and name != speaker and name != seat]
+    )
     unique: list[str] = []
-    for name in (name.strip() for name in names):
-        if name and name != speaker and name not in unique:
-            unique.append(name)
-    return [f"\n{name}:" for name in unique[: _CASES["max_stops"]]]
+    for stop in [*seat_stops, *cast_stops]:
+        if stop not in unique:
+            unique.append(stop)
+    return unique[: _CASES["max_stops"]]

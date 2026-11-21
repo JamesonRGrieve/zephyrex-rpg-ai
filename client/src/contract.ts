@@ -109,6 +109,12 @@ export const DECIDE_TURN = contract.decide_turn;
 export const DECIDE_ROLL = contract.decide_roll;
 /** A campaign's opening: the seat's told position. */
 export const OPENING = contract.opening;
+/** NPCs piloted on the map as in-world time advances: the tick's bounds and texts. */
+export const WORLD_TICK = contract.world_tick;
+/** Party members know each other: the roster, relationships and shared briefing texts. */
+export const PARTY = contract.party;
+/** The hard check after generation: who a text must never speak or act for. */
+export const VOICE_GUARD = contract.voice_guard;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];
