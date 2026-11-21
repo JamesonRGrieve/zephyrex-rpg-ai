@@ -21,7 +21,8 @@ import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { LIMITS } from '~/contract';
 import { campaignPlays, chatSessions } from '~/features/data/playRecords';
-import { PARTY_TAG, useCast } from '~/features/data/cast';
+import { PARTY_TAG, personAsCast, useCast } from '~/features/data/cast';
+import useSWR from 'swr';
 import { type OpeningEntity, openingFor } from '~/features/campaign/opening';
 import { openingLine } from '~/features/data/framing';
 import { type Character, chats, messages } from '~/features/data/records';
@@ -30,6 +31,8 @@ import { seatGroups } from './SeatPicker';
 import { initials } from '../characters/CharacterTile';
 
 export { PARTY_TAG };
+/** The wiki's tag on a setting's pregenerated characters. */
+export const PREGEN_TAG = 'Pregen';
 
 /** The default party: the player characters, less the one the person plays. */
 export function defaultParty(cast: readonly Pick<Character, 'id' | 'tags'>[], playing: string | null): string[] {
@@ -202,27 +205,39 @@ export function CampaignStartForm({
               onChange={(event) => setQuery(event.target.value)}
             />
             <div role='group' aria-label='Characters to play' className='grid max-h-72 gap-3 overflow-y-auto'>
-              {seatGroups(found.map((character) => ({ ...character, pc: character.tags.includes(PARTY_TAG) }))).map(
-                (group) => (
-                  <ul key={group.label} className='grid gap-2' aria-label={group.label}>
-                    <li role='presentation' className='text-xs font-semibold text-muted-foreground'>
-                      {group.label}
-                    </li>
-                    {group.members.map((character) => (
-                      <li key={character.id}>
-                        <Row
-                          character={character}
-                          pressed={playing === character.id}
-                          onClick={() => {
-                            setPlaying(character.id);
-                            setParty(null);
-                          }}
-                        />
-                      </li>
-                    ))}
-                  </ul>
+              {[
+                ...seatGroups(
+                  found
+                    .filter((character) => !character.tags.includes(PREGEN_TAG))
+                    .map((character) => ({ ...character, pc: character.tags.includes(PARTY_TAG) })),
                 ),
-              )}
+                ...(found.some((character) => character.tags.includes(PREGEN_TAG))
+                  ? [
+                      {
+                        label: 'Setting characters',
+                        members: found.filter((character) => character.tags.includes(PREGEN_TAG)),
+                      },
+                    ]
+                  : []),
+              ].map((group) => (
+                <ul key={group.label} className='grid gap-2' aria-label={group.label}>
+                  <li role='presentation' className='text-xs font-semibold text-muted-foreground'>
+                    {group.label}
+                  </li>
+                  {group.members.map((character) => (
+                    <li key={character.id}>
+                      <Row
+                        character={character}
+                        pressed={playing === character.id}
+                        onClick={() => {
+                          setPlaying(character.id);
+                          setParty(null);
+                        }}
+                      />
+                    </li>
+                  ))}
+                </ul>
+              ))}
             </div>
           </section>
         )}
@@ -234,7 +249,10 @@ export function CampaignStartForm({
             {cast
               .filter(
                 (character) =>
-                  character.id !== playingId && (character.tags.includes(PARTY_TAG) || chosenParty.includes(character.id)),
+                  character.id !== playingId &&
+                  (character.tags.includes(PARTY_TAG) ||
+                    character.tags.includes(PREGEN_TAG) ||
+                    chosenParty.includes(character.id)),
               )
               .map((character) => (
                 <li key={character.id}>
@@ -291,7 +309,36 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   const [creep, setCreep] = useState(0);
   // The copy's own step, as the server reports it ("copying people", …).
   const [copyStep, setCopyStep] = useState<string | null>(null);
-  const all = useMemo(() => cast.data ?? [], [cast.data]);
+  // The setting's own characters to pick from, on top of the scenario's (the operator, 2026-11-21:
+  // "setting generic characters … a couple variants per class"): the wiki's pregens.
+  const settingId = (campaign.data as { setting_id?: string | null } | undefined)?.setting_id ?? null;
+  const pregenFetch = useSWR(settingId === null ? null : ['rpg-ai', 'pregens', settingId], async () => {
+    const answer = Reflect.get(Object(await client.get(`/v1/setting/${settingId}/pregen`)), 'pregens');
+    return Array.isArray(answer) ? answer : [];
+  });
+  const pregenList = useMemo(
+    () =>
+      (pregenFetch.data ?? []).flatMap((raw): Character[] => {
+        const id = Reflect.get(Object(raw), 'id');
+        const name = Reflect.get(Object(raw), 'name');
+        if (typeof id !== 'string' || typeof name !== 'string') return [];
+        const tags = Reflect.get(Object(raw), 'tags');
+        const picture = Reflect.get(Object(raw), 'picture_url');
+        const summary = Reflect.get(Object(raw), 'summary');
+        const base = personAsCast({ id, name, description: '', kind: 'pc', created_at: '', updated_at: '' });
+        return [
+          {
+            ...base,
+            // Not the scenario's party by default: picked by hand.
+            tags: [PREGEN_TAG, ...(Array.isArray(tags) ? tags.filter((tag): tag is string => typeof tag === 'string') : [])],
+            avatar: typeof picture === 'string' && picture !== '' ? picture : null,
+            folder: typeof summary === 'string' ? summary : '',
+          },
+        ];
+      }),
+    [pregenFetch.data],
+  );
+  const all = useMemo(() => [...(cast.data ?? []), ...pregenList], [cast.data, pregenList]);
 
   /**
    * The opening, told (the operator, 2026-11-21: "It should also not ask where I am. It should tell
@@ -318,8 +365,14 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   const copyScenario = async (
     scenarioId: string,
     name: string,
+    pregens: readonly string[] = [],
   ): Promise<{ campaign: { id: string }; id_map: Record<string, string> }> => {
-    const answer = Object(await client.post(`/v1/campaign/${scenarioId}/instantiate`, { instantiate: { name } }));
+    const answer = Object(
+      await client.post(`/v1/campaign/${scenarioId}/instantiate`, {
+        // The setting's pregens picked are copied into the playthrough too (the setting's stay pristine).
+        instantiate: { name, ...(pregens.length > 0 ? { pregens } : {}) },
+      }),
+    );
     const done = instantiated.safeParse(answer);
     if (done.success) return done.data;
     const startId = Reflect.get(Object(Reflect.get(answer, 'start')), 'id');
@@ -350,7 +403,12 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
     setCreep(0);
     try {
       // The playthrough: the scenario's own copy, its cast remapped to the copies.
-      const copy = await copyScenario(scenario.id, scenario.name);
+      const picked = new Set([...(choice.playing === null ? [] : [choice.playing]), ...choice.party]);
+      const copy = await copyScenario(
+        scenario.id,
+        scenario.name,
+        pregenList.filter((one) => picked.has(one.id)).map((one) => one.id),
+      );
       const world = { ...scenario, id: copy.campaign.id };
       const { seat, playing, party } = remapChoice(choice, copy.id_map);
       // The campaign's story is one chat: the party (and whoever the person starts as) are its cast.
