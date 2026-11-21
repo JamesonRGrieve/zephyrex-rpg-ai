@@ -81,8 +81,15 @@ Each product is a zephyrex server consumer, a package of server extensions, and 
 npm consumer, a package of client extensions:
 
 - **Standalone.** Each app installs only its own packages and its dependencies below it.
-  The VTT pulls the wiki's extensions, because a scene needs a location. The wiki's pages
-  are present but are not the focus of its navigation.
+  The VTT pulls the wiki's extensions, because a scene needs a location, and **includes the
+  wiki out of the box as a first-class feature** (the operator, 2026-11-21: "The vtt should include
+  the wiki out of the box as well, with wiki pages for actors, items, etc as a first class
+  feature"): its client composes `@zephyrex-rpg/wiki` (`wikiExtension()`), so Worlds and a page
+  for every kind (persons and actors, items, places, organisations, journals, plot) sit in its
+  navigation.
+- **rpg-ai imports both separately** (the operator, same day: "ai-rpg imports both separately"):
+  its client depends on `@zephyrex-rpg/wiki` and `@zephyrex/vtt-play` side by side, each built
+  from its pinned checkout; `@zephyrex/vtt-play` never re-exports the wiki.
 - **How a server gets another product's extensions: a pinned path source** (operator,
   2026-11-20), as with server-framework. The product pins the lower product's commit in
   `deploy/frameworks.env`, fetches it beside the framework, and its server reads extensions
