@@ -396,3 +396,17 @@ model ChatMemory {
   @@unique([chatId, model, messageId, chunkIndex])
   @@index([createdById, chatId])
 }
+
+/// A connection profile (audit gap 8): a named model and preset a chat switches to in one step.
+model ConnectionProfile {
+  id          String   @id @default(uuid())
+  createdById String
+  name        String
+  endpointId  String?
+  presetId    String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime
+  updatedById String?
+
+  @@index([createdById])
+}

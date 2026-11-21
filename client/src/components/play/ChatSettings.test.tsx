@@ -57,6 +57,30 @@ describe('ChatSettings', () => {
     );
   });
 
+  it('switches the preset and the model together to a connection profile (audit gap 8)', async () => {
+    const onSave = vi.fn();
+    render(
+      <ChatSettings
+        open
+        onOpenChange={vi.fn()}
+        value={VALUE}
+        personas={[]}
+        presets={[{ id: 'p1', name: 'Careful' }]}
+        endpoints={[{ id: 'e1', name: 'Claude' }]}
+        profiles={[{ id: 'c1', name: 'Long scenes', endpoint_id: 'e1', preset_id: 'p1' }]}
+        lorebooks={[]}
+        onSave={onSave}
+      />,
+    );
+    const chip = await screen.findByRole('radio', { name: 'Long scenes' });
+    expect(chip).toHaveAttribute('aria-checked', 'false');
+    await userEvent.click(chip);
+    expect(chip).toHaveAttribute('aria-checked', 'true');
+    expect(screen.getByLabelText('Model')).toHaveValue('e1');
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ preset_id: 'p1', endpoint_id: 'e1' }));
+  });
+
   it('fills the summary from the model, for the person to edit before saving', async () => {
     const onSave = vi.fn();
     render(

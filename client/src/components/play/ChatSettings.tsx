@@ -68,9 +68,15 @@ export interface Option {
   name: string;
 }
 
+/** A connection profile (audit gap 8): a named model and preset the chat switches to in one step. */
+export interface ProfileOption extends Option {
+  endpoint_id: string | null;
+  preset_id: string | null;
+}
+
 const NONE = '';
 
-function Choice({
+export function Choice({
   label,
   value,
   options,
@@ -111,6 +117,7 @@ export function ChatSettings({
   personas,
   presets,
   endpoints,
+  profiles = [],
   lorebooks,
   folders = [],
   cast = [],
@@ -126,6 +133,8 @@ export function ChatSettings({
   personas: readonly Option[];
   presets: readonly Option[];
   endpoints: readonly Option[];
+  /** Connection profiles (audit gap 8): each sets the preset and the model together. */
+  profiles?: readonly ProfileOption[];
   lorebooks: readonly Option[];
   /** The folders other chats use, offered as suggestions. */
   folders?: readonly string[];
@@ -149,6 +158,7 @@ export function ChatSettings({
   const [veilsText, setVeilsText] = useState(value.veils.join(', '));
   const [pictureProblem, setPictureProblem] = useState<string | null>(null);
   const ids = {
+    profile: useId(),
     rating: useId(),
     seat: useId(),
     lines: useId(),
@@ -298,6 +308,27 @@ export function ChatSettings({
             noneLabel='Your default persona'
             onChange={(next) => set('persona_id', next)}
           />
+          {profiles.length > 0 && (
+            <div className='grid gap-2'>
+              <span id={ids.profile} className='text-sm font-medium'>
+                Connection profile
+              </span>
+              <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.profile} className='flex flex-wrap gap-2'>
+                {profiles.map((profile) => (
+                  <ChoiceChip
+                    key={profile.id}
+                    checked={draft.preset_id === profile.preset_id && draft.endpoint_id === profile.endpoint_id}
+                    className='h-11 px-4'
+                    onClick={() =>
+                      setDraft((now) => ({ ...now, preset_id: profile.preset_id, endpoint_id: profile.endpoint_id }))
+                    }
+                  >
+                    {profile.name}
+                  </ChoiceChip>
+                ))}
+              </div>
+            </div>
+          )}
           <Choice
             label='Preset'
             value={draft.preset_id}

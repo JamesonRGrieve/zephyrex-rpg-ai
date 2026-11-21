@@ -11,6 +11,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { prisma } from '~/lib/prisma';
 import { PUT as putCharacter } from './character/[id]/route.lite';
 import { GET as listCharacters, POST as postCharacter } from './character/route.lite';
+import { POST as postProfile } from './connection_profile/route.lite';
 import { DELETE as deleteMessage, PUT as putMessage } from './chat_message/[id]/route.lite';
 import { GET as listMessages, POST as postMessage } from './chat_message/route.lite';
 import { POST as postChat } from './chat/route.lite';
@@ -28,6 +29,7 @@ beforeEach(async () => {
   await prisma.persona.deleteMany();
   await prisma.modelEndpoint.deleteMany();
   await prisma.quickReply.deleteMany();
+  await prisma.connectionProfile.deleteMany();
 });
 
 function call(path: string, init: { method?: string; headers?: Record<string, string>; body?: unknown } = {}) {
@@ -272,5 +274,37 @@ describe('quick replies that run by themselves (A38)', () => {
       params(row.id),
     );
     expect(made.status).toBe(422);
+  });
+});
+
+describe('connection profiles (audit gap 8)', () => {
+  const post = (fields: Record<string, unknown>) =>
+    postProfile(
+      call('/v1/connection_profile', { method: 'POST', body: { connection_profile: { name: 'Fast', ...fields } } }),
+      none,
+    );
+
+  it('name one of your models and presets, never a search source or a missing one', async () => {
+    const model = await postEndpoint(
+      call('/v1/model_endpoint', {
+        method: 'POST',
+        body: { model_endpoint: { name: 'M', base_url: 'http://h:1/v1', model: 'm' } },
+      }),
+      none,
+    );
+    const { model_endpoint: endpoint } = (await model.json()) as { model_endpoint: { id: string } };
+    const search = await postEndpoint(
+      call('/v1/model_endpoint', {
+        method: 'POST',
+        body: { model_endpoint: { name: 'S', base_url: 'http://h:2', model: 'searxng', api: 'searxng', roles: ['search'] } },
+      }),
+      none,
+    );
+    const { model_endpoint: searcher } = (await search.json()) as { model_endpoint: { id: string } };
+    expect(await (await post({ endpoint_id: endpoint.id })).json()).toMatchObject({
+      connection_profile: { name: 'Fast', endpoint_id: endpoint.id, preset_id: null },
+    });
+    expect((await post({ endpoint_id: searcher.id })).status).toBe(422);
+    expect((await post({ preset_id: 'nope' })).status).toBe(422);
   });
 });

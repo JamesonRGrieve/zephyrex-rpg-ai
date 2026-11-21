@@ -253,6 +253,21 @@ class TestPersonasAndEndpoints:
         refused = server.post("/v1/model_endpoint", json={"model_endpoint": {"name": "Long", "base_url": "https://a.example/v1", "model": "m", "api_key": long_key}}, headers=_headers(person))
         assert refused.status_code == 422
 
+    def test_a_connection_profile_names_only_your_own_model_and_preset(self, server: TestClient, person: Any, other: Any) -> None:
+        # Audit gap 8: a named model and preset a chat switches to in one step.
+        model = _create(server, person, "model_endpoint", name="Claude", base_url="https://api.example.com/v1", model="c", api="anthropic").json()["model_endpoint"]
+        searcher = _create(server, person, "model_endpoint", name="Search", base_url="https://search.example", model="searxng", api="searxng", roles=["search"]).json()["model_endpoint"]
+        preset = _create(server, person, "generation_preset", name="Careful").json()["generation_preset"]
+        theirs = _create(server, other, "generation_preset", name="Theirs").json()["generation_preset"]
+        made = _create(server, person, "connection_profile", name="Long scenes", endpoint_id=model["id"], preset_id=preset["id"])
+        assert {key: made.json()["connection_profile"][key] for key in ("name", "endpoint_id", "preset_id")} == {"name": "Long scenes", "endpoint_id": model["id"], "preset_id": preset["id"]}
+        for fields in ({"endpoint_id": searcher["id"]}, {"preset_id": theirs["id"]}, {"preset_id": "nope"}):
+            refused = server.post("/v1/connection_profile", json={"connection_profile": {"name": "x", **fields}}, headers=_headers(person))
+            assert refused.status_code == 422, (fields, refused.text)
+        listed = server.get("/v1/connection_profile", headers=_headers(person)).json()["connection_profiles"]
+        assert [row["name"] for row in listed] == ["Long scenes"]
+        assert server.get("/v1/connection_profile", headers=_headers(other)).json()["connection_profiles"] == []
+
     def test_refuses_an_address_that_is_not_http(self, server: TestClient, person: Any) -> None:
         refused = server.post("/v1/model_endpoint", json={"model_endpoint": {"name": "x", "base_url": "file:///etc/passwd", "model": "m"}}, headers=_headers(person))
         assert refused.status_code == 422

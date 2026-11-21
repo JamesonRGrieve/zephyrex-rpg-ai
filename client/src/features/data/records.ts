@@ -353,6 +353,20 @@ export const quickReplies = resource<QuickReply, Fields<QuickReply> & { label: s
   quickReplySchema,
 );
 
+/** A connection profile (audit gap 8): a named model and preset a chat switches to in one step. */
+export const connectionProfileSchema = z.object({
+  ...versioned,
+  name: z.string(),
+  endpoint_id: z.string().nullable(),
+  preset_id: z.string().nullable(),
+});
+export type ConnectionProfile = z.infer<typeof connectionProfileSchema>;
+export const connectionProfiles = resource<ConnectionProfile, Fields<ConnectionProfile> & { name: string }>(
+  'connection_profile',
+  'connection_profiles',
+  connectionProfileSchema,
+);
+
 export const dataDocumentSchema = z.object({
   ...versioned,
   name: z.string(),

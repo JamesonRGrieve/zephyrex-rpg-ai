@@ -56,3 +56,16 @@ export const Open: Story = {
     await expect(args.onSave).toHaveBeenCalledWith(expect.objectContaining({ lorebook_ids: ['b1', 'b2'] }));
   },
 };
+
+/** Connection profiles (audit gap 8): one tap sets the preset and the model together. */
+export const WithProfiles: Story = {
+  args: { profiles: [{ id: 'c1', name: 'Long scenes', endpoint_id: 'e1', preset_id: 's1' }] },
+  play: async ({ args }) => {
+    const body = within(document.body);
+    const chip = await body.findByRole('radio', { name: 'Long scenes' });
+    await waitFor(() => expect(chip).toBeVisible());
+    await userEvent.click(chip);
+    await userEvent.click(body.getByRole('button', { name: 'Save' }));
+    await expect(args.onSave).toHaveBeenCalledWith(expect.objectContaining({ preset_id: 's1', endpoint_id: 'e1' }));
+  },
+};

@@ -40,6 +40,14 @@ export const BACKUP_RESOURCES: readonly BackupResource[] = [
   { resource: 'regex_script', plural: 'regex_scripts', refs: [] },
   { resource: 'quick_reply', plural: 'quick_replies', refs: [] },
   {
+    resource: 'connection_profile',
+    plural: 'connection_profiles',
+    refs: [
+      { field: 'endpoint_id', resource: 'model_endpoint' },
+      { field: 'preset_id', resource: 'generation_preset' },
+    ],
+  },
+  {
     resource: 'chat',
     plural: 'chats',
     refs: [

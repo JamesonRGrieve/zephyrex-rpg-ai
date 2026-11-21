@@ -387,3 +387,18 @@ CREATE INDEX "ChatMemory_createdById_chatId_idx" ON "ChatMemory"("createdById", 
 
 -- CreateIndex
 CREATE UNIQUE INDEX "ChatMemory_chatId_model_messageId_chunkIndex_key" ON "ChatMemory"("chatId", "model", "messageId", "chunkIndex");
+
+-- CreateTable
+CREATE TABLE "ConnectionProfile" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "createdById" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "endpointId" TEXT,
+    "presetId" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    "updatedById" TEXT
+);
+
+-- CreateIndex
+CREATE INDEX "ConnectionProfile_createdById_idx" ON "ConnectionProfile"("createdById");
