@@ -53,6 +53,7 @@ export const BACKUP_RESOURCES: readonly BackupResource[] = [
     refs: [
       { field: 'character_ids', resource: 'character', many: true },
       { field: 'muted_ids', resource: 'character', many: true },
+      { field: 'vox_ids', resource: 'character', many: true },
       { field: 'lorebook_ids', resource: 'lorebook', many: true },
       { field: 'persona_id', resource: 'persona' },
       { field: 'preset_id', resource: 'generation_preset' },

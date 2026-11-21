@@ -37,7 +37,8 @@ import { branchTo } from '~/features/chat/branch';
 import { aiCast, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
 import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
-import { turnPick, turnQuestion, turnSeat, turnState } from '~/features/chat/turnDecision';
+import { rollPick, rollQuestions } from '~/features/chat/rollDecision';
+import { presentCast, turnPick, turnQuestion, turnSeat, turnState } from '~/features/chat/turnDecision';
 import { wikiCampaignOf, worldLoreEntries } from '~/features/lore/worldLore';
 import { type CastEntity, seatPerson, worldCast, worldKnownTo } from '~/features/prompt/worldCast';
 import { sceneLocation } from '~/features/campaign/sceneLocation';
@@ -156,6 +157,8 @@ export async function generationInputs(
   lines: StoryLine[];
   /** The replying character, whose flag says whether recall reaches its other chats (AP8). */
   speaker: Speaker | null;
+  /** The wiki's world as this voice may know it (worldKnownTo), for decided turns' presence. */
+  world: CastEntity[];
   /**
    * Where a background is set: the wiki location the story names last (sceneLocation over the
    * campaign's locations), else the chat's own scenario; empty when neither says.
@@ -422,6 +425,7 @@ export async function generationInputs(
       new Map(promptCharacters.map((character) => [character.id, character.name])),
     ),
     place: backgroundPlace(entities, history, chatFields.group_settings.scenario ?? ''),
+    world: entities,
     speaker: ((row) => (row === undefined ? null : { id: row.id, name: row.name, extensions: row.extensions ?? {} }))(
       promptCharacters.find((character) => character.id === speakerId),
     ),
@@ -932,7 +936,120 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
     if (deciding === null) return undecided;
     const chat = await chats.find(asked.chat_id, owner.id);
     if (chat === null) throw notFound(chats.modelName);
-    const fields = chats.fields(chat) as { seat: string | null; muted_ids: string[] };
+    const fields = chats.fields(chat) as { seat: string | null; muted_ids: string[]; vox_ids: string[] };
+    const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+    const playingId = play?.playingId ?? null;
+    const { prompt, world } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null },
+      Math.random,
+      'reply',
+      wikiReader(nextRequest),
+    );
+    const player = prompt.persona?.name ?? DEFAULT_USER_NAME;
+    const seat = turnSeat(fields.seat, playingId !== null);
+    const names = new Map(prompt.characters.map((character) => [character.id, character.name]));
+    const story = new Set<string>(PROMPT.story_channels);
+    const storyTurns = prompt.history.filter(
+      (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
+    );
+    // Only those in the scene, or reached by vox, can be picked (the operator, 2026-11-21).
+    const locations = world
+      .filter((entity) => entity.kind === 'location' && entity.deleted !== true)
+      .map((entity) => ({ ...entity, aliases: [...((entity as { aliases?: string[] }).aliases ?? [])] }));
+    const at = sceneLocation(
+      storyTurns.map((turn) => ({ text: turn.content, channel: 'story' })),
+      locations,
+    );
+    const field = (entity: object, key: string): string | null => {
+      const value: unknown = Reflect.get(entity, key);
+      return typeof value === 'string' ? value : null;
+    };
+    const { present, vox } = presentCast(prompt.characters, {
+      tokens: null,
+      scene_location: at,
+      location_parents: Object.fromEntries(locations.map((location) => [location.id, field(location, 'parent_id')])),
+      person_locations: Object.fromEntries(
+        world.filter((entity) => entity.kind === 'person').map((entity) => [entity.id, field(entity, 'location_id')]),
+      ),
+      recent: storyTurns.map((turn) => ({
+        speaker_id: turn.role === 'user' ? playingId : turn.role === 'character' ? turn.speaker_character_id : null,
+        text: turn.content,
+      })),
+      vox: fields.vox_ids,
+    });
+    // After the person's own line someone answers: no pause.
+    const afterPerson = storyTurns.at(-1)?.role === 'user';
+    const { question, picks } = turnQuestion(
+      prompt.characters,
+      fields.muted_ids,
+      playingId,
+      seat,
+      player,
+      [...present, ...vox],
+      afterPerson,
+    );
+    const named = (ids: readonly string[]) => ids.map((id) => names.get(id) ?? '').filter((name) => name !== '');
+    const state = turnState(
+      storyTurns.map((turn) => ({
+        name:
+          turn.role === 'user'
+            ? player
+            : turn.role === 'character'
+              ? (names.get(turn.speaker_character_id ?? '') ?? PROMPT.narrator_name)
+              : TABLE.gm_name,
+        text: turn.content,
+      })),
+      {
+        place: locations.find((location) => location.id === at)?.name ?? null,
+        present: named(present),
+        vox: named(vox),
+      },
+    );
+    const answers = await askDecider(deciding, state, { next: question }, nextRequest.signal);
+    const pick = turnPick(answers?.next, picks);
+    if (pick === null) return undecided;
+    return Response.json({
+      next_turn: { decided: true, kind: pick.kind, character_id: pick.kind === 'character' ? pick.id : null },
+    });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const needsRollRequest = z.object({
+  chat_id: z.string().min(1),
+  leaf_id: z.string().min(1).nullable().default(null),
+  character_id: z.string().min(1),
+});
+
+/**
+ * `POST /v1/ai_chat/needs_roll` (the operator, 2026-11-21; DESIGN's needs_roll): after a character's
+ * line, whether it needs a roll and which (features/chat/rollDecision.ts). Lite has no VTT system
+ * pack, so it decides in the light dice style. Request `{ "needs_roll": { "chat_id", "leaf_id",
+ * "character_id" } }`; answer `{ "needs_roll": { "decided", "kind": none|test|formula, "person_id",
+ * "name", "difficulty", "formula", "label" } }`. The caller rolls it, posts the roll line, and has the
+ * narrator narrate it. Nothing is written.
+ */
+export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
+  const blank = { person_id: null, name: null, difficulty: null, formula: null, label: null };
+  const undecided = Response.json({ needs_roll: { decided: false, kind: null, ...blank } });
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = needsRollRequest.safeParse(Reflect.get(envelope, 'needs_roll'));
+    if (!parsed.success)
+      throw validationError('A needs_roll object with a chat_id and character_id is required', 'needs_roll');
+    const asked = parsed.data;
+    const deciding = await decider(owner.id);
+    if (deciding === null) return undecided;
+    const chat = await chats.find(asked.chat_id, owner.id);
+    if (chat === null) throw notFound(chats.modelName);
+    const fields = chats.fields(chat) as { campaign_id: string | null };
+    const frame =
+      fields.campaign_id === null
+        ? null
+        : await prisma.campaignFrame.findFirst({ where: { id: fields.campaign_id, createdById: owner.id } });
     const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
     const playingId = play?.playingId ?? null;
     const { prompt } = await generationInputs(
@@ -943,9 +1060,11 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
       wikiReader(nextRequest),
     );
     const player = prompt.persona?.name ?? DEFAULT_USER_NAME;
-    const seat = turnSeat(fields.seat, playingId !== null);
-    const { question, picks } = turnQuestion(prompt.characters, fields.muted_ids, playingId, seat, player);
     const names = new Map(prompt.characters.map((character) => [character.id, character.name]));
+    const actor = asked.character_id === playingId ? player : names.get(asked.character_id);
+    if (actor === undefined) throw validationError('The character must be in the chat', 'character_id');
+    const options = null;
+    const { questions, picks } = rollQuestions(options, frame?.resolutionMode ?? 'narrative', actor);
     const story = new Set<string>(PROMPT.story_channels);
     const state = turnState(
       prompt.history
@@ -960,11 +1079,17 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
           text: turn.content,
         })),
     );
-    const answers = await askDecider(deciding, state, { next: question }, nextRequest.signal);
-    const pick = turnPick(answers?.next, picks);
+    const pick = rollPick(await askDecider(deciding, state, questions, nextRequest.signal), picks, options);
     if (pick === null) return undecided;
     return Response.json({
-      next_turn: { decided: true, kind: pick.kind, character_id: pick.kind === 'character' ? pick.id : null },
+      needs_roll: {
+        decided: true,
+        kind: pick.kind,
+        ...blank,
+        ...(pick.kind === 'none' ? {} : { person_id: asked.character_id, label: pick.label }),
+        ...(pick.kind === 'test' ? { name: pick.name, difficulty: pick.difficulty } : {}),
+        ...(pick.kind === 'formula' ? { formula: pick.formula } : {}),
+      },
     });
   } catch (error) {
     return apiErrorResponse(error);

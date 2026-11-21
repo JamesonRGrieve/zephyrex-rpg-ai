@@ -290,6 +290,7 @@ const CHAT_COLUMNS: Columns = {
   tags: jsonList('tags'),
   folder: plain('folder'),
   muted_ids: jsonList('mutedIds'),
+  vox_ids: jsonList('voxIds'),
   background: plain('background'),
   objectives: jsonList('objectives'),
   content_rating: plain('contentRating'),
@@ -342,6 +343,8 @@ const chatFields = {
   folder: z.string().trim().max(LIMITS.name_characters),
   /** Group members left out of the turn order (A52); each one of the chat's characters. */
   muted_ids: z.array(recordId).max(LIMITS.characters_per_chat),
+  /** Cast members on vox: away from the scene, but a line can reach them (decided turns). */
+  vox_ids: z.array(recordId).max(LIMITS.characters_per_chat),
   /** A picture behind the chat (A31), a data URL as an avatar is. */
   background: avatar,
   /** The chat's tasks, in order (A53); the first not done is put to the model. */
@@ -397,6 +400,7 @@ const chatCreate = z.object({
   tags: chatFields.tags.default([]),
   folder: chatFields.folder.default(''),
   muted_ids: chatFields.muted_ids.default([]),
+  vox_ids: chatFields.vox_ids.default([]),
   background: avatar.default(null),
   objectives: chatFields.objectives.default([]),
   content_rating: chatFields.content_rating.default(null),

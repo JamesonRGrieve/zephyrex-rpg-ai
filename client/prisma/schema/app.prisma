@@ -84,6 +84,8 @@ model Chat {
   tags         String   @default("[]")
   folder       String   @default("")
   mutedIds     String   @default("[]")
+  /// Cast members on vox: away from the scene, but a line can reach them (decided turns); a JSON list.
+  voxIds       String   @default("[]")
   background   String?
   objectives   String   @default("[]")
   contentRating String?

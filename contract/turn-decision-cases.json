@@ -152,6 +152,58 @@
           "kind": "pause"
         }
       }
+    },
+    {
+      "name": "only the reachable cast are options, and after the person's line there's no pause",
+      "cast": [
+        {
+          "id": "hal",
+          "name": "Halleran Voss"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "kord",
+          "name": "Kord"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "muted": [],
+      "seated": null,
+      "seat": "character",
+      "player": "Calloway",
+      "reachable": [
+        "var",
+        "ilsa"
+      ],
+      "after_person": true,
+      "question": {
+        "type": "choice",
+        "instructions": "You choose who speaks next in a roleplay where the player plays Calloway. Pick a character whose voice the scene needs now, or the GM when the scene needs narration or a consequence. Pick the pause when Calloway is addressed, it's Calloway's moment to act, or a choice is Calloway's to make. Never let another character answer or act for Calloway. Only the characters listed as present or on vox can speak; nobody else is in the scene.",
+        "criteria": [
+          "Vardane",
+          "Ilsa Marrow",
+          "The GM interjects"
+        ]
+      },
+      "picks": {
+        "Vardane": {
+          "kind": "character",
+          "id": "var"
+        },
+        "Ilsa Marrow": {
+          "kind": "character",
+          "id": "ilsa"
+        },
+        "The GM interjects": {
+          "kind": "gm"
+        }
+      }
     }
   ],
   "pick_cases": [
@@ -275,5 +327,337 @@
       }
     ],
     "state": "N: 2\nN: 3\nN: 4\nN: 5\nN: 6\nN: 7\nN: 8\nN: 9\nN: 10\nN: 11\nN: 12\nN: 13"
+  },
+  "presence_cases": [
+    {
+      "name": "a VTT scene: present are the cast with a token there",
+      "cast": [
+        {
+          "id": "hal",
+          "name": "Halleran Voss"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "kord",
+          "name": "Kord"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "presence": {
+        "tokens": [
+          "var",
+          "kord"
+        ],
+        "scene_location": "bridge",
+        "location_parents": {},
+        "person_locations": {
+          "hal": "bridge"
+        },
+        "recent": [],
+        "vox": []
+      },
+      "present": [
+        "var",
+        "kord"
+      ],
+      "vox": []
+    },
+    {
+      "name": "no scene: a wiki location at or inside the scene's is present, one elsewhere is absent",
+      "cast": [
+        {
+          "id": "hal",
+          "name": "Halleran Voss"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "kord",
+          "name": "Kord"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "presence": {
+        "tokens": null,
+        "scene_location": "enginarium",
+        "location_parents": {
+          "bay2": "enginarium",
+          "enginarium": "ship",
+          "bridge": "ship"
+        },
+        "person_locations": {
+          "hal": "bridge",
+          "var": "bay2"
+        },
+        "recent": [
+          {
+            "speaker_id": null,
+            "text": "Halleran Voss mutters."
+          }
+        ],
+        "vox": []
+      },
+      "present": [
+        "var"
+      ],
+      "vox": []
+    },
+    {
+      "name": "no location: present are those who spoke or were named (a first name counts) in the recent lines",
+      "cast": [
+        {
+          "id": "hal",
+          "name": "Halleran Voss"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "kord",
+          "name": "Kord"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "presence": {
+        "tokens": null,
+        "scene_location": null,
+        "location_parents": {},
+        "person_locations": {},
+        "recent": [
+          {
+            "speaker_id": "kord",
+            "text": "Hm."
+          },
+          {
+            "speaker_id": null,
+            "text": "*yawn* Ilsa looks over."
+          }
+        ],
+        "vox": []
+      },
+      "present": [
+        "kord",
+        "ilsa"
+      ],
+      "vox": []
+    },
+    {
+      "name": "no locations known: naming someone counts them present, on vox or not (the story is all there is)",
+      "cast": [
+        {
+          "id": "hal",
+          "name": "Halleran Voss"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "kord",
+          "name": "Kord"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "presence": {
+        "tokens": null,
+        "scene_location": null,
+        "location_parents": {},
+        "person_locations": {},
+        "recent": [
+          {
+            "speaker_id": "kord",
+            "text": "Vardane, are you hearing this?"
+          }
+        ],
+        "vox": [
+          "var",
+          "hal"
+        ]
+      },
+      "present": [
+        "var",
+        "kord"
+      ],
+      "vox": []
+    },
+    {
+      "name": "away on vox: a vox word reaches everyone on vox; someone away and not on vox stays out",
+      "cast": [
+        {
+          "id": "hal",
+          "name": "Halleran Voss"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "kord",
+          "name": "Kord"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "presence": {
+        "tokens": null,
+        "scene_location": "bay2",
+        "location_parents": {},
+        "person_locations": {
+          "kord": "bay2",
+          "hal": "bridge",
+          "var": "bridge",
+          "ilsa": "bridge"
+        },
+        "recent": [
+          {
+            "speaker_id": "kord",
+            "text": "Opening the vox to the bridge."
+          }
+        ],
+        "vox": [
+          "hal",
+          "var"
+        ]
+      },
+      "present": [
+        "kord"
+      ],
+      "vox": [
+        "hal",
+        "var"
+      ]
+    },
+    {
+      "name": "away on vox but not called: not reached",
+      "cast": [
+        {
+          "id": "hal",
+          "name": "Halleran Voss"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        },
+        {
+          "id": "kord",
+          "name": "Kord"
+        },
+        {
+          "id": "ilsa",
+          "name": "Ilsa Marrow"
+        }
+      ],
+      "presence": {
+        "tokens": null,
+        "scene_location": "bay2",
+        "location_parents": {},
+        "person_locations": {
+          "kord": "bay2",
+          "hal": "bridge"
+        },
+        "recent": [
+          {
+            "speaker_id": "kord",
+            "text": "I check the pipes."
+          }
+        ],
+        "vox": [
+          "hal"
+        ]
+      },
+      "present": [
+        "kord"
+      ],
+      "vox": []
+    },
+    {
+      "name": "away on vox: reached when the last line names them",
+      "cast": [
+        {
+          "id": "kord",
+          "name": "Kord"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        }
+      ],
+      "presence": {
+        "tokens": null,
+        "scene_location": "bay2",
+        "location_parents": {},
+        "person_locations": {
+          "kord": "bay2",
+          "var": "bridge"
+        },
+        "recent": [
+          {
+            "speaker_id": "kord",
+            "text": "Vardane, are you hearing this?"
+          }
+        ],
+        "vox": [
+          "var"
+        ]
+      },
+      "present": [
+        "kord"
+      ],
+      "vox": [
+        "var"
+      ]
+    }
+  ],
+  "scene_state_case": {
+    "lines": [
+      {
+        "name": "Calloway",
+        "text": "*yawn*"
+      }
+    ],
+    "scene": {
+      "place": "Bay Two",
+      "present": [
+        "Kord"
+      ],
+      "vox": [
+        "Vardane"
+      ]
+    },
+    "state": "Scene: Bay Two\nPresent: Kord\nOn vox: Vardane\n\nCalloway: *yawn*"
+  },
+  "empty_scene_state_case": {
+    "lines": [
+      {
+        "name": "Calloway",
+        "text": "*yawn*"
+      }
+    ],
+    "scene": {
+      "place": null,
+      "present": [],
+      "vox": []
+    },
+    "state": "Present: nobody\n\nCalloway: *yawn*"
   }
 }

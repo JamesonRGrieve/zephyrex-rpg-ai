@@ -828,6 +828,24 @@ class TestGenerate:
         assert answer.status_code == 200, answer.text
         assert answer.json()["next_turn"] == undecided
 
+    def test_needs_roll_is_undecided_without_a_usable_decision(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-21: after a character's line the decision model says whether it needs a
+        # roll; without one, or without a usable answer, there's no roll step.
+        user = create_user(server)
+        kord = _cast(server, user, "character", name="Kord").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Crew", character_ids=[kord["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="character", speaker_character_id=kord["id"], swipes=["I force the hatch."]).json()["chat_message"]
+        asked = {"needs_roll": {"chat_id": chat["id"], "leaf_id": line["id"], "character_id": kord["id"]}}
+        undecided = {"decided": False, "kind": None, "person_id": None, "name": None, "difficulty": None, "formula": None, "label": None}
+        assert server.post("/v1/ai_chat/needs_roll", json=asked, headers=_headers(user)).json()["needs_roll"] == undecided
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        answer = server.post("/v1/ai_chat/needs_roll", json=asked, headers=_headers(user))
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["needs_roll"] == undecided
+        stranger = {"needs_roll": {**asked["needs_roll"], "character_id": "nobody"}}
+        assert server.post("/v1/ai_chat/needs_roll", json=stranger, headers=_headers(user)).status_code == 422
+
     def test_cut_takes_out_only_the_lines_named(self, server: TestClient) -> None:
         # Audit gap 5: STscript's /cut; the cut lines' replies move up to their parents.
         user = create_user(server)

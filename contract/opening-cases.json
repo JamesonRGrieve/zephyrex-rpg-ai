@@ -1,0 +1,255 @@
+{
+  "$comment": "A campaign's opening: cases both twins run (client/src/features/campaign/opening.test.ts, server/extensions/ai_campaign/Opening_test.py).",
+  "cases": [
+    {
+      "name": "the seat's own wiki location: told where, what's there and who's with them (never a GM-only one)",
+      "seated": "kord",
+      "situation": "The ship drifts, its engines cold.",
+      "entities": [
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "Coolant pipes hiss in the dark."
+        },
+        {
+          "id": "bridge",
+          "kind": "location",
+          "name": "the Bridge",
+          "summary": "Cogitators hum."
+        },
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "location_id": null
+        },
+        {
+          "id": "kord",
+          "kind": "person",
+          "name": "Kord",
+          "location_id": "bay"
+        },
+        {
+          "id": "ilsa",
+          "kind": "person",
+          "name": "Ilsa Marrow",
+          "location_id": null
+        },
+        {
+          "id": "spy",
+          "kind": "person",
+          "name": "The Spy",
+          "location_id": "bay",
+          "gm_only": true
+        },
+        {
+          "id": "var",
+          "kind": "person",
+          "name": "Vardane",
+          "location_id": "bridge"
+        }
+      ],
+      "scene": null,
+      "default": "bridge",
+      "text": "The ship drifts, its engines cold.\n\nYou are at Bay Two. Coolant pipes hiss in the dark.",
+      "location_id": "bay",
+      "starts": {
+        "cal": null,
+        "kord": "bay",
+        "ilsa": null,
+        "spy": "bay",
+        "var": "bridge"
+      }
+    },
+    {
+      "name": "no wiki location: the VTT scene holding their token; others there are with them",
+      "seated": "cal",
+      "situation": "The ship drifts, its engines cold.",
+      "entities": [
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "Coolant pipes hiss in the dark."
+        },
+        {
+          "id": "bridge",
+          "kind": "location",
+          "name": "the Bridge",
+          "summary": "Cogitators hum."
+        },
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "location_id": null
+        },
+        {
+          "id": "kord",
+          "kind": "person",
+          "name": "Kord",
+          "location_id": "bay"
+        },
+        {
+          "id": "ilsa",
+          "kind": "person",
+          "name": "Ilsa Marrow",
+          "location_id": null
+        },
+        {
+          "id": "spy",
+          "kind": "person",
+          "name": "The Spy",
+          "location_id": "bay",
+          "gm_only": true
+        },
+        {
+          "id": "var",
+          "kind": "person",
+          "name": "Vardane",
+          "location_id": "bridge"
+        }
+      ],
+      "scene": {
+        "location_id": "bay",
+        "entity_ids": [
+          "cal",
+          "ilsa"
+        ]
+      },
+      "default": "bridge",
+      "text": "The ship drifts, its engines cold.\n\nYou are at Bay Two. Coolant pipes hiss in the dark. With you: Kord, Ilsa Marrow.",
+      "location_id": "bay",
+      "starts": {
+        "cal": "bay",
+        "kord": "bay",
+        "ilsa": "bay",
+        "spy": "bay",
+        "var": "bridge"
+      }
+    },
+    {
+      "name": "neither: the framing's default, for the seat only",
+      "seated": "cal",
+      "situation": "The ship drifts, its engines cold.",
+      "entities": [
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "Coolant pipes hiss in the dark."
+        },
+        {
+          "id": "bridge",
+          "kind": "location",
+          "name": "the Bridge",
+          "summary": "Cogitators hum."
+        },
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "location_id": null
+        },
+        {
+          "id": "kord",
+          "kind": "person",
+          "name": "Kord",
+          "location_id": "bay"
+        },
+        {
+          "id": "ilsa",
+          "kind": "person",
+          "name": "Ilsa Marrow",
+          "location_id": null
+        },
+        {
+          "id": "spy",
+          "kind": "person",
+          "name": "The Spy",
+          "location_id": "bay",
+          "gm_only": true
+        },
+        {
+          "id": "var",
+          "kind": "person",
+          "name": "Vardane",
+          "location_id": "bridge"
+        }
+      ],
+      "scene": null,
+      "default": "bridge",
+      "text": "The ship drifts, its engines cold.\n\nYou are at the Bridge. Cogitators hum. With you: Vardane.",
+      "location_id": "bridge",
+      "starts": {
+        "cal": "bridge",
+        "kord": "bay",
+        "ilsa": null,
+        "spy": "bay",
+        "var": "bridge"
+      }
+    },
+    {
+      "name": "nowhere known, or no seat: the situation alone, and still no question",
+      "seated": null,
+      "situation": "The ship drifts, its engines cold.",
+      "entities": [
+        {
+          "id": "bay",
+          "kind": "location",
+          "name": "Bay Two",
+          "summary": "Coolant pipes hiss in the dark."
+        },
+        {
+          "id": "bridge",
+          "kind": "location",
+          "name": "the Bridge",
+          "summary": "Cogitators hum."
+        },
+        {
+          "id": "cal",
+          "kind": "person",
+          "name": "Calloway",
+          "location_id": null
+        },
+        {
+          "id": "kord",
+          "kind": "person",
+          "name": "Kord",
+          "location_id": "bay"
+        },
+        {
+          "id": "ilsa",
+          "kind": "person",
+          "name": "Ilsa Marrow",
+          "location_id": null
+        },
+        {
+          "id": "spy",
+          "kind": "person",
+          "name": "The Spy",
+          "location_id": "bay",
+          "gm_only": true
+        },
+        {
+          "id": "var",
+          "kind": "person",
+          "name": "Vardane",
+          "location_id": "bridge"
+        }
+      ],
+      "scene": null,
+      "default": null,
+      "text": "The ship drifts, its engines cold.",
+      "location_id": null,
+      "starts": {
+        "cal": null,
+        "kord": "bay",
+        "ilsa": null,
+        "spy": "bay",
+        "var": "bridge"
+      }
+    }
+  ]
+}

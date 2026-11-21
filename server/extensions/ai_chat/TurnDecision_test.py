@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-not-found]
+    present_cast,
     turn_pick,
     turn_question,
     turn_seat,
@@ -25,7 +26,15 @@ def test_the_persons_seat(case: dict[str, Any]) -> None:
 
 @pytest.mark.parametrize("case", CASES["question_cases"], ids=[case["name"] for case in CASES["question_cases"]])
 def test_the_decision_models_question(case: dict[str, Any]) -> None:
-    question, picks = turn_question(case["cast"], case["muted"], case["seated"], case["seat"], case["player"])
+    question, picks = turn_question(
+        case["cast"],
+        case["muted"],
+        case["seated"],
+        case["seat"],
+        case["player"],
+        case.get("reachable"),
+        case.get("after_person", False),
+    )
     assert (question, picks) == (case["question"], case["picks"])
 
 
@@ -36,3 +45,10 @@ def test_what_the_answer_picks(case: dict[str, Any]) -> None:
 
 def test_the_recent_story() -> None:
     assert turn_state(CASES["state_case"]["lines"]) == CASES["state_case"]["state"]
+    for name in ("scene_state_case", "empty_scene_state_case"):
+        assert turn_state(CASES[name]["lines"], CASES[name]["scene"]) == CASES[name]["state"]
+
+
+@pytest.mark.parametrize("case", CASES["presence_cases"], ids=[case["name"] for case in CASES["presence_cases"]])
+def test_who_is_in_the_scene(case: dict[str, Any]) -> None:
+    assert present_cast(case["cast"], case["presence"]) == {"present": case["present"], "vox": case["vox"]}

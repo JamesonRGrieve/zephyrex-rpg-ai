@@ -115,7 +115,7 @@
     "translate_prompt": "Translate the user's text into {{language}}. Keep its meaning, tone, names and any *action* markup. Write only the translation.",
     "objective_prompt": "{{char}}'s current task: {{task}} Work toward it naturally, without stating it.",
     "objective_depth": 2,
-    "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}} or for any of the characters in the cast, and stop where one of them would react.",
+    "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}} or for any of the characters in the cast, and stop where one of them would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.",
     "cast_heading": "The characters:",
     "group_max_tokens": 350,
     "narrator_name": "Narrator"
@@ -769,7 +769,40 @@
     },
     "gm": "The GM interjects",
     "pause": {"gm": "Pause for the GM", "character": "Pause for {{player}}", "none": "Pause for {{player}}"},
-    "window": 12
+    "window": 12,
+    "presence": {
+      "$comment": "Who can be picked (the operator, 2026-11-21: \"only be presented characters who are physically present or can hear a radio message and take action\"). Present: a token in the chat's VTT scene when one is set; else the person's wiki location is the scene's location or inside it; else they spoke or were named in the last recent lines. Away but on vox (the chat's vox_ids): an option only when the last line names them or a vox word. After the person's own line there's no pause: someone answers.",
+      "recent": 6,
+      "vox_words": ["vox", "comms", "radio", "channel"],
+      "rule": " Only the characters listed as present or on vox can speak; nobody else is in the scene.",
+      "scene": "Scene: ",
+      "present": "Present: ",
+      "vox": "On vox: ",
+      "nobody": "nobody"
+    }
+  },
+  "decide_roll": {
+    "$comment": "Whether a character's action needs a roll, and which (the operator, 2026-11-21: \"after a character's turn, the decision model must also decide if a roll is required and what roll, the system then makes the roll, and the next turn is always the narrator narrating the result\"; DESIGN's needs_roll). The options are the campaign's system pack's (the VTT's test_options for the acting character: its characteristics and skills, and a difficulty); without a pack or a sheet, the light dice style. Narrative and hybrid play roll only at real stakes; mechanical play rolls whenever the rules call for a check. The caller rolls it (the VTT), posts the result as a roll line, and the narrator narrates it. features/chat/rollDecision.ts, ai_chat/RollDecision.py, contract/roll-decision-cases.json.",
+    "instructions": {
+      "narrative": "{{actor}} just acted. Does the outcome need a roll? Pick one only when the outcome is truly uncertain and something real is at stake; otherwise pick no roll, and the story decides.",
+      "mechanical": "{{actor}} just acted. Does the game's rules call for a test of that action? Pick the characteristic or skill the rules would test, or no roll when the action needs none."
+    },
+    "difficulty": "How hard is it, given the situation?",
+    "none": "No roll",
+    "light": {
+      "option": "Roll 2d6",
+      "formula": "2d6",
+      "bands": [
+        {"at_least": 10, "outcome": "full success"},
+        {"at_least": 7, "outcome": "partial success: it works, at a cost"},
+        {"at_least": -1000, "outcome": "miss"}
+      ]
+    }
+  },
+  "opening": {
+    "$comment": "A campaign's opening tells the person where they are, never asks (the operator, 2026-11-21: \"It should also not ask where I am. It should tell me.\"): the framing's Opening Situation, then the seat's told position. Where each person starts: their wiki location_id, else the location of the VTT scene holding their token, else (the seat only) the framing's default. Others told as with you are those starting there, never a GM-only one. features/campaign/opening.ts, ai_campaign/Opening.py, contract/opening-cases.json.",
+    "told": "You are at {{location}}.",
+    "with": "With you: {{names}}."
   },
   "group_settings": {
     "$comment": "Group chat modes (audit gap 6), a chat's group_settings: card_mode swap (the speaker's card) or join (every member's card, each between the join prefix and suffix); order natural, list or pooled; allow_self (natural order may pick who just spoke); auto_seconds (the next member replies by itself after that long idle, 0 off); scenario (replaces each card's scenario). features/chat/turns.ts, features/prompt/assemble.ts, ai_chat/Prompt.py.",

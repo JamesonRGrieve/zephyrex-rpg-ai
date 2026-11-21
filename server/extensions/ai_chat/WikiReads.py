@@ -97,3 +97,17 @@ def campaign_documents(model_registry: Any, requester_id: str, campaign_id: str 
     if isinstance(rows, dict):
         rows = rows.get("campaign_documents")
     return [row for row in rows if isinstance(row, dict)] if isinstance(rows, list) else []
+
+
+async def test_options(model_registry: Any, requester_id: str, person_id: str) -> dict[str, Any] | None:
+    """What a test can name for a character under the campaign's system pack (the VTT's test_options),
+    or None without the VTT, a pack or access: the light dice style then."""
+    read = loaded_ability(model_registry, "rpg_dice", "test_options")
+    if read is None:
+        return None
+    try:
+        answer = read(requester_id, person_id)
+        options = await answer if inspect.isawaitable(answer) else answer
+    except HTTPException:
+        return None
+    return dict(options) if isinstance(options, dict) else None

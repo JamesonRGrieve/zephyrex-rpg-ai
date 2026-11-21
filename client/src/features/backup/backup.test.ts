@@ -37,6 +37,8 @@ describe('backups', () => {
       title: 'Chat',
       character_ids: ['c-new'],
       muted_ids: [],
+      // A backup from before vox_ids restores with none on vox.
+      vox_ids: [],
       lorebook_ids: ['b-new'],
       persona_id: null,
       preset_id: null,

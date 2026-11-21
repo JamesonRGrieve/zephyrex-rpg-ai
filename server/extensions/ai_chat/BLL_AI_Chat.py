@@ -103,6 +103,7 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
 )
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Remembering import forget_chat, memories_for  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.RollDecision import roll_pick, roll_questions  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Samplers import sampler_params, sampler_problem  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Search import (  # type: ignore[import-not-found]
     QUERY_CHARACTERS as SEARCH_QUERY_CHARACTERS,
@@ -116,12 +117,17 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_url,
 )
 from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-not-found]
+    present_cast,
     turn_pick,
     turn_question,
     turn_seat,
     turn_state,
 )
-from zephyrex.extensions.ai_chat.WikiReads import campaign_documents, persons_for  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
+    campaign_documents,
+    persons_for,
+    test_options,
+)
 from zephyrex.extensions.ai_chat.WorldCast import (  # type: ignore[import-not-found]
     seat_person,
     world_cast,
@@ -481,6 +487,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     tags: list[str] = Field(default_factory=list, description="Tags, for finding it in the library")
     folder: str = Field("", description="The library folder it sits in (blank: none)")
     muted_ids: list[str] = Field(default_factory=list, description="Group members left out of the turn order")
+    vox_ids: list[str] = Field(
+        default_factory=list, description="Cast members on vox: away from the scene, but a line can reach them"
+    )
     background: str | None = Field(None, description="A picture behind the chat (a data URL)")
     objectives: list[dict[str, Any]] = Field(
         default_factory=list, description="Its tasks in order; the first not done is put to the model"
@@ -524,6 +533,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         tags: list[str] = Field(default_factory=list)
         folder: str = Field("", max_length=MAX_NAME)
         muted_ids: list[str] = Field(default_factory=list)
+        vox_ids: list[str] = Field(default_factory=list)
         background: str | None = None
         objectives: list[dict[str, Any]] = Field(default_factory=list)
         content_rating: str | None = None
@@ -553,6 +563,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         tags: list[str] | None = None
         folder: str | None = Field(None, max_length=MAX_NAME)
         muted_ids: list[str] | None = None
+        vox_ids: list[str] | None = None
         background: str | None = None
         objectives: list[dict[str, Any]] | None = None
         content_rating: str | None = None
@@ -618,7 +629,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
     def _check_references(self, fields: dict[str, Any], current_campaign: str | None = None) -> None:
         # A chat's characters are wiki persons (the composed suite), ones the requester can see.
         campaign = fields.get("campaign_id") or current_campaign
-        for field in ("character_ids", "muted_ids"):
+        for field in ("character_ids", "muted_ids", "vox_ids"):
             if fields.get(field):
                 self._check_persons(list(fields[field]), field, campaign)
         for book_id in fields.get("lorebook_ids") or []:
@@ -676,6 +687,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("tags", [])
         kwargs.setdefault("folder", "")
         kwargs.setdefault("muted_ids", [])
+        kwargs.setdefault("vox_ids", [])
         kwargs.setdefault("objectives", [])
         kwargs.setdefault("variables", {})
         kwargs.setdefault("group_settings", {})
@@ -1663,6 +1675,34 @@ class NextTurnEnvelope(PlainModel):
     next_turn: NextTurn
 
 
+class NeedsRollRequest(PlainModel):
+    """Whether a character's action needs a roll, and which (the operator, 2026-11-21; DESIGN's needs_roll)."""
+
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+    character_id: str = Field(..., min_length=1)
+
+
+class NeedsRollRequestEnvelope(PlainModel):
+    needs_roll: NeedsRollRequest
+
+
+class NeedsRoll(PlainModel):
+    #: False (no roll step) without a decision model or a usable answer.
+    decided: bool
+    #: none, test (the system pack's, rolled by the VTT's test) or formula (the light dice style).
+    kind: str | None = None
+    person_id: str | None = None
+    name: str | None = None
+    difficulty: str | None = None
+    formula: str | None = None
+    label: str | None = None
+
+
+class NeedsRollEnvelope(PlainModel):
+    needs_roll: NeedsRoll
+
+
 class CutRequest(PlainModel):
     """STscript's /cut (audit gap 5): the messages to take out, all of one chat."""
 
@@ -2477,6 +2517,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             # Where a background is set (the composed suite): the wiki location the story names last,
             # else the chat's own scenario.
             "place": background_place(entities, history, str((chat.group_settings or {}).get("scenario") or "")),
+            # The wiki's world as this voice may know it, for decided turns' presence.
+            "world": entities,
         }
         return assembled, request, sampler, lore.active, context
 
@@ -2929,8 +2971,129 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         persona = context["persona"]
         player = persona["name"] if persona is not None else DEFAULT_USER_NAME
         seat = turn_seat(chat.seat, playing_id is not None)
-        question, picks = turn_question(context["cast"], chat.muted_ids or [], playing_id, seat, player)
         names = {character["id"]: character["name"] for character in context["cast"]}
+        story = set(PROMPT["story_channels"])
+        story_turns = [
+            turn
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        # Only those in the scene, or reached by vox, can be picked (the operator, 2026-11-21).
+        world = context["world"]
+        locations = [
+            {**entity, "aliases": list(entity.get("aliases") or [])}
+            for entity in world
+            if entity.get("kind") == "location" and not entity.get("deleted")
+        ]
+        at = scene_location([{"text": turn["content"], "channel": "story"} for turn in story_turns], locations)
+        presence = {
+            "tokens": None,
+            "scene_location": at,
+            "location_parents": {location["id"]: location.get("parent_id") for location in locations},
+            "person_locations": {
+                entity["id"]: entity.get("location_id") for entity in world if entity.get("kind") == "person"
+            },
+            "recent": [
+                {
+                    "speaker_id": playing_id
+                    if turn["role"] == "user"
+                    else turn["speaker_character_id"]
+                    if turn["role"] == "character"
+                    else None,
+                    "text": turn["content"],
+                }
+                for turn in story_turns
+            ],
+            "vox": chat.vox_ids or [],
+        }
+        reach = present_cast(context["cast"], presence)
+        # After the person's own line someone answers: no pause.
+        after_person = bool(story_turns) and story_turns[-1]["role"] == "user"
+        question, picks = turn_question(
+            context["cast"],
+            chat.muted_ids or [],
+            playing_id,
+            seat,
+            player,
+            [*reach["present"], *reach["vox"]],
+            after_person,
+        )
+        place = next((location["name"] for location in locations if location["id"] == at), None)
+
+        def named(ids: list[str]) -> list[str]:
+            return [names[id_] for id_ in ids if names.get(id_)]
+
+        state = turn_state(
+            [
+                {
+                    "name": player
+                    if turn["role"] == "user"
+                    else names.get(turn["speaker_character_id"] or "", PROMPT["narrator_name"])
+                    if turn["role"] == "character"
+                    else CONTRACT["table"]["gm_name"],
+                    "text": turn["content"],
+                }
+                for turn in story_turns
+            ],
+            {"place": place, "present": named(reach["present"]), "vox": named(reach["vox"])},
+        )
+        answers = await ask_decider(
+            deciding.base_url,
+            deciding.model,
+            decrypt_secret(deciding.api_key) if deciding.api_key else "",
+            state,
+            {"next": question},
+            getattr(deciding, "extra_body", None),
+        )
+        pick = turn_pick((answers or {}).get("next"), picks)
+        if pick is None:
+            return undecided
+        return NextTurnEnvelope(next_turn=NextTurn(decided=True, kind=pick["kind"], character_id=pick.get("id")))
+
+    @custom_route(
+        method="POST",
+        path="/needs_roll",
+        input_model=NeedsRollRequestEnvelope,
+        output_model=NeedsRollEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Whether a character's action needs a roll and which, from the system pack or the light dice",
+    )
+    async def needs_roll_route(self, body: NeedsRollRequestEnvelope) -> NeedsRollEnvelope:
+        undecided = NeedsRollEnvelope(needs_roll=NeedsRoll(decided=False))
+        deciding = self._decider()
+        if deciding is None:
+            return undecided
+        asked = body.needs_roll
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id, mode="narrate"), save_timers=False
+        )
+        persona = context["persona"]
+        player = persona["name"] if persona is not None else DEFAULT_USER_NAME
+        names = {character["id"]: character["name"] for character in context["cast"]}
+        actor = player if asked.character_id == playing_id else names.get(asked.character_id)
+        if actor is None:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "The character must be in the chat", "code": "validation_error"},
+            )
+        mode = "narrative"
+        if chat.campaign_id:
+            # A chat's campaign may be a wiki campaign with no frame of the person's: narrative then.
+            try:
+                frame = self._manager(CampaignFrameManager).get(id=chat.campaign_id)
+            except HTTPException:
+                frame = None
+            mode = getattr(frame, "resolution_mode", None) or "narrative"
+        options = await test_options(self.model_registry, str(self.requester.id), asked.character_id)
+        questions, picks = roll_questions(options, mode, actor)
         story = set(PROMPT["story_channels"])
         state = turn_state(
             [
@@ -2951,13 +3114,24 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             deciding.model,
             decrypt_secret(deciding.api_key) if deciding.api_key else "",
             state,
-            {"next": question},
+            questions,
             getattr(deciding, "extra_body", None),
         )
-        pick = turn_pick((answers or {}).get("next"), picks)
+        pick = roll_pick(answers, picks, options)
         if pick is None:
             return undecided
-        return NextTurnEnvelope(next_turn=NextTurn(decided=True, kind=pick["kind"], character_id=pick.get("id")))
+        rolled = pick["kind"] != "none"
+        return NeedsRollEnvelope(
+            needs_roll=NeedsRoll(
+                decided=True,
+                kind=pick["kind"],
+                person_id=asked.character_id if rolled else None,
+                name=pick.get("name"),
+                difficulty=pick.get("difficulty"),
+                formula=pick.get("formula"),
+                label=pick.get("label"),
+            )
+        )
 
     @custom_route(
         method="POST",

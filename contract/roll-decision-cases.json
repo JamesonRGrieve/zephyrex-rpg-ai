@@ -1,0 +1,289 @@
+{
+  "$comment": "Whether an action needs a roll, by the decision model: cases both twins run (client/src/features/chat/rollDecision.test.ts, server/extensions/ai_chat/RollDecision_test.py).",
+  "options": {
+    "characteristics": [
+      {
+        "slug": "agility",
+        "name": "Agility"
+      }
+    ],
+    "skills": [
+      {
+        "slug": "tech-use",
+        "name": "Tech-Use"
+      },
+      {
+        "slug": "dodge",
+        "name": "Dodge"
+      }
+    ],
+    "difficulties": [
+      {
+        "slug": "easy"
+      },
+      {
+        "slug": "challenging"
+      },
+      {
+        "slug": "hard"
+      }
+    ],
+    "default_difficulty": "challenging",
+    "has_sheet": true
+  },
+  "question_cases": [
+    {
+      "name": "a system pack and a sheet: its characteristics and skills, and a difficulty (mechanical)",
+      "options": {
+        "characteristics": [
+          {
+            "slug": "agility",
+            "name": "Agility"
+          }
+        ],
+        "skills": [
+          {
+            "slug": "tech-use",
+            "name": "Tech-Use"
+          },
+          {
+            "slug": "dodge",
+            "name": "Dodge"
+          }
+        ],
+        "difficulties": [
+          {
+            "slug": "easy"
+          },
+          {
+            "slug": "challenging"
+          },
+          {
+            "slug": "hard"
+          }
+        ],
+        "default_difficulty": "challenging",
+        "has_sheet": true
+      },
+      "mode": "mechanical",
+      "actor": "Kord",
+      "questions": {
+        "roll": {
+          "type": "choice",
+          "instructions": "Kord just acted. Does the game's rules call for a test of that action? Pick the characteristic or skill the rules would test, or no roll when the action needs none.",
+          "criteria": [
+            "No roll",
+            "Agility",
+            "Tech-Use",
+            "Dodge"
+          ]
+        },
+        "difficulty": {
+          "type": "choice",
+          "instructions": "How hard is it, given the situation?",
+          "criteria": [
+            "easy",
+            "challenging",
+            "hard"
+          ]
+        }
+      },
+      "picks": {
+        "No roll": {
+          "kind": "none"
+        },
+        "Agility": {
+          "kind": "test",
+          "name": "agility",
+          "label": "Agility"
+        },
+        "Tech-Use": {
+          "kind": "test",
+          "name": "tech-use",
+          "label": "Tech-Use"
+        },
+        "Dodge": {
+          "kind": "test",
+          "name": "dodge",
+          "label": "Dodge"
+        }
+      }
+    },
+    {
+      "name": "systemless: the light dice style (narrative)",
+      "options": null,
+      "mode": "narrative",
+      "actor": "Kord",
+      "questions": {
+        "roll": {
+          "type": "choice",
+          "instructions": "Kord just acted. Does the outcome need a roll? Pick one only when the outcome is truly uncertain and something real is at stake; otherwise pick no roll, and the story decides.",
+          "criteria": [
+            "No roll",
+            "Roll 2d6"
+          ]
+        }
+      },
+      "picks": {
+        "No roll": {
+          "kind": "none"
+        },
+        "Roll 2d6": {
+          "kind": "formula"
+        }
+      }
+    },
+    {
+      "name": "a pack but no sheet: the light dice style (hybrid reads as narrative)",
+      "options": {
+        "characteristics": [
+          {
+            "slug": "agility",
+            "name": "Agility"
+          }
+        ],
+        "skills": [
+          {
+            "slug": "tech-use",
+            "name": "Tech-Use"
+          },
+          {
+            "slug": "dodge",
+            "name": "Dodge"
+          }
+        ],
+        "difficulties": [
+          {
+            "slug": "easy"
+          },
+          {
+            "slug": "challenging"
+          },
+          {
+            "slug": "hard"
+          }
+        ],
+        "default_difficulty": "challenging",
+        "has_sheet": false
+      },
+      "mode": "hybrid",
+      "actor": "Kord",
+      "questions": {
+        "roll": {
+          "type": "choice",
+          "instructions": "Kord just acted. Does the outcome need a roll? Pick one only when the outcome is truly uncertain and something real is at stake; otherwise pick no roll, and the story decides.",
+          "criteria": [
+            "No roll",
+            "Roll 2d6"
+          ]
+        }
+      },
+      "picks": {
+        "No roll": {
+          "kind": "none"
+        },
+        "Roll 2d6": {
+          "kind": "formula"
+        }
+      }
+    }
+  ],
+  "pick_cases": [
+    {
+      "name": "a roll: the test and the difficulty named",
+      "answers": {
+        "roll": {
+          "choice": "Tech-Use"
+        },
+        "difficulty": {
+          "choice": "hard"
+        }
+      },
+      "pack": true,
+      "pick": {
+        "kind": "test",
+        "name": "tech-use",
+        "difficulty": "hard",
+        "label": "Tech-Use (hard)"
+      }
+    },
+    {
+      "name": "a roll with no usable difficulty: the pack's default",
+      "answers": {
+        "roll": {
+          "choice": "Dodge"
+        },
+        "difficulty": {
+          "choice": "impossible"
+        }
+      },
+      "pack": true,
+      "pick": {
+        "kind": "test",
+        "name": "dodge",
+        "difficulty": "challenging",
+        "label": "Dodge (challenging)"
+      }
+    },
+    {
+      "name": "no roll",
+      "answers": {
+        "roll": {
+          "choice": "No roll"
+        }
+      },
+      "pack": true,
+      "pick": {
+        "kind": "none"
+      }
+    },
+    {
+      "name": "systemless: the light dice",
+      "answers": {
+        "roll": {
+          "choice": "Roll 2d6"
+        }
+      },
+      "pack": false,
+      "pick": {
+        "kind": "formula",
+        "formula": "2d6",
+        "label": "2d6"
+      }
+    },
+    {
+      "name": "an option that isn't one: undecided",
+      "answers": {
+        "roll": {
+          "choice": "Juggling"
+        }
+      },
+      "pack": true,
+      "pick": null
+    },
+    {
+      "name": "no answer: undecided",
+      "answers": null,
+      "pack": true,
+      "pick": null
+    }
+  ],
+  "outcome_cases": [
+    {
+      "total": 12,
+      "outcome": "full success"
+    },
+    {
+      "total": 10,
+      "outcome": "full success"
+    },
+    {
+      "total": 8,
+      "outcome": "partial success: it works, at a cost"
+    },
+    {
+      "total": 3,
+      "outcome": "miss"
+    }
+  ]
+}

@@ -105,6 +105,10 @@ export const EXTRA_BODY = contract.extra_body;
 export const WORLD_LORE = contract.world_lore;
 /** Who speaks next, by the decision model: its question and options' labels. */
 export const DECIDE_TURN = contract.decide_turn;
+/** Whether an action needs a roll, by the decision model: its questions and the light dice style. */
+export const DECIDE_ROLL = contract.decide_roll;
+/** A campaign's opening: the seat's told position. */
+export const OPENING = contract.opening;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

@@ -62,6 +62,7 @@ CREATE TABLE "Chat" (
     "tags" TEXT NOT NULL DEFAULT '[]',
     "folder" TEXT NOT NULL DEFAULT '',
     "mutedIds" TEXT NOT NULL DEFAULT '[]',
+    "voxIds" TEXT NOT NULL DEFAULT '[]',
     "background" TEXT,
     "objectives" TEXT NOT NULL DEFAULT '[]',
     "contentRating" TEXT,
