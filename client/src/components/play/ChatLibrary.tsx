@@ -155,9 +155,12 @@ export function ChatLibrary({ kind = 'sandbox' }: { kind?: 'campaigns' | 'sandbo
       {list.error !== undefined && <LoadProblem what='your chats' error={list.error} onRetry={() => list.mutate()} />}
       {list.data === undefined && list.error === undefined && <SkeletonRows rows={4} avatar />}
       {kind === 'campaigns' && list.data !== undefined && all.length === 0 && !hidden.pending && (
-        <p className='rounded-lg border p-4 text-muted-foreground'>
-          No campaigns yet. Pick a scenario and start one: you choose the party, and you can take any seat at any time.
-        </p>
+        <div className='grid gap-3 rounded-lg border p-4 text-muted-foreground'>
+          <p>No campaigns yet. Pick a scenario and start one: you choose the party, and you can take any seat at any time.</p>
+          <Button asChild className='h-11 w-full sm:w-auto'>
+            <Link href='/campaigns'>Pick a scenario</Link>
+          </Button>
+        </div>
       )}
       {kind === 'sandbox' && list.data !== undefined && all.length === 0 && !hidden.pending && (
         <FirstRun
