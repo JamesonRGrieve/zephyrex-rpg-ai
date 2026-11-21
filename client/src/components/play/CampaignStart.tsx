@@ -12,9 +12,10 @@
 import { journals, worlds } from '@zephyrex-rpg/wiki/features/data/records';
 import { useRouter } from 'next/navigation';
 import { notify } from 'zephyrex/hooks/useToast';
+import { useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { type ReactElement, useEffect, useMemo, useState } from 'react';
+import { type ReactElement, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
@@ -100,7 +101,7 @@ export const START_STEPS = [
 ] as const;
 
 /** The start's progress: the step under way and a bar; the copy creeps while the server works. */
-export function StartProgress({ step, creep }: { step: number; creep: number }): ReactElement {
+export function StartProgress({ step, creep, detail = null }: { step: number; creep: number; detail?: string | null }): ReactElement {
   const share = 100 / START_STEPS.length;
   const percent = Math.min(99, Math.round(step * share + creep * share));
   return (
@@ -117,6 +118,7 @@ export function StartProgress({ step, creep }: { step: number; creep: number }):
       </div>
       <p className='text-sm text-muted-foreground'>
         {START_STEPS[Math.min(step, START_STEPS.length - 1)]}… ({step + 1} of {START_STEPS.length})
+        {step === 0 && detail !== null && detail !== '' ? `: ${detail}` : ''}
       </p>
     </div>
   );
@@ -127,12 +129,14 @@ export function CampaignStartForm({
   starting,
   step = 0,
   creep = 0,
+  detail = null,
   onStart,
 }: {
   cast: readonly Character[];
   starting: boolean;
   step?: number;
   creep?: number;
+  detail?: string | null;
   onStart: (choice: StartChoice) => void;
 }): ReactElement {
   const [seat, setSeat] = useState<'gm' | 'player'>('gm');
@@ -237,7 +241,7 @@ export function CampaignStartForm({
         </section>
       </div>
       <div className='grid gap-3 border-t p-4'>
-        {starting && <StartProgress step={step} creep={creep} />}
+        {starting && <StartProgress step={step} creep={creep} detail={detail} />}
         <Button
           type='button'
           className='h-11 w-full'
@@ -272,15 +276,12 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   const { create: createSession } = chatSessions.useActions();
   const router = useRouter();
   const client = useClient();
+  const { mutate } = useSWRConfig();
   const [starting, setStarting] = useState(false);
   const [step, setStep] = useState(0);
   const [creep, setCreep] = useState(0);
-  // While the server copies (no progress of its own), the first step's bar creeps toward its end.
-  useEffect(() => {
-    if (!starting || step !== 0) return undefined;
-    const timer = setInterval(() => setCreep((now) => now + (0.95 - now) * 0.08), 1000);
-    return () => clearInterval(timer);
-  }, [starting, step]);
+  // The copy's own step, as the server reports it ("copying people", …).
+  const [copyStep, setCopyStep] = useState<string | null>(null);
   const all = useMemo(() => cast.data ?? [], [cast.data]);
 
   /**
@@ -299,6 +300,36 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
     }
   };
 
+  /**
+   * The copy, asynchronous (the operator, 2026-11-21: "make it async with the progress bar and auto
+   * load it when it's done"): the server answers at once and copies in the background; its reports
+   * drive the bar (done of total, and the step) until it is done or failed. A server that still
+   * answers synchronously (the campaign and id map at once) is taken as done.
+   */
+  const copyScenario = async (scenarioId: string, name: string): Promise<{ campaign: { id: string }; id_map: Record<string, string> }> => {
+    const answer = Object(await client.post(`/v1/campaign/${scenarioId}/instantiate`, { instantiate: { name } }));
+    const done = instantiated.safeParse(answer);
+    if (done.success) return done.data;
+    const startId = Reflect.get(Object(Reflect.get(answer, 'start')), 'id');
+    if (typeof startId !== 'string') throw new Error('The scenario was not copied');
+    for (;;) {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+      const report = Object(Reflect.get(Object(await client.get(`/v1/campaign_start/${startId}`)), 'campaign_start'));
+      const state: unknown = Reflect.get(report, 'state');
+      const count = Number(Reflect.get(report, 'done') ?? 0);
+      const total = Number(Reflect.get(report, 'total') ?? 0);
+      const stepName: unknown = Reflect.get(report, 'step');
+      setCreep(total > 0 ? Math.min(0.99, count / total) : 0);
+      setCopyStep(typeof stepName === 'string' ? stepName : null);
+      if (state === 'failed') throw new Error(String(Reflect.get(report, 'error') ?? 'The scenario was not copied'));
+      if (state === 'done') {
+        const raw: unknown = Reflect.get(report, 'id_map');
+        const idMap = (typeof raw === 'string' ? JSON.parse(raw) : raw) as Record<string, string>;
+        return { campaign: { id: String(Reflect.get(report, 'campaign_id')) }, id_map: idMap ?? {} };
+      }
+    }
+  };
+
   const start = async (choice: StartChoice) => {
     const scenario = campaign.data;
     if (scenario === undefined) return;
@@ -307,9 +338,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
     setCreep(0);
     try {
       // The playthrough: the scenario's own copy, its cast remapped to the copies.
-      const copy = instantiated.parse(
-        await client.post(`/v1/campaign/${scenario.id}/instantiate`, { instantiate: { name: scenario.name } }),
-      );
+      const copy = await copyScenario(scenario.id, scenario.name);
       const world = { ...scenario, id: copy.campaign.id };
       const { seat, playing, party } = remapChoice(choice, copy.id_map);
       // The campaign's story is one chat: the party (and whoever the person starts as) are its cast.
@@ -338,8 +367,11 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       setStep(3);
       await createPlay({ chat_id: chat.id, playing_id: playing });
       await createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id });
-      onStarted();
+      // Open the session first, then close the sheet: never a closed sheet onto nothing (the
+      // operator, 2026-11-21); the scenarios list reads chats afresh.
       router.push(`/play/${chat.id}`);
+      void mutate((key) => Array.isArray(key) || (typeof key === 'string' && key.startsWith('/v1/chat')));
+      onStarted();
     } catch (error) {
       // Never a silent hang (the operator, 2026-11-21: "Start the campaign now hangs"): say why.
       notify('The campaign was not started', error instanceof Error ? error.message : undefined);
@@ -349,6 +381,13 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   };
 
   return (
-    <CampaignStartForm cast={all} starting={starting} step={step} creep={creep} onStart={(choice) => void start(choice)} />
+    <CampaignStartForm
+      cast={all}
+      starting={starting}
+      step={step}
+      creep={creep}
+      detail={copyStep}
+      onStart={(choice) => void start(choice)}
+    />
   );
 }
