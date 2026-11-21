@@ -7,7 +7,7 @@
  */
 import { csrfHeaders } from '@zephyrex/auth/lib/session';
 import { useCallback, useRef, useState } from 'react';
-import { parseEventBlock, type ReplyEvent, takeBlocks } from './replyStream';
+import { type LiveItem, parseEventBlock, type ReplyEvent, type SavedLine, takeBlocks } from './replyStream';
 
 export const GENERATE_PATH = '/api/v1/ai_chat/generate';
 
@@ -21,6 +21,8 @@ export interface ReplyRequest {
   endpoint_id?: string;
   /** A second try after the voice guard caught a span (features/chat/voiceGuard.ts): it's forbidden. */
   forbid?: { names: string[]; span: string };
+  /** Schema-constrained lines (docs/DESIGN.md, Structured lines): the server splits and saves them. */
+  structured?: boolean;
 }
 
 export interface ReplyResult {
@@ -28,9 +30,14 @@ export interface ReplyResult {
   /** History turns the window left out. */
   dropped: number;
   stopped: boolean;
+  /** A structured turn: the messages the server saved, each speaker's run its own (else undefined). */
+  saved?: SavedLine[];
 }
 
-export type ReplyState = { status: 'idle' } | { status: 'writing'; text: string } | { status: 'failed'; detail: string };
+export type ReplyState =
+  | { status: 'idle' }
+  | { status: 'writing'; text: string; items?: readonly LiveItem[] }
+  | { status: 'failed'; detail: string };
 
 async function readEvents(
   reader: ReadableStreamDefaultReader<string>,
@@ -67,7 +74,10 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
     let text = '';
     let dropped = 0;
     let failure: string | null = null;
+    let items: LiveItem[] = [];
+    let saved: SavedLine[] | undefined;
     setState({ status: 'writing', text });
+    const show = () => setState({ status: 'writing', text, items });
     try {
       const response = await fetch(GENERATE_PATH, {
         method: 'POST',
@@ -84,7 +94,23 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
           text += event.text;
           setState({ status: 'writing', text });
         } else if (event.type === 'done') dropped = event.dropped;
-        else failure = event.detail;
+        else if (event.type === 'error') failure = event.detail;
+        else if (event.type === 'item_start') {
+          items = [...items, { ...event.item, text: '', done: false }];
+          show();
+        } else if (event.type === 'item_text') {
+          items = items.map((item) => (item.index === event.index ? { ...item, text: item.text + event.delta } : item));
+          text += event.delta;
+          show();
+        } else if (event.type === 'item_end') {
+          // An item cut to nothing (the seat's) is dropped.
+          items = items.flatMap((item) =>
+            item.index !== event.index ? [item] : event.text === '' ? [] : [{ ...item, text: event.text, done: true }],
+          );
+          show();
+        } else if (event.type === 'person')
+          items = items.map((item) => (item.speaker === event.name ? { ...item, speaker_id: event.id } : item));
+        else saved = event.messages;
       });
     } catch {
       if (!abort.signal.aborted) {
@@ -92,12 +118,12 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         return null;
       }
     }
-    if (failure !== null && text === '') {
+    if (failure !== null && text === '' && saved === undefined) {
       setState({ status: 'failed', detail: failure });
       return null;
     }
     setState({ status: 'idle' });
-    return { text, dropped, stopped: abort.signal.aborted };
+    return { text, dropped, stopped: abort.signal.aborted, ...(saved === undefined ? {} : { saved }) };
   }, []);
 
   return { state, write, stop };

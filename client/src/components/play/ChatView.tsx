@@ -415,8 +415,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setPicked(null);
     if (speakerId === null) return null;
     setWritingAfter({ parentId, speakerId });
-    const result = await storyWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
+    const result = await storyWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId, structured: true });
     setWritingAfter(null);
+    if (result?.saved !== undefined) return takeSaved(result);
     if (result === null || result.text.trim() === '') return null;
     const saved = await create({
       chat_id: chat.id,
@@ -857,7 +858,27 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       .map((line) => line.trim());
     if (lines.some(opens)) reply.stop();
   }, [streamText, streamSeat, reply]);
-  const streamParts = (() => {
+  const streamItems = reply.state.status === 'writing' ? (reply.state.items ?? []) : [];
+  const streamParts: { speaker_id: string | null; text: string; name?: string }[] = (() => {
+    // A structured stream (schema-constrained): each item is shown under its speaker as it comes.
+    if (streamItems.length > 0) {
+      const runs: { speaker_id: string | null; text: string; name?: string }[] = [];
+      for (const item of streamItems) {
+        const who = item.kind === 'say' || item.kind === 'do' ? (item.speaker ?? null) : null;
+        const line =
+          item.kind === 'location'
+            ? `[location: ${item.text}]`
+            : item.kind === 'say'
+              ? `${who ?? ''} (${item.manner !== null && item.manner !== 'speak' ? `${item.manner} ` : ''}to ${item.target ?? 'everyone'}): "${item.text}"`
+              : item.kind === 'do'
+                ? `${who ?? ''} ${item.text}`
+                : item.text;
+        const last = runs.at(-1);
+        if (last !== undefined && (last.name ?? null) === who) last.text += `\n${line}`;
+        else runs.push({ speaker_id: item.speaker_id, text: line, ...(who === null ? {} : { name: who }) });
+      }
+      return runs;
+    }
     if (writingAfter?.speakerId !== NARRATOR_TURN || streamText === '')
       return [{ speaker_id: null as string | null, text: streamText }];
     const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
@@ -882,9 +903,28 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // Quiet (the operator, 2026-11-21: "Why is it putting a title with the location on every
     // response"): the map and the Context panel show where everyone is; the story says who arrives.
   };
+  /**
+   * A structured turn the server already split and saved (docs/DESIGN.md, Structured lines): the
+   * list is read again and the last of its messages is the new leaf. Null when nothing was saved.
+   */
+  const takeSaved = async (result: {
+    saved?: readonly { id: string; speaker_character_id: string | null; text: string }[];
+  }) => {
+    const lines = result.saved ?? [];
+    if (lines.length === 0) return null;
+    const fresh = await list.mutate();
+    const last = lines.at(-1);
+    const saved = (fresh ?? []).find((one) => one.id === last?.id) ?? null;
+    if (last !== undefined) setLeafId(last.id);
+    for (const line of lines) if (settings.readAloud) readAloud(line.speaker_character_id, line.text);
+    if (play.isCampaign && last !== undefined) void followOnMap(last.id);
+    return saved;
+  };
   const storyWrite = async (request: Parameters<typeof reply.write>[0]) => {
     let result = await timedWrite(request);
     if (result === null) return null;
+    // The server split, checked and saved it: nothing to redo here.
+    if (result.saved !== undefined) return result;
     // An empty answer (a soft refusal, a stream that ended with nothing) never vanishes silently
     // (the operator, 2026-11-21: "I also didn't get a response"): one more try, then a notice.
     if (completeText(result.text).trim() === '') {
@@ -925,8 +965,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   /** The GM's narration after `parentId`, kept as a narrator turn; null when nothing was written. */
   const narrateAfter = async (parentId: string | null): Promise<ChatMessage | null> => {
     setWritingAfter({ parentId, speakerId: NARRATOR_TURN });
-    const result = await storyWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: null, mode: 'narrate' });
+    const result = await storyWrite({
+      chat_id: chat.id,
+      leaf_id: parentId,
+      speaker_id: null,
+      mode: 'narrate',
+      structured: true,
+    });
     setWritingAfter(null);
+    if (result?.saved !== undefined) return takeSaved(result);
     if (result === null || result.text.trim() === '') return null;
     // The narrator may give other characters a moment in their own voice, as interludes (the
     // operator, 2026-11-21): each part is saved as its own line, credited to whoever speaks it. The
@@ -1715,15 +1762,19 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       message={{
                         id: `writing-${index}`,
                         role:
-                          member == null
+                          member == null && part.name === undefined
                             ? writingAfter?.speakerId === NARRATOR_TURN
                               ? 'narrator'
                               : 'character'
                             : 'character',
                         channel: 'ic',
                         speaker:
-                          member?.name ?? pending?.name ?? (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
-                        avatar: member?.avatar ?? (member == null ? (pending?.avatar ?? null) : null),
+                          member?.name ??
+                          part.name ??
+                          pending?.name ??
+                          (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
+                        avatar:
+                          member?.avatar ?? (member == null && part.name === undefined ? (pending?.avatar ?? null) : null),
                         text: part.text,
                         swipe: { index: 0, count: 1 },
                         fork: { index: 0, count: 1 },
