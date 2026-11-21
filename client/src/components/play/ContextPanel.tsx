@@ -7,7 +7,15 @@
  * else was last seen, the sheet, and the dice; combat order, inventory and loot join as the VTT ships
  * them.
  */
-import { CampaignSeats, CharacterSheet, CurrentSceneTokens, DiceTray, SceneList } from '@zephyrex/vtt-play';
+import {
+  CampaignSeats,
+  CharacterSheet,
+  CurrentSceneTokens,
+  DiceReplay,
+  DiceTray,
+  Inventory,
+  SceneList,
+} from '@zephyrex/vtt-play';
 import { type ReactElement, useMemo } from 'react';
 import useSWR from 'swr';
 import { useClient } from 'zephyrex';
@@ -73,6 +81,7 @@ export function ContextPanel({
   cast,
   seatId,
   recent,
+  lastRoll = null,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -80,6 +89,8 @@ export function ContextPanel({
   cast: readonly PanelMember[];
   seatId: string | null;
   recent: Presence['recent'];
+  /** The latest decided roll, as the VTT answered it: its dice tumble again here. */
+  lastRoll?: unknown;
 }): ReactElement {
   const mobile = useIsMobile();
   const client = useClient();
@@ -98,7 +109,7 @@ export function ContextPanel({
       <SheetContent side={mobile ? 'bottom' : 'right'} className='max-h-[90svh] overflow-y-auto pb-safe'>
         <SheetHeader>
           <SheetTitle>Context</SheetTitle>
-          <SheetDescription>Who is here, where the rest are, your sheet and the dice.</SheetDescription>
+          <SheetDescription>Who is here, where the rest are, your sheet, what you carry and the dice.</SheetDescription>
         </SheetHeader>
         <div className='p-4'>
           <Accordion type='single' defaultValue='here'>
@@ -145,10 +156,25 @@ export function ContextPanel({
               </AccordionItem>
             )}
             {sheetFor !== null && (
+              <AccordionItem value='inventory'>
+                <AccordionTrigger>Inventory</AccordionTrigger>
+                <AccordionContent>
+                  <Inventory personId={sheetFor} />
+                </AccordionContent>
+              </AccordionItem>
+            )}
+            {sheetFor !== null && (
               <AccordionItem value='dice'>
                 <AccordionTrigger>Dice</AccordionTrigger>
                 <AccordionContent>
-                  <DiceTray personId={sheetFor} />
+                  <div className='grid gap-4'>
+                    {lastRoll !== null && (
+                      // The latest decided roll, replayed (the operator: "The dice tray / animation could
+                      // also be in the right popout").
+                      <DiceReplay result={lastRoll} />
+                    )}
+                    <DiceTray personId={sheetFor} />
+                  </div>
                 </AccordionContent>
               </AccordionItem>
             )}

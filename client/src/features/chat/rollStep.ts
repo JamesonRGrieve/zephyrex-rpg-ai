@@ -21,7 +21,10 @@ export async function decideRoll(chatId: string, leafId: string, characterId: st
     body: JSON.stringify({ needs_roll: { chat_id: chatId, leaf_id: leafId, character_id: characterId } }),
   }).catch(() => null);
   if (response === null || !response.ok) return null;
-  const answer = Object(Reflect.get(Object(await response.json().catch(() => null)), 'needs_roll')) as Record<string, unknown>;
+  const answer = Object(Reflect.get(Object(await response.json().catch(() => null)), 'needs_roll')) as Record<
+    string,
+    unknown
+  >;
   if (answer.decided !== true) return null;
   const label = typeof answer.label === 'string' ? answer.label : '';
   const personId = typeof answer.person_id === 'string' ? answer.person_id : characterId;
@@ -61,23 +64,32 @@ async function post(path: string, body: object): Promise<unknown> {
 }
 
 /** Rolls the decided roll and answers the roll line: who rolled what, and how it fell. */
-export async function makeRoll(roll: NeededRoll, who: string): Promise<string> {
+export async function makeRoll(
+  roll: NeededRoll,
+  who: string,
+  /** The VTT's answer as it came, for the dice replay in the Context panel. */
+  onResult?: (answer: unknown) => void,
+): Promise<string> {
   if (roll.kind === 'test') {
-    const answer = Reflect.get(
-      Object(
-        await post('/v1/dice/test', {
-          test: { person_id: roll.personId, name: roll.name, modifiers: [], ...(roll.difficulty ? { difficulty: roll.difficulty } : {}) },
-        }),
-      ),
-      'test',
-    ) as Record<string, unknown>;
+    const raw = await post('/v1/dice/test', {
+      test: {
+        person_id: roll.personId,
+        name: roll.name,
+        modifiers: [],
+        ...(roll.difficulty ? { difficulty: roll.difficulty } : {}),
+      },
+    });
+    onResult?.(raw);
+    const answer = Reflect.get(Object(raw), 'test') as Record<string, unknown>;
     const outcome = answer.success === true ? 'succeeds' : 'fails';
     const degrees = typeof answer.degrees === 'number' ? `, ${answer.degrees} degree${answer.degrees === 1 ? '' : 's'}` : '';
     return `${who}: ${roll.label}. Rolled ${String(answer.roll)} against ${String(answer.target)}: ${outcome}${degrees}.`;
   }
   let total: number | null = null;
   try {
-    const answer = Reflect.get(Object(await post('/v1/dice/roll', { roll: { formula: roll.formula } })), 'roll');
+    const raw = await post('/v1/dice/roll', { roll: { formula: roll.formula } });
+    onResult?.(raw);
+    const answer = Reflect.get(Object(raw), 'roll');
     const value = Reflect.get(Object(answer), 'total');
     total = typeof value === 'number' ? value : null;
   } catch {

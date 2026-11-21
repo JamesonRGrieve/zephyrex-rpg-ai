@@ -306,6 +306,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     scriptLocals.current = new Map(Object.entries(chat.variables));
   }, [chat.id, chat.variables]);
   // A script asking the person (/input, /buttons), answered through ScriptPrompt.
+  const [lastRoll, setLastRoll] = useState<unknown>(null);
   const [asking, setAsking] = useState<{
     prompt: string;
     options: readonly string[] | null;
@@ -959,7 +960,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         }
         let text: string;
         try {
-          text = await makeRoll(roll, castById.get(actor)?.name ?? 'The character');
+          text = await makeRoll(roll, castById.get(actor)?.name ?? 'The character', setLastRoll);
         } catch (error) {
           notify('The roll was not made', error instanceof Error ? error.message : undefined);
           return true;
@@ -1802,6 +1803,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             return member === undefined ? [] : [{ id, name: member.name, line: member.folder }];
           })}
           seatId={play.playingId}
+          lastRoll={lastRoll}
           recent={branch.slice(-8).map((message) => ({
             speaker_id: message.speaker_character_id,
             text: message.swipes[message.swipe_index ?? 0] ?? '',
