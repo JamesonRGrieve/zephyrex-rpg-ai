@@ -14,7 +14,7 @@ import { cn } from '~/lib/utils';
 export type Manner = 'speak' | 'whisper' | 'shout' | 'vox' | 'voxcast';
 export type ShownLine =
   | { kind: 'say'; speaker: string; target: string | null; manner: Manner; text: string }
-  | { kind: 'do'; speaker: string; text: string }
+  | { kind: 'do'; speaker: string; target: string | null; text: string }
   | { kind: 'narrate'; text: string };
 
 const MANNERS: readonly Manner[] = ['speak', 'whisper', 'shout', 'vox', 'voxcast'];
@@ -71,9 +71,17 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
       return { kind: 'say', speaker: (say[1] ?? '').trim(), ...readTag(say[2] ?? ''), text: say[3] ?? '' };
     }
     const actor = known.find((name) => line.toLowerCase().startsWith(`${name.toLowerCase()} `));
-    if (actor !== undefined && !/^[(:]/.test(line.slice(actor.length + 1))) {
-      structured += 1;
-      return { kind: 'do', speaker: actor, text: line.slice(actor.length + 1).trim() };
+    if (actor !== undefined) {
+      const rest = line.slice(actor.length + 1);
+      const aimed = /^\(at ([^)]+)\)\s+(.*)$/i.exec(rest);
+      if (aimed !== null) {
+        structured += 1;
+        return { kind: 'do', speaker: actor, target: (aimed[1] ?? '').trim(), text: (aimed[2] ?? '').trim() };
+      }
+      if (!/^[(:]/.test(rest)) {
+        structured += 1;
+        return { kind: 'do', speaker: actor, target: null, text: rest.trim() };
+      }
     }
     return { kind: 'narrate', text: line };
   });
@@ -130,6 +138,7 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
               <span>
                 {other && <span className='font-medium'>{line.speaker} </span>}
                 <span className='italic'>{other ? line.text : capitalised(line.text)}</span>
+                {line.target !== null && <span className='ml-1 text-xs text-muted-foreground'>→ {line.target}</span>}
               </span>
             </p>
           );

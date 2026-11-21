@@ -127,7 +127,7 @@ import { ContextPanel } from './ContextPanel';
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments, plainDashes } from '~/features/chat/voiceGuard';
-import { mapStep, worldTick } from '~/features/chat/mapStep';
+import { clarify, mapStep, worldTick } from '~/features/chat/mapStep';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
@@ -982,6 +982,24 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         current = [...current, told];
         return true;
       };
+      // The GM asks when the person's line is truly ambiguous (which one they punch); the pick
+      // rewrites their line before anything reads it.
+      const question = play.isCampaign ? await clarify(chat.id, start.id) : null;
+      if (question !== null) {
+        const picked = await new Promise<string | null>((resolve) =>
+          setAsking({ prompt: question.question, options: question.options.map((one) => one.label), resolve }),
+        );
+        const chosen = question.options.find((one) => one.label === picked);
+        if (chosen !== undefined) {
+          const index = start.swipe_index ?? 0;
+          await update(start, { swipes: start.swipes.map((old, at) => (at === index ? chosen.value : old)) });
+          current = current.map((one) =>
+            one.id === start.id
+              ? { ...one, swipes: start.swipes.map((old, at) => (at === index ? chosen.value : old)) }
+              : one,
+          );
+        }
+      }
       if (!(await rollAfter(start, true))) return;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
         const next = await decideNextTurn(chat.id, parent.id);
@@ -1715,10 +1733,26 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 const member = castById.get(id);
                 return member === undefined ? [] : [{ id, name: member.name }];
               }),
-              present: chat.character_ids.flatMap((id) => {
-                const member = castById.get(id);
-                return member === undefined || id === play.playingId ? [] : [{ id, name: member.name }];
-              }),
+              present: [
+                ...chat.character_ids.flatMap((id) => {
+                  const member = castById.get(id);
+                  return member === undefined || id === play.playingId ? [] : [{ id, name: member.name }];
+                }),
+                // Who else the story has in view: anyone of the campaign's people named in the last
+                // few lines (a hostile, an NPC), so a Do or Say can be aimed at them.
+                ...(cast.data ?? [])
+                  .filter((one) => !chat.character_ids.includes(one.id) && one.id !== play.playingId)
+                  .filter((one) => {
+                    const first = one.name.split(/\s+/)[0] ?? one.name;
+                    return branch
+                      .slice(-8)
+                      .some((message) =>
+                        (message.swipes[message.swipe_index ?? 0] ?? '').includes(first.length >= 3 ? first : one.name),
+                      );
+                  })
+                  .slice(0, 12)
+                  .map((one) => ({ id: one.id, name: one.name })),
+              ],
             }
           }
           onCheckCanon={(text, signal) =>

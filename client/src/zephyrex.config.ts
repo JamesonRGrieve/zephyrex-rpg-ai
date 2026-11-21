@@ -6,6 +6,7 @@ import { createElement } from 'react';
 import { oauthConsumerExtension } from 'zephyrex/extensions/oauth_consumer';
 import type { ZephyrexClientExtension, ZephyrexConfig } from 'zephyrex';
 import { RpgAiLogo } from './brand/RpgAiLogo';
+import { useLatestCampaigns } from './features/data/latestCampaigns';
 
 /**
  * Where the wiki's pages live (docs/SUITE.md, Together: rpg-ai composes the wiki, which owns the
@@ -67,7 +68,7 @@ const rpgAiExtension: ZephyrexClientExtension = {
     // The composed suite (docs/DESIGN.md): scenarios and their campaigns on one page; the world
     // (people, places, lore, files) is the wiki's Worlds; one-on-one chats are the sandbox, last.
     // Characters, lorebooks, the data bank and personas are retired (the wiki owns them).
-    { title: 'Campaigns', url: HOME_PATH },
+    { title: 'Campaigns', url: HOME_PATH, useChildren: useLatestCampaigns },
     { title: 'Roleplay Sandbox', url: '/sandbox' },
     // The AI's tuning (the operator, 2026-11-21: not main navigation): under the app's settings.
     {
@@ -138,13 +139,7 @@ const config: ZephyrexConfig = {
     },
   ],
   extensions: HOSTED
-    ? [
-        rpgAiExtension,
-        wiki,
-        vtt,
-        authMagicLinkExtension,
-        ...(OAUTH_PROVIDERS.length === 0 ? [] : [oauthConsumerExtension]),
-      ]
+    ? [rpgAiExtension, wiki, vtt, authMagicLinkExtension, ...(OAUTH_PROVIDERS.length === 0 ? [] : [oauthConsumerExtension])]
     : [rpgAiExtension, wiki, vtt],
 };
 

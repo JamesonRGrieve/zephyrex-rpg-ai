@@ -62,4 +62,9 @@ describe('formatLines', () => {
       ].join('\n'),
     );
   });
+  it('an action may name its target', () => {
+    expect(formatLines([{ kind: 'do', speakerId: 'tess', targetId: 'ruhl', text: 'punches him.' }], names)).toBe(
+      'Tessaly Kord (at Confessor Ruhl) punches him.',
+    );
+  });
 });

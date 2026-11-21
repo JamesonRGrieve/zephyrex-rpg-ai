@@ -19,7 +19,7 @@ export interface QueueMember {
 
 export type QueuedLine =
   | { kind: 'say'; speakerId: string | null; targetId: string | null; manner?: Manner; text: string }
-  | { kind: 'do'; speakerId: string | null; text: string }
+  | { kind: 'do'; speakerId: string | null; targetId?: string | null; text: string }
   | { kind: 'ooc'; speakerId: null; text: string };
 
 /** How a line is said (the operator, 2026-11-21), chosen per Say item. */
@@ -47,7 +47,12 @@ export function formatLines(lines: readonly QueuedLine[], names: ReadonlyMap<str
       const speaker = line.speakerId === null ? NARRATOR_NAME : (names.get(line.speakerId) ?? NARRATOR_NAME);
       const text = line.text.trim();
       if (speaker === NARRATOR_NAME) return `${NARRATOR_NAME}: ${text}`;
-      if (line.kind !== 'say') return `${speaker} ${text.replace(/^\s*[*]+|[*]+\s*$/g, '')}`;
+      if (line.kind !== 'say') {
+        // An action's target, when the person names one (the operator, 2026-11-21: a punch at "it"
+        // was read as one at a team mate): `Name (at Target) action…`.
+        const at = line.kind === 'do' && line.targetId != null ? names.get(line.targetId) : undefined;
+        return `${speaker}${at === undefined ? '' : ` (at ${at})`} ${text.replace(/^\s*[*]+|[*]+\s*$/g, '')}`;
+      }
       const target = line.targetId === null ? EVERYONE : (names.get(line.targetId) ?? EVERYONE);
       const words = text.replace(/^["“]|["”]$/g, '');
       const manner = line.manner ?? 'speak';
@@ -160,6 +165,23 @@ export function LineQueue({
                         {one.label}
                       </option>
                     ))}
+                  </select>
+                )}
+                {line.kind === 'do' && line.speakerId !== null && (
+                  <select
+                    aria-label='At whom'
+                    className='h-9 rounded-md border bg-background px-2'
+                    value={line.targetId ?? ''}
+                    onChange={(event) => change(index, { targetId: event.target.value === '' ? null : event.target.value })}
+                  >
+                    <option value=''>at no one</option>
+                    {present
+                      .filter((one) => one.id !== line.speakerId)
+                      .map((one) => (
+                        <option key={one.id} value={one.id}>
+                          at {one.name}
+                        </option>
+                      ))}
                   </select>
                 )}
                 {line.kind === 'say' && line.speakerId !== null && line.manner !== 'voxcast' && (

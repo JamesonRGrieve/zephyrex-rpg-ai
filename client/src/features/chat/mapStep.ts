@@ -45,3 +45,28 @@ export async function worldTick(chatId: string, leafId: string, minutes: number,
     return typeof name === 'string' ? [name] : [];
   });
 }
+
+export interface Clarify {
+  question: string;
+  /** Each a choice; `value` is the person's line rewritten with the ambiguity settled. */
+  options: { label: string; value: string }[];
+}
+
+/**
+ * The GM's question when the person's line is truly ambiguous (the operator, 2026-11-21: "We need
+ * question tool support for ambiguity"): which of those present an action means, or what they
+ * intend. Null when the line is clear (or on any failure: the story goes on).
+ */
+export async function clarify(chatId: string, leafId: string): Promise<Clarify | null> {
+  const answer = await step('clarify', 'clarify', { chat_id: chatId, leaf_id: leafId });
+  if (answer === null || typeof answer !== 'object') return null;
+  const question = Reflect.get(answer, 'question');
+  const raw = Reflect.get(answer, 'options');
+  if (typeof question !== 'string' || !Array.isArray(raw)) return null;
+  const options = raw.flatMap((one) => {
+    const label = Reflect.get(Object(one), 'label');
+    const value = Reflect.get(Object(one), 'value');
+    return typeof label === 'string' && typeof value === 'string' ? [{ label, value }] : [];
+  });
+  return options.length < 2 ? null : { question, options };
+}
