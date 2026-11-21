@@ -127,7 +127,7 @@ import { ContextPanel } from './ContextPanel';
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments, plainDashes, seatCut } from '~/features/chat/voiceGuard';
-import { aimAt, clarify, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
+import { aimAt, clarify, ensurePerson, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
@@ -940,7 +940,19 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const parts = narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== '');
     let parent = parentId;
     let saved: ChatMessage | null = null;
-    for (const [index, part] of (parts.length > 0 ? parts : [{ speaker_id: null, text: result.text }]).entries()) {
+    for (const [index, found] of (parts.length > 0 ? parts : [{ speaker_id: null, text: result.text }]).entries()) {
+      // Someone the campaign doesn't know yet (an unnamed barkeep) becomes a person of it the first
+      // time they speak, and their lines are theirs (the operator, 2026-11-21).
+      const named = Reflect.get(found, 'speaker_name');
+      const part =
+        found.speaker_id === null && typeof named === 'string' && named !== ''
+          ? await ensurePerson(chat.id, named, found.text).then((id) =>
+              id === null ? { ...found, text: `${named}: ${found.text}` } : { ...found, speaker_id: id },
+            )
+          : found;
+      if (part !== found && part.speaker_id !== null)
+        // The new person joins the cast: read the cast again for their name.
+        void globalMutate((key) => JSON.stringify(key ?? '').match(/person|cast|world_entity|chat/) !== null);
       const line: ChatMessage = await create({
         chat_id: chat.id,
         parent_id: parent,

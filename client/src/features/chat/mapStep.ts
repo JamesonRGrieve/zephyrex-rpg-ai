@@ -88,3 +88,13 @@ export function aimAt(text: string, seatName: string, target: string): string {
     })
     .join('\n');
 }
+
+/**
+ * The campaign's person by this name, made (GM-only, an NPC) the first time they speak: their id,
+ * or null when the wiki can't (no campaign, not the GM), and the line stays the narrator's.
+ */
+export async function ensurePerson(chatId: string, name: string, line: string): Promise<string | null> {
+  const answer = await step('ensure_person', 'ensure_person', { chat_id: chatId, name, line });
+  const id = answer === null ? null : Reflect.get(Object(answer), 'id');
+  return typeof id === 'string' ? id : null;
+}
