@@ -27,7 +27,8 @@
         "example_messages": "<START>\n{{char}}: Kneel.\n<START>\n{{user}}: Why?\n{{char}}: Because.",
         "system_prompt": "",
         "post_history_instructions": "",
-        "first_message": "You were expected."
+        "first_message": "You were expected.",
+        "extensions": {}
       }
     },
     {
@@ -48,7 +49,8 @@
         "example_messages": "",
         "system_prompt": "",
         "post_history_instructions": "",
-        "first_message": ""
+        "first_message": "",
+        "extensions": {}
       }
     },
     {
@@ -68,7 +70,34 @@
         "example_messages": "",
         "system_prompt": "",
         "post_history_instructions": "",
-        "first_message": ""
+        "first_message": "",
+        "extensions": {}
+      }
+    },
+    {
+      "name": "remembers across chats (AP8, mapping item 5)",
+      "person": {
+        "id": "p1",
+        "name": "Vey",
+        "voice": {
+          "across_chats": true
+        }
+      },
+      "character": {
+        "id": "p1",
+        "name": "Vey",
+        "description": "",
+        "personality": "",
+        "scenario": "",
+        "example_messages": "",
+        "system_prompt": "",
+        "post_history_instructions": "",
+        "first_message": "",
+        "extensions": {
+          "zephyrex_rpg_memory": {
+            "across_chats": true
+          }
+        }
       }
     }
   ]

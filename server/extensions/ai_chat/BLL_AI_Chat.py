@@ -2163,7 +2163,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             self._manager(ModelEndpointManager).list(),
             chat.id,
             lines,
-            None if speaker is None else {"id": speaker["id"], "name": speaker["name"], "extensions": {}},
+            None
+            if speaker is None
+            else {"id": speaker["id"], "name": speaker["name"], "extensions": speaker.get("extensions") or {}},
             lambda: self._manager(ChatManager).list(),
         )
         return text
@@ -2210,7 +2212,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         wiki_campaign = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
         wanted = [*(chat.character_ids or []), *([playing_id] if playing_id is not None else [])]
         entities = persons_for(self.model_registry, str(self.requester.id), wiki_campaign, wanted)
-        cast = [{**character, "extensions": {}} for character in world_cast(entities, chat.character_ids or [])]
+        cast = world_cast(entities, chat.character_ids or [])
         # Narrating (A20), the GM speaks, so no character is named as the speaker.
         # Translating reads no cast, so it needs no speaker.
         no_speaker = body.mode == "narrate" or (purpose == "translate" and not cast)

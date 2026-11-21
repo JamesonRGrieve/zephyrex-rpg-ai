@@ -206,18 +206,12 @@ export async function generationInputs(
   const wanted = [...chatFields.character_ids, ...(playingId === null ? [] : [playingId])];
   const elsewhere = await world.byIds([...new Set(wanted.filter((id) => !heldPersons.has(id)))]);
   const entities = [...campaignEntities, ...elsewhere];
-  const promptCharacters = worldCast(entities, chatFields.character_ids).map((character) => ({
-    ...character,
-    extensions: {},
-  }));
+  const promptCharacters = worldCast(entities, chatFields.character_ids);
   // Narrating (A20), the GM speaks, so no character is named as the speaker.
   // Translating reads no cast, so it needs no speaker.
   const noSpeaker = body.mode === 'narrate' || (purpose === 'translate' && promptCharacters.length === 0);
   const speakerId = noSpeaker ? '' : (body.speaker_id ?? promptCharacters[0]?.id);
-  if (
-    speakerId === undefined ||
-    (!noSpeaker && !promptCharacters.some((character) => character.id === speakerId))
-  ) {
+  if (speakerId === undefined || (!noSpeaker && !promptCharacters.some((character) => character.id === speakerId))) {
     throw validationError('The speaker must be a character in the chat', 'speaker_id');
   }
 
@@ -412,7 +406,7 @@ export async function generationInputs(
       new Map(promptCharacters.map((character) => [character.id, character.name])),
     ),
     place: backgroundPlace(entities, history, chatFields.group_settings.scenario ?? ''),
-    speaker: ((row) => (row === undefined ? null : { id: row.id, name: row.name, extensions: {} }))(
+    speaker: ((row) => (row === undefined ? null : { id: row.id, name: row.name, extensions: row.extensions ?? {} }))(
       promptCharacters.find((character) => character.id === speakerId),
     ),
   };

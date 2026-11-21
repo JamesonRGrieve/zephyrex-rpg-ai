@@ -11,6 +11,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
+from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
+
+MEMORY_EXTENSION: str = CONTRACT["memory"]["extension"]
+
 
 def person_character(person: Mapping[str, Any]) -> dict[str, Any]:
     voice: Mapping[str, Any] = person.get("voice") or {}
@@ -27,4 +31,6 @@ def person_character(person: Mapping[str, Any]) -> dict[str, Any]:
         "system_prompt": "",
         "post_history_instructions": "",
         "first_message": str(voice.get("first_message") or "").strip(),
+        # Whether they remember across chats (AP8, mapping item 5), kept where the memory flag is read.
+        "extensions": {MEMORY_EXTENSION: {"across_chats": True}} if voice.get("across_chats") is True else {},
     }

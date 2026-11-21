@@ -104,12 +104,14 @@ describe('characters', () => {
 });
 
 describe('chats and messages', () => {
-  it("refuses a chat with someone else's or a missing character", async () => {
+  it('takes wiki persons as its characters: an id the wiki can’t read drops out of the cast, not the chat', async () => {
+    // The composed suite: a chat's characters are wiki persons, read through the wiki when a reply is
+    // written; lite has one owner, so the chat keeps the ids it's given.
     const response = await postChat(
       call('/v1/chat', { method: 'POST', body: { chat: { title: 'Lost', character_ids: ['nobody'] } } }),
       none,
     );
-    expect(response.status).toBe(422);
+    expect(response.status).toBe(201);
   });
 
   it('keeps messages in their chat and tree, lists them by chat, and deletes a branch whole', async () => {

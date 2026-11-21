@@ -47,7 +47,8 @@
           "example_messages": "",
           "system_prompt": "",
           "post_history_instructions": "",
-          "first_message": ""
+          "first_message": "",
+          "extensions": {}
         },
         {
           "id": "p1",
@@ -58,7 +59,8 @@
           "example_messages": "",
           "system_prompt": "",
           "post_history_instructions": "",
-          "first_message": ""
+          "first_message": "",
+          "extensions": {}
         }
       ]
     },
@@ -80,7 +82,8 @@
           "example_messages": "",
           "system_prompt": "",
           "post_history_instructions": "",
-          "first_message": ""
+          "first_message": "",
+          "extensions": {}
         }
       ]
     }
