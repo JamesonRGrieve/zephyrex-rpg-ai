@@ -1586,6 +1586,20 @@ class MovedEnvelope(PlainModel):
     move: Moved
 
 
+class CutRequest(PlainModel):
+    """STscript's /cut (audit gap 5): the messages to take out, all of one chat."""
+
+    message_ids: list[str] = Field(..., min_length=1, max_length=LIMITS["cut_messages"])
+
+
+class CutRequestEnvelope(PlainModel):
+    cut: CutRequest
+
+
+class CutEnvelope(PlainModel):
+    cut: CutRequest
+
+
 # What a message is, as against where it sits in the tree: what moving it up swaps with its parent (A9).
 MOVED_FIELDS = (
     "role",
@@ -2829,6 +2843,41 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         messages.update_trusted(parent.id, **lower)
         messages.update_trusted(message.id, **upper)
         return MovedEnvelope(move=Moved(message_id=parent.id))
+
+    @custom_route(
+        method="POST",
+        path="/cut",
+        input_model=CutRequestEnvelope,
+        output_model=CutEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="STscript's /cut: the messages named leave the chat, their replies moving up to their parents",
+    )
+    async def cut_route(self, body: CutRequestEnvelope) -> CutEnvelope:
+        messages = self._manager(ChatMessageManager)
+        ids = list(dict.fromkeys(body.cut.message_ids))
+        try:
+            found = [messages.get(id=id_) for id_ in ids]
+        except HTTPException as error:
+            raise HTTPException(
+                status_code=404,
+                detail={"message": "Request searched ChatMessageModel and could not find the required record."},
+            ) from error
+        if len({message.chat_id for message in found}) != 1:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "The messages cut must all be in one chat", "code": "validation_error"},
+            )
+        # One at a time, reading each one's parent as it now is: a cut line under another cut line
+        # hands its replies on to the nearest line kept (lib/moveMessage.ts cut, the same way).
+        for id_ in ids:
+            message = messages.get(id=id_)
+            for reply in messages.list(chat_id=message.chat_id):
+                if reply.parent_id == id_:
+                    messages.update_trusted(reply.id, parent_id=message.parent_id)
+            messages.delete_one(id_)
+        return CutEnvelope(cut=CutRequest(message_ids=ids))
 
     async def _ask(self, context: dict[str, Any], sampler: dict[str, Any], messages: list[dict[str, str]]) -> str:
         """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""

@@ -40,3 +40,8 @@ export function deleteCount(text: string, count: number): number {
   const asked = text.trim() === '' ? 1 : Math.floor(Number(text));
   return Number.isFinite(asked) && asked > 0 ? Math.min(asked, count) : 0;
 }
+
+/** `/cut range`: the branch's lines a range names (none for an empty or unreadable range, never all by default). */
+export function cutIndexes(range: string, count: number): number[] {
+  return range.trim() === '' ? [] : rangeIndexes(range, count);
+}

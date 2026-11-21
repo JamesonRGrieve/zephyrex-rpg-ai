@@ -757,6 +757,20 @@ class TestGenerate:
         assert messages[0]["content"].startswith("A grim tale.\n\n")
         assert {"role": messages[-1]["role"], "content": messages[-1]["content"]} == {"role": "user", "content": "It is raining."}
 
+    def test_cut_takes_out_only_the_lines_named(self, server: TestClient) -> None:
+        # Audit gap 5: STscript's /cut; the cut lines' replies move up to their parents.
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        ids: list[str] = []
+        for text in ("a", "b", "c", "d"):
+            ids.append(_create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=[text], parent_id=ids[-1] if ids else None).json()["chat_message"]["id"])
+        cut = server.post("/v1/ai_chat/cut", json={"cut": {"message_ids": [ids[1], ids[2]]}}, headers=_headers(user))
+        assert cut.status_code == 200, cut.text
+        left = server.get(f"/v1/chat_message?chat_id={chat['id']}", headers=_headers(user)).json()["chat_messages"]
+        assert {message["id"]: message["parent_id"] for message in left} == {ids[0]: None, ids[3]: ids[0]}
+        assert server.post("/v1/ai_chat/cut", json={"cut": {"message_ids": ["nobody"]}}, headers=_headers(user)).status_code == 404
+
     def test_a_presets_further_samplers_reach_only_the_apis_that_take_them(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

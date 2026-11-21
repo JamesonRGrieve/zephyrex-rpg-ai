@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { deleteCount, messagesText, rangeIndexes } from './scriptMessages';
+import { cutIndexes, deleteCount, messagesText, rangeIndexes } from './scriptMessages';
 
 const LINES = [
   { name: 'Ada', text: 'Mind the coolant.' },
@@ -40,5 +40,14 @@ describe('deleteCount', () => {
     expect(deleteCount('9', 3)).toBe(3);
     expect(deleteCount('nope', 3)).toBe(0);
     expect(deleteCount('0', 3)).toBe(0);
+  });
+});
+
+describe('cutIndexes (audit gap 5)', () => {
+  it('names the lines a range does, and none for an empty or unreadable one', () => {
+    expect(cutIndexes('1-2', 4)).toEqual([1, 2]);
+    expect(cutIndexes('-1', 4)).toEqual([3]);
+    expect(cutIndexes('', 4)).toEqual([]);
+    expect(cutIndexes('soon', 4)).toEqual([]);
   });
 });

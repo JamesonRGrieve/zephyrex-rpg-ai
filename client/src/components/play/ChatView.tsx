@@ -53,6 +53,7 @@ import {
   checkCanon,
   translateText,
   genText,
+  cutMessages,
 } from '~/features/chat/inspectPrompt';
 import { speakingStore, useSpeaking } from '~/features/speech/speaking';
 import { ScriptPrompt } from './ScriptPrompt';
@@ -60,7 +61,7 @@ import { TalkingSprite } from './TalkingSprite';
 import { illustrationPoints, type StoryLine, storyEpub, storyLines } from '~/features/export/epub';
 import { runScript } from '~/features/chat/stscript';
 import { toggled } from '~/features/chat/hide';
-import { deleteCount, messagesText } from '~/features/chat/scriptMessages';
+import { cutIndexes, deleteCount, messagesText } from '~/features/chat/scriptMessages';
 import { sameVariables } from '~/features/chat/variables';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
@@ -155,6 +156,7 @@ const SCRIPT_ACTIONS: ReadonlySet<string> = new Set([
   'inject',
   'listinjects',
   'flushinject',
+  'cut',
   'send',
   'trigger',
   'messages',
@@ -574,6 +576,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           const current = scriptChat.injections as unknown as Injection[];
           const next = name === 'inject' ? withInjection(current, args, text) : withoutInjection(current, args.id ?? text);
           scriptChat = await updateChat(scriptChat, { injections: next as unknown as Record<string, unknown>[] });
+          return undefined;
+        }
+        // /cut (audit gap 5): the lines named leave the chat; the ones after them carry on without them.
+        if (name === 'cut') {
+          const doomed = new Set(cutIndexes(text, path.length).map((index) => (path[index] as ChatMessage).id));
+          if (doomed.size === 0) return undefined;
+          await cutMessages([...doomed]);
+          path = path.filter((message) => !doomed.has(message.id));
+          parent = path.at(-1)?.id ?? null;
+          setLeafId(parent);
+          await list.mutate();
           return undefined;
         }
         if (name === 'listinjects') return injectionsText(scriptChat.injections as unknown as Injection[]);

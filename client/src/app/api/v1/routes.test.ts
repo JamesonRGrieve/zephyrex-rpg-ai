@@ -12,6 +12,7 @@ import { prisma } from '~/lib/prisma';
 import { PUT as putCharacter } from './character/[id]/route.lite';
 import { GET as listCharacters, POST as postCharacter } from './character/route.lite';
 import { POST as postProfile } from './connection_profile/route.lite';
+import { POST as postCut } from './ai_chat/cut/route.lite';
 import { DELETE as deleteMessage, PUT as putMessage } from './chat_message/[id]/route.lite';
 import { GET as listMessages, POST as postMessage } from './chat_message/route.lite';
 import { POST as postChat } from './chat/route.lite';
@@ -287,6 +288,32 @@ describe('a chat’s /inject injections (audit gap 5)', () => {
     expect(await (await post([one])).json()).toMatchObject({ chat: { injections: [one] } });
     expect((await post([one, one])).status).toBe(422);
     expect((await post([{ ...one, position: 'top' }])).status).toBe(422);
+  });
+});
+
+describe('/cut (audit gap 5)', () => {
+  it('takes out only the lines named: their replies move up to their parents', async () => {
+    const ada = await created<{ id: string }>(postCharacter, '/v1/character', 'character', { name: 'Ada' });
+    const chat = await created<{ id: string }>(postChat, '/v1/chat', 'chat', { title: 'C', character_ids: [ada.record.id] });
+    const line = async (parent: string | null, text: string) =>
+      (
+        await created<{ id: string }>(postMessage, '/v1/chat_message', 'chat_message', {
+          chat_id: chat.record.id,
+          parent_id: parent,
+          role: 'user',
+          swipes: [text],
+        })
+      ).record.id;
+    const a = await line(null, 'a');
+    const b = await line(a, 'b');
+    const c = await line(b, 'c');
+    const d = await line(c, 'd');
+    const cutting = (ids: string[]) =>
+      postCut(call('/v1/ai_chat/cut', { method: 'POST', body: { cut: { message_ids: ids } } }));
+    expect((await cutting([b, c])).status).toBe(200);
+    const left = await prisma.chatMessage.findMany({ where: { chatId: chat.record.id } });
+    expect(Object.fromEntries(left.map((message) => [message.id, message.parentId]))).toEqual({ [a]: null, [d]: a });
+    expect((await cutting(['nobody'])).status).toBe(404);
   });
 });
 

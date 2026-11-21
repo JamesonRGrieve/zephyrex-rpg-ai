@@ -10,6 +10,7 @@
 import type { NextRequest } from 'next/server';
 import { apiErrorResponse, localOwner, notFound, readJsonObject, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
+import { LIMITS } from '~/contract';
 import { prisma } from '~/lib/prisma';
 
 const moveRequest = z.object({ message_id: z.string().min(1) });
@@ -54,6 +55,44 @@ export async function move(nextRequest: NextRequest): Promise<Response> {
       }),
     ]);
     return Response.json({ move: { message_id: parent.id } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const cutRequest = z.object({ message_ids: z.array(z.string().min(1)).min(1).max(LIMITS.cut_messages) });
+
+/**
+ * `POST /v1/ai_chat/cut` (STscript's /cut, audit gap 5): the messages named leave the chat, and
+ * only they do: each one's replies move up to its parent, so the branch through it carries on
+ * without it. BLL_AI_Chat's cut_route answers the same way. Request `{ "cut": { "message_ids" } }`
+ * (all of one chat); answer `{ "cut": { "message_ids" } }`, the ones cut.
+ */
+export async function cut(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = cutRequest.safeParse(Reflect.get(envelope, 'cut'));
+    if (!parsed.success) throw validationError('A cut object with message_ids is required', 'cut');
+    const ids = [...new Set(parsed.data.message_ids)];
+    const found = await prisma.chatMessage.findMany({ where: { id: { in: ids }, createdById: owner.id } });
+    if (found.length !== ids.length) throw notFound('ChatMessageModel');
+    if (new Set(found.map((message) => message.chatId)).size !== 1)
+      throw validationError('The messages cut must all be in one chat', 'message_ids');
+    const stamp = new Date();
+    // One at a time, reading each one's parent as it now is: a cut line under another cut line
+    // hands its replies on to the nearest line kept.
+    for (const id of ids) {
+      const message = await prisma.chatMessage.findUniqueOrThrow({ where: { id } });
+      await prisma.$transaction([
+        prisma.chatMessage.updateMany({
+          where: { parentId: id },
+          data: { parentId: message.parentId, updatedAt: stamp, updatedById: owner.id },
+        }),
+        prisma.chatMessage.delete({ where: { id } }),
+      ]);
+    }
+    return Response.json({ cut: { message_ids: ids } });
   } catch (error) {
     return apiErrorResponse(error);
   }

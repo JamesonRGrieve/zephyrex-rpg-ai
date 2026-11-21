@@ -68,10 +68,10 @@ imported card, preset or script breaks without it.
    activation regex. Imported instruct and context JSON can't be read in.
 5. **STscript's generation and chat commands.** `/gen`, `/genraw`, `/trigger`, `/send`,
    `/inject`, `/messages`, `/swipe`/`/addswipe`, `/hide`/`/unhide`, `/del`, `/cut` and `/sysgen`
-   are what popular quick-reply sets call. 182 of the 293 commands are missing (table below).
-   The 58 covered are the language core (variables, maths, control flow, strings, input) and,
+   are what popular quick-reply sets call. 181 of the 293 commands are missing (table below).
+   The 59 covered are the language core (variables, maths, control flow, strings, input) and,
    since gap 5's work, `/gen`, `/genraw`, `/sysgen`, `/send`, `/trigger`, `/messages`,
-   `/addswipe`, `/del`, `/comment`, `/inject`, `/listinjects` and `/flushinject`; `/cut` is next.
+   `/addswipe`, `/del`, `/cut`, `/comment`, `/inject`, `/listinjects` and `/flushinject`.
 6. **Group chat generation modes.** There's no swap-versus-join character cards, no auto-mode,
    no "allow self responses", no pooled order, no per-group scenario override and no group nudge
    template. Groups work, but SillyTavern group players set these first.
@@ -436,7 +436,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/count` |  | extensions/token-counter/index.js | partial | token estimates in the context inspector (A18); no command |
 | `/createentry` | createlore, createwi | world-info.js | missing |  |
 | `/css-var` |  | power-user.js | missing |  |
-| `/cut` |  | power-user.js | missing |  |
+| `/cut` |  | power-user.js | covered | `/v1/ai_chat/cut` (gap 5): replies move up |
 | `/db` | databank, data-bank | extensions/attachments/index.js | missing |  |
 | `/db-add` | databank-add, data-bank-add | extensions/attachments/index.js | missing |  |
 | `/db-delete` | databank-delete, data-bank-delete | extensions/attachments/index.js | missing |  |

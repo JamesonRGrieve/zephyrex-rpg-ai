@@ -219,3 +219,20 @@ export async function genText(request: {
   }
   return text;
 }
+
+export const CUT_PATH = '/api/v1/ai_chat/cut';
+
+/** STscript's /cut (audit gap 5): the messages leave the chat, their replies moving up to their parents. */
+export async function cutMessages(messageIds: readonly string[]): Promise<void> {
+  const response = await fetch(CUT_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ cut: { message_ids: messageIds } }),
+  });
+  if (!response.ok) {
+    const body: unknown = await response.json().catch(() => null);
+    const detail: unknown = Reflect.get(Object(body), 'detail');
+    const message: unknown = typeof detail === 'string' ? detail : Reflect.get(Object(detail), 'message');
+    throw new Error(typeof message === 'string' ? message : `The messages could not be cut (${response.status})`);
+  }
+}
