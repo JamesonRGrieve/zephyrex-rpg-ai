@@ -44,7 +44,14 @@ export function lastActive(stamp: string | null, now: Date = new Date()): string
  * `campaigns`: the person's campaigns (a chat with a play state, docs/DESIGN.md, The play model);
  * `sandbox`: one-on-one and group roleplay, SillyTavern's chats.
  */
-export function ChatLibrary({ kind = 'sandbox' }: { kind?: 'campaigns' | 'sandbox' }): ReactElement {
+export function ChatLibrary({
+  kind = 'sandbox',
+  startOnly = false,
+}: {
+  kind?: 'campaigns' | 'sandbox';
+  /** Only the start sheet (?new=1&campaign=): the campaign list itself is on the scenarios page. */
+  startOnly?: boolean;
+}): ReactElement {
   const allChats = chats.useList();
   const plays = campaignPlays.useList();
   const campaignIds = useMemo(() => new Set((plays.data ?? []).map((play) => play.chat_id)), [plays.data]);
@@ -101,6 +108,8 @@ export function ChatLibrary({ kind = 'sandbox' }: { kind?: 'campaigns' | 'sandbo
   const shown = all
     .filter((chat) => inFolder(chat, folder) && chatMatches(chat, castNames, query))
     .sort((a, b) => (b.updated_at ?? '').localeCompare(a.updated_at ?? ''));
+
+  if (startOnly) return <NewChat open={picking} onOpenChange={setPicking} campaignId={params.get('campaign')} />;
 
   return (
     <div className='space-y-4'>

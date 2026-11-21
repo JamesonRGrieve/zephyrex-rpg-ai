@@ -121,6 +121,7 @@ import { PARTY_TAG, useCast } from '~/features/data/cast';
 import { RollSheet } from './RollSheet';
 import { SheetPanel } from './SheetPanel';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
+import { narrateSegments } from '~/features/chat/voiceGuard';
 import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -796,18 +797,35 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await timedWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: null, mode: 'narrate' });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return null;
-    const saved = await create({
-      chat_id: chat.id,
-      parent_id: parentId,
-      role: 'narrator',
-      channel: 'ic',
-      swipes: [stored(result.text, 'ai_output')],
+    // The narrator may give other characters a moment in their own voice, as interludes (the
+    // operator, 2026-11-21): each part is saved as its own line, credited to whoever speaks it. The
+    // person's own character is never voiced; their name ends the narration there.
+    const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
+    const castList = chat.character_ids.flatMap((id) => {
+      const member = castById.get(id);
+      return member === undefined || id === play.playingId ? [] : [{ id, name: member.name }];
     });
-    if (settings.readAloud) readAloud(null, saved.swipes[0] ?? '');
-    setLeafId(saved.id);
-    noteCost(saved.id, result);
-    autoTranslate(saved.id, saved.swipes[0] ?? '');
-    noteCanon(saved.id, splitReasoning(saved.swipes[0] ?? '').reply, 'The GM');
+    const parts = narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== '');
+    let parent = parentId;
+    let saved: ChatMessage | null = null;
+    for (const [index, part] of (parts.length > 0 ? parts : [{ speaker_id: null, text: result.text }]).entries()) {
+      const line: ChatMessage = await create({
+        chat_id: chat.id,
+        parent_id: parent,
+        ...(part.speaker_id === null
+          ? { role: 'narrator' as const }
+          : { role: 'character' as const, speaker_character_id: part.speaker_id }),
+        channel: 'ic',
+        swipes: [stored(part.text, 'ai_output')],
+      });
+      if (settings.readAloud) readAloud(part.speaker_id, line.swipes[0] ?? '');
+      if (index === 0) noteCost(line.id, result);
+      autoTranslate(line.id, line.swipes[0] ?? '');
+      noteCanon(line.id, splitReasoning(line.swipes[0] ?? '').reply, part.speaker_id === null ? 'The GM' : (castById.get(part.speaker_id)?.name ?? 'A character'));
+      parent = line.id;
+      saved = line;
+    }
+    if (saved !== null) setLeafId(saved.id);
     return saved;
   };
 

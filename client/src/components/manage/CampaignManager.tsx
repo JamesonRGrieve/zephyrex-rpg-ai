@@ -13,10 +13,23 @@ import { Button } from 'zephyrex/ui/button';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
+import { chats } from '~/features/data/records';
 import { groupScenarios, taggedWith, useScenarios } from '~/features/data/scenarios';
 
 export function CampaignManager(): ReactElement {
   const read = useScenarios();
+  // The campaigns played from each scenario (the operator, 2026-11-21: one page, each scenario's
+  // campaigns under it). A campaign is a chat whose campaign is a playthrough of the scenario.
+  const chatList = chats.useList();
+  const played = new Map<string, { id: string; title: string; updated: string }[]>();
+  for (const chat of chatList.data ?? []) {
+    if (chat.campaign_id === null || chat.campaign_id === undefined) continue;
+    const scenario = read.data?.scenarioOf.get(chat.campaign_id) ?? chat.campaign_id;
+    played.set(scenario, [
+      ...(played.get(scenario) ?? []),
+      { id: chat.id, title: chat.title, updated: chat.updated_at ?? chat.created_at },
+    ]);
+  }
   const [wanted, setWanted] = useState<string[]>([]);
   const groups = {
     error: read.error,
@@ -68,10 +81,10 @@ export function CampaignManager(): ReactElement {
                 <h3 className='text-sm font-medium text-muted-foreground'>{system.system}</h3>
                 <ul className='grid gap-2'>
                   {system.scenarios.map((scenario) => (
-                    <li key={scenario.id}>
+                    <li key={scenario.id} className='grid gap-1 rounded-lg border'>
                       <Link
                         href={`/play?new=1&campaign=${encodeURIComponent(scenario.id)}`}
-                        className='flex min-h-14 items-center gap-3 rounded-lg border p-3 hover:bg-muted'
+                        className='flex min-h-14 items-center gap-3 rounded-lg p-3 hover:bg-muted'
                       >
                         <span className='min-w-0 flex-1'>
                           <span className='block truncate font-medium'>{scenario.name}</span>
@@ -91,6 +104,25 @@ export function CampaignManager(): ReactElement {
                         <Play aria-hidden className='size-4 shrink-0' />
                         <span className='sr-only'>Start a campaign</span>
                       </Link>
+                      {(played.get(scenario.id) ?? []).length > 0 && (
+                        <ul aria-label={`Campaigns of ${scenario.name}`} className='grid gap-1 px-3 pb-3'>
+                          {[...(played.get(scenario.id) ?? [])]
+                            .sort((a, b) => b.updated.localeCompare(a.updated))
+                            .map((campaign) => (
+                              <li key={campaign.id}>
+                                <Link
+                                  href={`/play/${campaign.id}`}
+                                  className='flex min-h-11 items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-muted'
+                                >
+                                  <span className='min-w-0 truncate'>{campaign.title}</span>
+                                  <span className='shrink-0 text-xs text-muted-foreground'>
+                                    {new Date(campaign.updated).toLocaleDateString()}
+                                  </span>
+                                </Link>
+                              </li>
+                            ))}
+                        </ul>
+                      )}
                     </li>
                   ))}
                 </ul>

@@ -47,14 +47,10 @@ const rpgAiExtension: ZephyrexClientExtension = {
   displayName: 'Zephyrex RPG AI',
   description: 'AI characters and an AI game master that play inside your world and at your table.',
   navItems: [
-    // The play model (docs/DESIGN.md): campaigns are save states of scenarios; scenario framings
-    // live at /campaigns (their prep at /scenarios); one-on-one chats are the sandbox, last.
+    // The composed suite (docs/DESIGN.md): scenarios and their campaigns on one page; the world
+    // (people, places, lore, files) is the wiki's Worlds; one-on-one chats are the sandbox, last.
+    // Characters, lorebooks, the data bank and personas are retired (the wiki owns them).
     { title: 'Campaigns', url: HOME_PATH },
-    { title: 'Scenarios', url: '/campaigns' },
-    { title: 'Characters', url: '/characters' },
-    { title: 'Lorebooks', url: '/lorebooks' },
-    { title: 'Data bank', url: '/data-bank' },
-    { title: 'Personas', url: '/personas' },
     { title: 'Presets', url: '/presets' },
     { title: 'Models', url: '/models' },
     { title: 'Regex', url: '/regex' },

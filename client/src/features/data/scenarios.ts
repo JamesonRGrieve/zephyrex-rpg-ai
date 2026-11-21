@@ -15,6 +15,8 @@ const scenarioSchema = z.object({
   description: z.string().nullable(),
   setting_id: z.string().nullish(),
   game_system_id: z.string().nullish(),
+  is_scenario: z.boolean().nullish(),
+  scenario_id: z.string().nullish(),
 });
 export type Scenario = z.infer<typeof scenarioSchema> & { tags?: string[] };
 
@@ -95,8 +97,8 @@ export function groupScenarios(
 export function useScenarios() {
   const client = useClient();
   return useSWR(['rpg-ai', 'scenarios'], async () => {
-    const [scenarios, settings, systems, styles, tagged] = await Promise.all([
-      client.list('/v1/campaign', 'campaigns', scenarioSchema, { is_scenario: 'true' }),
+    const [campaigns, settings, systems, styles, tagged] = await Promise.all([
+      client.list('/v1/campaign', 'campaigns', scenarioSchema, {}),
       client.list('/v1/setting', 'settings', namedSchema, {}).catch(() => []),
       client.list('/v1/game_system', 'game_systems', namedSchema, {}).catch(() => []),
       client.list('/v1/taxon', 'taxons', namedSchema, { kind: 'play_style' }).catch(() => []),
@@ -104,7 +106,11 @@ export function useScenarios() {
         .list('/v1/entity_taxon', 'entity_taxons', taggedSchema, { target_entity_type: 'campaign' })
         .catch(() => []),
     ]);
+    const scenarios = campaigns.filter((one) => one.is_scenario === true);
+    // Each playthrough's scenario: the campaign it was copied from (copy on start).
+    const scenarioOf = new Map(campaigns.map((one) => [one.id, one.scenario_id ?? one.id]));
     return {
+      scenarioOf,
       scenarios: withTags(scenarios, styles, tagged),
       settings,
       systems,
