@@ -1,8 +1,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 /**
- * Every scenario (A59, A61): each edited in a sheet; read in from a scenario file, or saved to one
- * (with its play reset, so it can be run again).
+ * The GM's prep sheets (A59, A61; docs/DESIGN.md folds them into a scenario as its prep), shown
+ * as "prep sheets" so they never share a name with the scenarios (the framings) at /campaigns.
+ * Each is edited in a sheet; read in from a file, or saved to one (with its play reset, so it can
+ * be run again).
  */
 import { Download, FileUp } from 'lucide-react';
 import { type ChangeEvent, type ReactElement, useRef } from 'react';
@@ -42,12 +44,12 @@ export function ScenarioManager({ openId = null }: { openId?: string | null } = 
       ),
     );
     const done = results.filter((result) => result.status === 'fulfilled').length;
-    if (done > 0) notify(done === 1 ? 'Scenario read in' : `${done} scenarios read in`);
+    if (done > 0) notify(done === 1 ? 'Prep sheet read in' : `${done} prep sheets read in`);
     const refused = results.find((result) => result.status === 'rejected');
     if (refused !== undefined)
       notify(
         'Some files were not read in',
-        refused.reason instanceof ScenarioFileError ? refused.reason.message : 'Each must be a scenario file (.json).',
+        refused.reason instanceof ScenarioFileError ? refused.reason.message : 'Each must be a prep sheet file (.json).',
       );
   };
 
@@ -55,7 +57,7 @@ export function ScenarioManager({ openId = null }: { openId?: string | null } = 
     <div className='grid gap-4'>
       <div className='flex flex-wrap gap-2'>
         <Button type='button' variant='outline' className='h-11' onClick={() => fileInput.current?.click()}>
-          <FileUp aria-hidden /> Read in a scenario
+          <FileUp aria-hidden /> Read in a prep sheet
         </Button>
         <input
           ref={fileInput}
@@ -68,13 +70,13 @@ export function ScenarioManager({ openId = null }: { openId?: string | null } = 
       </div>
       <ManagedList
         openId={openId}
-        what='scenario'
+        what='prep sheet'
         rows={list.data}
         error={list.error}
         onRetry={() => list.mutate()}
         summary={(row) => row.premise || 'No premise yet'}
-        newLabel='New scenario'
-        emptyText='No scenarios yet. Write one as moving parts: who wants what, the clocks, the secrets and their clues.'
+        newLabel='New prep sheet'
+        emptyText='No prep sheets yet. Write one as moving parts: who wants what, the clocks, the secrets and their clues.'
         editor={(row, done) => (
           <div className='grid gap-4'>
             {row !== null && (
