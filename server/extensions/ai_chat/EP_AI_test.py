@@ -716,6 +716,28 @@ class TestGenerate:
         assert "<Ada>\nAda is an engineer.\n</Ada>" in system and "<Bram>\nBram is the cook.\n</Bram>" in system, system
         assert "Scenario: A storm hits." in system and "Docked." not in system, system
 
+    def test_gen_answers_after_the_chats_prompt_and_genraw_alone(self, server: TestClient, model_url: str) -> None:
+        # Audit gap 5: STscript's /gen and /genraw ask the chat's model; nothing is written.
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        for raw in (False, True):
+            RECEIVED.clear()
+            answer = server.post("/v1/ai_chat/gen", json={"gen": {"chat_id": chat["id"], "leaf_id": line["id"], "prompt": "Name a port.", "raw": raw}}, headers=_headers(user))
+            assert answer.status_code == 200, answer.text
+            assert answer.json()["gen"]["text"] == "“Mind the coolant.”"
+            sent = RECEIVED[0]["body"]["messages"]
+            if raw:
+                assert sent == [{"role": "user", "content": "Name a port."}]
+            else:
+                assert sent[-1] == {"role": "system", "content": "Name a port."} and len(sent) > 2
+        listed = server.get(f"/v1/chat_message?chat_id={chat['id']}", headers=_headers(user)).json()["chat_messages"]
+        assert len(listed) == 1
+        refused = server.post("/v1/ai_chat/gen", json={"gen": {"chat_id": chat["id"], "prompt": "   "}}, headers=_headers(user))
+        assert refused.status_code == 422
+
     def test_a_presets_further_samplers_reach_only_the_apis_that_take_them(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

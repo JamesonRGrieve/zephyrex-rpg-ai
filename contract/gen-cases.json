@@ -1,0 +1,121 @@
+{
+  "$comment": "STscript's /gen and /genraw (audit gap 5): cases both twins run (client/src/features/prompt/gen.test.ts, server/extensions/ai_chat/Gen_test.py).",
+  "cases": [
+    {
+      "name": "/gen: the chat's prompt, then the instruction",
+      "chat": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        }
+      ],
+      "instruction": "Name three ports.",
+      "raw": false,
+      "prefill": "",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        },
+        {
+          "role": "system",
+          "content": "Name three ports."
+        }
+      ]
+    },
+    {
+      "name": "/gen: a reply's prefill is left out",
+      "chat": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        },
+        {
+          "role": "assistant",
+          "content": "*nods*"
+        }
+      ],
+      "instruction": "Summarise.",
+      "raw": false,
+      "prefill": "*nods*",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        },
+        {
+          "role": "system",
+          "content": "Summarise."
+        }
+      ]
+    },
+    {
+      "name": "/gen: an assistant line that isn't the prefill stays",
+      "chat": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "assistant",
+          "content": "*nods*"
+        }
+      ],
+      "instruction": "Go on.",
+      "raw": false,
+      "prefill": "other",
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "assistant",
+          "content": "*nods*"
+        },
+        {
+          "role": "system",
+          "content": "Go on."
+        }
+      ]
+    },
+    {
+      "name": "/genraw: the instruction alone",
+      "chat": [
+        {
+          "role": "system",
+          "content": "You are Ada."
+        },
+        {
+          "role": "user",
+          "content": "Hi."
+        }
+      ],
+      "instruction": "Say yes.",
+      "raw": true,
+      "prefill": "",
+      "messages": [
+        {
+          "role": "user",
+          "content": "Say yes."
+        }
+      ]
+    }
+  ]
+}

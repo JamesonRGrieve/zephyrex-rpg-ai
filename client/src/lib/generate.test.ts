@@ -18,6 +18,7 @@ import {
   generate,
   imagesUrl,
   inspectPrompt,
+  gen,
   modelsUrl,
   picture,
   pictureOf,
@@ -296,6 +297,25 @@ describe('POST /v1/ai_chat/prompt', () => {
     await events(await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } })));
     const body = received[0]?.body as Record<string, unknown>;
     expect([body.reasoning_effort, body.temperature, body.model, body.stream]).toEqual(['none', 0.1, 'tiny', true]);
+  });
+
+  it('answers /gen after the chat’s prompt and /genraw alone, writing nothing (audit gap 5)', async () => {
+    const { chat, line } = await seed();
+    const before = await prisma.chatMessage.count();
+    const asked = (raw: boolean) =>
+      gen(
+        new NextRequest('http://localhost/api/v1/ai_chat/gen', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ gen: { chat_id: chat.id, leaf_id: line.id, prompt: 'Name a port.', raw } }),
+        }),
+      );
+    expect(await (await asked(false)).json()).toEqual({ gen: { text: '“Mind the coolant.”' } });
+    expect(received[0]?.body.messages.at(-1)).toEqual({ role: 'system', content: 'Name a port.' });
+    expect(received[0]?.body.messages.length).toBeGreaterThan(2);
+    await asked(true);
+    expect(received[1]?.body.messages).toEqual([{ role: 'user', content: 'Name a port.' }]);
+    expect(await prisma.chatMessage.count()).toBe(before);
   });
 
   it('asks for the person’s own line when impersonating', async () => {

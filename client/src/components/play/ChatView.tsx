@@ -52,6 +52,7 @@ import {
   summarizeBranch,
   checkCanon,
   translateText,
+  genText,
 } from '~/features/chat/inspectPrompt';
 import { speakingStore, useSpeaking } from '~/features/speech/speaking';
 import { ScriptPrompt } from './ScriptPrompt';
@@ -144,6 +145,11 @@ const YOU = 'You';
 /** The chat commands a script may run (the rest are STscript's own). */
 const SCRIPT_ACTIONS: ReadonlySet<string> = new Set([
   'sys',
+  // Audit gap 5: the chat's model asked for text a script pipes on, or keeps as a system line.
+  'gen',
+  'genraw',
+  'sysgen',
+  'comment',
   'send',
   'trigger',
   'messages',
@@ -541,6 +547,24 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       act: async ({ name, text, args }) => {
         if (name === 'sys') {
           await addLine({ role: 'narrator', channel: 'ic', swipes: [text] });
+          return undefined;
+        }
+        // /gen and /genraw pipe the model's answer on; /sysgen keeps it as a narrator line (audit gap 5).
+        if (name === 'gen' || name === 'genraw' || name === 'sysgen') {
+          const answer = await genText({
+            chat_id: chat.id,
+            leaf_id: parent,
+            speaker_id: nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames, castTalk, turnOptions),
+            prompt: text,
+            raw: name === 'genraw',
+          });
+          if (name !== 'sysgen') return answer;
+          await addLine({ role: 'narrator', channel: 'ic', swipes: [answer] });
+          return undefined;
+        }
+        // A comment (audit gap 5): kept in the chat as a system line the model never reads.
+        if (name === 'comment') {
+          await addLine({ role: 'system', channel: 'system', swipes: [text] });
           return undefined;
         }
         // The chat's own lines and replies, as SillyTavern's message commands do them (A37).

@@ -68,8 +68,10 @@ imported card, preset or script breaks without it.
    activation regex. Imported instruct and context JSON can't be read in.
 5. **STscript's generation and chat commands.** `/gen`, `/genraw`, `/trigger`, `/send`,
    `/inject`, `/messages`, `/swipe`/`/addswipe`, `/hide`/`/unhide`, `/del`, `/cut` and `/sysgen`
-   are what popular quick-reply sets call. 194 of the 293 commands are missing (table below).
-   The 46 covered are the language core (variables, maths, control flow, strings, input).
+   are what popular quick-reply sets call. 185 of the 293 commands are missing (table below).
+   The 55 covered are the language core (variables, maths, control flow, strings, input) and,
+   since gap 5's work, `/gen`, `/genraw`, `/sysgen`, `/send`, `/trigger`, `/messages`,
+   `/addswipe`, `/del` and `/comment`; `/inject` and `/cut` are next.
 6. **Group chat generation modes.** There's no swap-versus-join character cards, no auto-mode,
    no "allow self responses", no pooled order, no per-group scenario override and no group nudge
    template. Groups work, but SillyTavern group players set these first.
@@ -389,7 +391,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/abs` |  | variables.js | covered |  |
 | `/add` |  | variables.js | covered |  |
 | `/addglobalvar` | incchatvar | variables.js | covered |  |
-| `/addswipe` | swipeadd | slash-commands.js | missing |  |
+| `/addswipe` | swipeadd | slash-commands.js | covered | `SCRIPT_ACTIONS` (A37) |
 | `/addvar` | addchatvar | variables.js | covered |  |
 | `/api` |  | slash-commands.js | missing |  |
 | `/api-url` | server | slash-commands.js | missing |  |
@@ -427,7 +429,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/closechat` | togglepanels | slash-commands.js | missing |  |
 | `/closure-deserialize` |  | variables.js | missing |  |
 | `/closure-serialize` |  | variables.js | missing |  |
-| `/comment` |  | slash-commands.js | missing |  |
+| `/comment` |  | slash-commands.js | covered | a system line the model never reads (gap 5) |
 | `/context` |  | slash-commands.js | missing |  |
 | `/continue` | cont | slash-commands.js | covered |  |
 | `/cos` |  | variables.js | missing |  |
@@ -448,7 +450,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/db-update` | databank-update, data-bank-update | extensions/attachments/index.js | missing |  |
 | `/decglobalvar` |  | variables.js | covered |  |
 | `/decvar` | decchatvar | variables.js | covered |  |
-| `/del` | delete, delmode | power-user.js | missing |  |
+| `/del` | delete, delmode | power-user.js | covered | `SCRIPT_ACTIONS`, `deleteCount` (A37) |
 | `/delay` | wait, sleep | slash-commands.js | missing |  |
 | `/delchat` |  | slash-commands.js | missing |  |
 | `/delname` | cancel | slash-commands.js | missing |  |
@@ -474,8 +476,8 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/flushvar` | flushchatvar | variables.js | covered |  |
 | `/forcesave` |  | slash-commands.js | out of scope | rpg-ai saves every write |
 | `/fuzzy` |  | slash-commands.js | missing |  |
-| `/gen` |  | slash-commands.js | missing |  |
-| `/genraw` |  | slash-commands.js | missing |  |
+| `/gen` |  | slash-commands.js | covered | `/v1/ai_chat/gen` (gap 5), `features/prompt/gen.ts` |
+| `/genraw` |  | slash-commands.js | covered | `/v1/ai_chat/gen` raw (gap 5) |
 | `/getcharbook` |  | world-info.js | missing |  |
 | `/getchatbook` | getchatlore, getchatwi | world-info.js | missing |  |
 | `/getchatname` |  | slash-commands.js | missing |  |
@@ -528,7 +530,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/member-up` | upmember, memberup | slash-commands.js | missing |  |
 | `/message-name` |  | slash-commands.js | missing |  |
 | `/message-role` |  | slash-commands.js | missing |  |
-| `/messages` | message | slash-commands.js | missing |  |
+| `/messages` | message | slash-commands.js | covered | `SCRIPT_ACTIONS`, `scriptMessages.ts` (A37) |
 | `/min` |  | variables.js | covered |  |
 | `/mod` |  | variables.js | covered |  |
 | `/model` | getpromptentries | slash-commands.js | missing |  |
@@ -613,7 +615,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/secret-read` | secret-find, secret-get | secrets.js | not planned | scripts never read or write API secrets (sandbox rule) |
 | `/secret-rename` |  | secrets.js | not planned | scripts never read or write API secrets (sandbox rule) |
 | `/secret-write` |  | secrets.js | not planned | scripts never read or write API secrets (sandbox rule) |
-| `/send` |  | slash-commands.js | missing |  |
+| `/send` |  | slash-commands.js | covered | `SCRIPT_ACTIONS` (A37) |
 | `/sendas` |  | slash-commands.js | covered |  |
 | `/setentryfield` | setlorefield, setwifield | world-info.js | missing |  |
 | `/setglobalvar` |  | variables.js | covered |  |
@@ -634,7 +636,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/summarize` |  | extensions/memory/index.js | partial | rolling summary on request in the UI; no command |
 | `/swipe` |  | slash-commands.js | partial | swipes browsable in the UI; no command |
 | `/sys` | nar | slash-commands.js | covered |  |
-| `/sysgen` |  | slash-commands.js | missing |  |
+| `/sysgen` |  | slash-commands.js | covered | gen, kept as a narrator line (gap 5) |
 | `/sysname` |  | slash-commands.js | missing |  |
 | `/sysprompt` | system-prompt | sysprompt.js | missing |  |
 | `/sysprompt-off` | sysprompt-disable | sysprompt.js | missing |  |
@@ -656,7 +658,7 @@ rpg-ai's own commands (`/ic`, `/ooc`, `/gm`, `/narrate`, `/xcard`, `/pause`, `/r
 | `/tools-register` | tool-register | tool-calling.js | missing |  |
 | `/tools-unregister` | tool-unregister | tool-calling.js | missing |  |
 | `/translate` |  | extensions/translate/index.js | partial | per-message translate in the UI; no command |
-| `/trigger` |  | slash-commands.js | missing |  |
+| `/trigger` |  | slash-commands.js | covered | `SCRIPT_ACTIONS` (A37) |
 | `/trimend` |  | slash-commands.js | partial | `/trim` trims both ends; no one-sided trim |
 | `/trimstart` |  | slash-commands.js | partial | `/trim` trims both ends; no one-sided trim |
 | `/trimtokens` |  | slash-commands.js | missing |  |

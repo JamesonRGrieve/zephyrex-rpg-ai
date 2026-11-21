@@ -191,3 +191,31 @@ export async function checkCanon(
   const parsed = canonSchema.safeParse(Reflect.get(Object(await response.json().catch(() => null)), 'canon_check'));
   return parsed.success ? parsed.data : null;
 }
+
+export const GEN_PATH = '/api/v1/ai_chat/gen';
+
+/**
+ * STscript's /gen and /genraw (audit gap 5): the chat's model's answer to `prompt`, after the chat's
+ * own prompt (or alone, `raw`). Nothing is written.
+ */
+export async function genText(request: {
+  chat_id: string;
+  leaf_id: string | null;
+  speaker_id: string | null;
+  prompt: string;
+  raw: boolean;
+}): Promise<string> {
+  const response = await fetch(GEN_PATH, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+    body: JSON.stringify({ gen: request }),
+  });
+  const body: unknown = await response.json().catch(() => null);
+  const text: unknown = Reflect.get(Object(Reflect.get(Object(body), 'gen')), 'text');
+  if (!response.ok || typeof text !== 'string') {
+    const detail: unknown = Reflect.get(Object(body), 'detail');
+    const message: unknown = typeof detail === 'string' ? detail : Reflect.get(Object(detail), 'message');
+    throw new Error(typeof message === 'string' ? message : `The model could not answer (${response.status})`);
+  }
+  return text;
+}

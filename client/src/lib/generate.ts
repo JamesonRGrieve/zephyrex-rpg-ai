@@ -36,6 +36,7 @@ import { branchTo } from '~/features/chat/branch';
 import { aiCast, playedPersona, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
 import { groupStops } from '~/features/chat/group';
 import { personaBooks, personaFor } from '~/features/prompt/personaPick';
+import { genMessages } from '~/features/prompt/gen';
 import { type ExtraBody, storedExtraBody, withExtraBody } from '~/features/models/extraBody';
 import type { GroupSettings } from '~/features/chat/groupSettings';
 import type { Persona as PersonaRecord } from '~/features/data/records';
@@ -809,6 +810,46 @@ export async function summarize(nextRequest: NextRequest): Promise<Response> {
       throw new ApiError(502, { message: 'The model stopped mid-summary', code: 'model_refused' });
     });
     return Response.json({ summary: { text: text.trim(), dropped: asked.dropped } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const genRequest = z.object({
+  chat_id: z.string().min(1),
+  leaf_id: z.string().min(1).nullable().default(null),
+  speaker_id: z.string().min(1).nullable().default(null),
+  prompt: z.string().trim().min(1).max(LIMITS.gen_prompt_characters),
+  raw: z.boolean().default(false),
+});
+
+/**
+ * `POST /v1/ai_chat/gen` (STscript's /gen and /genraw, audit gap 5): the chat's model's answer to an
+ * instruction, with the chat's prompt before it (or alone, `raw`). Nothing is written: a script
+ * pipes the text on, or /sysgen keeps it as a system line. Request `{ "gen": { "chat_id",
+ * "leaf_id", "speaker_id", "prompt", "raw" } }`; answer `{ "gen": { "text" } }`.
+ */
+export async function gen(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = genRequest.safeParse(Reflect.get(envelope, 'gen'));
+    if (!parsed.success) throw validationError('A gen object with a chat_id and a prompt is required', 'gen');
+    const asked = parsed.data;
+    const { prompt, sampler, endpoint } = await generationInputs(owner.id, {
+      chat_id: asked.chat_id,
+      leaf_id: asked.leaf_id,
+      speaker_id: asked.speaker_id,
+      mode: 'reply',
+      endpoint_id: null,
+    });
+    const chat = asked.raw ? null : promptFor('reply', prompt);
+    const messages = genMessages(chat?.messages ?? [], asked.prompt, asked.raw, chat?.prefill ?? '');
+    const stream = await askModel(endpoint, upstreamBody(endpoint, sampler, messages, 'reply'), nextRequest.signal);
+    const text = await collect(completionDeltas(stream)).catch(() => {
+      throw new ApiError(502, { message: 'The model stopped mid-answer', code: 'model_refused' });
+    });
+    return Response.json({ gen: { text: text.trim() } });
   } catch (error) {
     return apiErrorResponse(error);
   }

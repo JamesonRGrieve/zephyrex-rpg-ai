@@ -61,6 +61,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.ExtraBody import extra_body_problem, with_extra_body  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Gen import gen_messages  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Group import group_stops  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.GroupSettings import group_settings_problem  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-found]
@@ -1494,6 +1495,36 @@ class SummaryEnvelope(PlainModel):
     summary: Summary
 
 
+class GenRequest(PlainModel):
+    """STscript's /gen and /genraw (audit gap 5): an instruction for the chat's model."""
+
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+    speaker_id: str | None = None
+    prompt: str = Field(..., min_length=1, max_length=LIMITS["gen_prompt_characters"])
+    #: The instruction alone (/genraw), not after the chat's prompt.
+    raw: bool = False
+
+    @field_validator("prompt")
+    @classmethod
+    def _checked_prompt(cls, value: str) -> str:
+        if not value.strip():
+            raise ValueError("A prompt is required")
+        return value.strip()
+
+
+class GenRequestEnvelope(PlainModel):
+    gen: GenRequest
+
+
+class GenAnswer(PlainModel):
+    text: str
+
+
+class GenEnvelope(PlainModel):
+    gen: GenAnswer
+
+
 class TranslateRequest(PlainModel):
     chat_id: str = Field(..., min_length=1)
     text: str = Field(..., min_length=1, max_length=LIMITS["translate_characters"])
@@ -2374,6 +2405,27 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 active_lore=active,
             )
         )
+
+    @custom_route(
+        method="POST",
+        path="/gen",
+        input_model=GenRequestEnvelope,
+        output_model=GenEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="STscript's /gen and /genraw: the chat's model's answer to an instruction (audit gap 5)",
+    )
+    async def gen_route(self, body: GenRequestEnvelope) -> GenEnvelope:
+        asked = body.gen
+        assembled, _request, sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id, speaker_id=asked.speaker_id),
+            save_timers=False,
+        )
+        messages = gen_messages(
+            [] if asked.raw else assembled.messages, asked.prompt, asked.raw, assembled.prefill or ""
+        )
+        return GenEnvelope(gen=GenAnswer(text=await self._ask(context, sampler, messages)))
 
     @custom_route(
         method="POST",

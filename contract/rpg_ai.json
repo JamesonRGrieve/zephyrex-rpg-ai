@@ -33,6 +33,7 @@
     "regex_scripts": 200,
     "quick_replies": 100,
     "quick_reply_label_characters": 40,
+    "gen_prompt_characters": 20000,
     "translate_characters": 100000,
     "language_characters": 40,
     "images_per_message": 4,
