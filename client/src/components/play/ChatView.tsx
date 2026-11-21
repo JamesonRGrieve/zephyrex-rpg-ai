@@ -810,7 +810,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
     const castList = chat.character_ids.flatMap((id) => {
       const member = castById.get(id);
-      return member === undefined || id === play.playingId ? [] : [{ id, name: member.name }];
+      return member === undefined || id === play.playingId ? [] : [{ id, name: member.name, line: member.folder }];
     });
     const parts = narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== '');
     let parent = parentId;
