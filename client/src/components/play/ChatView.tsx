@@ -841,12 +841,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (streamText === '' || streamSeat === '') return;
     const first = streamSeat.split(/\s+/)[0] ?? '';
     const forms = first.length >= 3 && first !== streamSeat ? [streamSeat, first] : [streamSeat];
+    // Only the seat's own turn stops it: a structured line in their name (`Name:`, `Name (to …)`,
+    // `Name (at …)`) or a roleplay action (`*Name …`). Prose that happens to them ("Tessaly is thrown
+    // against the bulkhead") goes on (the operator, 2026-11-21: "Things need to still happen to my
+    // character, just not by my character"); the save's check cuts what they'd do themselves.
     const opens = (line: string) =>
-      forms.some((form) => line === form || [' ', ':', '(', ','].some((next) => line.startsWith(`${form}${next}`)));
+      forms.some(
+        (form) =>
+          line.startsWith(`*${form} `) ||
+          [':', ' (to ', ' (at ', ' (vox', ' (voxcast'].some((next) => line.startsWith(`${form}${next}`)),
+      );
     const lines = streamText
       .split('\n')
       .slice(1)
-      .map((line) => line.trim().replace(/^\*+\s*/, ''));
+      .map((line) => line.trim());
     if (lines.some(opens)) reply.stop();
   }, [streamText, streamSeat, reply]);
   const streamParts = (() => {
