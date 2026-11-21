@@ -12,7 +12,9 @@ import { useHidden } from 'zephyrex/hooks/useWrites';
 import {
   BookOpen,
   Clock3,
-  Dices,
+  Map as MapIcon,
+  MessagesSquare,
+  PanelRight,
   Download,
   Ellipsis,
   Flag,
@@ -21,7 +23,6 @@ import {
   Pause,
   Play,
   ScanText,
-  ScrollText,
   Settings2,
   X,
 } from 'lucide-react';
@@ -121,6 +122,8 @@ import { PARTY_TAG, useCast } from '~/features/data/cast';
 import { CanonOff } from './CanonNotice';
 import { RollSheet } from './RollSheet';
 import { SheetPanel } from './SheetPanel';
+import { ContextPanel } from './ContextPanel';
+import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { narrateSegments } from '~/features/chat/voiceGuard';
 import { SeatPicker } from './SeatPicker';
@@ -262,6 +265,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const [rollOpen, setRollOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [contextOpen, setContextOpen] = useState(false);
+  const [view, setView] = useState<'chat' | 'map'>('chat');
   const [namesOpen, setNamesOpen] = useState(false);
   const entryList = lorebookEntries.useList(undefined, namesOpen);
   const { create: createEntry } = lorebookEntries.useActions();
@@ -1301,27 +1306,30 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             />
           )}
           {play.isCampaign && (
+            // Chat and map swap in one tap (the operator, 2026-11-21), from both views.
             <Button
               type='button'
               variant='ghost'
               className='h-11 max-sm:w-11 max-sm:px-0'
-              aria-label='Roll'
-              onClick={() => setRollOpen(true)}
+              aria-pressed={view === 'map'}
+              aria-label={view === 'map' ? 'Back to the chat' : 'Show the map'}
+              onClick={() => setView(view === 'map' ? 'chat' : 'map')}
             >
-              <Dices aria-hidden className='size-4' />
-              <span className='max-sm:sr-only'>Roll</span>
+              {view === 'map' ? <MessagesSquare aria-hidden className='size-4' /> : <MapIcon aria-hidden className='size-4' />}
+              <span className='max-sm:sr-only'>{view === 'map' ? 'Chat' : 'Map'}</span>
             </Button>
           )}
           {play.isCampaign && (
+            // Every piece of context lives in the right-hand panel (the operator, 2026-11-21).
             <Button
               type='button'
               variant='ghost'
               className='h-11 max-sm:w-11 max-sm:px-0'
-              aria-label='Character sheet'
-              onClick={() => setSheetOpen(true)}
+              aria-label='Context'
+              onClick={() => setContextOpen(true)}
             >
-              <ScrollText aria-hidden className='size-4' />
-              <span className='max-sm:sr-only'>Sheet</span>
+              <PanelRight aria-hidden className='size-4' />
+              <span className='max-sm:sr-only'>Context</span>
             </Button>
           )}
           <Button
@@ -1444,9 +1452,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           />
         </div>
       )}
+      {view === 'map' && <MapView campaignId={chat.campaign_id ?? null} />}
       <ol
         className={cn(
           'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
+          view === 'map' && 'hidden',
           TEXT_SIZE_CLASS[settings.textSize],
           settings.chatLayout === 'document' && 'gap-3 font-serif',
           background !== null && 'bg-background pt-3',
@@ -1654,6 +1664,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               user: persona?.name ?? DEFAULT_USER_NAME,
             }),
           }))}
+      />
+      <ContextPanel
+        open={contextOpen}
+        onOpenChange={setContextOpen}
+        campaignId={chat.campaign_id ?? null}
+        cast={chat.character_ids.flatMap((id) => {
+          const member = castById.get(id);
+          return member === undefined ? [] : [{ id, name: member.name, line: member.folder }];
+        })}
+        seatId={play.playingId}
+        recent={branch.slice(-8).map((message) => ({
+          speaker_id: message.speaker_character_id,
+          text: message.swipes[message.swipe_index ?? 0] ?? '',
+        }))}
       />
       <SheetPanel
         open={sheetOpen}
