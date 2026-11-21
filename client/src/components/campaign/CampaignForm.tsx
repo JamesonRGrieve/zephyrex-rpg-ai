@@ -84,7 +84,8 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
   const [pillars, setPillars] = useState<Record<string, number>>(campaign?.pillars ?? {});
   const [structure, setStructure] = useState<Campaign['structure']>(campaign?.structure ?? null);
   const [truths, setTruths] = useState((campaign?.truths ?? []).join('\n'));
-  const [characters, setCharacters] = useState(campaign?.characters ?? '');
+  // Kept as saved, never edited here: a party belongs to each campaign, not the scenario.
+  const characters = campaign?.characters ?? '';
   const [gmStyle, setGmStyle] = useState(campaign?.gm_style ?? '');
   const [mode, setMode] = useState<Campaign['resolution_mode']>(campaign?.resolution_mode ?? null);
   const writes = useWrites(refreshedByRecords);
@@ -94,7 +95,6 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
     genre: useId(),
     themes: useId(),
     truths: useId(),
-    characters: useId(),
     gmStyle: useId(),
   };
 
@@ -209,17 +209,6 @@ export function CampaignForm({ campaign, done }: { campaign: Campaign | null; do
           aria-describedby={`${ids.truths}-hint`}
           placeholder={'Magic is feared.\nThe empire fell last winter.'}
           onChange={(event) => setTruths(event.target.value)}
-        />
-      </div>
-      <div className='grid gap-1.5'>
-        <Label htmlFor={ids.characters}>The characters</Label>
-        <Textarea
-          id={ids.characters}
-          rows={3}
-          value={characters}
-          maxLength={LIMITS.card_field_characters}
-          placeholder='How the characters are tied to each other and the setting, and what each player wants.'
-          onChange={(event) => setCharacters(event.target.value)}
         />
       </div>
       <div className='grid gap-1.5'>

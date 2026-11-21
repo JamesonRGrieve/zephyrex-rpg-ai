@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 /**
  * The campaign brief (A58): the frame shown to the players: premise, tone, what matters, the
- * setting truths and the characters. It carries no secrets: a frame holds none.
+ * setting truths. No party: who plays belongs to each campaign (the operator, 2026-11-21). It
+ * carries no secrets: a frame holds none.
  */
 import type { ReactElement } from 'react';
 import { CAMPAIGN } from '~/contract';
@@ -63,12 +64,6 @@ export function CampaignBrief({ campaign, titled = true }: { campaign: Campaign;
               <li key={truth}>{truth}</li>
             ))}
           </ul>
-        </section>
-      )}
-      {campaign.characters !== '' && (
-        <section aria-labelledby='brief-characters'>
-          <h2 id='brief-characters'>The characters</h2>
-          <p className='whitespace-pre-wrap'>{campaign.characters}</p>
         </section>
       )}
     </article>

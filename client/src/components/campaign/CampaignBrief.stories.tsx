@@ -27,6 +27,7 @@ export const DunmarchOnAPhone: Story = {
   args: { campaign: DUNMARCH },
   globals: { viewport: { value: 'mobile1', isRotated: false } },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole('heading', { name: 'The characters' })).toBeVisible();
+    // A scenario lists no party: who plays belongs to each campaign.
+    await expect(within(canvasElement).queryByRole('heading', { name: 'The characters' })).toBeNull();
   },
 };
