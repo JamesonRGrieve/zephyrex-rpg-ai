@@ -14,15 +14,23 @@ const tone = (campaign: Campaign) =>
     return [`${Math.abs(value) >= 2 ? 'very ' : ''}${value < 0 ? dial.left : dial.right}`];
   });
 
-export function CampaignBrief({ campaign }: { campaign: Campaign }): ReactElement {
+/** The scenario's title and genre: the page's h1. */
+export function CampaignBriefTitle({ campaign }: { campaign: Campaign }): ReactElement {
+  return (
+    <header className='grid gap-1'>
+      <h1 className='text-2xl font-semibold tracking-tight sm:text-3xl'>{campaign.name}</h1>
+      {campaign.genre !== '' && <p className='text-base text-muted-foreground sm:text-lg'>{campaign.genre}</p>}
+    </header>
+  );
+}
+
+/** The brief; `titled={false}` when the page shows CampaignBriefTitle itself, at its top. */
+export function CampaignBrief({ campaign, titled = true }: { campaign: Campaign; titled?: boolean }): ReactElement {
   const words = tone(campaign);
   const weights = CAMPAIGN.pillars.filter((pillar) => (campaign.pillars[pillar] ?? 0) > 0);
   return (
     <article className='grid w-full min-w-0 gap-6 leading-relaxed break-words [&_h2]:mb-2 [&_h2]:text-lg [&_h2]:font-semibold [&_ul]:list-disc [&_ul]:pl-6'>
-      <header className='grid gap-1'>
-        <h1 className='text-2xl font-semibold tracking-tight sm:text-3xl'>{campaign.name}</h1>
-        {campaign.genre !== '' && <p className='text-base text-muted-foreground sm:text-lg'>{campaign.genre}</p>}
-      </header>
+      {titled && <CampaignBriefTitle campaign={campaign} />}
       {campaign.premise !== '' && <p className='whitespace-pre-wrap'>{campaign.premise}</p>}
       {(words.length > 0 || campaign.themes.length > 0) && (
         <section aria-labelledby='brief-tone'>

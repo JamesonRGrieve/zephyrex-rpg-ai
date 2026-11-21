@@ -35,6 +35,7 @@ export function ManagedList<T extends ManagedRow>({
   editor,
   onDelete,
   href,
+  openId,
 }: {
   /** The kind of record, as a sentence names it ("persona"). */
   what: string;
@@ -50,12 +51,19 @@ export function ManagedList<T extends ManagedRow>({
   onDelete: (row: T) => void;
   /** A page for each row: a tap opens it, and an Edit button opens the editor instead. */
   href?: (row: T) => string;
+  /** A row whose editor opens once the rows load (a link such as `?edit=<id>`). */
+  openId?: string | null;
 }): ReactElement {
   const mobile = useIsMobile();
-  const [editing, setEditing] = useState<T | 'new' | null>(null);
+  const [chosen, setEditing] = useState<T | 'new' | null>(null);
+  const [linked, setLinked] = useState(openId ?? null);
+  const editing = chosen ?? (linked === null ? null : (rows?.find((row) => row.id === linked) ?? null));
   const hidden = useHidden(rows ?? [], idOf);
   const shown = hidden.shown;
-  const close = () => setEditing(null);
+  const close = () => {
+    setEditing(null);
+    setLinked(null);
+  };
 
   return (
     <div className='space-y-4'>

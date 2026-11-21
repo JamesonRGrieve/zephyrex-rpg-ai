@@ -25,7 +25,8 @@ function saveFile(scenario: Scenario): void {
   URL.revokeObjectURL(url);
 }
 
-export function ScenarioManager(): ReactElement {
+/** `openId`: a scenario whose editor opens on arrival (`/scenarios?edit=<id>`). */
+export function ScenarioManager({ openId = null }: { openId?: string | null } = {}): ReactElement {
   const list = scenarios.useList();
   const campaignList = campaigns.useList();
   const { create, remove } = scenarios.useActions();
@@ -66,6 +67,7 @@ export function ScenarioManager(): ReactElement {
         />
       </div>
       <ManagedList
+        openId={openId}
         what='scenario'
         rows={list.data}
         error={list.error}

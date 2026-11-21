@@ -6,8 +6,9 @@ import { ChatView } from '~/components/play/ChatView';
 export default async function ChatPage({ params }: { params: Promise<{ id: string }> }): Promise<ReactNode> {
   const { id } = await params;
   return (
-    <AppPage title='Chat' heading={null} width='medium'>
-      <h1 className='sr-only'>Chat</h1>
+    <AppPage title='Play' heading={null} width='medium'>
+      {/* A campaign's session or a sandbox chat (docs/DESIGN.md, The play model). */}
+      <h1 className='sr-only'>Play</h1>
       <ChatView id={id} />
     </AppPage>
   );

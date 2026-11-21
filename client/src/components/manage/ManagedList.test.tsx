@@ -28,6 +28,25 @@ describe('ManagedList', () => {
     // While the delete can still be undone, the first-run state never flashes (useHidden's pending).
     expect(screen.queryByText('None yet.')).not.toBeInTheDocument();
   });
+
+  it('opens a linked row once the rows load (openId), and closes it for good', async () => {
+    const props = {
+      what: 'scenario',
+      summary: () => 'summary',
+      newLabel: 'New scenario',
+      emptyText: 'None yet.',
+      editor: (row: { name: string } | null) => <p>Editing {row?.name ?? 'new'}</p>,
+      onDelete: vi.fn(),
+      openId: 'p1',
+    };
+    const { rerender } = render(<ManagedList {...props} rows={undefined} />);
+    expect(screen.queryByText('Editing Sam')).not.toBeInTheDocument();
+    rerender(<ManagedList {...props} rows={ROWS} />);
+    expect(await screen.findByText('Editing Sam')).toBeInTheDocument();
+    await userEvent.keyboard('{Escape}');
+    rerender(<ManagedList {...props} rows={[...ROWS]} />);
+    expect(screen.queryByText('Editing Sam')).not.toBeInTheDocument();
+  });
 });
 
 describe('ManagedList deletes', () => {

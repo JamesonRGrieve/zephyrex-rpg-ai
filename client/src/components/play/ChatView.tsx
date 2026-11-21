@@ -1095,7 +1095,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             )}
           </p>
         </div>
-        <div className='flex shrink-0 flex-wrap justify-end gap-1'>
+        {/* Wraps inside the screen on a phone: never wider than the bar (the audit's 780 px phone). */}
+        <div className='flex max-w-full min-w-0 flex-wrap justify-end gap-1'>
           {play.isCampaign && (
             // The seat hot-swaps at any time: the GM or any character (docs/DESIGN.md, The play model).
             <SeatPicker

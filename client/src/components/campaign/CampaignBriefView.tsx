@@ -14,7 +14,7 @@ import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { campaignPlays } from '~/features/data/playRecords';
 import { campaigns, chats, scenarios } from '~/features/data/records';
 import { lastActive } from '../play/ChatLibrary';
-import { CampaignBrief } from './CampaignBrief';
+import { CampaignBrief, CampaignBriefTitle } from './CampaignBrief';
 
 export function CampaignBriefView({ id }: { id: string }): ReactElement {
   const record = campaigns.useOne(id);
@@ -31,6 +31,7 @@ export function CampaignBriefView({ id }: { id: string }): ReactElement {
   const prepOfThis = (prep.data ?? []).filter((one) => one.campaign_id === id);
   return (
     <div className='mx-auto grid w-full max-w-2xl min-w-0 gap-6'>
+      <CampaignBriefTitle campaign={record.data} />
       <Button asChild className='h-12 w-full sm:w-auto sm:justify-self-start'>
         {/* The start sheet: pick the party and the seat to begin in. */}
         <Link href={`/play?new=1&campaign=${encodeURIComponent(id)}`}>
@@ -69,7 +70,7 @@ export function CampaignBriefView({ id }: { id: string }): ReactElement {
             {prepOfThis.map((one) => (
               <li key={one.id}>
                 <Link
-                  href={`/scenarios/${one.id}`}
+                  href={`/scenarios?edit=${one.id}`}
                   className='flex min-h-14 items-center gap-3 rounded-lg border px-3 py-2 hover:bg-accent'
                 >
                   <ScrollText className='size-5 shrink-0 text-muted-foreground' aria-hidden />
@@ -81,7 +82,7 @@ export function CampaignBriefView({ id }: { id: string }): ReactElement {
           </ul>
         </section>
       )}
-      <CampaignBrief campaign={record.data} />
+      <CampaignBrief campaign={record.data} titled={false} />
     </div>
   );
 }
