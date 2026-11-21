@@ -43,8 +43,9 @@ is a person). The AI product reads and writes both.
 | `entity_posts`, `world_taxonomy`, `world_narrative`, `world_social`, `world_inventory` | wiki | Kanka/World Anvil's core. |
 | `world_spatial`: locations, maps, layers, groups, pins | wiki | Kanka maps: an image or a published render, with pins. |
 | `world_spatial`: map **authoring** (stamps, variants, terrain regions, paths, interaction hooks) | vtt, as `vtt_cartography` | The operator named the VTT as the Inkarnate competitor. The editor and its data move together. A finished map is *published* to a wiki map as a render plus pins. |
-| `rpg_core`: campaigns | wiki | A campaign is the top-level container in Kanka and World Anvil, and every product scopes to it. |
-| `rpg_core`: game systems, character injection; `rpg_traits`, `rpg_scene`, `rpg_dice`, `rpg_combat`, `rpg_cards` | vtt | Mechanics and play. |
+| `rpg_core`: campaigns, and the Person injection (kind, campaign_id, user_id, location_id) | wiki | A campaign is the top-level container in Kanka and World Anvil, and every product scopes to it. The one extension named `rpg_core` (operator, 2026-11-20: "Split it however you need to"). |
+| `rpg_systems` (rpg_core's VTT half, renamed so two extensions never share a name): game systems and the game_system_id injection; `rpg_traits`, `rpg_scene`, `rpg_dice`, `rpg_combat`, `rpg_cards` | vtt | Mechanics and play. |
+| `rpg_table`: multiplayer tables (a table per campaign, character seats, whispers, lines) | vtt (operator, 2026-11-20: "Shouldn't seats be in vtt and campaigns be in either wiki or vtt?") | Live multi-player play. Built on the framework's `conversations`: the members are characters, not users; a whisper is a two-character conversation the host also reads; the live feed is the conversation's (`announce`). rpg-ai's AI GM plays at the table through its abilities (`table_seats`, `seat_whispers`, `say`) and stays single-player when the VTT isn't loaded. |
 | `rpg_log` (exists) | wiki (operator, 2026-11-20) | The campaign's history: encounter, combat, dialogue, interaction and transaction logs, next to session reports. It sits below the VTT, so its references to VTT records (combatants, encounters, traits) are polymorphic `target_entity_type + target_entity_id` (OBJECT_PLAN §7), never foreign keys into a VTT table. The VTT and the AI GM write to it. |
 | `rpg_state` (exists) | split per OBJECT_PLAN §6 into the rows above | |
 | `ai_character`, `ai_lorebook`, `ai_campaign` (campaign frames, scenarios, rehearsals), plus the GM, table and decision extensions in [DESIGN.md](DESIGN.md) | ai | SillyTavern's surface, and how the AI GM plays. A frame links to the wiki's campaign when the wiki is loaded, and stands alone otherwise. |
@@ -82,6 +83,12 @@ npm consumer, a package of client extensions:
 - **Standalone.** Each app installs only its own packages and its dependencies below it.
   The VTT pulls the wiki's extensions, because a scene needs a location. The wiki's pages
   are present but are not the focus of its navigation.
+- **How a server gets another product's extensions: a pinned path source** (operator,
+  2026-11-20), as with server-framework. The product pins the lower product's commit in
+  `deploy/frameworks.env`, fetches it beside the framework, and its server reads extensions
+  from its own folder and the lower product's. The VTT pins the wiki; this product pins the
+  wiki and the VTT. Each extension has its own migration history, so a pin move runs only that
+  product's new revisions.
 - **Together.** One server loads all three packages' extensions, and one client lists all
   three packages' client extensions. One database, one session, one campaign.
 - **Capabilities, never editions.** As in Chronos and Zephyreader, a page shows a feature

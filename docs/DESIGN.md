@@ -131,8 +131,8 @@ before launch. "Ours" marks what SillyTavern does not have.
 | **Parity additions** |
 | A37 | STscript: the full slash-command language (variables, conditionals, loops, closures, `/sendas`, `/gen`, `/inject`, …), run by a sandboxed interpreter | SillyTavern | ✓ | ✓ |
 | A38 | Quick Replies sets bound to buttons, with auto-run triggers | SillyTavern | ✓ | ✓ |
-| A39 | Extensions: built-ins that can be enabled or disabled, plus third-party extensions installed from a URL into a sandbox with declared permissions | SillyTavern | ✓ | ✓ |
-| A40 | Extensions and assets browser (characters, backgrounds, themes, ambient audio) | SillyTavern | ✓ | ✓ |
+| A39 | Extensions: built-ins that can be enabled or disabled, plus third-party extensions. Built on the framework's own extension system (the operator, 2026-11-20): each optional feature (Code Runner, web search, server voices, pictures, STscript) is a framework extension, a server extension (EXT, manifest) with a client extension gated by `GET /v1/extension` (`useCapabilities`); an install turns them on or off through its extension list, and a third party ships a framework extension. No extension system or URL-loaded sandbox of rpg-ai's own | SillyTavern | ✓ | ✓ |
+| A40 | Extensions and assets browser (characters, backgrounds, themes, ambient audio): the extensions are those the framework reports | SillyTavern | ✓ | ✓ |
 | A37 (part) | Slash commands, the safe subset: /sys, /sendas, /narrate, /continue, /impersonate, /xcard, /pause, /resume, /help (beside /ic, /ooc, /gm); STscript run by an interpreter (never eval) with a step limit: pipes and {{pipe}}, chat and global variables, /if (with else), /while, /times, closures kept and /run, /echo, /abort | /gen and the rest of STscript's commands; variables kept with the chat across visits |
 | A41 | Data Bank: documents attached to a chat, a character or globally, retrieved by meaning (built-in RAG) | SillyTavern | ✓ | ✓ |
 | A42 | Web search injected into context; the search source is set per install, as model endpoints are (SearXNG or a search API) (the operator, 2026-11-20) | SillyTavern (extension) | ✓ | ✓ |
@@ -145,7 +145,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A47 | Text-completion and chat-completion modes; tokenizer choice; logit bias; CFG / negative prompts | SillyTavern | ✓ | ✓ |
 | A48 | AI Horde as a backend | SillyTavern | ✓ | ✓ |
 | A49 | UI customisation: themes, custom CSS, layout modes (bubble, document, VN), font scale, avatar style | SillyTavern | ✓ | ✓ |
-| A50 | Multi-user accounts on one install, with per-user data and an admin | SillyTavern | ✓ | ✓ |
+| A50 | Multi-user accounts on one install, with per-user data and an admin. Lite: local accounts in @zephyrex/lite (`accountsOwner`, `accountRoutes`: a name and a scrypt-hashed password, a signed session cookie, the first account the admin), shared with vtt's V30 (the operator, 2026-11-20) | SillyTavern | ✓ | ✓ |
 | A53 | Objectives: the first not done is the character's current task | the model ticking tasks off itself |
 | A63–A66 | The campaign's resolution mode in every prompt and in view in the chat's header | rules-as-written resolution through the VTT |
 | A57, A58 | Campaign frames (premise, genre, tone dials, themes, pillars, structure, truths, characters, resolution) read every turn by a chat in the campaign; the brief for players; session zero, one question a screen, ending on the frame as the players' brief (AP1) | lines and veils pooled anonymously in session zero; the GM proposing the frame; linking a wiki campaign |
@@ -153,7 +153,7 @@ before launch. "Ours" marks what SillyTavern does not have.
 | A51 | Character tags, folders and favourites; welcome screen with recents | SillyTavern | ✓ | ✓ |
 | A52 | Group greetings; `/sendas` a group member; group member muting and join modes | SillyTavern | ✓ | ✓ |
 | A53 | Objectives and tasks for a character, tracked across a chat | SillyTavern (extension) | ✓ | ✓ |
-| A54 | Animated avatars: Live2D and talking-head extensions. Live2D only as an optional add-on: the person installing supplies the Cubism SDK, kept outside rpg-ai's own code, after a licence review (the operator, 2026-11-20) | SillyTavern (extension) *(verify)* | ✓ | ✓ |
+| A54 | Animated avatars: Live2D and talking-head extensions. Live2D only as an optional add-on: the person installing supplies the Cubism SDK, kept outside rpg-ai's own code, after the operator's licence review; talking heads first (the operator, 2026-11-20) | SillyTavern (extension) *(verify)* | ✓ | ✓ |
 | A55 | Code blocks that run JavaScript or STscript (Code Runner), sandboxed | SillyTavern (extension) | ✓ | ✓ |
 | A56 | Backups and chat exports (JSONL, text) | SillyTavern | ✓ | ✓ |
 | **Campaigns, scenarios and modes** |
@@ -659,9 +659,23 @@ The server extensions this product owns:
 
 1. a pool dispatch mode;
 2. a `decide` provider capability;
-3. multi-user room sync with per-recipient filtering (shared with the VTT).
-
-Until (3) lands, single-player play streams over the framework's ordinary SSE.
+3. ~~multi-user room sync with per-recipient filtering~~: not a gap, and not this product's.
+   Multiplayer tables are the VTT's ("the table: … live multi-player play", SUITE.md; the
+   operator, 2026-11-20: "Shouldn't seats be in vtt and campaigns be in either wiki or vtt?"),
+   built on the framework's `conversations` ("Should be in the conversations extension
+   already"):
+   - **the members are characters, not users** (the operator): the VTT seats a table's
+     characters in a framework conversation, a PC's seat naming its player and an NPC's seat
+     naming no one, as `ai_agents` seats agents;
+   - **a whisper is a two-character conversation** ("Wouldn't whispers just be dms"), kept per
+     table, merged into the table's feed, and the host sees every whisper at their table (the
+     operator: "Host sees all whispers");
+   - **live:** the conversation's feed (`GET /v1/conversation/{id}/events`, `announce()`;
+     server-framework, card 253).
+   **This product's A34** is the AI GM at the VTT's table: it reads the seats, voices the NPC
+   seats, reads an NPC's whispers with a PC (never another pair's), and appears when
+   `GET /v1/extension` lists the VTT's table extension. Alone, this product is single-player,
+   as SillyTavern is. AP7 (spotlight balance) reads the characters' turns at that table.
 
 ## Editions
 
@@ -683,6 +697,11 @@ here has had its full gate run yet: full runs wait for a release candidate.
 
 | Row | State | Not yet |
 |---|---|---|
+| A46 (part) | Tool calling as a twin held to contract/tool-cases.json (`features/chat/toolCalls.ts`, `ai_chat/ToolCalls.py`): a streamed reply's tool_calls put together by index, each checked against the tools offered (a name not offered or arguments that aren't a JSON object are refused and never run), and the follow-up turn. The tools offered are every one this install has (web search when a source is set, pictures, lore lookup, dice through the VTT when it is loaded), each switchable off per chat (the operator, 2026-11-20) | running the calls inside a reply (generate and the BLL, after A19), the per-chat tool switches |
+| A24 (part) | Session reports into the wiki, as a journal (world_narrative's JournalModel, kind session_report, OBJECT_PLAN; wiki S3), written through rpg_core's `session_report` ability with its mentions as entity references: what happened, who was met, what changed. Who saves it depends on who runs the game (the operator, 2026-11-20: "For vtt / wiki, yes. For ai-RPG, it's all automated."): at a human GM's table (VTT or wiki) the AI drafts it and the GM reviews and saves it; when the AI GM runs the game, the report is written to the log automatically when the session ends ; the drafter's prompt (story lines only, the last 400) and the mentions it links are a twin held to contract/report-cases.json (`features/campaign/sessionReport.ts`, `ai_campaign/SessionReport.py`) | calling `session_report` at session end (`loaded_ability`, wiki S3), and the review sheet for a human GM |
+| AP7 (part) | Spotlight balance as a twin held to contract/spotlight-cases.json (`features/campaign/spotlight.ts`, `ai_campaign/Spotlight.py`): over the table's last 30 story lines, a PC with under 60% of an even share of the players' lines, or none, is quiet; the two quietest are named in one line the AI GM reads | reading the VTT table's lines (rpg_table, `loaded_ability`) and putting the line in the GM's prompt |
+| A31 (decided) | Backgrounds follow the scene (the operator, 2026-11-20: "Follows the scene"): in a chat whose campaign is linked to the wiki, when the story moves to a wiki location with a picture, the background switches to it, as an expression sprite follows a line. The scene's location is the VTT scene's when the VTT is loaded, otherwise the wiki location the story's latest lines name; a background set by hand on the chat always wins | the location picture in the wiki's world_entities; the scene-location twin; the switch in ChatView |
+| A15 (part) | The relevance gate runs only when the keyword-matched entries don't fit the lore budget: a decision model then picks which to keep, from those entries only, kept in its order until the budget is full; with room for all, no model call (the operator, 2026-11-20: "When too many match"). The gate's arithmetic is a twin held to contract/lore-gate-cases.json (`features/lore/loreGate.ts`, `ai_lorebook/LoreGate.py`). The sync's decisions as a twin held to contract/wiki-sync-cases.json (`features/lore/wikiSync.ts`, `ai_lorebook/WikiSync.py`): one entry per wiki entity, linked by `wiki_entity_id`, keys from its name and aliases, content its summary, removed by its tombstone, the person's own entries never touched. It reads the wiki's `world_entities` (wiki S2b): a since-cursor page under the caller's access. A linked book pulls the changes since its last pull before each reply in a chat that uses it, at most once a minute, plus a "Sync from wiki" button (the operator, 2026-11-20) | the entry's `wiki_entity_id` column, the sync route and button, and the decision-model gate on relevance |
 | A1, A2 | Cards V1/V2/V3 in (JSON, PNG), several at once; out as PNG with the lorebook inside, or JSON, one or every card shown | |
 | A3 | Personas | |
 | A6 | Streaming, stop, regenerate, continue, impersonate | |
@@ -701,7 +720,7 @@ here has had its full gate run yet: full runs wait for a release candidate.
 | A16 | Author's note, a chat's own system prompt, the prompt manager (order, on/off, budgets) | |
 | A17 | Instruct templates for text-completion endpoints (ChatML, Llama 3, Alpaca, Mistral), and a person's own (on the Models page), picked per endpoint | |
 | A18 | Context inspector with token estimates | |
-| A19 | Rolling summaries (asked of the chat's model, kept or edited) | recall by meaning (`ai_memories`, SaaS) |
+| A19 | Rolling summaries (asked of the chat's model, kept or edited); recall by meaning in both editions: a chat's older story lines embedded by a model set to embed (the embed role: any OpenAI-compatible `/embeddings`), the closest to the last lines entering the prompt's memories section within its budget (lite in SQLite, SaaS in the framework's `ai_memories`) | memories shared across a character's chats (AP8) |
 | A29 | Read aloud per character voice, by a model set to speak (the Voices role: any OpenAI-compatible `/audio/speech`, each character naming its voice there) or else by the browser; dictation by the browser | dictation by a speech-to-text model |
 | A31 | A picture behind each chat | per wiki location |
 | A32, A38 | Quick replies (send or fill, story or table talk); SillyTavern Quick Reply sets read in; running by themselves when a chat opens, after a send or after each reply (only on opening may one send: either twin refuses a loop) | |
@@ -746,7 +765,7 @@ Each phase ends with polished, finished UI for what it covers, not a scaffold.
    - group-chat turn-taking;
    - **mechanical and hybrid modes** (A64–A65), with legal-action chips in the composer;
    - **scenario rehearsal** (A62), once pools and AI players exist.
-6. **Table:** multi-player (after room sync), the AI party mode, sprites and VN mode, TTS
+6. **Table:** the AI GM at the VTT's multiplayer table, the AI party mode, sprites and VN mode, TTS
    and STT, image generation.
 7. **The remaining SillyTavern parity:**
    - STscript and Quick Replies;
