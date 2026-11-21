@@ -5,7 +5,7 @@
  * it conflicts with. Table information only: it never enters the story.
  */
 import { OctagonAlert, TriangleAlert } from 'lucide-react';
-import type { ReactElement } from 'react';
+import { createContext, type ReactElement, useContext } from 'react';
 import { cn } from '~/lib/utils';
 
 export interface CanonNoticeValue {
@@ -13,10 +13,18 @@ export interface CanonNoticeValue {
   reason: string;
 }
 
+/**
+ * Turning canon warnings off for the campaign (the operator, 2026-11-21: "a 'permanently dismiss
+ * for this campaign' button for radical looney toon campaigns"): the play screen provides it, and
+ * every notice offers it. Undone in the chat's settings.
+ */
+export const CanonOff = createContext<(() => void) | null>(null);
+
 export function CanonNotice({ notice, className }: { notice: CanonNoticeValue; className?: string }): ReactElement | null {
   if (notice.level === 'none') return null;
   const red = notice.level === 'red';
   const Icon = red ? OctagonAlert : TriangleAlert;
+  const turnOff = useContext(CanonOff);
   return (
     <p
       role='status'
@@ -32,6 +40,11 @@ export function CanonNotice({ notice, className }: { notice: CanonNoticeValue; c
       <span>
         <span className='font-medium'>{red ? 'Breaks canon: ' : 'Canon check: '}</span>
         {notice.reason}
+        {turnOff !== null && (
+          <button type='button' className='ml-2 underline underline-offset-2' onClick={turnOff}>
+            Turn off canon warnings for this campaign
+          </button>
+        )}
       </span>
     </p>
   );

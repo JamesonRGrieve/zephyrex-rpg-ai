@@ -12,6 +12,7 @@ const meta: Meta<typeof ChatSettings> = {
     onSave: fn(),
     value: {
       title: 'Chat with Ada',
+      canon_checks: true,
       persona_id: null,
       preset_id: null,
       endpoint_id: null,

@@ -33,6 +33,8 @@ const SEATS = [
 
 export interface ChatSettingsValue {
   title: string;
+  /** Canon warnings for this campaign (off for a campaign that breaks canon on purpose). */
+  canon_checks: boolean;
   persona_id: string | null;
   preset_id: string | null;
   endpoint_id: string | null;
@@ -483,6 +485,15 @@ export function ChatSettings({
           )}
           <fieldset className='grid gap-3 rounded-lg border p-3'>
             <legend className='px-1 text-sm font-medium'>Table safety</legend>
+            <label className='flex min-h-11 items-center gap-2 text-sm'>
+              <input
+                type='checkbox'
+                className='size-4'
+                checked={draft.canon_checks}
+                onChange={(event) => set('canon_checks', event.target.checked)}
+              />
+              Canon warnings (yellow and red notices when a line breaks canon)
+            </label>
             <div className='grid gap-2'>
               <span id={ids.rating} className='text-sm'>
                 Content rating

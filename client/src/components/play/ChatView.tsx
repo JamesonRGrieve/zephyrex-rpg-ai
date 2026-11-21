@@ -118,6 +118,7 @@ import { useCampaign } from './useCampaign';
 import { useEndSession } from './useEndSession';
 import type { CanonNoticeValue } from './CanonNotice';
 import { PARTY_TAG, useCast } from '~/features/data/cast';
+import { CanonOff } from './CanonNotice';
 import { RollSheet } from './RollSheet';
 import { SheetPanel } from './SheetPanel';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
@@ -1193,6 +1194,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     (rows ?? []).map(({ id, name }) => ({ id, name }));
 
   return (
+    <CanonOff.Provider
+      value={
+        chat.canon_checks === false
+          ? null
+          : () =>
+              void updateChat(chat, { canon_checks: false }).then(() =>
+                notify('Canon warnings are off for this campaign', 'Turn them back on in the chat settings.'),
+              )
+      }
+    >
     <div
       // The window's height less the bar (3rem) and AppPage's padding (2.5rem): no scroll on a short chat.
       className='flex min-h-[calc(100svh-5.5rem)] flex-col bg-cover bg-fixed bg-center'
@@ -1788,6 +1799,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           background: chat.background,
           objectives: chat.objectives,
           content_rating: chat.content_rating,
+          canon_checks: chat.canon_checks !== false,
           seat: chat.seat,
           lines: chat.lines,
           veils: chat.veils,
@@ -1812,6 +1824,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         onSave={(next) => void updateChat(chat, next)}
       />
     </div>
+    </CanonOff.Provider>
   );
 }
 
