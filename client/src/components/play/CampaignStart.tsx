@@ -6,10 +6,10 @@
  * `pc`, by default; any of its persons can join) and the seat they start in: the GM, or any of
  * them. The seat can be swapped at any time once playing. The campaign's story is one chat, marked
  * a campaign by its play state, whose campaign is the wiki campaign (the prompt reads its world
- * from there), and opens on the campaign's description as the narrator's first line, which is
- * where Session 1 starts.
+ * from there), and opens on its framing note's Opening Situation (else the campaign's
+ * description) as the narrator's first line, which is where Session 1 starts.
  */
-import { worlds } from '@zephyrex-rpg/wiki/features/data/records';
+import { journals, worlds } from '@zephyrex-rpg/wiki/features/data/records';
 import { useRouter } from 'next/navigation';
 import { type ReactElement, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -18,6 +18,7 @@ import { Input } from 'zephyrex/ui/input';
 import { LIMITS } from '~/contract';
 import { campaignPlays, chatSessions } from '~/features/data/playRecords';
 import { PARTY_TAG, useCast } from '~/features/data/cast';
+import { openingLine } from '~/features/data/framing';
 import { type Character, chats, messages } from '~/features/data/records';
 import { cn } from '~/lib/utils';
 import { initials } from '../characters/CharacterTile';
@@ -201,6 +202,7 @@ export function CampaignStartForm({
 export function CampaignStart({ campaignId, onStarted }: { campaignId: string; onStarted: () => void }): ReactElement {
   const campaign = worlds.useOne(campaignId);
   const cast = useCast(campaignId);
+  const notes = journals.useList({ campaign_id: campaignId });
   const { create: createChat } = chats.useActions();
   const { create: createMessage } = messages.useActions();
   const { create: createPlay } = campaignPlays.useActions();
@@ -229,7 +231,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
         parent_id: null,
         role: 'narrator',
         channel: 'ic',
-        swipes: [world.description?.trim() || `${world.name} begins.`],
+        swipes: [openingLine(world, notes.data ?? [])],
       });
       await createPlay({ chat_id: chat.id, playing_id: playing });
       await createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id });
