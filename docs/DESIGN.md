@@ -195,6 +195,18 @@ binding; the owner of each piece is named.
   briefings for the GM) reach only the GM and narrator prompts and that NPC's own voice. To anyone
   else a GM-only person is just a name. The same holds for the data bank.
 
+**Structured lines** (the operator, 2026-11-21)
+
+- **The person queues what their character says and does** before sending: **Say** (typed straight
+  into the quotes, with to whom it is said) and **Do** (typed after the character's name: "Tessaly
+  Kord bangs on the wall."). As the GM, each item also names who speaks (any NPC, or the narrator).
+  Several items queue and send as one message, structured one per line:
+  `Tessaly Kord (to Wren): "Quiet."`, `Tessaly Kord bangs on the wall.`, `Narrator: The lights flicker.`
+- **The AI answers in the same structure,** so every line is credited to whoever speaks or acts; the
+  story renders each line under its speaker.
+- **As the AI writes, the view switches** to a character the moment a line opens with their name:
+  that character is shown typing.
+
 **The turn loop** (the decision model runs the table)
 
 1. The person writes a line. Something always answers it: a decided pause straight after their own
