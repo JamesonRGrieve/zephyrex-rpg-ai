@@ -126,7 +126,7 @@ import { SheetPanel } from './SheetPanel';
 import { ContextPanel } from './ContextPanel';
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
-import { completeText, metaBreak, narrateSegments, plainDashes } from '~/features/chat/voiceGuard';
+import { completeText, metaBreak, narrateSegments, plainDashes, seatCut } from '~/features/chat/voiceGuard';
 import { aimAt, clarify, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
@@ -900,7 +900,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const again = await timedWrite({ ...request, forbid: { names: [], span: broke.span } });
       if (again !== null) result = again;
     }
-    const whole = plainDashes(completeText(result.text));
+    // Narration keeps what happens to the person's character and cuts at the first thing it would
+    // have them do by choice, say, think or feel (the operator, 2026-11-21).
+    const seat = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
+    const kept = request.mode === 'narrate' && seat !== '' ? seatCut(result.text, seat) : result.text;
+    const whole = plainDashes(completeText(kept));
     if (whole.trim() === '') {
       notify(
         'The model gave no reply',
