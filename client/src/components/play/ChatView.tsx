@@ -1593,7 +1593,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           />
         </figure>
       )}
-      {chat.character_ids.length > 1 && (
+      {/* The decision model picks who speaks (the operator, 2026-11-21: the turn bar is obsolete); the
+          bar stays only for the manual orders chosen in the chat's settings. */}
+      {chat.character_ids.length > 1 && groupModes.order !== 'decide' && (
         <NextSpeaker
           cast={chat.character_ids.flatMap((id) => {
             const character = castById.get(id);
