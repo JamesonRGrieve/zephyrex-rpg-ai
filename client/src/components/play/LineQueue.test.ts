@@ -42,4 +42,24 @@ describe('formatLines', () => {
       ),
     ).toBe(['Tessaly Kord (to everyone): "Hello?"', 'Tessaly Kord stomps'].join('\n'));
   });
+  it('says how: whispers, shouts, vox to someone, a voxcast to all', () => {
+    expect(
+      formatLines(
+        [
+          { kind: 'say', speakerId: 'tess', targetId: 'wren', manner: 'whisper', text: 'Now.' },
+          { kind: 'say', speakerId: 'tess', targetId: null, manner: 'shout', text: 'Down!' },
+          { kind: 'say', speakerId: 'tess', targetId: 'ruhl', manner: 'vox', text: 'Status?' },
+          { kind: 'say', speakerId: 'ruhl', targetId: null, manner: 'voxcast', text: 'All decks, brace.' },
+        ],
+        names,
+      ),
+    ).toBe(
+      [
+        'Tessaly Kord (to Wren Saltash, whispers): "Now."',
+        'Tessaly Kord (to everyone, shouts): "Down!"',
+        'Tessaly Kord (vox to Confessor Ruhl): "Status?"',
+        'Confessor Ruhl (voxcast): "All decks, brace."',
+      ].join('\n'),
+    );
+  });
 });

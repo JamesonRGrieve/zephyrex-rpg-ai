@@ -36,9 +36,11 @@ import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
 import { textAndCode } from '~/features/chat/codeBlocks';
 import { roleplayPieces } from '~/features/chat/roleplayText';
+import { type Colour, colourSpans, screenBlocks } from '~/features/chat/markup';
 import { splitReasoning } from '~/features/prompt/assemble';
 import { initials } from '../characters/CharacterTile';
 import { CodeRunner } from './CodeRunner';
+import { readLines, StructuredLines } from './StructuredLines';
 
 export interface MessageView {
   id: string;
@@ -91,8 +93,8 @@ export interface MessageActions {
 
 const CHANNEL_LABEL: Record<MessageView['channel'], string | null> = {
   ic: null,
-  ooc: 'Table talk',
-  gm: 'To the GM',
+  ooc: 'Out of game',
+  gm: 'Out of game',
   roll: 'Roll',
   system: 'Note',
 };
@@ -171,7 +173,61 @@ function StoryText({ text, writing = false }: { text: string; writing?: boolean 
   );
 }
 
+/** A device's display (a cogitator, a data-slate, an auspex), set as a screen. */
+export function ScreenBlock({ title, text }: { title: string; text: string }): ReactElement {
+  return (
+    <figure className='my-2 overflow-hidden rounded-md border border-emerald-500/50 bg-zinc-950 text-emerald-300 shadow-inner'>
+      <figcaption className='border-b border-emerald-500/30 bg-emerald-500/10 px-3 py-1 font-mono text-xs uppercase tracking-widest'>
+        {title}
+      </figcaption>
+      <pre className='whitespace-pre-wrap px-3 py-2 font-mono text-sm [overflow-wrap:anywhere] [text-shadow:0_0_6px_rgb(16_185_129/0.5)]'>
+        <Coloured text={text} />
+      </pre>
+    </figure>
+  );
+}
+
+const COLOURS: Record<Colour, string> = {
+  red: 'font-semibold text-red-500',
+  amber: 'font-semibold text-amber-500',
+  green: 'font-semibold text-emerald-500',
+  blue: 'font-semibold text-sky-500',
+  gold: 'font-semibold text-yellow-500',
+  grey: 'text-muted-foreground',
+};
+
+/** Text with the narrator's palette colours (features/chat/markup.ts). */
+export function Coloured({ text }: { text: string }): ReactElement {
+  return (
+    <>
+      {colourSpans(text).map((span, index) =>
+        // Spans have no identity beyond their place in the text.
+        span.colour === null ? (
+          <span key={index}>{span.text}</span>
+        ) : (
+          <span key={index} className={COLOURS[span.colour]}>
+            {span.text}
+          </span>
+        ),
+      )}
+    </>
+  );
+}
+
 function StoryPieces({ text }: { text: string }): ReactElement {
+  const blocks = screenBlocks(text);
+  if (blocks.some((block) => block.kind === 'screen'))
+    return (
+      <>
+        {blocks.map((block, index) =>
+          block.kind === 'screen' ? (
+            <ScreenBlock key={index} title={block.title} text={block.text} />
+          ) : (
+            <StoryPieces key={index} text={block.text.replace(/^\n+|\n+$/g, '')} />
+          ),
+        )}
+      </>
+    );
   return (
     <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>
       {roleplayPieces(text).map((piece, index) =>
@@ -185,7 +241,7 @@ function StoryPieces({ text }: { text: string }): ReactElement {
             {piece.text}
           </span>
         ) : (
-          <span key={index}>{piece.text}</span>
+          <Coloured key={index} text={piece.text} />
         ),
       )}
     </p>
@@ -203,9 +259,12 @@ export function MessageItem({
   proposal,
   cost,
   canon,
+  names = [],
   ...actions
 }: {
   message: MessageView;
+  /** The cast's names, for reading structured lines (docs/DESIGN.md, Structured lines). */
+  names?: readonly string[];
   writing?: boolean;
   layout?: MessageLayout;
   /** A translation to show under the text (A43): written, being written, or failed. */
@@ -250,7 +309,10 @@ export function MessageItem({
       aria-busy={writing}
       className={cn(
         'group flex gap-3',
-        tableTalk && 'ml-6 rounded-lg bg-muted px-3 py-2 text-sm sm:ml-12',
+        // Out of game (the operator, 2026-11-21): between the GM and "You", the player, never the
+        // character; set apart from the story and from the Narrator.
+        tableTalk &&
+          'ml-6 rounded-lg border border-amber-500/40 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:bg-amber-950/30 dark:text-amber-50 sm:ml-12',
         message.channel === 'roll' && 'rounded-lg border border-dashed px-3 py-2 text-sm',
         message.bookmarked && !tableTalk && 'border-l-2 border-primary pl-3',
         layout === 'bubbles' && story && 'rounded-2xl border bg-card px-3 py-2',
@@ -271,7 +333,9 @@ export function MessageItem({
       )}
       <div className='min-w-0 flex-1'>
         <header className='flex flex-wrap items-center gap-x-2'>
-          <span className={cn('font-semibold', tableTalk && 'text-xs')}>{message.speaker}</span>
+          <span className={cn('font-semibold', tableTalk && 'text-xs')}>
+            {tableTalk ? (mine ? 'You' : 'GM') : message.speaker}
+          </span>
           {message.hidden === true && (
             <span className='inline-flex items-center gap-1 text-xs text-muted-foreground'>
               <EyeOff className='size-3' aria-hidden /> Hidden from the model
@@ -285,7 +349,14 @@ export function MessageItem({
             {tableTalk ? (
               <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{message.text}</p>
             ) : (
-              <StoryText text={message.text} writing={writing} />
+              (() => {
+                const structured = readLines(message.text, [message.speaker, ...names]);
+                return structured === null ? (
+                  <StoryText text={message.text} writing={writing} />
+                ) : (
+                  <StructuredLines lines={structured} speaker={message.speaker} />
+                );
+              })()
             )}
             {(message.images ?? []).length > 0 && (
               <ul className='mt-2 flex flex-wrap gap-2' aria-label='Pictures'>
@@ -293,7 +364,8 @@ export function MessageItem({
                   // Pictures have no identity beyond their place in this message.
                   <li key={index}>
                     <a href={url} target='_blank' rel='noreferrer' className='block'>
-                      <img referrerPolicy='no-referrer'
+                      <img
+                        referrerPolicy='no-referrer'
                         src={url}
                         alt={`Picture ${index + 1} from ${message.speaker}`}
                         className='max-h-40 max-w-full rounded-md border object-contain'

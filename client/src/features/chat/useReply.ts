@@ -19,6 +19,8 @@ export interface ReplyRequest {
   mode?: 'reply' | 'continue' | 'impersonate' | 'table' | 'narrate';
   /** AP4: this turn asked of another of the person's models, to compare. */
   endpoint_id?: string;
+  /** A second try after the voice guard caught a span (features/chat/voiceGuard.ts): it's forbidden. */
+  forbid?: { names: string[]; span: string };
 }
 
 export interface ReplyResult {

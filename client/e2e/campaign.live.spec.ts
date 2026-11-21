@@ -12,6 +12,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
+import { act, queue } from './support/turn';
 
 const LIVE = process.env.LIVE_MODEL_URL ?? '';
 const STORY = process.env.LIVE_STORY_MODEL ?? '';
@@ -69,8 +70,7 @@ async function settled(page: Page): Promise<void> {
 /** Sends a line and waits until the AI has written at least `replies` more, all of them finished. */
 async function say(page: Page, step: string, text: string, replies = 1): Promise<void> {
   const before = await page.getByRole('article').count();
-  await page.getByLabel('Your next line').fill(text);
-  await page.getByRole('button', { name: 'Send' }).click();
+  await act(page, 'Do', text);
   // The party members who speak up vary with their talkativeness: at least `replies`, then quiet.
   await expect.poll(() => page.getByRole('article').count(), { timeout: TURN }).toBeGreaterThanOrEqual(before + 1 + replies);
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: TURN });
@@ -216,7 +216,7 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
   // in-universe canon. The composer shows the notice before the line is sent.
   if (DECIDE !== '') {
     await seat(page, 'Magnus Karlsson');
-    await page.getByLabel('Your next line').fill('Who is this Omnissiah everyone keeps praying to? Never heard of him.');
+    await queue(page, 'Say', 'Who is this Omnissiah everyone keeps praying to? Never heard of him.');
     // Recorded, not asserted: whether a small decision model flags the line is its judgement,
     // and the path is proven by the unit and contract tests (decide, canon).
     const notice = page.getByRole('status').filter({ hasText: /canon/i });
@@ -227,7 +227,7 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
     record('Canon notice for Magnus', [
       { speaker: 'notice', text: shown ? ((await notice.textContent()) ?? '') : '(no notice shown)' },
     ]);
-    await page.getByLabel('Your next line').fill('');
+    await page.getByRole('button', { name: 'Remove' }).last().click();
   }
 
   // Fork a new campaign from the first line of the fight.

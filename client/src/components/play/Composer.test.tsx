@@ -14,13 +14,34 @@ describe('Composer', () => {
     expect(box).toHaveValue('');
   });
 
-  it('sends table talk once the switch is turned', async () => {
+  it('queues Say, Do and Out of game items: the story lines as one message, out of game to the GM', async () => {
     const onSend = vi.fn();
-    render(<Composer writing={false} onSend={onSend} onStop={vi.fn()} />);
-    await userEvent.click(screen.getByRole('radio', { name: 'Table talk' }));
-    await userEvent.type(screen.getByLabelText('Table talk'), 'pizza?');
-    await userEvent.click(screen.getByRole('button', { name: 'Send' }));
-    expect(onSend).toHaveBeenCalledWith('pizza?', 'ooc');
+    const tess = { id: 'tess', name: 'Tessaly Kord' };
+    const wren = { id: 'wren', name: 'Wren' };
+    render(
+      <Composer
+        writing={false}
+        onSend={onSend}
+        onStop={vi.fn()}
+        queue={{ me: tess, speakers: [tess, wren], present: [wren] }}
+      />,
+    );
+    expect(screen.queryByRole('radio')).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole('button', { name: 'Say' }));
+    await userEvent.type(screen.getByLabelText('What is said'), 'Quiet.');
+    await userEvent.selectOptions(screen.getByLabelText('How'), 'whisper');
+    await userEvent.selectOptions(screen.getByLabelText('To whom'), 'wren');
+    await userEvent.click(screen.getByRole('button', { name: 'Do' }));
+    expect(screen.getByLabelText('What is done')).toHaveAttribute('autocapitalize', 'off');
+    await userEvent.type(screen.getByLabelText('What is done'), 'listens at the wall.');
+    await userEvent.click(screen.getByRole('button', { name: 'Out of game' }));
+    await userEvent.type(screen.getByLabelText('Out of game'), 'pizza?');
+    await userEvent.click(screen.getByRole('button', { name: /^Send/ }));
+    expect(onSend).toHaveBeenCalledWith(
+      'Tessaly Kord (to Wren, whispers): "Quiet."\nTessaly Kord listens at the wall.',
+      'ic',
+    );
+    expect(onSend).toHaveBeenCalledWith('pizza?', 'gm');
   });
 
   it('fills the box with the line Impersonate writes, for the person to edit and send', async () => {

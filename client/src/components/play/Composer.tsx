@@ -24,17 +24,15 @@ const CANON_DELAY_MS = 1200;
 import { LIMITS, type QuickReplyAutoRun } from '~/contract';
 import { type ComposerChannel, outgoing } from '~/features/chat/outgoing';
 
-const CHANNELS: { value: ComposerChannel; label: string }[] = [
-  { value: 'ic', label: 'Story' },
-  { value: 'ooc', label: 'Table talk' },
-  { value: 'gm', label: 'Ask the GM' },
-];
-
-const BOX_LABELS: Record<ComposerChannel, string> = { ic: 'Your next line', ooc: 'Table talk', gm: 'A question for the GM' };
+const BOX_LABELS: Record<ComposerChannel, string> = {
+  ic: 'Your next line',
+  ooc: 'Table talk',
+  gm: 'Out of game, to the GM',
+};
 const PLACEHOLDERS: Record<ComposerChannel, string> = {
   ic: 'What do you say or do?',
   ooc: 'Talk to the table…',
-  gm: 'Ask the GM, out of character…',
+  gm: 'Out of game, to the GM…',
 };
 
 /** Whether the device's main pointer is coarse (a finger), where Enter should not send. */
@@ -109,7 +107,9 @@ export function Composer({
   // the box still holds the line it was checked for.
   const [canon, setCanon] = useState<{ line: string; notice: CanonNoticeValue | null } | null>(null);
   const checking = onCheckCanon !== undefined && channel === 'ic';
-  const line = text.trim();
+  // With the queue, the line checked is the queued items as they will be sent.
+  const [draft, setDraft] = useState('');
+  const line = (queue !== undefined ? draft : text).trim();
   useEffect(() => {
     if (!checking || line.length < CANON_MIN_CHARACTERS || line.startsWith('/')) return;
     const controller = new AbortController();
@@ -159,16 +159,17 @@ export function Composer({
 
   const [commandProblem, setCommandProblem] = useState<string | null>(null);
 
-  const send = () => {
+  /** Runs a line: a script or slash command runs (A37), anything else is sent on its channel. */
+  const runLine = (line: string, on: ComposerChannel) => {
     // A script (A37) runs whole: it pipes, or uses STscript's own commands.
-    if (onScript !== undefined && isScript(text)) {
+    if (onScript !== undefined && isScript(line)) {
       setCommandProblem(null);
       setText('');
-      onScript(text, setText);
+      onScript(line, setText);
       return;
     }
     // A slash command (A37) runs instead of being sent; one that is not a command says why.
-    const command = onCommand === undefined ? null : parseCommand(text, castNames);
+    const command = onCommand === undefined ? null : parseCommand(line, castNames);
     if (command !== null && onCommand !== undefined) {
       if ('unknown' in command) {
         setCommandProblem(command.unknown);
@@ -187,7 +188,7 @@ export function Composer({
       return;
     }
     setCommandProblem(null);
-    const message = outgoing(text, channel);
+    const message = outgoing(line, on);
     if (message === null || disabled) return;
     if (images.length > 0 && message.channel === 'ic') onSend(message.text, message.channel, images);
     else onSend(message.text, message.channel);
@@ -197,6 +198,7 @@ export function Composer({
     if (next !== undefined) setChannel(next.channel);
     setImages([]);
   };
+  const send = () => runLine(text, channel);
 
   /** Pictures for the line (A44): each checked as an avatar is, at most the contract's number. */
   const attach = async (files: readonly File[]) => {
@@ -249,23 +251,6 @@ export function Composer({
             ))}
           </div>
         )}
-        <div role='radiogroup' aria-label='Send as' className='flex gap-1'>
-          {CHANNELS.map((option) => (
-            <button
-              key={option.value}
-              type='button'
-              role='radio'
-              aria-checked={channel === option.value}
-              onClick={() => setChannel(option.value)}
-              className={cn(
-                'min-h-9 rounded-full border px-3 text-xs font-medium',
-                channel === option.value ? 'border-primary bg-primary text-primary-foreground' : 'text-muted-foreground',
-              )}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
         {commandProblem !== null && (
           <p role='alert' className='text-sm text-destructive'>
             {commandProblem}
@@ -276,7 +261,12 @@ export function Composer({
             {images.map((url, index) => (
               // Attached pictures have no identity beyond their place in this line.
               <div key={index} className='relative'>
-                <img referrerPolicy='no-referrer' src={url} alt={`Attached picture ${index + 1}`} className='size-16 rounded-md border object-cover' />
+                <img
+                  referrerPolicy='no-referrer'
+                  src={url}
+                  alt={`Attached picture ${index + 1}`}
+                  className='size-16 rounded-md border object-cover'
+                />
                 <button
                   type='button'
                   className='absolute -top-2 -right-2 flex size-7 items-center justify-center rounded-full border bg-background'
@@ -304,119 +294,137 @@ export function Composer({
             present={queue.present}
             disabled={disabled}
             onSend={(lines) => onSend(lines, 'ic')}
+            // Out of game is also where a slash command or script is typed (A37).
+            onOutOfGame={(line) => runLine(line, 'gm')}
+            onDraft={setDraft}
+            tools={
+              onNarrate === undefined ? null : (
+                <Button
+                  type='button'
+                  size='icon'
+                  variant='ghost'
+                  className='size-11 shrink-0'
+                  aria-label='Narrate what happens next'
+                  disabled={disabled}
+                  onClick={onNarrate}
+                >
+                  <BookOpen aria-hidden />
+                </Button>
+              )
+            }
           />
         ) : (
-        <div className='flex flex-wrap items-end gap-2 sm:flex-nowrap'>
-          {channel === 'ic' && !writing && (
-            <>
-              <input
-                id={attachId}
-                type='file'
-                accept={PICTURE_TYPES.join(',')}
-                multiple
-                aria-label='Attach a picture'
-                className='peer sr-only'
-                disabled={disabled || images.length >= LIMITS.images_per_message}
-                onChange={(event) => {
-                  const files = [...(event.target.files ?? [])];
-                  event.target.value = '';
-                  void attach(files);
-                }}
-              />
-              <label
-                htmlFor={attachId}
-                className={cn(
-                  'flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
-                  images.length >= LIMITS.images_per_message && 'pointer-events-none text-muted-foreground',
-                )}
-              >
-                <ImagePlus className='size-5' aria-hidden />
-              </label>
-            </>
-          )}
-          <label htmlFor={boxId} className='sr-only'>
-            {BOX_LABELS[channel]}
-          </label>
-          <Textarea
-            id={boxId}
-            value={text}
-            rows={1}
-            maxLength={LIMITS.message_characters}
-            placeholder={PLACEHOLDERS[channel]}
-            className={cn(
-              'order-first max-h-40 min-h-11 min-w-0 basis-full resize-none [field-sizing:content] sm:order-none sm:basis-0 sm:flex-1',
-              channel !== 'ic' && 'bg-muted',
+          <div className='flex flex-wrap items-end gap-2 sm:flex-nowrap'>
+            {channel === 'ic' && !writing && (
+              <>
+                <input
+                  id={attachId}
+                  type='file'
+                  accept={PICTURE_TYPES.join(',')}
+                  multiple
+                  aria-label='Attach a picture'
+                  className='peer sr-only'
+                  disabled={disabled || images.length >= LIMITS.images_per_message}
+                  onChange={(event) => {
+                    const files = [...(event.target.files ?? [])];
+                    event.target.value = '';
+                    void attach(files);
+                  }}
+                />
+                <label
+                  htmlFor={attachId}
+                  className={cn(
+                    'flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
+                    images.length >= LIMITS.images_per_message && 'pointer-events-none text-muted-foreground',
+                  )}
+                >
+                  <ImagePlus className='size-5' aria-hidden />
+                </label>
+              </>
             )}
-            onChange={(event) => setText(event.target.value)}
-            onKeyDown={onKeyDown}
-          />
-          {dictation.supported && !writing && (
-            <Button
-              type='button'
-              size='icon'
-              variant={dictation.listening ? 'secondary' : 'ghost'}
-              className='size-11 shrink-0'
-              aria-label={dictation.listening ? 'Stop dictating' : 'Dictate'}
-              aria-pressed={dictation.listening}
-              disabled={disabled}
-              onClick={dictation.toggle}
-            >
-              {dictation.listening ? <MicOff aria-hidden /> : <Mic aria-hidden />}
-            </Button>
-          )}
-          {onNarrate !== undefined && !writing && channel === 'ic' && (
-            <Button
-              type='button'
-              size='icon'
-              variant='ghost'
-              className='size-11 shrink-0'
-              aria-label='Narrate what happens next'
-              disabled={disabled}
-              onClick={onNarrate}
-            >
-              <BookOpen aria-hidden />
-            </Button>
-          )}
-          {onImpersonate !== undefined && !writing && channel === 'ic' && (
-            <Button
-              type='button'
-              size='icon'
-              variant='ghost'
-              className='size-11 shrink-0'
-              aria-label='Write my line for me'
-              disabled={disabled}
-              onClick={() =>
-                void onImpersonate().then((line) => {
-                  if (line !== null && line.trim() !== '') setText(line.trim());
-                })
-              }
-            >
-              <WandSparkles aria-hidden />
-            </Button>
-          )}
-          {writing ? (
-            <Button
-              type='button'
-              size='icon'
-              variant='outline'
-              className='ms-auto size-11 shrink-0 sm:ms-0'
-              aria-label='Stop the reply'
-              onClick={onStop}
-            >
-              <Square aria-hidden />
-            </Button>
-          ) : (
-            <Button
-              type='submit'
-              size='icon'
-              className='ms-auto size-11 shrink-0 sm:ms-0'
-              aria-label='Send'
-              disabled={disabled || text.trim() === ''}
-            >
-              <Send aria-hidden />
-            </Button>
-          )}
-        </div>
+            <label htmlFor={boxId} className='sr-only'>
+              {BOX_LABELS[channel]}
+            </label>
+            <Textarea
+              id={boxId}
+              value={text}
+              rows={1}
+              maxLength={LIMITS.message_characters}
+              placeholder={PLACEHOLDERS[channel]}
+              className={cn(
+                'order-first max-h-40 min-h-11 min-w-0 basis-full resize-none [field-sizing:content] sm:order-none sm:basis-0 sm:flex-1',
+                channel !== 'ic' && 'bg-muted',
+              )}
+              onChange={(event) => setText(event.target.value)}
+              onKeyDown={onKeyDown}
+            />
+            {dictation.supported && !writing && (
+              <Button
+                type='button'
+                size='icon'
+                variant={dictation.listening ? 'secondary' : 'ghost'}
+                className='size-11 shrink-0'
+                aria-label={dictation.listening ? 'Stop dictating' : 'Dictate'}
+                aria-pressed={dictation.listening}
+                disabled={disabled}
+                onClick={dictation.toggle}
+              >
+                {dictation.listening ? <MicOff aria-hidden /> : <Mic aria-hidden />}
+              </Button>
+            )}
+            {onNarrate !== undefined && !writing && channel === 'ic' && (
+              <Button
+                type='button'
+                size='icon'
+                variant='ghost'
+                className='size-11 shrink-0'
+                aria-label='Narrate what happens next'
+                disabled={disabled}
+                onClick={onNarrate}
+              >
+                <BookOpen aria-hidden />
+              </Button>
+            )}
+            {onImpersonate !== undefined && !writing && channel === 'ic' && (
+              <Button
+                type='button'
+                size='icon'
+                variant='ghost'
+                className='size-11 shrink-0'
+                aria-label='Write my line for me'
+                disabled={disabled}
+                onClick={() =>
+                  void onImpersonate().then((line) => {
+                    if (line !== null && line.trim() !== '') setText(line.trim());
+                  })
+                }
+              >
+                <WandSparkles aria-hidden />
+              </Button>
+            )}
+            {writing ? (
+              <Button
+                type='button'
+                size='icon'
+                variant='outline'
+                className='ms-auto size-11 shrink-0 sm:ms-0'
+                aria-label='Stop the reply'
+                onClick={onStop}
+              >
+                <Square aria-hidden />
+              </Button>
+            ) : (
+              <Button
+                type='submit'
+                size='icon'
+                className='ms-auto size-11 shrink-0 sm:ms-0'
+                aria-label='Send'
+                disabled={disabled || text.trim() === ''}
+              >
+                <Send aria-hidden />
+              </Button>
+            )}
+          </div>
         )}
       </div>
     </form>

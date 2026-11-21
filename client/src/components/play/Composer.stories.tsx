@@ -19,11 +19,24 @@ export const InCharacter: Story = {
   },
 };
 
-export const TableTalk: Story = {
-  play: async ({ canvasElement }) => {
+/** A turn of queued items (docs/DESIGN.md, Structured lines): Say, Do and Out of game. */
+export const Queued: Story = {
+  args: {
+    queue: {
+      me: { id: 'tess', name: 'Tessaly Kord' },
+      speakers: [{ id: 'wren', name: 'Wren' }],
+      present: [{ id: 'wren', name: 'Wren' }],
+    },
+  },
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
-    await userEvent.click(canvas.getByRole('radio', { name: 'Table talk' }));
-    await expect(canvas.getByLabelText('Table talk')).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole('button', { name: 'Say' }));
+    await userEvent.type(canvas.getByLabelText('What is said'), 'Quiet.');
+    await userEvent.click(canvas.getByRole('button', { name: 'Out of game' }));
+    await userEvent.type(canvas.getByLabelText('Out of game'), 'brb');
+    await userEvent.click(canvas.getByRole('button', { name: /^Send/ }));
+    await expect(args.onSend).toHaveBeenCalledWith('Tessaly Kord (to everyone): "Quiet."', 'ic');
+    await expect(args.onSend).toHaveBeenCalledWith('brb', 'gm');
   },
 };
 

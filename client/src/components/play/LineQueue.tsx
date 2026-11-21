@@ -6,8 +6,8 @@
  * structured lines (docs/DESIGN.md, Structured lines). As the GM, each item also names who speaks:
  * any character, or the narrator.
  */
-import { ArrowDown, ArrowUp, MessageSquareQuote, Send, Sparkles, X } from 'lucide-react';
-import { type ReactElement, useState } from 'react';
+import { ArrowDown, ArrowUp, MessageSquareQuote, MessagesSquare, Send, Sparkles, X } from 'lucide-react';
+import { type ReactElement, type ReactNode, useEffect, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { cn } from '~/lib/utils';
@@ -18,8 +18,19 @@ export interface QueueMember {
 }
 
 export type QueuedLine =
-  | { kind: 'say'; speakerId: string | null; targetId: string | null; text: string }
-  | { kind: 'do'; speakerId: string | null; text: string };
+  | { kind: 'say'; speakerId: string | null; targetId: string | null; manner?: Manner; text: string }
+  | { kind: 'do'; speakerId: string | null; text: string }
+  | { kind: 'ooc'; speakerId: null; text: string };
+
+/** How a line is said (the operator, 2026-11-21), chosen per Say item. */
+export type Manner = 'speak' | 'whisper' | 'shout' | 'vox' | 'voxcast';
+const MANNERS: { value: Manner; label: string }[] = [
+  { value: 'speak', label: 'says' },
+  { value: 'whisper', label: 'whispers' },
+  { value: 'shout', label: 'shouts' },
+  { value: 'vox', label: 'vox' },
+  { value: 'voxcast', label: 'voxcast' },
+];
 
 /** The narrator, as a speaker the GM may pick. */
 export const NARRATOR_NAME = 'Narrator';
@@ -31,14 +42,24 @@ const EVERYONE = 'everyone';
  */
 export function formatLines(lines: readonly QueuedLine[], names: ReadonlyMap<string, string>): string {
   return lines
-    .filter((line) => line.text.trim() !== '')
+    .filter((line) => line.kind !== 'ooc' && line.text.trim() !== '')
     .map((line) => {
       const speaker = line.speakerId === null ? NARRATOR_NAME : (names.get(line.speakerId) ?? NARRATOR_NAME);
       const text = line.text.trim();
       if (speaker === NARRATOR_NAME) return `${NARRATOR_NAME}: ${text}`;
-      if (line.kind === 'do') return `${speaker} ${text.replace(/^\s*[*]+|[*]+\s*$/g, '')}`;
+      if (line.kind !== 'say') return `${speaker} ${text.replace(/^\s*[*]+|[*]+\s*$/g, '')}`;
       const target = line.targetId === null ? EVERYONE : (names.get(line.targetId) ?? EVERYONE);
-      return `${speaker} (to ${target}): "${text.replace(/^["“]|["”]$/g, '')}"`;
+      const words = text.replace(/^["“]|["”]$/g, '');
+      const manner = line.manner ?? 'speak';
+      const tag =
+        manner === 'voxcast'
+          ? 'voxcast'
+          : manner === 'vox'
+            ? `vox to ${target}`
+            : manner === 'speak'
+              ? `to ${target}`
+              : `to ${target}, ${manner === 'whisper' ? 'whispers' : 'shouts'}`;
+      return `${speaker} (${tag}): "${words}"`;
     })
     .join('\n');
 }
@@ -49,6 +70,9 @@ export function LineQueue({
   present,
   disabled,
   onSend,
+  onOutOfGame,
+  tools = null,
+  onDraft,
 }: {
   /** The seat's character: every item is theirs. Null for the GM, who picks a speaker per item. */
   me: QueueMember | null;
@@ -58,15 +82,23 @@ export function LineQueue({
   present: readonly QueueMember[];
   disabled: boolean;
   onSend: (text: string) => void;
+  /** Out of game (the operator, 2026-11-21): the player to the GM, never the story. */
+  onOutOfGame?: (text: string) => void;
+  /** Further buttons beside Say and Do (Narrate what happens next). */
+  tools?: ReactNode;
+  /** The story lines as they stand, for checks while typing (canon warnings). */
+  onDraft?: (lines: string) => void;
 }): ReactElement {
   const [queue, setQueue] = useState<QueuedLine[]>([]);
   const names = new Map([...speakers, ...present, ...(me === null ? [] : [me])].map((one) => [one.id, one.name]));
-  const add = (kind: 'say' | 'do') =>
+  const add = (kind: 'say' | 'do' | 'ooc') =>
     setQueue((now) => [
       ...now,
       kind === 'say'
         ? { kind, speakerId: me?.id ?? null, targetId: null, text: '' }
-        : { kind, speakerId: me?.id ?? null, text: '' },
+        : kind === 'ooc'
+          ? { kind, speakerId: null, text: '' }
+          : { kind, speakerId: me?.id ?? null, text: '' },
     ]);
   const change = (index: number, patch: Partial<QueuedLine>) =>
     setQueue((now) => now.map((line, at) => (at === index ? ({ ...line, ...patch } as QueuedLine) : line)));
@@ -78,9 +110,12 @@ export function LineQueue({
       return next;
     });
   const message = formatLines(queue, names);
+  useEffect(() => onDraft?.(message), [message, onDraft]);
+  const outOfGame = queue.filter((line) => line.kind === 'ooc' && line.text.trim() !== '').map((line) => line.text.trim());
   const send = () => {
-    if (message === '') return;
-    onSend(message);
+    if (message === '' && outOfGame.length === 0) return;
+    if (message !== '') onSend(message);
+    for (const text of outOfGame) onOutOfGame?.(text);
     setQueue([]);
   };
   const speakerName = (line: QueuedLine) =>
@@ -94,7 +129,9 @@ export function LineQueue({
             // Queued lines have no identity beyond their place in the queue.
             <li key={index} className='grid gap-1 rounded-lg border p-2'>
               <div className='flex flex-wrap items-center gap-2 text-sm'>
-                {me === null ? (
+                {line.kind === 'ooc' ? (
+                  <span className='font-medium text-amber-700 dark:text-amber-300'>You, out of game, to the GM</span>
+                ) : me === null ? (
                   <select
                     aria-label='Who speaks'
                     className='h-9 rounded-md border bg-background px-2'
@@ -113,6 +150,20 @@ export function LineQueue({
                 )}
                 {line.kind === 'say' && line.speakerId !== null && (
                   <select
+                    aria-label='How'
+                    className='h-9 rounded-md border bg-background px-2'
+                    value={line.manner ?? 'speak'}
+                    onChange={(event) => change(index, { manner: event.target.value as Manner })}
+                  >
+                    {MANNERS.map((one) => (
+                      <option key={one.value} value={one.value}>
+                        {one.label}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                {line.kind === 'say' && line.speakerId !== null && line.manner !== 'voxcast' && (
+                  <select
                     aria-label='To whom'
                     className='h-9 rounded-md border bg-background px-2'
                     value={line.targetId ?? ''}
@@ -129,7 +180,15 @@ export function LineQueue({
                   </select>
                 )}
                 <span className='ml-auto flex gap-1'>
-                  <Button type='button' variant='ghost' size='icon' className='size-9' aria-label='Move up' disabled={index === 0} onClick={() => move(index, -1)}>
+                  <Button
+                    type='button'
+                    variant='ghost'
+                    size='icon'
+                    className='size-9'
+                    aria-label='Move up'
+                    disabled={index === 0}
+                    onClick={() => move(index, -1)}
+                  >
                     <ArrowUp className='size-4' aria-hidden />
                   </Button>
                   <Button
@@ -155,16 +214,26 @@ export function LineQueue({
                   </Button>
                 </span>
               </div>
-              <div className={cn('flex items-center gap-1', line.kind === 'say' && line.speakerId !== null && 'font-medium')}>
+              <div
+                className={cn('flex items-center gap-1', line.kind === 'say' && line.speakerId !== null && 'font-medium')}
+              >
                 {line.kind === 'say' && line.speakerId !== null && <span aria-hidden>“</span>}
                 {line.kind === 'do' && line.speakerId !== null && (
                   <span className='shrink-0 italic text-muted-foreground'>{speakerName(line)}</span>
                 )}
                 <Input
-                  aria-label={line.kind === 'say' ? 'What is said' : 'What is done'}
+                  aria-label={line.kind === 'say' ? 'What is said' : line.kind === 'ooc' ? 'Out of game' : 'What is done'}
                   className={cn('h-11', line.kind === 'do' && 'italic')}
+                  // An action follows the name mid-sentence ("Tessaly bangs on…"): no capital.
+                  autoCapitalize={line.kind === 'do' && line.speakerId !== null ? 'off' : 'sentences'}
                   placeholder={
-                    line.speakerId === null ? 'What happens' : line.kind === 'say' ? 'Words' : 'bangs on the wall.'
+                    line.kind === 'ooc'
+                      ? 'A question or note for the GM'
+                      : line.speakerId === null
+                        ? 'What happens'
+                        : line.kind === 'say'
+                          ? 'Words'
+                          : 'bangs on the wall.'
                   }
                   value={line.text}
                   // The newest item takes the cursor as it opens.
@@ -187,7 +256,18 @@ export function LineQueue({
         <Button type='button' variant='outline' className='h-11' onClick={() => add('do')}>
           <Sparkles className='size-4' aria-hidden /> Do
         </Button>
-        <Button type='button' className='ml-auto h-11' disabled={disabled || message === ''} onClick={send}>
+        {onOutOfGame !== undefined && (
+          <Button type='button' variant='outline' className='h-11' onClick={() => add('ooc')}>
+            <MessagesSquare className='size-4' aria-hidden /> Out of game
+          </Button>
+        )}
+        {tools}
+        <Button
+          type='button'
+          className='ml-auto h-11'
+          disabled={disabled || (message === '' && outOfGame.length === 0)}
+          onClick={send}
+        >
           <Send className='size-4' aria-hidden /> Send{queue.length > 1 ? ` (${queue.length})` : ''}
         </Button>
       </div>

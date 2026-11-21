@@ -60,9 +60,9 @@ describe('MessageItem', () => {
     expect(reasoning).toBeVisible();
   });
 
-  it('names table talk as such and leaves out the portrait', () => {
+  it('names out of game as such and leaves out the portrait', () => {
     render(<MessageItem message={TABLE_TALK} />);
-    expect(screen.getByRole('article', { name: 'Sam, table talk' })).toBeInTheDocument();
+    expect(screen.getByRole('article', { name: 'Sam, out of game' })).toBeInTheDocument();
     expect(screen.queryByText('S')).not.toBeInTheDocument();
   });
 

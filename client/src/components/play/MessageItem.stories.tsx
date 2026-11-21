@@ -48,7 +48,7 @@ export const AtAFork: Story = { args: { message: USER_LINE } };
 export const TableTalk: Story = {
   args: { message: TABLE_TALK },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByText('Table talk')).toBeInTheDocument();
+    await expect(within(canvasElement).getByText('Out of game')).toBeInTheDocument();
   },
 };
 

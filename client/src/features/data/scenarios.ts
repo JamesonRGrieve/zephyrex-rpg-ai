@@ -124,3 +124,12 @@ export function useScenarios() {
     };
   });
 }
+
+/** A campaign's line in the list: its status line, else its summary's first sentence. */
+export function campaignLine(chat: { summary?: string | null } & Record<string, unknown>): string {
+  const status = typeof chat.status_line === 'string' ? chat.status_line.trim() : '';
+  if (status !== '') return status;
+  const summary = (chat.summary ?? '').trim();
+  const end = summary.search(/[.!?](\s|$)/);
+  return (end < 0 ? summary : summary.slice(0, end + 1)).slice(0, 140);
+}

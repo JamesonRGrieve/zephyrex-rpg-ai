@@ -4,6 +4,7 @@
  * a chat, get a streamed reply, swipe for another, and send table talk that asks for no reply.
  */
 import { expect, type Page, test } from '@playwright/test';
+import { act } from './support/turn';
 import { MODEL_URL } from '../playwright.config';
 import { isHosted, signIn } from './support/people';
 
@@ -39,8 +40,7 @@ test('a first chat: a model, a character, a reply, another reply, and table talk
   await page.getByRole('button', { name: 'Chat', exact: true }).click();
   await expect(page).toHaveURL(/\/play\/[\w-]+$/);
 
-  await page.getByLabel('Your next line').fill('I hand her the spanner.');
-  await page.getByRole('button', { name: 'Send' }).click();
+  await act(page, 'Do', 'hands her the spanner.');
   const reply = page.getByRole('article', { name: 'Ada Vance' }).last();
   await expect(reply).toContainText('Mind the coolant.');
   await expect(reply.locator('em')).toHaveText('looks up');
@@ -48,12 +48,10 @@ test('a first chat: a model, a character, a reply, another reply, and table talk
   await reply.getByRole('button', { name: 'Write another reply' }).click();
   await expect(reply.getByRole('group', { name: 'Reply' })).toContainText('2/2');
 
-  await page.getByRole('radio', { name: 'Table talk' }).click();
-  await page.getByLabel('Table talk').fill('brb');
-  await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.getByRole('article', { name: /table talk/ })).toContainText('brb');
-  // Table talk asks for no reply: the last story message is still Ada's.
-  await expect(page.getByText('Writing…')).toHaveCount(0);
+  // Out of game (table talk and asking the GM, merged): between the player and the GM, apart from
+  // the story.
+  await act(page, 'Out of game', 'brb');
+  await expect(page.getByRole('article', { name: /out of game/ }).first()).toContainText('brb');
 });
 
 test('the landing page leads to the chats, and the app installs: a manifest and an icon @phone', async ({
@@ -80,8 +78,8 @@ test('a script works the chat: a line sent, a reply asked for, the lines read ba
   await expect(page).toHaveURL(/\/play\/[\w-]+$/);
 
   // /send adds the person's line without a reply; /trigger asks for one; /messages reads them back.
-  await page.getByLabel('Your next line').fill('/send I check the gauges. | /trigger | /messages names=off 0 | /echo {{pipe}}');
-  await page.getByRole('button', { name: 'Send' }).click();
+  // Slash commands and scripts are typed as Out of game (A37).
+  await act(page, 'Out of game', '/send I check the gauges. | /trigger | /messages names=off 0 | /echo {{pipe}}');
   await expect(page.getByRole('article', { name: 'Ada Vance' }).last()).toContainText('Mind the coolant.');
   await expect(page.getByText('I check the gauges.').first()).toBeVisible();
   await expect(page.getByRole('status').filter({ hasText: 'I check the gauges.' })).toBeVisible();
@@ -90,11 +88,9 @@ test('a script works the chat: a line sent, a reply asked for, the lines read ba
   const saved = page.waitForResponse(
     (answer) => answer.request().method() === 'PUT' && /\/api\/v1\/chat\/[\w-]+$/.test(new URL(answer.url()).pathname),
   );
-  await page.getByLabel('Your next line').fill('/setvar key=door open');
-  await page.getByRole('button', { name: 'Send' }).click();
+  await act(page, 'Out of game', '/setvar key=door open');
   expect((await saved).ok()).toBe(true);
   await page.reload();
-  await page.getByLabel('Your next line').fill('/getvar door | /echo The door is {{pipe}}');
-  await page.getByRole('button', { name: 'Send' }).click();
+  await act(page, 'Out of game', '/getvar door | /echo The door is {{pipe}}');
   await expect(page.getByRole('status').filter({ hasText: 'The door is open' })).toBeVisible();
 });

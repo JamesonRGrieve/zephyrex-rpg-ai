@@ -78,7 +78,11 @@ async function seat(page: Page, name: string | null): Promise<void> {
     await page.getByRole('button', { name: 'The GM' }).click();
   } else {
     await page.getByLabel('Find a character').fill(name);
-    await page.getByRole('list', { name: 'Seats' }).getByRole('button', { name: new RegExp(name) }).first().click();
+    await page
+      .getByRole('list', { name: 'Seats' })
+      .getByRole('button', { name: new RegExp(name) })
+      .first()
+      .click();
   }
   await expect(page.getByRole('button', { name: `Your seat: ${name ?? 'the GM'}` })).toBeVisible();
 }
@@ -100,7 +104,13 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
     is_default: true,
   });
   if (SUMMARY !== '') {
-    await post(page, 'model_endpoint', { name: 'Summaries', base_url: LIVE, model: SUMMARY, api: 'chat', roles: ['summary'] });
+    await post(page, 'model_endpoint', {
+      name: 'Summaries',
+      base_url: LIVE,
+      model: SUMMARY,
+      api: 'chat',
+      roles: ['summary'],
+    });
   }
 
   // The scenario lives in the wiki: a campaign, its player characters and an NPC.
@@ -112,9 +122,17 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   });
   const person = (name: string, kind: string, description: string) =>
     post(page, 'person', { name, kind, description, campaign_id: campaign.id });
-  await person('The Rogue Trader', 'pc', 'A disgraced scion of a trading dynasty, silver-tongued and armed with a laspistol.');
+  await person(
+    'The Rogue Trader',
+    'pc',
+    'A disgraced scion of a trading dynasty, silver-tongued and armed with a laspistol.',
+  );
   await person('The Acolyte', 'pc', 'A young agent of the Inquisition, sharp-eyed and quietly devout.');
-  await person('Chief Petty Officer Rask', 'npc', 'The brig warden of the Fortune of Varn, gruff, scared and hiding something.');
+  await person(
+    'Chief Petty Officer Rask',
+    'npc',
+    'The brig warden of the Fortune of Varn, gruff, scared and hiding something.',
+  );
 
   // Scenarios: the wiki campaign, grouped under its setting and system; a tap starts a campaign.
   await page.goto('/campaigns');
@@ -126,16 +144,32 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   await expect(page.getByRole('button', { name: 'Your seat: the GM' })).toBeVisible();
   await expect(page.getByText('Session 1')).toBeVisible();
 
-  await say(page, 'GM opens the scene', 'The brig door hisses open. Chief Petty Officer Rask stands there, lasgun shaking: "Up. Both of you."');
+  await say(
+    page,
+    'GM opens the scene',
+    'The brig door hisses open. Chief Petty Officer Rask stands there, lasgun shaking: "Up. Both of you."',
+  );
 
   await seat(page, 'The Rogue Trader');
-  await say(page, 'The Rogue Trader speaks', 'I stand slowly, hands visible. "Easy, Chief. Whatever is happening up there, we can help."');
+  await say(
+    page,
+    'The Rogue Trader speaks',
+    'I stand slowly, hands visible. "Easy, Chief. Whatever is happening up there, we can help."',
+  );
 
   await seat(page, 'Chief Petty Officer Rask');
-  await say(page, 'Rask answers', '"Help? Something is in the vents, eating the crew. The captain is gone." I lower the lasgun an inch.');
+  await say(
+    page,
+    'Rask answers',
+    '"Help? Something is in the vents, eating the crew. The captain is gone." I lower the lasgun an inch.',
+  );
 
   await seat(page, null);
-  await say(page, 'GM starts a fight', 'The vent above them bursts open. A pale, many-limbed thing drops into the brig. Combat begins!');
+  await say(
+    page,
+    'GM starts a fight',
+    'The vent above them bursts open. A pale, many-limbed thing drops into the brig. Combat begins!',
+  );
 
   // A roll from the VTT's dice tray: a formula, rolled on the server, recorded as a roll line.
   await page.getByRole('button', { name: 'Context', exact: true }).click();

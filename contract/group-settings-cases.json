@@ -43,7 +43,7 @@
       "value": {
         "order": "random"
       },
-      "problem": "order is natural, list, pooled"
+      "problem": "order is decide, natural, list, pooled"
     },
     {
       "name": "allow_self",

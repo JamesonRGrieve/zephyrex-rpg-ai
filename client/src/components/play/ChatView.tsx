@@ -126,7 +126,9 @@ import { SheetPanel } from './SheetPanel';
 import { ContextPanel } from './ContextPanel';
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
-import { narrateSegments } from '~/features/chat/voiceGuard';
+import { completeText, metaBreak, narrateSegments } from '~/features/chat/voiceGuard';
+import { mapStep, worldTick } from '~/features/chat/mapStep';
+import { mutate as globalMutate } from 'swr';
 import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -389,7 +391,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setPicked(null);
     if (speakerId === null) return null;
     setWritingAfter({ parentId, speakerId });
-    const result = await timedWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
+    const result = await storyWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return null;
     const saved = await create({
@@ -786,6 +788,53 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const { value, seconds } = await timed(() => reply.write(request));
     return value === null ? null : { ...value, seconds };
   };
+  /**
+   * A story reply, kept whole and in character (the operator, 2026-11-21): a reply that steps out of
+   * the story ("I apologize… let me continue") is written once more with that span forbidden, and every
+   * reply is cut back to its last complete sentence, so a cut-off never reaches the story.
+   */
+  const streamText = reply.state.status === 'writing' ? reply.state.text : '';
+  const streamParts = (() => {
+    if (writingAfter?.speakerId !== NARRATOR_TURN || streamText === '')
+      return [{ speaker_id: null as string | null, text: streamText }];
+    const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
+    const castList = chat.character_ids.flatMap((id) => {
+      const member = castById.get(id);
+      return member === undefined || id === play.playingId ? [] : [{ id, name: member.name, line: member.folder }];
+    });
+    const parts = narrateSegments(streamText, castList, seatName).filter((part) => part.text.trim() !== '');
+    return parts.length === 0 ? [{ speaker_id: null, text: streamText }] : parts;
+  })();
+  /**
+   * After the narrator's turn the map follows the story, and every 6 rounds the world ticks
+   * (docs/DESIGN.md, The world moves): both through the server, both quiet when nothing changed.
+   */
+  const rounds = useRef(0);
+  const followOnMap = async (leaf: string) => {
+    const change = await mapStep(chat.id, leaf);
+    rounds.current += 1;
+    const arrivals = rounds.current % 6 === 0 ? await worldTick(chat.id, leaf, 10, 'rounds') : [];
+    if (change === null && arrivals.length === 0) return;
+    // The map and the Context panel read the scene and its tokens: read them again.
+    void globalMutate((key) => typeof key === 'string' && /scene|token/.test(key));
+    const said = [
+      change?.scene == null ? null : `Scene: ${change.scene}`,
+      ...(change?.moved ?? []),
+      ...arrivals.map((name) => `${name} arrives`),
+    ].filter((line): line is string => line !== null);
+    notify('The map moved', said.join(' · '));
+  };
+  const storyWrite = async (request: Parameters<typeof reply.write>[0]) => {
+    let result = await timedWrite(request);
+    if (result === null) return null;
+    const broke = metaBreak(result.text);
+    if (broke !== null) {
+      const again = await timedWrite({ ...request, forbid: { names: [], span: broke.span } });
+      if (again !== null) result = again;
+    }
+    const whole = completeText(result.text);
+    return whole.trim() === '' ? null : { ...result, text: whole };
+  };
   const noteCost = (id: string, written: { text: string; seconds: number }) =>
     setReplyCost((current) => new Map(current).set(id, replyStats(written.text, written.seconds)));
 
@@ -801,7 +850,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   /** The GM's narration after `parentId`, kept as a narrator turn; null when nothing was written. */
   const narrateAfter = async (parentId: string | null): Promise<ChatMessage | null> => {
     setWritingAfter({ parentId, speakerId: NARRATOR_TURN });
-    const result = await timedWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: null, mode: 'narrate' });
+    const result = await storyWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: null, mode: 'narrate' });
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return null;
     // The narrator may give other characters a moment in their own voice, as interludes (the
@@ -828,11 +877,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       if (settings.readAloud) readAloud(part.speaker_id, line.swipes[0] ?? '');
       if (index === 0) noteCost(line.id, result);
       autoTranslate(line.id, line.swipes[0] ?? '');
-      noteCanon(line.id, splitReasoning(line.swipes[0] ?? '').reply, part.speaker_id === null ? 'The GM' : (castById.get(part.speaker_id)?.name ?? 'A character'));
+      noteCanon(
+        line.id,
+        splitReasoning(line.swipes[0] ?? '').reply,
+        part.speaker_id === null ? 'The GM' : (castById.get(part.speaker_id)?.name ?? 'A character'),
+      );
       parent = line.id;
       saved = line;
     }
-    if (saved !== null) setLeafId(saved.id);
+    if (saved !== null) {
+      setLeafId(saved.id);
+      if (play.isCampaign) void followOnMap(saved.id);
+    }
     return saved;
   };
 
@@ -867,7 +923,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           notify('The roll was not made', error instanceof Error ? error.message : undefined);
           return true;
         }
-        const rolled = await create({ chat_id: chat.id, parent_id: line.id, role: 'system', channel: 'roll', swipes: [text] });
+        const rolled = await create({
+          chat_id: chat.id,
+          parent_id: line.id,
+          role: 'system',
+          channel: 'roll',
+          swipes: [text],
+        });
         setLeafId(rolled.id);
         current = [...current, rolled];
         const told = await narrateAfter(rolled.id);
@@ -1210,665 +1272,702 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               )
       }
     >
-    <div
-      // The window's height less the bar (3rem) and AppPage's padding (2.5rem): no scroll on a short chat.
-      className='flex min-h-[calc(100svh-5.5rem)] flex-col bg-cover bg-fixed bg-center'
-      // The chat's picture (A31) sits behind; the header and messages keep a solid background so
-      // text never depends on the picture for contrast.
-      style={background === null ? undefined : { backgroundImage: `url(${JSON.stringify(background)})` }}
-    >
       <div
-        className={cn(
-          // It wraps: when the buttons need the room, they take a second row rather than covering the title.
-          'mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-3 py-2',
-          background !== null && 'rounded-b-xl bg-background',
-        )}
+        // The window's height less the bar (3rem) and AppPage's padding (2.5rem): no scroll on a short chat.
+        className='flex min-h-[calc(100svh-5.5rem)] flex-col bg-cover bg-fixed bg-center'
+        // The chat's picture (A31) sits behind; the header and messages keep a solid background so
+        // text never depends on the picture for contrast.
+        style={background === null ? undefined : { backgroundImage: `url(${JSON.stringify(background)})` }}
       >
-        {campaign?.resolution_mode != null && (
-          // The mode in force, always in view (A66).
-          <Badge variant='outline' className='shrink-0' title={`${campaign.name}: ${MODE_HINTS[campaign.resolution_mode]}`}>
-            {MODE_LABELS[campaign.resolution_mode]}
-          </Badge>
-        )}
-        {/* Who is in it and what it's called, so the page says which chat this is (the audit found only
+        <div
+          className={cn(
+            // It wraps: when the buttons need the room, they take a second row rather than covering the title.
+            // Sticky under the app bar (3rem): Context and Map stay in reach however long the story
+            // gets (the operator, 2026-11-21: "I still don't have any right context menu at all").
+            'sticky top-12 z-20 mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 bg-background/95 px-3 py-2 backdrop-blur',
+            background !== null && 'rounded-b-xl',
+          )}
+        >
+          {campaign?.resolution_mode != null && (
+            // The mode in force, always in view (A66).
+            <Badge
+              variant='outline'
+              className='shrink-0'
+              title={`${campaign.name}: ${MODE_HINTS[campaign.resolution_mode]}`}
+            >
+              {MODE_LABELS[campaign.resolution_mode]}
+            </Badge>
+          )}
+          {/* Who is in it and what it's called, so the page says which chat this is (the audit found only
             the avatars, with the title nowhere). The page's h1 stays "Chat" for the outline. */}
-        <div className='flex min-w-0 flex-1 basis-48 items-center gap-2 overflow-hidden'>
-          {/* At most four faces, then "+n": a full party never spills over the top bar's buttons. */}
-          <ul className='flex shrink-0 -space-x-2' aria-label='In this chat'>
-            {chat.character_ids.slice(0, MAX_FACES).map((id) => {
-              const character = castById.get(id);
-              return (
-                <li key={id}>
-                  <Avatar className='size-9 border-2 border-background'>
-                    {character?.avatar !== undefined && character.avatar !== null && (
-                      <AvatarImage src={character.avatar} alt='' />
-                    )}
-                    <AvatarFallback>{initials(character?.name ?? '?')}</AvatarFallback>
-                  </Avatar>
-                  <span className='sr-only'>{character?.name ?? 'A character'}</span>
-                </li>
-              );
-            })}
-            {chat.character_ids.length > MAX_FACES && (
-              <li className='flex size-9 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium'>
-                <span aria-hidden>+{chat.character_ids.length - MAX_FACES}</span>
-                <span className='sr-only'>
-                  {chat.character_ids
-                    .slice(MAX_FACES)
-                    .map((id) => castById.get(id)?.name ?? 'A character')
-                    .join(', ')}
-                </span>
-              </li>
-            )}
-          </ul>
-          <p className='min-w-0 truncate font-medium' title={chat.title}>
-            {chat.title}
-            {play.current !== null && (
-              <span className='ml-2 text-xs font-normal text-muted-foreground'>{sessionName(play.current)}</span>
-            )}
-          </p>
-        </div>
-        {/* Wraps inside the screen on a phone: never wider than the bar (the audit's 780 px phone). */}
-        <div className='flex max-w-full min-w-0 flex-wrap justify-end gap-1'>
-          {play.isCampaign && (
-            // The seat hot-swaps at any time: the GM or any character (docs/DESIGN.md, The play model).
-            <SeatPicker
-              seat={play.playingId}
-              party={chat.character_ids.flatMap((id) => {
+          <div className='flex min-w-0 flex-1 basis-48 items-center gap-2 overflow-hidden'>
+            {/* At most four faces, then "+n": a full party never spills over the top bar's buttons. */}
+            <ul className='flex shrink-0 -space-x-2' aria-label='In this chat'>
+              {chat.character_ids.slice(0, MAX_FACES).map((id) => {
                 const character = castById.get(id);
-                return character === undefined
-                  ? []
-                  : [
-                      {
-                        id,
-                        name: character.name,
-                        avatar: character.avatar,
-                        pc: character.tags.includes(PARTY_TAG),
-                        line: character.folder,
-                      },
-                    ];
+                return (
+                  <li key={id}>
+                    <Avatar className='size-9 border-2 border-background'>
+                      {character?.avatar !== undefined && character.avatar !== null && (
+                        <AvatarImage src={character.avatar} alt='' />
+                      )}
+                      <AvatarFallback>{initials(character?.name ?? '?')}</AvatarFallback>
+                    </Avatar>
+                    <span className='sr-only'>{character?.name ?? 'A character'}</span>
+                  </li>
+                );
               })}
-              everyone={(cast.data ?? []).map((character) => ({
-                id: character.id,
-                name: character.name,
-                avatar: character.avatar,
-                pc: character.tags.includes(PARTY_TAG),
-                line: character.folder,
-              }))}
-              onChange={(next) => {
-                setSeatSaving(true);
-                void play
-                  .setSeat(next, (id) => castById.get(id)?.tags.includes(PARTY_TAG) ?? false)
-                  .catch((error: unknown) =>
-                    notify('The seat was not changed', error instanceof Error ? error.message : undefined),
-                  )
-                  .finally(() => setSeatSaving(false));
-              }}
-            />
-          )}
-          {play.isCampaign && (
-            // Chat and map swap in one tap (the operator, 2026-11-21), from both views.
-            <Button
-              type='button'
-              variant='ghost'
-              className='h-11 max-sm:w-11 max-sm:px-0'
-              aria-pressed={view === 'map'}
-              aria-label={view === 'map' ? 'Back to the chat' : 'Show the map'}
-              onClick={() => setView(view === 'map' ? 'chat' : 'map')}
-            >
-              {view === 'map' ? <MessagesSquare aria-hidden className='size-4' /> : <MapIcon aria-hidden className='size-4' />}
-              <span className='max-sm:sr-only'>{view === 'map' ? 'Chat' : 'Map'}</span>
-            </Button>
-          )}
-          {play.isCampaign && (
-            // Every piece of context lives in the right-hand panel (the operator, 2026-11-21).
-            <Button
-              type='button'
-              variant='ghost'
-              className='h-11 max-sm:w-11 max-sm:px-0'
-              aria-label='Context'
-              onClick={() => setContextOpen(true)}
-            >
-              <PanelRight aria-hidden className='size-4' />
-              <span className='max-sm:sr-only'>Context</span>
-            </Button>
-          )}
-          <Button
-            type='button'
-            variant={chat.paused ? 'default' : 'ghost'}
-            className='h-11 max-sm:w-11 max-sm:px-0'
-            aria-pressed={chat.paused}
-            onClick={() =>
-              void updateChat(chat, { paused: !chat.paused }).then(() =>
-                notify(
-                  chat.paused ? 'Resumed' : 'Paused',
-                  chat.paused ? undefined : 'No story turns until you resume. The GM still answers.',
-                ),
-              )
-            }
-          >
-            {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />}
-            <span className='max-sm:sr-only'>{chat.paused ? 'Resume' : 'Pause'}</span>
-          </Button>
-          <Button
-            type='button'
-            variant='outline'
-            className='h-11 max-sm:w-11 max-sm:px-0'
-            onClick={() => void xCardLatest()}
-            aria-label='X-card the latest reply'
-          >
-            <X aria-hidden /> <span className='max-sm:sr-only'>X-card</span>
-          </Button>
-          {running !== undefined && (
-            <Button
-              type='button'
-              variant='ghost'
-              className='h-11 max-sm:w-11 max-sm:px-0'
-              onClick={() => setScenarioOpen(true)}
-            >
-              <Clock3 aria-hidden /> <span className='max-sm:sr-only'>Scenario</span>
-            </Button>
-          )}
-          <Button
-            type='button'
-            variant='ghost'
-            className='h-11 max-sm:w-11 max-sm:px-0'
-            aria-label='Inspect the prompt'
-            onClick={() => void openInspector()}
-          >
-            <ScanText aria-hidden /> <span className='max-sm:sr-only'>Prompt</span>
-          </Button>
-          <Button
-            type='button'
-            variant='ghost'
-            className='h-11 max-sm:w-11 max-sm:px-0'
-            onClick={() => setSettingsOpen(true)}
-          >
-            <Settings2 aria-hidden /> <span className='max-sm:sr-only'>Chat settings</span>
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button type='button' variant='ghost' size='icon' className='size-11' aria-label='More for this chat'>
-                <Ellipsis aria-hidden />
+              {chat.character_ids.length > MAX_FACES && (
+                <li className='flex size-9 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium'>
+                  <span aria-hidden>+{chat.character_ids.length - MAX_FACES}</span>
+                  <span className='sr-only'>
+                    {chat.character_ids
+                      .slice(MAX_FACES)
+                      .map((id) => castById.get(id)?.name ?? 'A character')
+                      .join(', ')}
+                  </span>
+                </li>
+              )}
+            </ul>
+            <p className='min-w-0 truncate font-medium' title={chat.title}>
+              {chat.title}
+              {play.current !== null && (
+                <span className='ml-2 text-xs font-normal text-muted-foreground'>{sessionName(play.current)}</span>
+              )}
+            </p>
+          </div>
+          {/* Wraps inside the screen on a phone: never wider than the bar (the audit's 780 px phone). */}
+          <div className='flex max-w-full min-w-0 flex-wrap justify-end gap-1'>
+            {play.isCampaign && (
+              // The seat hot-swaps at any time: the GM or any character (docs/DESIGN.md, The play model).
+              <SeatPicker
+                seat={play.playingId}
+                party={chat.character_ids.flatMap((id) => {
+                  const character = castById.get(id);
+                  return character === undefined
+                    ? []
+                    : [
+                        {
+                          id,
+                          name: character.name,
+                          avatar: character.avatar,
+                          pc: character.tags.includes(PARTY_TAG),
+                          line: character.folder,
+                        },
+                      ];
+                })}
+                everyone={(cast.data ?? []).map((character) => ({
+                  id: character.id,
+                  name: character.name,
+                  avatar: character.avatar,
+                  pc: character.tags.includes(PARTY_TAG),
+                  line: character.folder,
+                }))}
+                onChange={(next) => {
+                  setSeatSaving(true);
+                  void play
+                    .setSeat(next, (id) => castById.get(id)?.tags.includes(PARTY_TAG) ?? false)
+                    .catch((error: unknown) =>
+                      notify('The seat was not changed', error instanceof Error ? error.message : undefined),
+                    )
+                    .finally(() => setSeatSaving(false));
+                }}
+              />
+            )}
+            {play.isCampaign && (
+              // Chat and map swap in one tap (the operator, 2026-11-21), from both views.
+              <Button
+                type='button'
+                variant='ghost'
+                className='h-11 max-sm:w-11 max-sm:px-0'
+                aria-pressed={view === 'map'}
+                aria-label={view === 'map' ? 'Back to the chat' : 'Show the map'}
+                onClick={() => setView(view === 'map' ? 'chat' : 'map')}
+              >
+                {view === 'map' ? (
+                  <MessagesSquare aria-hidden className='size-4' />
+                ) : (
+                  <MapIcon aria-hidden className='size-4' />
+                )}
+                <span className='max-sm:sr-only'>{view === 'map' ? 'Chat' : 'Map'}</span>
               </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align='end'>
-              <DropdownMenuItem disabled={drawing || chat.character_ids.length === 0} onSelect={() => void drawScene()}>
-                <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setNamesOpen(true)}>
-                <BookOpen aria-hidden /> Names without lore
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
-                <GitFork aria-hidden /> Every branch
-              </DropdownMenuItem>
-              {play.isCampaign ? (
-                // A save point: the session's summary, then the next session (and A24's report into the wiki).
-                <DropdownMenuItem
-                  disabled={play.ending || endSession.ending}
-                  onSelect={() =>
-                    void play.endSession(branch.at(-1) ?? null).then((marker) => {
-                      if (marker !== null) setLeafId(marker);
-                      if (endSession.available) void endSession.end();
+            )}
+            {play.isCampaign && (
+              // Every piece of context lives in the right-hand panel (the operator, 2026-11-21).
+              <Button
+                type='button'
+                variant='ghost'
+                className='h-11 max-sm:w-11 max-sm:px-0'
+                aria-label='Context'
+                onClick={() => setContextOpen(true)}
+              >
+                <PanelRight aria-hidden className='size-4' />
+                <span className='max-sm:sr-only'>Context</span>
+              </Button>
+            )}
+            <Button
+              type='button'
+              variant={chat.paused ? 'default' : 'ghost'}
+              className='h-11 max-sm:w-11 max-sm:px-0'
+              aria-pressed={chat.paused}
+              onClick={() =>
+                void updateChat(chat, { paused: !chat.paused }).then(() =>
+                  notify(
+                    chat.paused ? 'Resumed' : 'Paused',
+                    chat.paused ? undefined : 'No story turns until you resume. The GM still answers.',
+                  ),
+                )
+              }
+            >
+              {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />}
+              <span className='max-sm:sr-only'>{chat.paused ? 'Resume' : 'Pause'}</span>
+            </Button>
+            <Button
+              type='button'
+              variant='outline'
+              className='h-11 max-sm:w-11 max-sm:px-0'
+              onClick={() => void xCardLatest()}
+              aria-label='X-card the latest reply'
+            >
+              <X aria-hidden /> <span className='max-sm:sr-only'>X-card</span>
+            </Button>
+            {running !== undefined && (
+              <Button
+                type='button'
+                variant='ghost'
+                className='h-11 max-sm:w-11 max-sm:px-0'
+                onClick={() => setScenarioOpen(true)}
+              >
+                <Clock3 aria-hidden /> <span className='max-sm:sr-only'>Scenario</span>
+              </Button>
+            )}
+            <Button
+              type='button'
+              variant='ghost'
+              className='h-11 max-sm:w-11 max-sm:px-0'
+              aria-label='Inspect the prompt'
+              onClick={() => void openInspector()}
+            >
+              <ScanText aria-hidden /> <span className='max-sm:sr-only'>Prompt</span>
+            </Button>
+            <Button
+              type='button'
+              variant='ghost'
+              className='h-11 max-sm:w-11 max-sm:px-0'
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Settings2 aria-hidden /> <span className='max-sm:sr-only'>Chat settings</span>
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button type='button' variant='ghost' size='icon' className='size-11' aria-label='More for this chat'>
+                  <Ellipsis aria-hidden />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align='end'>
+                <DropdownMenuItem disabled={drawing || chat.character_ids.length === 0} onSelect={() => void drawScene()}>
+                  <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setNamesOpen(true)}>
+                  <BookOpen aria-hidden /> Names without lore
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
+                  <GitFork aria-hidden /> Every branch
+                </DropdownMenuItem>
+                {play.isCampaign ? (
+                  // A save point: the session's summary, then the next session (and A24's report into the wiki).
+                  <DropdownMenuItem
+                    disabled={play.ending || endSession.ending}
+                    onSelect={() =>
+                      void play.endSession(branch.at(-1) ?? null).then((marker) => {
+                        if (marker !== null) setLeafId(marker);
+                        if (endSession.available) void endSession.end();
+                      })
+                    }
+                  >
+                    <Flag aria-hidden /> {play.ending ? 'Ending the session…' : 'End session'}
+                  </DropdownMenuItem>
+                ) : (
+                  endSession.available && (
+                    // A24: the session's report into the linked wiki campaign's log.
+                    <DropdownMenuItem disabled={endSession.ending} onSelect={() => void endSession.end()}>
+                      <Flag aria-hidden /> {endSession.ending ? 'Writing the session report…' : 'End session'}
+                    </DropdownMenuItem>
+                  )
+                )}
+                <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
+                  <Download aria-hidden /> Export for SillyTavern
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void exportBranch('text')}>
+                  <Download aria-hidden /> Export as text
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void exportBranch('epub')}>
+                  <BookOpen aria-hidden /> Export as a book (EPUB)
+                </DropdownMenuItem>
+                <DropdownMenuItem onSelect={() => void exportBranch('epub', true)}>
+                  <BookOpen aria-hidden /> Export as an illustrated book
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </div>
+        {endSession.problem !== null && (
+          <p role='alert' className='mx-auto w-full max-w-3xl px-3 pb-3 text-sm text-destructive'>
+            {endSession.problem}
+          </p>
+        )}
+        {!recapHidden && (
+          // "Previously…" (AP2): the rolling summary at the top when the session starts.
+          <div className='mx-auto w-full max-w-3xl px-3 pb-3'>
+            <Recap
+              summary={chat.summary}
+              onRead={canSpeak ? () => readAloud(null, chat.summary) : undefined}
+              onHide={() => setRecapHidden(true)}
+            />
+          </div>
+        )}
+        {view === 'map' && <MapView campaignId={chat.campaign_id ?? null} />}
+        <ol
+          className={cn(
+            'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
+            view === 'map' && 'hidden',
+            TEXT_SIZE_CLASS[settings.textSize],
+            settings.chatLayout === 'document' && 'gap-3 font-serif',
+            background !== null && 'bg-background pt-3',
+          )}
+          aria-label='Chat'
+          aria-live='polite'
+        >
+          {list.data === undefined && <SkeletonRows rows={4} avatar />}
+          {list.data !== undefined && views.length === 0 && writingAfter === null && !hidden.pending && (
+            <li className='rounded-xl border border-dashed p-6 text-center text-muted-foreground'>
+              Say something to begin.
+            </li>
+          )}
+          {views.map((view) => {
+            const message = byId(view.id);
+            if (message === undefined) return null;
+            // Display-only regex scripts (A33) change how a message looks here, never what is saved.
+            const placement: RegexPlacement | null =
+              message.role === 'user' ? 'user_input' : message.role === 'character' ? 'ai_output' : null;
+            const depth = branch.length - 1 - branch.findIndex((one) => one.id === message.id);
+            const regexed =
+              placement === null ? view : { ...view, text: applyRegex(view.text, scripts, placement, 'display', depth) };
+            // A note the table GM proposes (A11) is shown apart, for a player to add; the answer without it.
+            const proposal = message.channel === 'gm' && message.role === 'narrator' ? proposedNote(regexed.text) : null;
+            const shown = proposal === null ? regexed : { ...regexed, text: proposal.rest };
+            return (
+              <li key={view.id}>
+                <MessageItem
+                  layout={settings.chatLayout}
+                  names={[...castNames.values()]}
+                  message={shown}
+                  cost={replyCost.get(message.id)}
+                  proposal={
+                    proposal === null
+                      ? undefined
+                      : {
+                          label: TABLE.note_labels[proposal.note.kind],
+                          text: proposal.note.text,
+                          added: hasNote(chat.table_notes, proposal.note),
+                          onAdd: () => void addNote(proposal.note),
+                        }
+                  }
+                  onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
+                  onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
+                  onRegenerateWith={
+                    message.role === 'character' && !writing && modelList.length > 1
+                      ? {
+                          models: modelList.map((one) => ({ id: one.id, name: one.name })),
+                          run: (endpointId) => void regenerate(message, endpointId),
+                        }
+                      : undefined
+                  }
+                  onFork={(step) => fork(message, step)}
+                  onEdit={(text) =>
+                    void update(message, {
+                      swipes: message.swipes.map((old, index) => (index === message.swipe_index ? text : old)),
                     })
                   }
-                >
-                  <Flag aria-hidden /> {play.ending ? 'Ending the session…' : 'End session'}
-                </DropdownMenuItem>
-              ) : (
-                endSession.available && (
-                  // A24: the session's report into the linked wiki campaign's log.
-                  <DropdownMenuItem disabled={endSession.ending} onSelect={() => void endSession.end()}>
-                    <Flag aria-hidden /> {endSession.ending ? 'Writing the session report…' : 'End session'}
-                  </DropdownMenuItem>
-                )
-              )}
-              <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
-                <Download aria-hidden /> Export for SillyTavern
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportBranch('text')}>
-                <Download aria-hidden /> Export as text
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportBranch('epub')}>
-                <BookOpen aria-hidden /> Export as a book (EPUB)
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => void exportBranch('epub', true)}>
-                <BookOpen aria-hidden /> Export as an illustrated book
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      </div>
-      {endSession.problem !== null && (
-        <p role='alert' className='mx-auto w-full max-w-3xl px-3 pb-3 text-sm text-destructive'>
-          {endSession.problem}
-        </p>
-      )}
-      {!recapHidden && (
-        // "Previously…" (AP2): the rolling summary at the top when the session starts.
-        <div className='mx-auto w-full max-w-3xl px-3 pb-3'>
-          <Recap
-            summary={chat.summary}
-            onRead={canSpeak ? () => readAloud(null, chat.summary) : undefined}
-            onHide={() => setRecapHidden(true)}
-          />
-        </div>
-      )}
-      {view === 'map' && <MapView campaignId={chat.campaign_id ?? null} />}
-      <ol
-        className={cn(
-          'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
-          view === 'map' && 'hidden',
-          TEXT_SIZE_CLASS[settings.textSize],
-          settings.chatLayout === 'document' && 'gap-3 font-serif',
-          background !== null && 'bg-background pt-3',
-        )}
-        aria-label='Chat'
-        aria-live='polite'
-      >
-        {list.data === undefined && <SkeletonRows rows={4} avatar />}
-        {list.data !== undefined && views.length === 0 && writingAfter === null && !hidden.pending && (
-          <li className='rounded-xl border border-dashed p-6 text-center text-muted-foreground'>Say something to begin.</li>
-        )}
-        {views.map((view) => {
-          const message = byId(view.id);
-          if (message === undefined) return null;
-          // Display-only regex scripts (A33) change how a message looks here, never what is saved.
-          const placement: RegexPlacement | null =
-            message.role === 'user' ? 'user_input' : message.role === 'character' ? 'ai_output' : null;
-          const depth = branch.length - 1 - branch.findIndex((one) => one.id === message.id);
-          const regexed =
-            placement === null ? view : { ...view, text: applyRegex(view.text, scripts, placement, 'display', depth) };
-          // A note the table GM proposes (A11) is shown apart, for a player to add; the answer without it.
-          const proposal = message.channel === 'gm' && message.role === 'narrator' ? proposedNote(regexed.text) : null;
-          const shown = proposal === null ? regexed : { ...regexed, text: proposal.rest };
-          return (
-            <li key={view.id}>
-              <MessageItem
-                layout={settings.chatLayout}
-                message={shown}
-                cost={replyCost.get(message.id)}
-                proposal={
-                  proposal === null
-                    ? undefined
-                    : {
-                        label: TABLE.note_labels[proposal.note.kind],
-                        text: proposal.note.text,
-                        added: hasNote(chat.table_notes, proposal.note),
-                        onAdd: () => void addNote(proposal.note),
-                      }
-                }
-                onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
-                onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
-                onRegenerateWith={
-                  message.role === 'character' && !writing && modelList.length > 1
-                    ? {
-                        models: modelList.map((one) => ({ id: one.id, name: one.name })),
-                        run: (endpointId) => void regenerate(message, endpointId),
-                      }
-                    : undefined
-                }
-                onFork={(step) => fork(message, step)}
-                onEdit={(text) =>
-                  void update(message, {
-                    swipes: message.swipes.map((old, index) => (index === message.swipe_index ? text : old)),
-                  })
-                }
-                onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
-                onMoveUp={
-                  message.parent_id !== null && onlyReply(message.parent_id) !== undefined && !writing
-                    ? () => void moveUp(message)
-                    : undefined
-                }
-                onMoveDown={(() => {
-                  const below = onlyReply(message.id);
-                  return below !== undefined && !writing ? () => void moveUp(below) : undefined;
-                })()}
-                onBranch={() => {
-                  setLeafId(message.id);
-                  notify(
-                    play.isCampaign ? 'Rewound to here' : 'Branching from here',
+                  onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
+                  onMoveUp={
+                    message.parent_id !== null && onlyReply(message.parent_id) !== undefined && !writing
+                      ? () => void moveUp(message)
+                      : undefined
+                  }
+                  onMoveDown={(() => {
+                    const below = onlyReply(message.id);
+                    return below !== undefined && !writing ? () => void moveUp(below) : undefined;
+                  })()}
+                  onBranch={() => {
+                    setLeafId(message.id);
+                    notify(
+                      play.isCampaign ? 'Rewound to here' : 'Branching from here',
+                      play.isCampaign
+                        ? 'The story goes on from this line; what came after stays as a branch.'
+                        : 'Your next message starts a new branch.',
+                    );
+                  }}
+                  branchLabel={play.isCampaign ? 'Rewind to here' : undefined}
+                  onForkCampaign={
                     play.isCampaign
-                      ? 'The story goes on from this line; what came after stays as a branch.'
-                      : 'Your next message starts a new branch.',
-                  );
-                }}
-                branchLabel={play.isCampaign ? 'Rewind to here' : undefined}
-                onForkCampaign={
-                  play.isCampaign
-                    ? () =>
-                        void play
-                          .fork(message, branch)
-                          .then((id) => {
-                            if (id !== null) {
-                              notify('Forked', 'A new campaign goes on from that line.');
-                              router.push(`/play/${id}`);
-                            }
-                          })
-                          .catch((error: unknown) =>
-                            notify('The campaign was not forked', error instanceof Error ? error.message : String(error)),
-                          )
-                    : undefined
-                }
-                onDelete={() => deleteMessage(message)}
-                onXCard={() => void update(message, { x_carded: !message.x_carded })}
-                onHide={() => void update(message, { hidden: !message.hidden })}
-                onContinue={
-                  message.role === 'character' && message.id === leaf && !writing
-                    ? () => void continueMessage(message)
-                    : undefined
-                }
-                onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
-                onTranslate={
-                  chat.character_ids.length > 0
-                    ? { label: `Translate into ${language}`, run: () => void translateMessage(message.id, shown.text) }
-                    : undefined
-                }
-                translation={translationOf(message.id)}
-                canon={canonNotices.get(message.id)}
-              />
-            </li>
-          );
-        })}
-        {writingAfter !== null && (
-          <li>
-            <MessageItem
-              layout={settings.chatLayout}
-              writing
-              message={{
-                id: 'writing',
-                role: writingAfter?.speakerId === NARRATOR_TURN ? 'narrator' : 'character',
-                channel: 'ic',
-                speaker: pending?.name ?? (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
-                avatar: pending?.avatar ?? null,
-                text: reply.state.status === 'writing' ? reply.state.text : '',
-                swipe: { index: 0, count: 1 },
-                fork: { index: 0, count: 1 },
-                bookmarked: false,
-                images: [],
-              }}
-            />
-          </li>
-        )}
-      </ol>
-      <div ref={end} />
-      {asking !== null && (
-        <ScriptPrompt
-          prompt={asking.prompt}
-          options={asking.options}
-          onAnswer={(answer) => {
-            asking.resolve(answer);
-            setAsking(null);
-          }}
-        />
-      )}
-      {staged !== undefined && settings.showExpressions && (
-        // The stage (A4): the latest speaker, as their line feels.
-        <figure className='mx-auto flex w-full max-w-3xl items-end justify-center px-3'>
-          <TalkingSprite
-            image={staged.image}
-            talkingImage={
-              sprites.find((sprite) => sprite.character_id === staged.character_id && sprite.label === TALKING_LABEL)
-                ?.image ?? null
-            }
-            speaking={speaking === staged.character_id}
-            alt={`${castById.get(staged.character_id)?.name ?? 'The speaker'}, ${staged.label}`}
+                      ? () =>
+                          void play
+                            .fork(message, branch)
+                            .then((id) => {
+                              if (id !== null) {
+                                notify('Forked', 'A new campaign goes on from that line.');
+                                router.push(`/play/${id}`);
+                              }
+                            })
+                            .catch((error: unknown) =>
+                              notify('The campaign was not forked', error instanceof Error ? error.message : String(error)),
+                            )
+                      : undefined
+                  }
+                  onDelete={() => deleteMessage(message)}
+                  onXCard={() => void update(message, { x_carded: !message.x_carded })}
+                  onHide={() => void update(message, { hidden: !message.hidden })}
+                  onContinue={
+                    message.role === 'character' && message.id === leaf && !writing
+                      ? () => void continueMessage(message)
+                      : undefined
+                  }
+                  onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
+                  onTranslate={
+                    chat.character_ids.length > 0
+                      ? { label: `Translate into ${language}`, run: () => void translateMessage(message.id, shown.text) }
+                      : undefined
+                  }
+                  translation={translationOf(message.id)}
+                  canon={canonNotices.get(message.id)}
+                />
+              </li>
+            );
+          })}
+          {writingAfter !== null && (
+            // The narrator's stream splits as it comes (the operator, 2026-11-21: "As soon as the model
+            // types the character's name it should transition to them typing"): each part shows under
+            // whoever it belongs to, the last one writing.
+            <>
+              {streamParts.map((part, index) => {
+                const member = part.speaker_id === null ? null : castById.get(part.speaker_id);
+                const last = index === streamParts.length - 1;
+                return (
+                  // Stream parts have no identity beyond their place in the stream.
+                  <li key={index}>
+                    <MessageItem
+                      layout={settings.chatLayout}
+                      names={[...castNames.values()]}
+                      writing={last}
+                      message={{
+                        id: `writing-${index}`,
+                        role:
+                          member == null
+                            ? writingAfter?.speakerId === NARRATOR_TURN
+                              ? 'narrator'
+                              : 'character'
+                            : 'character',
+                        channel: 'ic',
+                        speaker:
+                          member?.name ?? pending?.name ?? (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
+                        avatar: member?.avatar ?? (member == null ? (pending?.avatar ?? null) : null),
+                        text: part.text,
+                        swipe: { index: 0, count: 1 },
+                        fork: { index: 0, count: 1 },
+                        bookmarked: false,
+                        images: [],
+                      }}
+                    />
+                  </li>
+                );
+              })}
+            </>
+          )}
+        </ol>
+        <div ref={end} />
+        {asking !== null && (
+          <ScriptPrompt
+            prompt={asking.prompt}
+            options={asking.options}
+            onAnswer={(answer) => {
+              asking.resolve(answer);
+              setAsking(null);
+            }}
           />
-        </figure>
-      )}
-      {/* The decision model picks who speaks (the operator, 2026-11-21: the turn bar is obsolete); the
+        )}
+        {staged !== undefined && settings.showExpressions && (
+          // The stage (A4): the latest speaker, as their line feels.
+          <figure className='mx-auto flex w-full max-w-3xl items-end justify-center px-3'>
+            <TalkingSprite
+              image={staged.image}
+              talkingImage={
+                sprites.find((sprite) => sprite.character_id === staged.character_id && sprite.label === TALKING_LABEL)
+                  ?.image ?? null
+              }
+              speaking={speaking === staged.character_id}
+              alt={`${castById.get(staged.character_id)?.name ?? 'The speaker'}, ${staged.label}`}
+            />
+          </figure>
+        )}
+        {/* The decision model picks who speaks (the operator, 2026-11-21: the turn bar is obsolete); the
           bar stays only for the manual orders chosen in the chat's settings. */}
-      {chat.character_ids.length > 1 && groupModes.order !== 'decide' && (
-        <NextSpeaker
+        {chat.character_ids.length > 1 && groupModes.order !== 'decide' && (
+          <NextSpeaker
+            cast={chat.character_ids.flatMap((id) => {
+              const character = castById.get(id);
+              return character === undefined ? [] : [{ id, name: character.name }];
+            })}
+            picked={picked}
+            upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions)}
+            onPick={setPicked}
+          />
+        )}
+        <Composer
+          queue={
+            // Every chat's turn is queued Say, Do and Out of game items (the operator, 2026-11-21: the
+            // Story / Table talk / Ask the GM switch is gone). Outside a campaign the person speaks as
+            // their persona.
+            {
+              me: play.isCampaign
+                ? play.playingId === null
+                  ? null
+                  : { id: play.playingId, name: castById.get(play.playingId)?.name ?? 'You' }
+                : { id: 'persona', name: persona?.name ?? 'You' },
+              speakers: chat.character_ids.flatMap((id) => {
+                const member = castById.get(id);
+                return member === undefined ? [] : [{ id, name: member.name }];
+              }),
+              present: chat.character_ids.flatMap((id) => {
+                const member = castById.get(id);
+                return member === undefined || id === play.playingId ? [] : [{ id, name: member.name }];
+              }),
+            }
+          }
+          onCheckCanon={(text, signal) =>
+            checkLine(
+              text,
+              play.playingId === null
+                ? chat.seat === 'gm'
+                  ? 'The GM'
+                  : (persona?.name ?? 'The player')
+                : (castById.get(play.playingId)?.name ?? 'The player'),
+              signal,
+            )
+          }
+          writing={writing}
+          disabled={list.data === undefined}
+          onSend={(text, channel, images) => void send(text, channel, images)}
+          onStop={reply.stop}
+          onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
+          onNarrate={chat.character_ids.length > 0 ? () => void narrate() : undefined}
+          onCommand={(command) => void runCommand(command)}
+          onScript={(script, setInput) => void runUserScript(script, setInput)}
+          castNames={chat.character_ids.flatMap((id) => castById.get(id)?.name ?? [])}
+          repliesWritten={repliesWritten}
+          quickReplies={(quickList.data ?? [])
+            .filter((reply) => reply.enabled)
+            .map((reply) => ({
+              id: reply.id,
+              label: reply.label,
+              action: reply.action,
+              channel: reply.channel,
+              autoRun: reply.auto_run,
+              text: expandMacros(reply.message, {
+                char:
+                  castById.get(
+                    nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions) ?? '',
+                  )?.name ?? NARRATOR,
+                user: persona?.name ?? DEFAULT_USER_NAME,
+              }),
+            }))}
+        />
+        <ContextPanel
+          open={contextOpen}
+          onOpenChange={setContextOpen}
+          campaignId={chat.campaign_id ?? null}
+          cast={chat.character_ids.flatMap((id) => {
+            const member = castById.get(id);
+            return member === undefined ? [] : [{ id, name: member.name, line: member.folder }];
+          })}
+          seatId={play.playingId}
+          recent={branch.slice(-8).map((message) => ({
+            speaker_id: message.speaker_character_id,
+            text: message.swipes[message.swipe_index ?? 0] ?? '',
+          }))}
+        />
+        <SheetPanel
+          open={sheetOpen}
+          onOpenChange={setSheetOpen}
           cast={chat.character_ids.flatMap((id) => {
             const character = castById.get(id);
             return character === undefined ? [] : [{ id, name: character.name }];
           })}
-          picked={picked}
-          upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions)}
-          onPick={setPicked}
+          initial={play.playingId}
         />
-      )}
-      <Composer
-        queue={
-          play.isCampaign
-            ? {
-                me:
-                  play.playingId === null
-                    ? null
-                    : { id: play.playingId, name: castById.get(play.playingId)?.name ?? 'You' },
-                speakers: chat.character_ids.flatMap((id) => {
-                  const member = castById.get(id);
-                  return member === undefined ? [] : [{ id, name: member.name }];
-                }),
-                present: chat.character_ids.flatMap((id) => {
-                  const member = castById.get(id);
-                  return member === undefined || id === play.playingId ? [] : [{ id, name: member.name }];
-                }),
-              }
-            : undefined
-        }
-        onCheckCanon={(text, signal) =>
-          checkLine(
-            text,
-            play.playingId === null
-              ? chat.seat === 'gm'
-                ? 'The GM'
-                : (persona?.name ?? 'The player')
-              : (castById.get(play.playingId)?.name ?? 'The player'),
-            signal,
-          )
-        }
-        writing={writing}
-        disabled={list.data === undefined}
-        onSend={(text, channel, images) => void send(text, channel, images)}
-        onStop={reply.stop}
-        onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
-        onNarrate={chat.character_ids.length > 0 ? () => void narrate() : undefined}
-        onCommand={(command) => void runCommand(command)}
-        onScript={(script, setInput) => void runUserScript(script, setInput)}
-        castNames={chat.character_ids.flatMap((id) => castById.get(id)?.name ?? [])}
-        repliesWritten={repliesWritten}
-        quickReplies={(quickList.data ?? [])
-          .filter((reply) => reply.enabled)
-          .map((reply) => ({
-            id: reply.id,
-            label: reply.label,
-            action: reply.action,
-            channel: reply.channel,
-            autoRun: reply.auto_run,
-            text: expandMacros(reply.message, {
-              char:
-                castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions) ?? '')
-                  ?.name ?? NARRATOR,
-              user: persona?.name ?? DEFAULT_USER_NAME,
-            }),
-          }))}
-      />
-      <ContextPanel
-        open={contextOpen}
-        onOpenChange={setContextOpen}
-        campaignId={chat.campaign_id ?? null}
-        cast={chat.character_ids.flatMap((id) => {
-          const member = castById.get(id);
-          return member === undefined ? [] : [{ id, name: member.name, line: member.folder }];
-        })}
-        seatId={play.playingId}
-        recent={branch.slice(-8).map((message) => ({
-          speaker_id: message.speaker_character_id,
-          text: message.swipes[message.swipe_index ?? 0] ?? '',
-        }))}
-      />
-      <SheetPanel
-        open={sheetOpen}
-        onOpenChange={setSheetOpen}
-        cast={chat.character_ids.flatMap((id) => {
-          const character = castById.get(id);
-          return character === undefined ? [] : [{ id, name: character.name }];
-        })}
-        initial={play.playingId}
-      />
-      <RollSheet
-        open={rollOpen}
-        onOpenChange={setRollOpen}
-        rollers={chat.character_ids.flatMap((id) => {
-          const character = castById.get(id);
-          return character === undefined ? [] : [{ id, name: character.name }];
-        })}
-        initial={play.playingId}
-        onRolled={(line) =>
-          void addRoll(line).catch((error: unknown) =>
-            notify('The roll was not recorded', error instanceof Error ? error.message : undefined),
-          )
-        }
-      />
-      <Sheet open={namesOpen} onOpenChange={setNamesOpen}>
-        <SheetContent
-          side={mobile ? 'bottom' : 'right'}
-          className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
-        >
-          <SheetHeader>
-            <SheetTitle>Names without lore</SheetTitle>
-            <SheetDescription>Names this story keeps using that nothing describes yet.</SheetDescription>
-          </SheetHeader>
-          <div className='p-4'>
-            {namesOpen && (
-              <NamesWithoutLore
-                names={namesWithoutLore(
-                  branch
-                    .filter((one) => one.channel === 'ic' && !one.x_carded)
-                    .map((one) => one.swipes[one.swipe_index] ?? ''),
-                  [
-                    ...chat.character_ids.flatMap((id) => castById.get(id)?.name ?? []),
-                    ...(persona === null ? [] : [persona.name]),
-                    ...(entryList.data ?? []).flatMap((entry) => entry.keys),
-                  ],
-                )}
-                books={[...(lorebookList.data ?? [])].sort(
-                  (a, b) => Number(chat.lorebook_ids.includes(b.id)) - Number(chat.lorebook_ids.includes(a.id)),
-                )}
-                onAdd={(name, bookId) =>
-                  writeProblem(createEntry({ lorebook_id: bookId, keys: [name], comment: name }), 'Not saved')
-                }
+        <RollSheet
+          open={rollOpen}
+          onOpenChange={setRollOpen}
+          rollers={chat.character_ids.flatMap((id) => {
+            const character = castById.get(id);
+            return character === undefined ? [] : [{ id, name: character.name }];
+          })}
+          initial={play.playingId}
+          onRolled={(line) =>
+            void addRoll(line).catch((error: unknown) =>
+              notify('The roll was not recorded', error instanceof Error ? error.message : undefined),
+            )
+          }
+        />
+        <Sheet open={namesOpen} onOpenChange={setNamesOpen}>
+          <SheetContent
+            side={mobile ? 'bottom' : 'right'}
+            className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
+          >
+            <SheetHeader>
+              <SheetTitle>Names without lore</SheetTitle>
+              <SheetDescription>Names this story keeps using that nothing describes yet.</SheetDescription>
+            </SheetHeader>
+            <div className='p-4'>
+              {namesOpen && (
+                <NamesWithoutLore
+                  names={namesWithoutLore(
+                    branch
+                      .filter((one) => one.channel === 'ic' && !one.x_carded)
+                      .map((one) => one.swipes[one.swipe_index] ?? ''),
+                    [
+                      ...chat.character_ids.flatMap((id) => castById.get(id)?.name ?? []),
+                      ...(persona === null ? [] : [persona.name]),
+                      ...(entryList.data ?? []).flatMap((entry) => entry.keys),
+                    ],
+                  )}
+                  books={[...(lorebookList.data ?? [])].sort(
+                    (a, b) => Number(chat.lorebook_ids.includes(b.id)) - Number(chat.lorebook_ids.includes(a.id)),
+                  )}
+                  onAdd={(name, bookId) =>
+                    writeProblem(createEntry({ lorebook_id: bookId, keys: [name], comment: name }), 'Not saved')
+                  }
+                />
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+        <Sheet open={scenarioOpen && running !== undefined} onOpenChange={setScenarioOpen}>
+          <SheetContent
+            side={mobile ? 'bottom' : 'right'}
+            className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
+          >
+            <SheetHeader>
+              <SheetTitle>{running?.name ?? 'Scenario'}</SheetTitle>
+              <SheetDescription>The state in play. The GM reads it every turn.</SheetDescription>
+            </SheetHeader>
+            <div className='p-4'>
+              {running !== undefined && (
+                <ScenarioPlay
+                  scenario={running}
+                  onChange={(next) =>
+                    void updateScenario(running, next).catch((error: unknown) =>
+                      notify('Not saved', error instanceof Error ? error.message : undefined),
+                    )
+                  }
+                />
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+        <Sheet open={treeOpen} onOpenChange={setTreeOpen}>
+          <SheetContent
+            side={mobile ? 'bottom' : 'right'}
+            className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
+          >
+            <SheetHeader>
+              <SheetTitle>Every branch</SheetTitle>
+              <SheetDescription>Choose a message to show the branch through it.</SheetDescription>
+            </SheetHeader>
+            <div className='p-4'>
+              <BranchTree
+                rows={treeRows(all, new Set(branch.map((message) => message.id))).map((row) => ({
+                  id: row.message.id,
+                  speaker: treeOpen
+                    ? (messageViews([row.message], all, castById, persona)[0]?.speaker ?? NARRATOR)
+                    : NARRATOR,
+                  text: row.message.swipes[row.message.swipe_index] ?? '',
+                  depth: row.depth,
+                  onPath: row.onPath,
+                  leaf: row.leaf,
+                }))}
+                onPick={(id) => {
+                  setLeafId(latestLeaf(all, id)?.id ?? id);
+                  setTreeOpen(false);
+                }}
               />
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-      <Sheet open={scenarioOpen && running !== undefined} onOpenChange={setScenarioOpen}>
-        <SheetContent
-          side={mobile ? 'bottom' : 'right'}
-          className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
-        >
-          <SheetHeader>
-            <SheetTitle>{running?.name ?? 'Scenario'}</SheetTitle>
-            <SheetDescription>The state in play. The GM reads it every turn.</SheetDescription>
-          </SheetHeader>
-          <div className='p-4'>
-            {running !== undefined && (
-              <ScenarioPlay
-                scenario={running}
-                onChange={(next) =>
-                  void updateScenario(running, next).catch((error: unknown) =>
-                    notify('Not saved', error instanceof Error ? error.message : undefined),
-                  )
-                }
-              />
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-      <Sheet open={treeOpen} onOpenChange={setTreeOpen}>
-        <SheetContent
-          side={mobile ? 'bottom' : 'right'}
-          className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
-        >
-          <SheetHeader>
-            <SheetTitle>Every branch</SheetTitle>
-            <SheetDescription>Choose a message to show the branch through it.</SheetDescription>
-          </SheetHeader>
-          <div className='p-4'>
-            <BranchTree
-              rows={treeRows(all, new Set(branch.map((message) => message.id))).map((row) => ({
-                id: row.message.id,
-                speaker: treeOpen ? (messageViews([row.message], all, castById, persona)[0]?.speaker ?? NARRATOR) : NARRATOR,
-                text: row.message.swipes[row.message.swipe_index] ?? '',
-                depth: row.depth,
-                onPath: row.onPath,
-                leaf: row.leaf,
-              }))}
-              onPick={(id) => {
-                setLeafId(latestLeaf(all, id)?.id ?? id);
-                setTreeOpen(false);
-              }}
-            />
-          </div>
-        </SheetContent>
-      </Sheet>
-      <Sheet open={inspected !== null} onOpenChange={(open) => !open && setInspected(null)}>
-        <SheetContent
-          side={mobile ? 'bottom' : 'right'}
-          className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
-        >
-          <SheetHeader>
-            <SheetTitle>Context</SheetTitle>
-            <SheetDescription>What the model would read for the next reply.</SheetDescription>
-          </SheetHeader>
-          <div className='p-4'>
-            {inspected === 'loading' ? (
-              <SkeletonRows rows={5} />
-            ) : (
-              inspected !== null && <ContextInspector prompt={inspected} />
-            )}
-          </div>
-        </SheetContent>
-      </Sheet>
-      <ChatSettings
-        profiles={profileList.data ?? []}
-        open={settingsOpen}
-        onOpenChange={setSettingsOpen}
-        value={{
-          title: chat.title,
-          persona_id: chat.persona_id,
-          preset_id: chat.preset_id,
-          endpoint_id: chat.endpoint_id,
-          author_note: chat.author_note,
-          lorebook_ids: chat.lorebook_ids,
-          lore_settings: chat.lore_settings as LoreSettingsValue,
-          system_prompt: chat.system_prompt,
-          summary: chat.summary,
-          tags: chat.tags,
-          folder: chat.folder,
-          muted_ids: chat.muted_ids,
-          background: chat.background,
-          objectives: chat.objectives,
-          content_rating: chat.content_rating,
-          canon_checks: chat.canon_checks !== false,
-          narrator_style: chat.narrator_style as NarratorStyle,
-          seat: chat.seat,
-          lines: chat.lines,
-          veils: chat.veils,
-          table_notes: chat.table_notes,
-          campaign_id: chat.campaign_id,
-          scenario_id: chat.scenario_id,
-          group_settings: chat.group_settings as GroupSettings,
-        }}
-        scenarios={(scenarioList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}
-        campaigns={(campaignList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}
-        cast={chat.character_ids.flatMap((id) => {
-          const character = castById.get(id);
-          return character === undefined ? [] : [{ id, name: character.name }];
-        })}
-        folders={foldersOf(chatList.data ?? [])}
-        onSummarize={summarize}
-        drawBackground={() => drawPicture({ kind: 'background', chat_id: chat.id, leaf_id: leaf })}
-        personas={options(personaList.data)}
-        presets={options(presetList.data)}
-        endpoints={options(modelList)}
-        lorebooks={options(lorebookList.data)}
-        onSave={(next) => void updateChat(chat, next)}
-      />
-    </div>
+            </div>
+          </SheetContent>
+        </Sheet>
+        <Sheet open={inspected !== null} onOpenChange={(open) => !open && setInspected(null)}>
+          <SheetContent
+            side={mobile ? 'bottom' : 'right'}
+            className='max-h-[92svh] w-full overflow-y-auto pb-safe sm:max-w-xl'
+          >
+            <SheetHeader>
+              <SheetTitle>Context</SheetTitle>
+              <SheetDescription>What the model would read for the next reply.</SheetDescription>
+            </SheetHeader>
+            <div className='p-4'>
+              {inspected === 'loading' ? (
+                <SkeletonRows rows={5} />
+              ) : (
+                inspected !== null && <ContextInspector prompt={inspected} />
+              )}
+            </div>
+          </SheetContent>
+        </Sheet>
+        <ChatSettings
+          profiles={profileList.data ?? []}
+          open={settingsOpen}
+          onOpenChange={setSettingsOpen}
+          value={{
+            title: chat.title,
+            persona_id: chat.persona_id,
+            preset_id: chat.preset_id,
+            endpoint_id: chat.endpoint_id,
+            author_note: chat.author_note,
+            lorebook_ids: chat.lorebook_ids,
+            lore_settings: chat.lore_settings as LoreSettingsValue,
+            system_prompt: chat.system_prompt,
+            summary: chat.summary,
+            tags: chat.tags,
+            folder: chat.folder,
+            muted_ids: chat.muted_ids,
+            background: chat.background,
+            objectives: chat.objectives,
+            content_rating: chat.content_rating,
+            canon_checks: chat.canon_checks !== false,
+            narrator_style: chat.narrator_style as NarratorStyle,
+            seat: chat.seat,
+            lines: chat.lines,
+            veils: chat.veils,
+            table_notes: chat.table_notes,
+            campaign_id: chat.campaign_id,
+            scenario_id: chat.scenario_id,
+            group_settings: chat.group_settings as GroupSettings,
+          }}
+          scenarios={(scenarioList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}
+          campaigns={(campaignList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}
+          cast={chat.character_ids.flatMap((id) => {
+            const character = castById.get(id);
+            return character === undefined ? [] : [{ id, name: character.name }];
+          })}
+          folders={foldersOf(chatList.data ?? [])}
+          onSummarize={summarize}
+          drawBackground={() => drawPicture({ kind: 'background', chat_id: chat.id, leaf_id: leaf })}
+          personas={options(personaList.data)}
+          presets={options(presetList.data)}
+          endpoints={options(modelList)}
+          lorebooks={options(lorebookList.data)}
+          onSave={(next) => void updateChat(chat, next)}
+        />
+      </div>
     </CanonOff.Provider>
   );
 }

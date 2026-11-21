@@ -15,7 +15,7 @@ import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { NewChat } from '~/components/play/NewChat';
 import { chats } from '~/features/data/records';
-import { groupScenarios, taggedWith, useScenarios } from '~/features/data/scenarios';
+import { campaignLine, groupScenarios, taggedWith, useScenarios } from '~/features/data/scenarios';
 
 const PROVENANCE: Record<string, { label: string; className: string }> = {
   homebrew: { label: 'Homebrew', className: 'border-sky-600 text-sky-700 dark:border-sky-400 dark:text-sky-300' },
@@ -55,13 +55,20 @@ export function CampaignManager(): ReactElement {
   // The campaigns played from each scenario (the operator, 2026-11-21: one page, each scenario's
   // campaigns under it). A campaign is a chat whose campaign is a playthrough of the scenario.
   const chatList = chats.useList();
-  const played = new Map<string, { id: string; title: string; updated: string }[]>();
+  const played = new Map<string, { id: string; title: string; line: string; updated: string }[]>();
   for (const chat of chatList.data ?? []) {
     if (chat.campaign_id === null || chat.campaign_id === undefined) continue;
     const scenario = read.data?.scenarioOf.get(chat.campaign_id) ?? chat.campaign_id;
     played.set(scenario, [
       ...(played.get(scenario) ?? []),
-      { id: chat.id, title: chat.title, updated: chat.updated_at ?? chat.created_at },
+      {
+        id: chat.id,
+        title: chat.title,
+        // What sets this campaign apart (the operator, 2026-11-21): its status line, kept by the
+        // campaign's events, else the first sentence of its summary.
+        line: campaignLine(chat),
+        updated: chat.updated_at ?? chat.created_at,
+      },
     ]);
   }
   const [wanted, setWanted] = useState<string[]>([]);
@@ -161,9 +168,14 @@ export function CampaignManager(): ReactElement {
                               <li key={campaign.id}>
                                 <Link
                                   href={`/play/${campaign.id}`}
-                                  className='flex min-h-11 items-center justify-between gap-2 rounded-md border px-3 text-sm hover:bg-muted'
+                                  className='flex min-h-11 items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-muted'
                                 >
-                                  <span className='min-w-0 truncate'>{campaign.title}</span>
+                                  <span className='min-w-0'>
+                                    <span className='block truncate'>{campaign.title}</span>
+                                    {campaign.line !== '' && (
+                                      <span className='line-clamp-2 block text-xs text-muted-foreground'>{campaign.line}</span>
+                                    )}
+                                  </span>
                                   <span className='shrink-0 text-xs text-muted-foreground'>
                                     {new Date(campaign.updated).toLocaleDateString()}
                                   </span>

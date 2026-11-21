@@ -4,7 +4,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('zephyrex', () => ({ useClient: () => ({}) }));
 
-const { groupScenarios, NO_SETTING, NO_SYSTEM, taggedWith, withTags } = await import('./scenarios');
+const { campaignLine, groupScenarios, NO_SETTING, NO_SYSTEM, taggedWith, withTags } = await import('./scenarios');
 
 const scenario = (id: string, setting_id: string | null, game_system_id: string | null) => ({
   id,
@@ -73,5 +73,15 @@ describe('withTags and taggedWith', () => {
     const all = withTags(scenarios, styles, tagged);
     expect(taggedWith(all, []).map((one) => one.id)).toEqual(['a', 'b']);
     expect(taggedWith(all, ['mystery', 'combat-heavy']).map((one) => one.id)).toEqual(['a']);
+  });
+});
+
+describe('campaignLine', () => {
+  it('the status line first, else the summary’s first sentence', () => {
+    expect(campaignLine({ status_line: 'Wren and Tessaly found the purged log.', summary: 'x' })).toBe(
+      'Wren and Tessaly found the purged log.',
+    );
+    expect(campaignLine({ summary: 'The hymn stopped. Then the lights went.' })).toBe('The hymn stopped.');
+    expect(campaignLine({ summary: null })).toBe('');
   });
 });

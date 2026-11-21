@@ -6,6 +6,7 @@
  * the same against real models.
  */
 import { expect, type Page, test } from '@playwright/test';
+import { act } from './support/turn';
 import { MODEL_URL } from '../playwright.config';
 import { isHosted, signIn } from './support/people';
 // The page's own fetch: on a hosted build the session cookie and CSRF token go with it.
@@ -14,7 +15,6 @@ import { post } from './support/seed';
 test.beforeEach(async ({ page }, testInfo) => {
   if (isHosted(testInfo)) await signIn(page);
 });
-
 
 async function seat(page: Page, name: string | null): Promise<void> {
   await page.getByRole('button', { name: /^Your seat:/ }).click();
@@ -55,8 +55,7 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
   await expect(page.getByRole('article', { name: 'Narrator' }).first()).toContainText('The ship leaves the warp.');
 
   // As the GM: the line is narration, and the party answers.
-  await page.getByLabel('Your next line').fill('A vox hail crackles from traffic control.');
-  await page.getByRole('button', { name: 'Send' }).click();
+  await act(page, 'Do', 'A vox hail crackles from traffic control.');
   await expect(page.getByRole('article', { name: /Gus Veridan|A\.Z\./ }).first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Stop the reply' })).toHaveCount(0);
 
@@ -64,15 +63,13 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
   await seat(page, 'Gus Veridan');
   // In Gus's seat, the line is Gus's, and the round ends with the AI GM's narration.
   const narrations = await page.getByRole('article', { name: 'Narrator' }).count();
-  await page.getByLabel('Your next line').fill('I check the auspex for other ships.');
-  await page.getByRole('button', { name: 'Send' }).click();
-  await expect(page.getByRole('article', { name: 'Gus Veridan' }).filter({ hasText: 'I check the auspex' })).toBeVisible();
+  await act(page, 'Do', 'checks the auspex for other ships.');
+  await expect(page.getByRole('article', { name: 'Gus Veridan' }).filter({ hasText: 'checks the auspex' })).toBeVisible();
   await expect.poll(() => page.getByRole('article', { name: 'Narrator' }).count()).toBeGreaterThan(narrations);
   await expect(page.getByRole('button', { name: 'Stop the reply' })).toHaveCount(0);
   await seat(page, 'Massen');
   await expect(page.getByRole('list', { name: 'In this chat' })).toContainText('Massen');
-  await page.getByLabel('Your next line').fill('Welcome to Solenne, acolytes.');
-  await page.getByRole('button', { name: 'Send' }).click();
+  await act(page, 'Say', 'Welcome to Solenne, acolytes.');
   await expect(page.getByRole('article', { name: 'Massen' }).filter({ hasText: 'Welcome to Solenne' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Stop the reply' })).toHaveCount(0);
   // An NPC joins the party only while played: leaving his seat, Massen leaves the party.
