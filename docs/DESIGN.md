@@ -141,6 +141,7 @@ Whoever writes a line, a player or the GM (person or AI), it is checked against 
 - A person's line is checked as they write it: the notice shows on the composer before they send, with the reason in a sentence, and they may send anyway. An AI line is checked after it is written: the notice sits on the message, and a red one offers _Write another reply_.
 - Notices are table information, never part of the story: they don't enter the prompt (the OOC rule).
 - The warning says why (the canon it conflicts with, quoted from the lore or summary where one is found), so the person can correct it or decide it's intended.
+- **Both warnings can be turned off for a campaign for good** (the operator, 2026-11-21: "for radical looney toon campaigns"): a "Turn off canon warnings for this campaign" button on the notice, undone in the campaign's settings. A campaign with them off runs no canon check at all.
 
 ### The play-test rulings (the operator, 2026-11-21)
 
