@@ -115,6 +115,8 @@ export const WORLD_TICK = contract.world_tick;
 export const PARTY = contract.party;
 /** The hard check after generation: who a text must never speak or act for. */
 export const VOICE_GUARD = contract.voice_guard;
+/** Narrator sliders: how a model is chosen by reputation and tuned. */
+export const NARRATOR_STYLE = contract.narrator_style;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

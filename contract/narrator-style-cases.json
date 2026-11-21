@@ -1,0 +1,387 @@
+{
+  "$comment": "Narrator sliders: cases both twins run (client/src/features/models/narratorStyle.test.ts, server/extensions/ai_chat/NarratorStyle_test.py).",
+  "endpoints": [
+    {
+      "id": "cyd",
+      "model": "72gb/cydonia-24b-v4.3",
+      "roles": [
+        "story"
+      ],
+      "is_default": true,
+      "traits": null
+    },
+    {
+      "id": "mag",
+      "model": "magnum-diamond-24b:latest",
+      "roles": [
+        "story"
+      ],
+      "is_default": false,
+      "traits": null
+    },
+    {
+      "id": "sth",
+      "model": "24gb/stheno-8b",
+      "roles": [
+        "story"
+      ],
+      "is_default": false,
+      "traits": null
+    },
+    {
+      "id": "gpt",
+      "model": "gpt-oss-20b",
+      "roles": [
+        "gm"
+      ],
+      "is_default": false,
+      "traits": null
+    },
+    {
+      "id": "weak",
+      "model": "custom-model",
+      "roles": [
+        "story"
+      ],
+      "is_default": false,
+      "traits": {
+        "adherence": 0.3
+      }
+    },
+    {
+      "id": "qwen",
+      "model": "72gb/qwen3.6-35b-a3b-uncensored",
+      "roles": [
+        "gm"
+      ],
+      "is_default": false,
+      "traits": null
+    },
+    {
+      "id": "judge",
+      "model": "3-5gb/d1-2b",
+      "roles": [
+        "decide"
+      ],
+      "is_default": false,
+      "traits": null
+    }
+  ],
+  "key_cases": [
+    {
+      "model": "72gb/Cydonia-24B-v4.3:latest",
+      "key": "cydonia-24b-v4.3"
+    },
+    {
+      "model": "stheno-8b",
+      "key": "stheno-8b"
+    }
+  ],
+  "narrate_cases": [
+    {
+      "name": "too small (under 10b), not a narrator, or below the adherence floor: never",
+      "model": "24gb/stheno-8b",
+      "may": false
+    },
+    {
+      "name": "gpt-oss-20b is not a narrator",
+      "model": "gpt-oss-20b",
+      "may": false
+    },
+    {
+      "name": "a MoE counts by its total size",
+      "model": "serenity-26b-a4b",
+      "may": true
+    },
+    {
+      "name": "an unknown model of unknown size may",
+      "model": "someone/new-model",
+      "may": true
+    },
+    {
+      "name": "its own traits override the seeds",
+      "model": "cydonia-24b-v4.3",
+      "traits": {
+        "adherence": 0.2
+      },
+      "may": false
+    }
+  ],
+  "choice_cases": [
+    {
+      "name": "the chat's own endpoint always wins",
+      "style": {
+        "verbosity": 0.9
+      },
+      "explicit": "sth",
+      "chosen": "sth"
+    },
+    {
+      "name": "no slider set: the default, when it may narrate",
+      "style": null,
+      "explicit": null,
+      "chosen": "cyd"
+    },
+    {
+      "name": "verbosity: the wordier model",
+      "style": {
+        "verbosity": 0.7
+      },
+      "explicit": null,
+      "chosen": "mag"
+    },
+    {
+      "name": "spice (less refusals) and darkness: the darker one",
+      "style": {
+        "spice": 0.9,
+        "darkness": 0.8
+      },
+      "explicit": null,
+      "chosen": "cyd"
+    },
+    {
+      "name": "humour low: the straight one",
+      "style": {
+        "humour": 0.4
+      },
+      "explicit": null,
+      "chosen": "qwen"
+    },
+    {
+      "name": "an any slider (null) counts as unset",
+      "style": {
+        "verbosity": null
+      },
+      "explicit": null,
+      "chosen": "cyd"
+    },
+    {
+      "name": "nothing may narrate: keep the current choice",
+      "endpoints": [
+        {
+          "id": "sth",
+          "model": "24gb/stheno-8b",
+          "roles": [
+            "story"
+          ],
+          "is_default": false,
+          "traits": null
+        },
+        {
+          "id": "gpt",
+          "model": "gpt-oss-20b",
+          "roles": [
+            "gm"
+          ],
+          "is_default": false,
+          "traits": null
+        }
+      ],
+      "style": {
+        "verbosity": 0.5
+      },
+      "explicit": null,
+      "chosen": null
+    },
+    {
+      "name": "no story or gm role: the default, never one too small",
+      "endpoints": [
+        {
+          "id": "sth",
+          "model": "24gb/stheno-8b",
+          "roles": [],
+          "is_default": true,
+          "traits": null
+        }
+      ],
+      "style": null,
+      "explicit": null,
+      "chosen": null
+    },
+    {
+      "name": "a tie goes to the faster, a cold model at half its speed",
+      "endpoints": [
+        {
+          "id": "a",
+          "model": "x1",
+          "roles": [
+            "story"
+          ],
+          "is_default": false,
+          "traits": {
+            "speed": 0.9
+          }
+        },
+        {
+          "id": "b",
+          "model": "x2",
+          "roles": [
+            "story"
+          ],
+          "is_default": false,
+          "traits": {
+            "speed": 0.5,
+            "warm": true
+          }
+        }
+      ],
+      "style": {
+        "verbosity": 0.5
+      },
+      "explicit": null,
+      "chosen": "b"
+    }
+  ],
+  "tuning_cases": [
+    {
+      "name": "terse",
+      "style": {
+        "verbosity": 0.2
+      },
+      "rating": "mature",
+      "tuning": {
+        "max_tokens_scale": 0.6,
+        "length": "Keep each turn brief: a sentence or two.",
+        "tones": [],
+        "temperature_delta": 0
+      }
+    },
+    {
+      "name": "middling verbosity changes nothing",
+      "style": {
+        "verbosity": 0.5
+      },
+      "rating": "mature",
+      "tuning": {
+        "max_tokens_scale": 1.0,
+        "length": "",
+        "tones": [],
+        "temperature_delta": 0
+      }
+    },
+    {
+      "name": "rich",
+      "style": {
+        "verbosity": 0.9
+      },
+      "rating": "mature",
+      "tuning": {
+        "max_tokens_scale": 1.5,
+        "length": "Take your time: a rich turn of several paragraphs when the moment earns it.",
+        "tones": [],
+        "temperature_delta": 0
+      }
+    },
+    {
+      "name": "spice high at a mature table",
+      "style": {
+        "spice": 0.9
+      },
+      "rating": "mature",
+      "tuning": {
+        "max_tokens_scale": 1,
+        "length": "",
+        "tones": [
+          "Romance and desire may be frank on the page, within the table's lines."
+        ],
+        "temperature_delta": 0
+      }
+    },
+    {
+      "name": "spice high is capped at a teen table",
+      "style": {
+        "spice": 0.9
+      },
+      "rating": "teen",
+      "tuning": {
+        "max_tokens_scale": 1,
+        "length": "",
+        "tones": [],
+        "temperature_delta": 0
+      }
+    },
+    {
+      "name": "darkness low and humour high, anywhere",
+      "style": {
+        "darkness": 0.1,
+        "humour": 1.0
+      },
+      "rating": "general",
+      "tuning": {
+        "max_tokens_scale": 1,
+        "length": "",
+        "tones": [
+          "Keep the tone hopeful, with no grisly detail.",
+          "Let humour in wherever it fits."
+        ],
+        "temperature_delta": 0.2
+      }
+    },
+    {
+      "name": "no sliders",
+      "style": null,
+      "rating": null,
+      "tuning": {
+        "max_tokens_scale": 1,
+        "length": "",
+        "tones": [],
+        "temperature_delta": 0
+      }
+    }
+  ],
+  "traits_problem_cases": [
+    {
+      "value": {
+        "spice": 0.4,
+        "params_b": 12,
+        "warm": true
+      },
+      "problem": null
+    },
+    {
+      "value": {
+        "spice": 1.4
+      },
+      "problem": "spice is a number from 0 to 1"
+    },
+    {
+      "value": {
+        "params_b": -3
+      },
+      "problem": "params_b is a size in billions"
+    },
+    {
+      "value": {
+        "narrator": "no"
+      },
+      "problem": "narrator is true or false"
+    },
+    {
+      "value": {
+        "charm": 0.5
+      },
+      "problem": "charm is not a trait"
+    }
+  ],
+  "style_problem_cases": [
+    {
+      "value": {
+        "spice": 0.2,
+        "humour": null
+      },
+      "problem": null
+    },
+    {
+      "value": {
+        "prose": 0.5
+      },
+      "problem": "prose is not a slider"
+    },
+    {
+      "value": {
+        "verbosity": 2
+      },
+      "problem": "verbosity is a number from 0 to 1, or null for any"
+    }
+  ]
+}

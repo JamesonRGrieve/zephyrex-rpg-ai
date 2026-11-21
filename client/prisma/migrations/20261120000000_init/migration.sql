@@ -64,6 +64,7 @@ CREATE TABLE "Chat" (
     "mutedIds" TEXT NOT NULL DEFAULT '[]',
     "voxIds" TEXT NOT NULL DEFAULT '[]',
     "canonChecks" BOOLEAN NOT NULL DEFAULT true,
+    "narratorStyle" TEXT NOT NULL DEFAULT '{}',
     "background" TEXT,
     "objectives" TEXT NOT NULL DEFAULT '[]',
     "contentRating" TEXT,
@@ -139,6 +140,7 @@ CREATE TABLE "ModelEndpoint" (
     "imageSize" TEXT NOT NULL DEFAULT '',
     "roles" TEXT NOT NULL DEFAULT '[]',
     "extraBody" TEXT NOT NULL DEFAULT '{}',
+    "traits" TEXT NOT NULL DEFAULT '{}',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

@@ -88,6 +88,8 @@ model Chat {
   voxIds       String   @default("[]")
   /// Canon warnings on lines; off for a campaign that breaks canon on purpose.
   canonChecks  Boolean  @default(true)
+  /// The narrator's sliders (spice, verbosity, darkness, humour; absent: any): a JSON object.
+  narratorStyle String  @default("{}")
   background   String?
   objectives   String   @default("[]")
   contentRating String?
@@ -177,6 +179,8 @@ model ModelEndpoint {
   roles       String   @default("[]")
   /// Extra request fields (SillyTavern's additional parameters): a JSON object merged into each request.
   extraBody   String   @default("{}")
+  /// Its reputation as a narrator (contract narrator_style.traits): a JSON object over the contract's seeds.
+  traits      String   @default("{}")
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   updatedById String?

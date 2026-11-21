@@ -156,6 +156,8 @@ export interface PromptInput {
   forbid?: { names: readonly string[]; span: string } | null;
   /** The party block this voice reads (features/prompt/party.ts partyText): roster, relationships, briefing. */
   party?: string;
+  /** The narrator sliders' lines (features/models/narratorStyle.ts): length, and the narrator's tone. */
+  style?: string;
   group?: {
     card_mode?: (typeof GROUP_SETTINGS.card_modes)[number];
     join_prefix?: string;
@@ -791,6 +793,8 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
             ]
               .filter((part) => part !== '')
               .join(' '),
+      // The narrator sliders' lines: length, and the narrator's tone.
+      (input.style ?? '').trim(),
       // A regeneration after the voice guard caught a span: it's forbidden, by name.
       forbidText(input.forbid),
     ]

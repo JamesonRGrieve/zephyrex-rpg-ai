@@ -28,6 +28,7 @@ import {
   isSearchApi,
   LIMITS,
   LORE,
+  NARRATOR_STYLE,
   PICTURE,
   PRESET_DEFAULTS,
   PROMPT,
@@ -39,6 +40,15 @@ import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
 import { rollPick, rollQuestions } from '~/features/chat/rollDecision';
 import { partyBriefing, partyOf, partyText } from '~/features/prompt/party';
+import {
+  type NarratorStyle,
+  type StyleEndpoint,
+  type Traits,
+  mayNarrate,
+  narratorEndpoint,
+  styleTuning,
+  traitsOf,
+} from '~/features/models/narratorStyle';
 import { presentCast, turnPick, turnQuestion, turnSeat, turnState } from '~/features/chat/turnDecision';
 import { wikiCampaignOf, worldLoreEntries } from '~/features/lore/worldLore';
 import { type CastEntity, seatPerson, worldCast, worldKnownTo } from '~/features/prompt/worldCast';
@@ -196,6 +206,7 @@ export async function generationInputs(
     scenario_id: string | null;
     variables: Record<string, string>;
     group_settings: GroupSettings;
+    narrator_style?: NarratorStyle;
     injections: Injection[];
   };
 
@@ -321,7 +332,7 @@ export async function generationInputs(
   const asked = body.endpoint_id === null ? null : await endpoints.find(body.endpoint_id, ownerId);
   if (body.endpoint_id !== null && asked === null) throw notFound(endpoints.modelName);
   if (asked !== null && isSearchApi(asked.api)) throw validationError('A search source is not a model', 'endpoint_id');
-  const endpointRow =
+  const usualRow =
     asked ??
     (role === 'story' ? chosen : null) ??
     serving.find((row) => row.isDefault) ??
@@ -330,7 +341,27 @@ export async function generationInputs(
     all.find((row) => row.isDefault) ??
     all[0] ??
     null;
-  if (endpointRow === null) throw new ApiError(409, { message: 'Add a model endpoint first', code: 'no_model_endpoint' });
+  if (usualRow === null) throw new ApiError(409, { message: 'Add a model endpoint first', code: 'no_model_endpoint' });
+  // Narrator sliders (features/models/narratorStyle.ts, the operator 2026-11-21): a story or GM turn
+  // with no model of its own named takes the endpoint nearest the chat's sliders, and never one that
+  // may not narrate (under 10b, not a narrator, or not adherent enough).
+  const style: NarratorStyle = chatFields.narrator_style ?? {};
+  const styleRows: StyleEndpoint[] = all.map((row) => {
+    const fields = endpoints.fields(row) as { roles: string[]; traits?: Traits };
+    return { id: row.id, model: row.model, roles: fields.roles, is_default: row.isDefault, traits: fields.traits ?? {} };
+  });
+  const sliders = NARRATOR_STYLE.sliders.some((slider) => typeof style[slider] === 'number');
+  const usual = styleRows.find((one) => one.id === usualRow.id);
+  const styled =
+    purpose === 'reply' &&
+    (role === 'story' || role === 'gm') &&
+    asked === null &&
+    !(role === 'story' && chosen !== null) &&
+    (sliders || (usual !== undefined && !mayNarrate(traitsOf(usual))))
+      ? narratorEndpoint(styleRows, style, null)
+      : null;
+  const endpointRow = all.find((row) => row.id === styled) ?? usualRow;
+  const tuning = styleTuning(style, chatFields.content_rating);
 
   // The person's own template (A17) when the endpoint names one that is still theirs; else the one
   // whose activation regex its model matches (audit gap 4); else the built-in.
@@ -343,10 +374,17 @@ export async function generationInputs(
     purpose === 'reply'
       ? {
           ...sampler,
-          // In proportion (the operator's play-test): a group turn or the narrator's is short.
-          ...((aiCharacters.length > 1 || body.mode === 'narrate') && body.mode !== 'impersonate'
-            ? { max_tokens: Math.min(sampler.max_tokens, PROMPT.group_max_tokens) }
-            : {}),
+          // In proportion (the operator's play-test): a group turn or the narrator's is short; the
+          // narrator sliders' verbosity scales it, and their humour warms the temperature.
+          max_tokens: Math.max(
+            1,
+            Math.round(
+              ((aiCharacters.length > 1 || body.mode === 'narrate') && body.mode !== 'impersonate'
+                ? Math.min(sampler.max_tokens, PROMPT.group_max_tokens)
+                : sampler.max_tokens) * tuning.max_tokens_scale,
+            ),
+          ),
+          temperature: sampler.temperature + tuning.temperature_delta,
           stop: [
             ...new Set([
               ...sampler.stop,
@@ -384,6 +422,8 @@ export async function generationInputs(
       // The chat's /inject injections (audit gap 5).
       injections: chatFields.injections,
       forbid: body.forbid,
+      // The sliders' lines: the narrator reads the length and the tone; a voice, the length.
+      style: [tuning.length, ...(body.mode === 'narrate' ? tuning.tones : [])].filter((line) => line !== '').join(' '),
       // Party members know each other (the operator, 2026-11-21): roster, relationships, briefing.
       party: partyText(
         partyOf(entities, chatFields.character_ids, playingId),

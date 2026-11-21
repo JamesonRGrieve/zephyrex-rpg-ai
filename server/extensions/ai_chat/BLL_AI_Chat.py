@@ -75,6 +75,15 @@ from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-fo
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.NarratorStyle import (  # type: ignore[import-not-found]
+    NARRATOR_STYLE,
+    may_narrate,
+    narrator_endpoint,
+    style_problem,
+    style_tuning,
+    traits_of,
+    traits_problem,
+)
 from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-found]
     NATIVE_APIS,
     native_model_ids,
@@ -333,6 +342,15 @@ class ChatChecks(PlainModel):
             raise ValueError(problem)
         return value
 
+    @field_validator("narrator_style", check_fields=False)
+    @classmethod
+    def _checked_narrator_style(cls, value: Any) -> Any:
+        """The narrator's sliders (NarratorStyle.py): each 0-1, or null for any."""
+        problem = None if value is None else style_problem(value)
+        if problem is not None:
+            raise ValueError(problem)
+        return value
+
     @field_validator("group_settings", check_fields=False)
     @classmethod
     def _checked_group_settings(cls, value: Any) -> Any:
@@ -492,6 +510,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         default_factory=list, description="Cast members on vox: away from the scene, but a line can reach them"
     )
     canon_checks: bool = Field(True, description="Canon warnings on lines (off for a campaign that breaks canon)")
+    narrator_style: dict[str, Any] = Field(
+        default_factory=dict, description="The narrator's sliders (spice, verbosity, darkness, humour; absent: any)"
+    )
     background: str | None = Field(None, description="A picture behind the chat (a data URL)")
     objectives: list[dict[str, Any]] = Field(
         default_factory=list, description="Its tasks in order; the first not done is put to the model"
@@ -537,6 +558,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         muted_ids: list[str] = Field(default_factory=list)
         vox_ids: list[str] = Field(default_factory=list)
         canon_checks: bool = True
+        narrator_style: dict[str, Any] = Field(default_factory=dict)
         background: str | None = None
         objectives: list[dict[str, Any]] = Field(default_factory=list)
         content_rating: str | None = None
@@ -568,6 +590,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         muted_ids: list[str] | None = None
         vox_ids: list[str] | None = None
         canon_checks: bool | None = None
+        narrator_style: dict[str, Any] | None = None
         background: str | None = None
         objectives: list[dict[str, Any]] | None = None
         content_rating: str | None = None
@@ -693,6 +716,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("muted_ids", [])
         kwargs.setdefault("vox_ids", [])
         kwargs.setdefault("canon_checks", True)
+        kwargs.setdefault("narrator_style", {})
         kwargs.setdefault("objectives", [])
         kwargs.setdefault("variables", {})
         kwargs.setdefault("group_settings", {})
@@ -1016,6 +1040,15 @@ class EndpointChecks(PlainModel):
             raise ValueError("Only a search source (searxng, brave) serves the search role")
         return self
 
+    @field_validator("traits", check_fields=False)
+    @classmethod
+    def _checked_traits(cls, value: Any) -> Any:
+        """Its reputation (NarratorStyle.py), over the seeds in contract/model-traits.json."""
+        problem = None if value is None else traits_problem(value)
+        if problem is not None:
+            raise ValueError(problem)
+        return value
+
     @field_validator("extra_body", check_fields=False)
     @classmethod
     def _checked_extra_body(cls, value: Any) -> Any:
@@ -1159,6 +1192,9 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
     extra_body: dict[str, Any] = Field(
         default_factory=dict, description="Extra request fields, merged into each request it's sent"
     )
+    traits: dict[str, Any] = Field(
+        default_factory=dict, description="Its reputation as a narrator, over the contract's seeds for its model"
+    )
     has_api_key: bool = Field(False, description="Set by the server: whether a key is stored")
     # Write-only: excluded from every serialization, kept encrypted.
     api_key: str | None = Field(None, exclude=True, description="Set by the server: the encrypted API key")
@@ -1179,6 +1215,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         image_size: str = ""
         roles: list[str] = Field(default_factory=list)
         extra_body: dict[str, Any] = Field(default_factory=dict)
+        traits: dict[str, Any] = Field(default_factory=dict)
 
     class Update(EndpointChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
@@ -1193,6 +1230,7 @@ class ModelEndpointModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta
         image_size: str | None = None
         roles: list[str] | None = None
         extra_body: dict[str, Any] | None = None
+        traits: dict[str, Any] | None = None
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -1246,6 +1284,7 @@ class ModelEndpointManager(AbstractBLLManager[ModelEndpointModel], RouterMixin):
         # JSON columns get no column default: an unset list is stored as [] (as every manager here does).
         kwargs.setdefault("roles", [])
         kwargs.setdefault("extra_body", {})
+        kwargs.setdefault("traits", {})
         self._check_custom_template(kwargs.get("custom_template_id"))
         if kwargs["is_default"]:
             self._clear_other_defaults(None)
@@ -2427,6 +2466,27 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             raise HTTPException(
                 status_code=409, detail={"message": "Add a model endpoint first", "code": "no_model_endpoint"}
             )
+        # Narrator sliders (NarratorStyle.py, the operator 2026-11-21): a story or GM turn with no model
+        # of its own named takes the endpoint nearest the chat's sliders, and never one that may not
+        # narrate (under 10b, not a narrator, or not adherent enough).
+        style = dict(chat.narrator_style or {})
+        if purpose == "reply" and role in ("story", "gm") and asked is None and not (role == "story" and chosen):
+            rows = [
+                {
+                    "id": row.id,
+                    "model": row.model,
+                    "roles": list(row.roles or []),
+                    "is_default": bool(row.is_default),
+                    "traits": dict(getattr(row, "traits", None) or {}),
+                }
+                for row in every
+            ]
+            current = next(one for one in rows if one["id"] == endpoint.id)
+            sliders = any(isinstance(style.get(slider), (int, float)) for slider in NARRATOR_STYLE["sliders"])
+            if sliders or not may_narrate(traits_of(current)):
+                picked = narrator_endpoint(rows, style, None)
+                endpoint = next((row for row in every if row.id == picked), endpoint)
+        tuning = style_tuning(style, chat.content_rating)
 
         template = self._template_of(endpoint)
         frame = self._frame_of(chat.campaign_id)
@@ -2474,6 +2534,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             # The chat's /inject injections (audit gap 5).
             chat.injections or [],
             forbid=body.forbid,
+            # The sliders' lines: the narrator reads the length and the tone; a voice, the length.
+            style=" ".join(
+                line for line in [tuning["length"], *(tuning["tones"] if body.mode == "narrate" else [])] if line
+            ),
             # Party members know each other (the operator, 2026-11-21): roster, relationships, briefing.
             party=party_text(
                 party_of(entities, chat.character_ids or [], playing_id),
@@ -2507,6 +2571,12 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             # In proportion (the operator's play-test): a group turn or the narrator's is short.
             if (len(cast) > 1 or body.mode == "narrate") and body.mode != "impersonate":
                 sampler = {**sampler, "max_tokens": min(int(sampler["max_tokens"]), int(PROMPT["group_max_tokens"]))}
+            # The narrator sliders' verbosity and humour (NarratorStyle.py).
+            sampler = {
+                **sampler,
+                "max_tokens": max(1, round(int(sampler["max_tokens"]) * float(tuning["max_tokens_scale"]))),
+                "temperature": float(sampler["temperature"]) + float(tuning["temperature_delta"]),
+            }
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         # "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.
         # Anthropic's and Google's own APIs (audit gap 8) take no pictures yet.

@@ -841,6 +841,27 @@
     "stop_words": ["with", "from", "that", "this", "their", "there", "they", "into", "over", "very", "your", "have", "been", "were", "what", "when", "where", "which", "while"],
     "stranger_phrases": ["who are you", "who're you", "who the hell are you", "i don't know you", "do i know you", "have we met", "never seen you", "never met you"]
   },
+  "narrator_style": {
+    "$comment": "Narrator sliders choose the model by reputation and tune it (the operator, 2026-11-21: \"The narrator should have sliders that determine the model based on the models reputation (and also possibly tuning settings?) such as spice level, verbosity, etc.\"; \"We never use sub 10b models for narration\"). A chat's narrator_style sets any of the sliders 0-1 (absent: any). Among the endpoints holding the story or gm role (else the default), a model narrates only when it isn't marked not a narrator, its size is unknown or at least min_params_b, and its adherence (unknown: the floor) is at least adherence_floor; then the nearest to the set sliders wins (spice counted as spice x (1 - refuse); an unknown trait is unknown), ties to the default, then the faster (a cold model at cold_speed_factor). No slider set: the default if it may narrate, else the most adherent that may. The chat's own endpoint always wins. Tuning: verbosity scales max_tokens and gives a length line; spice and darkness give a tone line, never past the table's content rating; humour adds up to temperature_delta. Traits from contract/model-traits.json, an endpoint's own overriding. features/models/narratorStyle.ts, ai_chat/NarratorStyle.py, contract/narrator-style-cases.json.",
+    "traits": ["spice", "refuse", "verbosity", "prose", "darkness", "humour", "adherence", "speed"],
+    "sliders": ["spice", "verbosity", "darkness", "humour"],
+    "adherence_floor": 0.5,
+    "min_params_b": 10,
+    "unknown": 0.5,
+    "cold_speed_factor": 0.5,
+    "verbosity_bands": [
+      {"below": 0.34, "scale": 0.6, "line": "Keep each turn brief: a sentence or two."},
+      {"below": 0.67, "scale": 1.0, "line": ""},
+      {"below": 1.01, "scale": 1.5, "line": "Take your time: a rich turn of several paragraphs when the moment earns it."}
+    ],
+    "ratings": ["general", "teen", "mature"],
+    "tone": [
+      {"slider": "spice", "high_at": 0.67, "high": "Romance and desire may be frank on the page, within the table's lines.", "high_rating": "mature", "low_at": 0.33, "low": "Keep romance and desire off the page."},
+      {"slider": "darkness", "high_at": 0.67, "high": "Don't soften grim or horrific moments.", "high_rating": "mature", "low_at": 0.33, "low": "Keep the tone hopeful, with no grisly detail."},
+      {"slider": "humour", "high_at": 0.67, "high": "Let humour in wherever it fits.", "high_rating": "general", "low_at": 0.33, "low": "Play it straight: no jokes."}
+    ],
+    "temperature_delta": 0.2
+  },
   "group_settings": {
     "$comment": "Group chat modes (audit gap 6), a chat's group_settings: card_mode swap (the speaker's card) or join (every member's card, each between the join prefix and suffix); order natural, list or pooled; allow_self (natural order may pick who just spoke); auto_seconds (the next member replies by itself after that long idle, 0 off); scenario (replaces each card's scenario). features/chat/turns.ts, features/prompt/assemble.ts, ai_chat/Prompt.py.",
     "card_modes": ["swap", "join"],

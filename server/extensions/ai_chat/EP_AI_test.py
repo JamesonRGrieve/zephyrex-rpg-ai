@@ -862,6 +862,29 @@ class TestGenerate:
         assert verdict.status_code == 200, verdict.text
         assert verdict.json()["canon_check"] == {"level": "none", "fact": None, "reason": "", "checked": False}
 
+    def test_the_narrator_sliders_choose_the_model_by_reputation(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-21: "sliders that determine the model based on the models reputation".
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        bad = server.post(
+            "/v1/model_endpoint",
+            json={"model_endpoint": {"name": "Odd", "base_url": model_url, "model": "x", "traits": {"spice": 2}}},
+            headers=_headers(user),
+        )
+        assert bad.status_code == 422, bad.text
+        _create(server, user, "model_endpoint", name="Cydonia", base_url=model_url, model="cydonia-24b-v4.3", is_default=True, roles=["story", "gm"])
+        _create(server, user, "model_endpoint", name="Magnum", base_url=model_url, model="magnum-diamond-24b", roles=["gm"])
+        _create(server, user, "model_endpoint", name="Small", base_url=model_url, model="stheno-8b", roles=["gm"], traits={"verbosity": 0.7})
+        refused = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "narrator_style": {"prose": 1}}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]], narrator_style={"verbosity": 0.7}).json()["chat"]
+        assert chat["narrator_style"] == {"verbosity": 0.7}
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["We wait."]).json()["chat_message"]
+        RECEIVED.clear()
+        server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "narrate"}}, headers=_headers(user))
+        # The wordier of the two that may narrate; never the 8b one, however near its traits are.
+        assert RECEIVED[-1]["body"]["model"] == "magnum-diamond-24b"
+
     def test_cut_takes_out_only_the_lines_named(self, server: TestClient) -> None:
         # Audit gap 5: STscript's /cut; the cut lines' replies move up to their parents.
         user = create_user(server)

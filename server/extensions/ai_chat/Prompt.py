@@ -507,6 +507,7 @@ def assemble_prompt(
     injections: Sequence[Mapping[str, Any]] = (),
     forbid: Mapping[str, Any] | None = None,
     party: str = "",
+    style: str = "",
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -568,6 +569,9 @@ def assemble_prompt(
         # Nobody speaks for anyone else: every other voice at the table, by name and look.
         ruled = cast_rule(PROMPT["voice_cast"], persona, characters, speaker["id"])
         main = " ".join(part for part in (main, ruled) if part)
+    # The narrator sliders' lines (NarratorStyle.py): length, and the narrator's tone.
+    if style.strip():
+        main = f"{main}\n\n{style.strip()}"
     # A regeneration after the voice guard caught a span (VoiceGuard.py): it's forbidden, by name.
     forbidden = forbid_text(forbid)
     if forbidden:

@@ -44,6 +44,7 @@ import {
 } from '~/contract';
 import { samplerProblem } from '~/features/prompt/samplers';
 import { extraBodyProblem } from '~/features/models/extraBody';
+import { styleProblem, traitsProblem } from '~/features/models/narratorStyle';
 import { groupSettingsProblem } from '~/features/chat/groupSettings';
 import { injectionsProblem } from '~/features/chat/injections';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
@@ -292,6 +293,7 @@ const CHAT_COLUMNS: Columns = {
   muted_ids: jsonList('mutedIds'),
   vox_ids: jsonList('voxIds'),
   canon_checks: plain('canonChecks'),
+  narrator_style: jsonObject('narratorStyle'),
   background: plain('background'),
   objectives: jsonList('objectives'),
   content_rating: plain('contentRating'),
@@ -348,6 +350,11 @@ const chatFields = {
   vox_ids: z.array(recordId).max(LIMITS.characters_per_chat),
   /** Canon warnings on lines; off for a campaign that breaks canon on purpose. */
   canon_checks: z.boolean(),
+  /** The narrator's sliders (features/models/narratorStyle.ts): each 0-1, or null for any. */
+  narrator_style: z.record(z.string(), z.unknown()).superRefine((value, context) => {
+    const problem = styleProblem(value);
+    if (problem !== null) context.addIssue({ code: 'custom', message: problem });
+  }),
   /** A picture behind the chat (A31), a data URL as an avatar is. */
   background: avatar,
   /** The chat's tasks, in order (A53); the first not done is put to the model. */
@@ -405,6 +412,7 @@ const chatCreate = z.object({
   muted_ids: chatFields.muted_ids.default([]),
   vox_ids: chatFields.vox_ids.default([]),
   canon_checks: chatFields.canon_checks.default(true),
+  narrator_style: chatFields.narrator_style.default({}),
   background: avatar.default(null),
   objectives: chatFields.objectives.default([]),
   content_rating: chatFields.content_rating.default(null),
@@ -757,6 +765,7 @@ const ENDPOINT_COLUMNS: Columns = {
   image_size: plain('imageSize'),
   roles: jsonList('roles'),
   extra_body: jsonObject('extraBody'),
+  traits: jsonObject('traits'),
 };
 
 const baseUrl = z
@@ -787,6 +796,11 @@ const endpointFields = {
     const problem = extraBodyProblem(value);
     if (problem !== null) context.addIssue({ code: 'custom', message: problem });
   }),
+  /** Its reputation as a narrator (features/models/narratorStyle.ts), over the contract's seeds. */
+  traits: z.record(z.string(), z.unknown()).superRefine((value, context) => {
+    const problem = traitsProblem(value);
+    if (problem !== null) context.addIssue({ code: 'custom', message: problem });
+  }),
 };
 const endpointCreate = z.object({
   name,
@@ -800,6 +814,7 @@ const endpointCreate = z.object({
   image_size: endpointFields.image_size.default(''),
   roles: endpointFields.roles.default([]),
   extra_body: endpointFields.extra_body.default({}),
+  traits: endpointFields.traits.default({}),
 });
 const endpointUpdate = z.object({ name, ...endpointFields }).partial();
 

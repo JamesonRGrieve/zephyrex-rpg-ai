@@ -111,6 +111,7 @@ export const chatSchema = z.object({
   muted_ids: z.array(z.string()),
   vox_ids: z.array(z.string()).default([]),
   canon_checks: z.boolean().default(true),
+  narrator_style: z.record(z.string(), z.unknown()).default({}),
   background: z.string().nullable(),
   objectives: z.array(z.object({ text: z.string(), done: z.boolean() })),
   content_rating: z.enum(SAFETY.ratings).nullable(),
@@ -178,6 +179,7 @@ export const endpointSchema = z.object({
   image_size: z.string(),
   roles: z.array(z.enum(ENDPOINT_ROLES)),
   extra_body: z.record(z.string(), z.unknown()),
+  traits: z.record(z.string(), z.unknown()).optional(),
 });
 export type ModelEndpoint = z.infer<typeof endpointSchema>;
 
