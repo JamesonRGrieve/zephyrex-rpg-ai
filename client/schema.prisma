@@ -51,6 +51,14 @@ model Persona {
   description String   @default("")
   avatar      String?
   isDefault   Boolean  @default(false)
+  /// Audit gap 9: a title, where the description goes (prompt, depth, note_top, note_bottom or none)
+  /// with its depth and role, its own lorebook, and the characters it's locked to (a JSON list).
+  title               String  @default("")
+  descriptionPosition String  @default("prompt")
+  descriptionDepth    Int     @default(2)
+  descriptionRole     String  @default("system")
+  lorebookId          String?
+  characterIds        String  @default("[]")
   createdAt   DateTime @default(now())
   updatedAt   DateTime
   updatedById String?

@@ -28,7 +28,7 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { CAMPAIGN, EXPRESSION, PICTURE, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
+import { CAMPAIGN, EXPRESSION, PERSONA, PICTURE, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandAll, expandMacros, type MacroContext, type MacroNames } from './macros';
@@ -75,6 +75,13 @@ export function characterNote(character: Pick<PromptCharacter, 'extensions'>): C
 export interface PromptPersona {
   name: string;
   description: string;
+  /**
+   * Where the description goes (audit gap 9): the persona section (the default), a depth in the
+   * chat, the top or bottom of the author's note, or nowhere (macros still read it).
+   */
+  description_position?: (typeof PERSONA.positions)[number];
+  description_depth?: number;
+  description_role?: (typeof PERSONA.roles)[number];
 }
 
 export interface PromptTurn {
@@ -650,6 +657,9 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
       ),
   ].join('\n');
   const persona = input.persona;
+  // The persona's description where it's placed (audit gap 9); in the persona section by default.
+  const personaLine = persona === null || persona.description.trim() === '' ? '' : `{{user}}: ${persona.description}`;
+  const personaAt = persona?.description_position ?? 'prompt';
   const texts: Partial<Record<PromptSectionId, string>> = {
     main:
       override.trim() !== ''
@@ -672,7 +682,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
     scenario: speaker.scenario.trim() === '' ? '' : `Scenario: ${speaker.scenario}`,
     lore_after_char: loreSections.after_char ?? '',
-    persona: persona === null || persona.description.trim() === '' ? '' : `{{user}}: ${persona.description}`,
+    persona: personaAt === 'prompt' ? personaLine : '',
     lore_before_example: loreSections.before_example ?? '',
     examples: speaker.example_messages.trim() === '' ? '' : `Example dialogue:\n${speaker.example_messages}`,
     lore_after_example: loreSections.after_example ?? '',
@@ -684,7 +694,15 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     role: 'system',
     content: storySystem(input, texts, order, fill) ?? systemText(texts, order, fill),
   };
-  const note = fill(noteBlock(sectionText('author_note', input.author_note), loreSections));
+  const note = fill(
+    [
+      personaAt === 'note_top' ? personaLine : '',
+      noteBlock(sectionText('author_note', input.author_note), loreSections),
+      personaAt === 'note_bottom' ? personaLine : '',
+    ]
+      .filter((part) => part !== '')
+      .join('\n'),
+  );
   // The speaker's Character's Note (gap 7); the narrator has none.
   const cardNote = narrating ? null : characterNote(speaker);
   const inserts: Insert[] = [
@@ -692,6 +710,14 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     ...(cardNote === null
       ? []
       : [{ depth: cardNote.depth, message: { role: cardNote.role, content: fill(cardNote.content) } }]),
+    ...(personaAt !== 'depth' || personaLine === ''
+      ? []
+      : [
+          {
+            depth: persona?.description_depth ?? PERSONA.default_depth,
+            message: { role: persona?.description_role ?? ('system' as const), content: fill(personaLine) },
+          },
+        ]),
     ...(input.lore?.at_depth ?? []).map((insert: DepthInsert) => ({
       depth: insert.depth,
       message: { role: insert.role, content: fill(insert.content) },

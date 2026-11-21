@@ -38,6 +38,7 @@ MAX_TAG: int = LIMITS["tag_characters"]
 MAX_AVATAR: int = LIMITS["avatar_bytes"]
 MAX_EXTENSIONS: int = LIMITS["extensions_bytes"]
 MAX_PERSONA: int = LIMITS["persona_description_characters"]
+PERSONA: dict[str, Any] = CONTRACT["persona"]
 DATA_URL = re.compile(r"^data:image/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$")
 
 
@@ -129,6 +130,27 @@ class PersonaChecks(PlainModel):
     @classmethod
     def _checked_avatar(cls, value: Any) -> Any:
         return _avatar(value)
+
+    @field_validator("description_position", check_fields=False)
+    @classmethod
+    def _checked_position(cls, value: Any) -> Any:
+        if value is not None and value not in PERSONA["positions"]:
+            raise ValueError(f"description_position is one of {', '.join(PERSONA['positions'])}")
+        return value
+
+    @field_validator("description_role", check_fields=False)
+    @classmethod
+    def _checked_role(cls, value: Any) -> Any:
+        if value is not None and value not in PERSONA["roles"]:
+            raise ValueError(f"description_role is one of {', '.join(PERSONA['roles'])}")
+        return value
+
+    @field_validator("character_ids", check_fields=False)
+    @classmethod
+    def _checked_locks(cls, value: Any) -> Any:
+        if value is not None and len(set(value)) != len(value):
+            raise ValueError("Each character once")
+        return value
 
 
 class CharacterModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
@@ -238,6 +260,13 @@ class PersonaModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     description: str = Field("", description="Who the person plays as")
     avatar: str | None = Field(None, description="The picture, as a data URL")
     is_default: bool = Field(False, description="Used by chats that name no persona")
+    # Audit gap 9: a title, where the description goes, its own lorebook, the characters it's locked to.
+    title: str = Field("", description="A title shown with the name")
+    description_position: str = Field("prompt", description="prompt, depth, note_top, note_bottom or none")
+    description_depth: int = Field(PERSONA["default_depth"], description="Messages from the end, at a depth")
+    description_role: str = Field("system", description="Who says it at a depth: system, user or assistant")
+    lorebook_id: str | None = Field(None, description="Its own lorebook, read while it's spoken as")
+    character_ids: list[str] = Field(default_factory=list, description="The characters it's locked to")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI personas"
 
@@ -246,12 +275,24 @@ class PersonaModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         description: str = Field("", max_length=MAX_PERSONA)
         avatar: str | None = None
         is_default: bool = False
+        title: str = Field("", max_length=PERSONA["title_characters"])
+        description_position: str = "prompt"
+        description_depth: int = Field(PERSONA["default_depth"], ge=0, le=PERSONA["depth_max"])
+        description_role: str = "system"
+        lorebook_id: str | None = Field(None, min_length=1)
+        character_ids: list[str] = Field(default_factory=list, max_length=PERSONA["locked_characters"])
 
     class Update(PersonaChecks, BaseModel):
         name: str | None = Field(None, min_length=1, max_length=MAX_NAME)
         description: str | None = Field(None, max_length=MAX_PERSONA)
         avatar: str | None = None
         is_default: bool | None = None
+        title: str | None = Field(None, max_length=PERSONA["title_characters"])
+        description_position: str | None = None
+        description_depth: int | None = Field(None, ge=0, le=PERSONA["depth_max"])
+        description_role: str | None = None
+        lorebook_id: str | None = Field(None, min_length=1)
+        character_ids: list[str] | None = Field(None, max_length=PERSONA["locked_characters"])
 
     class Search(ApplicationModel.Search):
         name: StringSearchModel | None = None
@@ -267,12 +308,36 @@ class PersonaManager(AbstractBLLManager[PersonaModel], RouterMixin):
             if other.id != keep_id:
                 super().update(other.id, is_default=False)
 
+    def _check_references(self, fields: dict[str, Any]) -> None:
+        """A persona's lorebook and locked characters must be the requester's own (audit gap 9)."""
+        from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import LorebookManager
+
+        owner = {"requester_id": str(self.requester.id), "model_registry": self.model_registry}
+        if fields.get("lorebook_id") is not None:
+            try:
+                LorebookManager(**owner).get(id=fields["lorebook_id"])
+            except HTTPException as error:
+                raise not_yours("lorebook_id") from error
+        for character_id in fields.get("character_ids") or []:
+            try:
+                CharacterManager(**owner).get(id=character_id)
+            except HTTPException as error:
+                raise not_yours("character_ids") from error
+
     def create(self, **kwargs: Any) -> Any:
+        # The framework writes only the fields a create sets; a list's default must be explicit.
+        kwargs.setdefault("character_ids", [])
+        kwargs.setdefault("title", "")
+        kwargs.setdefault("description_position", "prompt")
+        kwargs.setdefault("description_depth", PERSONA["default_depth"])
+        kwargs.setdefault("description_role", "system")
+        self._check_references(kwargs)
         if kwargs.get("is_default"):
             self._clear_other_defaults(None)
         return super().create(**kwargs)
 
     def update(self, id: str, **kwargs: Any) -> Any:
+        self._check_references(kwargs)
         updated = super().update(id, **kwargs)
         if kwargs.get("is_default"):
             self._clear_other_defaults(id)

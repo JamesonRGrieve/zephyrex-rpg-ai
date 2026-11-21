@@ -202,6 +202,28 @@ describe('personas', () => {
     ]);
     expect(sam.record.id).toBeDefined();
   });
+
+  it('keeps where its description goes and the characters it is locked to, only your own (audit gap 9)', async () => {
+    const ada = await created<{ id: string }>(postCharacter, '/v1/character', 'character', { name: 'Ada' });
+    const { record } = await created<{ description_position: string; description_depth: number; character_ids: string[] }>(
+      postPersona,
+      '/v1/persona',
+      'persona',
+      {
+        name: 'Sam',
+        title: 'Deckhand',
+        description_position: 'depth',
+        description_depth: 3,
+        character_ids: [ada.record.id],
+      },
+    );
+    expect(record).toMatchObject({ description_position: 'depth', description_depth: 3, character_ids: [ada.record.id] });
+    const post = (fields: Record<string, unknown>) =>
+      postPersona(call('/v1/persona', { method: 'POST', body: { persona: { name: 'X', ...fields } } }), none);
+    expect((await post({ character_ids: ['nobody'] })).status).toBe(422);
+    expect((await post({ lorebook_id: 'nowhere' })).status).toBe(422);
+    expect((await post({ description_position: 'sideways' })).status).toBe(422);
+  });
 });
 
 describe('model endpoints', () => {

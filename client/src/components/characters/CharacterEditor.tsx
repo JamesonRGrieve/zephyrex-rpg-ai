@@ -6,7 +6,7 @@
  * lorebook inside), start a chat, or delete with undo. On a
  * phone the save bar stays at the bottom, above the home indicator.
  */
-import { Download, MessageSquarePlus, Save, Trash2 } from 'lucide-react';
+import { Download, MessageSquarePlus, Save, Trash2, UserRound } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { type ReactElement, useId, useState } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
@@ -15,7 +15,8 @@ import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
-import { type Character, characters, chats, lorebookEntrySchema, lorebooks } from '~/features/data/records';
+import { type Character, characters, chats, lorebookEntrySchema, lorebooks, personas } from '~/features/data/records';
+import { personaFromCharacter } from '~/features/prompt/personaPick';
 import type { EntryFields } from '~/features/import/stLorebook';
 import { exportCard } from '~/features/import/exportCard';
 import { cardWithBook } from '~/features/import/characterCard';
@@ -80,6 +81,7 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const record = characters.useOne(id);
   const { update, remove } = characters.useActions();
   const { create: createChat } = chats.useActions();
+  const { create: createPersona } = personas.useActions();
   const router = useRouter();
   // The person's edits; until there are any, the draft is the record as saved.
   const [edited, setDraft] = useState<CharacterDraft | null>(null);
@@ -113,6 +115,16 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   };
 
   /** The card, with the character's lorebook as its character_book, as a PNG card or JSON. */
+  /** A persona from this character (audit gap 9): its name, picture and description. */
+  const makePersona = async () => {
+    const problem = await writeProblem(
+      createPersona(personaFromCharacter(saved, LIMITS.persona_description_characters)),
+      'Not made',
+    );
+    if (problem === null) notify('Persona made', `You can play as ${saved.name} from Personas.`);
+    else notify('Not made', problem);
+  };
+
   const exportThis = async () => {
     const book = (books.data ?? []).find((one) => one.id === saved.lorebook_id);
     const card = await cardWithBook({ ...draft, extensions: saved.extensions }, book, () =>
@@ -233,6 +245,9 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
         </Button>
         <Button type='button' variant='outline' className='h-11' onClick={() => void exportThis()}>
           <Download aria-hidden /> Export card
+        </Button>
+        <Button type='button' variant='outline' className='h-11' onClick={() => void makePersona()}>
+          <UserRound aria-hidden /> Make a persona
         </Button>
         <Button type='button' variant='ghost' className='h-11 text-destructive' onClick={deleteCharacter}>
           <Trash2 aria-hidden /> Delete

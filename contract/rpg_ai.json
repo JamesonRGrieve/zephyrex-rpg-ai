@@ -152,6 +152,15 @@
   },
   "paid_features": {},
   "endpoint_apis": ["chat", "text", "horde", "anthropic", "google"],
+  "persona": {
+    "$comment": "Personas (audit gap 9): where the description goes (the persona section, a depth in the chat, the top or bottom of the author's note, or nowhere), the role it has at a depth, and the characters it's locked to (features/prompt/personaPick.ts, ai_chat/PersonaPick.py).",
+    "positions": ["prompt", "depth", "note_top", "note_bottom", "none"],
+    "roles": ["system", "user", "assistant"],
+    "depth_max": 1000,
+    "default_depth": 2,
+    "title_characters": 120,
+    "locked_characters": 100
+  },
   "native_apis": {
     "$comment": "Native APIs (audit gap 8): Anthropic's Messages API and Google's Gemini API, asked from the same chat messages as an OpenAI-compatible endpoint and read back as its stream (features/models/nativeApis.ts, ai_chat/NativeApis.py; cases in contract/native-api-cases.json). A conversation must open on the person's turn: when it doesn't, `opening` is that turn.",
     "anthropic_version": "2023-06-01",

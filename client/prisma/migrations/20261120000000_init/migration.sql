@@ -33,6 +33,12 @@ CREATE TABLE "Persona" (
     "description" TEXT NOT NULL DEFAULT '',
     "avatar" TEXT,
     "isDefault" BOOLEAN NOT NULL DEFAULT false,
+    "title" TEXT NOT NULL DEFAULT '',
+    "descriptionPosition" TEXT NOT NULL DEFAULT 'prompt',
+    "descriptionDepth" INTEGER NOT NULL DEFAULT 2,
+    "descriptionRole" TEXT NOT NULL DEFAULT 'system',
+    "lorebookId" TEXT,
+    "characterIds" TEXT NOT NULL DEFAULT '[]',
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

@@ -1,0 +1,131 @@
+{
+  "$comment": "Persona picking (audit gap 9): cases both twins run (client/src/features/prompt/personaPick.test.ts, server/extensions/ai_chat/PersonaPick_test.py).",
+  "personas": [
+    {
+      "id": "p1",
+      "name": "Sam",
+      "is_default": true,
+      "character_ids": [],
+      "lorebook_id": null
+    },
+    {
+      "id": "p2",
+      "name": "Reyes",
+      "is_default": false,
+      "character_ids": [
+        "ada"
+      ],
+      "lorebook_id": null
+    },
+    {
+      "id": "p3",
+      "name": "Ash",
+      "is_default": false,
+      "character_ids": [
+        "ada",
+        "bo"
+      ],
+      "lorebook_id": "L3"
+    },
+    {
+      "id": "p4",
+      "name": "Kit",
+      "is_default": false,
+      "character_ids": [
+        "bo"
+      ],
+      "lorebook_id": null
+    }
+  ],
+  "pick_cases": [
+    {
+      "name": "the chat's own choice comes first",
+      "chosen": "p4",
+      "characters": [
+        "ada"
+      ],
+      "picked": "p4"
+    },
+    {
+      "name": "a chosen persona that's gone falls through to the lock",
+      "chosen": "gone",
+      "characters": [
+        "ada"
+      ],
+      "picked": "p3"
+    },
+    {
+      "name": "locked to a character in the chat: by name when two are (Ash before Reyes)",
+      "chosen": null,
+      "characters": [
+        "ada"
+      ],
+      "picked": "p3"
+    },
+    {
+      "name": "the chat's first character with a lock decides",
+      "chosen": null,
+      "characters": [
+        "cy",
+        "bo",
+        "ada"
+      ],
+      "picked": "p3"
+    },
+    {
+      "name": "no lock: the default",
+      "chosen": null,
+      "characters": [
+        "cy"
+      ],
+      "picked": "p1"
+    }
+  ],
+  "no_default_case": {
+    "name": "nothing chosen, locked or default: none",
+    "chosen": null,
+    "characters": [
+      "cy"
+    ],
+    "picked": null
+  },
+  "book_cases": [
+    {
+      "name": "the persona's lorebook joins the chat's",
+      "persona": "p3",
+      "books": [
+        "L1"
+      ],
+      "books_after": [
+        "L1",
+        "L3"
+      ]
+    },
+    {
+      "name": "once only",
+      "persona": "p3",
+      "books": [
+        "L3"
+      ],
+      "books_after": [
+        "L3"
+      ]
+    },
+    {
+      "name": "no lorebook, no change",
+      "persona": "p2",
+      "books": [
+        "L1"
+      ],
+      "books_after": [
+        "L1"
+      ]
+    },
+    {
+      "name": "no persona, no change",
+      "persona": null,
+      "books": [],
+      "books_after": []
+    }
+  ]
+}

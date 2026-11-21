@@ -32,6 +32,7 @@ from zephyrex.extensions.ai_chat.Instruct import render_story_string  # type: ig
 from zephyrex.extensions.ai_chat.Macros import MacroContext, expand_all, expand_macros  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import apply_regex  # type: ignore[import-not-found]
 
+PERSONA: dict[str, Any] = CONTRACT["persona"]
 DEFAULT_USER_NAME = "User"
 NARRATOR = "Narrator"
 
@@ -508,6 +509,11 @@ def assemble_prompt(
             if character["description"].strip()
         ]
     )
+    # The persona's description where it's placed (audit gap 9); in the persona section by default.
+    persona_line = (
+        f"{{{{user}}}}: {persona['description']}" if persona is not None and persona["description"].strip() else ""
+    )
+    persona_at = str((persona or {}).get("description_position") or "prompt")
     texts = {
         "main": main,
         "safety": safety_text(safety),
@@ -523,9 +529,7 @@ def assemble_prompt(
         else "",
         "scenario": f"Scenario: {speaker['scenario']}" if speaker["scenario"].strip() else "",
         "lore_after_char": sections.get("after_char", ""),
-        "persona": f"{{{{user}}}}: {persona['description']}"
-        if persona is not None and persona["description"].strip()
-        else "",
+        "persona": persona_line if persona_at == "prompt" else "",
         "lore_before_example": sections.get("before_example", ""),
         "examples": f"Example dialogue:\n{speaker['example_messages']}" if speaker["example_messages"].strip() else "",
         "lore_after_example": sections.get("after_example", ""),
@@ -545,7 +549,17 @@ def assemble_prompt(
         for part in (sections.get("before_an", ""), kept("author_note", author_note), sections.get("after_an", ""))
         if part.strip()
     )
-    note = fill(block)
+    note = fill(
+        "\n".join(
+            part
+            for part in (
+                persona_line if persona_at == "note_top" else "",
+                block,
+                persona_line if persona_at == "note_bottom" else "",
+            )
+            if part
+        )
+    )
     inserts: list[tuple[int, dict[str, str]]] = (
         [(PROMPT["author_note_depth"], {"role": "system", "content": note})] if note else []
     )
@@ -553,6 +567,14 @@ def assemble_prompt(
     card_note = None if narrating else character_note(speaker)
     if card_note is not None:
         inserts.append((card_note["depth"], {"role": card_note["role"], "content": fill(card_note["content"])}))
+    if persona_at == "depth" and persona_line:
+        depth = (persona or {}).get("description_depth")
+        inserts.append(
+            (
+                depth if isinstance(depth, int) else PERSONA["default_depth"],
+                {"role": (persona or {}).get("description_role") or "system", "content": fill(persona_line)},
+            )
+        )
     inserts += [
         (insert["depth"], {"role": insert["role"], "content": fill(insert["content"])})
         for insert in (lore or {}).get("at_depth", [])

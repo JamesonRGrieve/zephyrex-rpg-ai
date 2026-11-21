@@ -242,6 +242,21 @@ class TestPersonasAndEndpoints:
         listed = server.get("/v1/persona", headers=_headers(other)).json()["personae"]
         assert sorted((persona["name"], persona["is_default"]) for persona in listed) == [("Reyes", True), ("Sam", False)]
 
+    def test_a_persona_places_its_description_and_locks_to_your_own_characters(self, server: TestClient, person: Any, other: Any) -> None:
+        # Audit gap 9: a title, where the description goes, its own lorebook, characters it's locked to.
+        ada = _create(server, person, "character", name="Ada").json()["character"]
+        theirs = _create(server, other, "character", name="Theirs").json()["character"]
+        book = _create(server, person, "lorebook", name="Sam's past").json()["lorebook"]
+        made = _create(server, person, "persona", name="Sam", title="Deckhand", description_position="depth", description_depth=3, description_role="user", lorebook_id=book["id"], character_ids=[ada["id"]]).json()["persona"]
+        assert {key: made[key] for key in ("title", "description_position", "description_depth", "description_role", "lorebook_id", "character_ids")} == {
+            "title": "Deckhand", "description_position": "depth", "description_depth": 3, "description_role": "user", "lorebook_id": book["id"], "character_ids": [ada["id"]],
+        }
+        plain = _create(server, person, "persona", name="Plain").json()["persona"]
+        assert (plain["description_position"], plain["character_ids"], plain["lorebook_id"]) == ("prompt", [], None)
+        for fields in ({"character_ids": [theirs["id"]]}, {"lorebook_id": "nowhere"}, {"description_position": "sideways"}, {"description_role": "narrator"}, {"character_ids": [ada["id"], ada["id"]]}):
+            refused = server.post("/v1/persona", json={"persona": {"name": "X", **fields}}, headers=_headers(person))
+            assert refused.status_code == 422, (fields, refused.text)
+
     def test_the_api_key_is_write_only(self, server: TestClient, person: Any) -> None:
         endpoint = _create(server, person, "model_endpoint", name="Hosted", base_url="https://api.example.com/v1", model="big", api_key="sk-secret").json()["model_endpoint"]
         assert endpoint["has_api_key"] is True

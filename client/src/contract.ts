@@ -98,6 +98,11 @@ export type InstructTemplateId = keyof typeof INSTRUCT_TEMPLATES;
 export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['chat', 'text', 'horde', 'anthropic', 'google'];
 /** Native APIs (audit gap 8): how Anthropic's and Google's are asked (cases in contract/native-api-cases.json). */
 export const NATIVE_APIS = contract.native_apis;
+/** Personas (audit gap 9): description positions, roles, and locks to characters. */
+export const PERSONA = contract.persona as unknown as Omit<typeof contract.persona, 'positions' | 'roles'> & {
+  positions: readonly ['prompt', 'depth', 'note_top', 'note_bottom', 'none'];
+  roles: readonly ['system', 'user', 'assistant'];
+};
 /** A person's own instruct template (A17): its fields and their limits. */
 export const INSTRUCT_CUSTOM = contract.instruct_custom;
 /** AI Horde (A48): where a text job is submitted and polled, and how long to wait. */

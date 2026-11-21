@@ -1679,6 +1679,196 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "persona at a depth (audit gap 9): out of the system prompt, into the chat at its depth and role",
+      "input": {
+        "characters": ["ada"],
+        "speaker_id": "c-ada",
+        "persona": {
+          "name": "Sam",
+          "description": "{{user}} is a new deckhand.",
+          "description_position": "depth",
+          "description_depth": 1,
+          "description_role": "system"
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Welcome aboard."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where do I sleep?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        {
+          "role": "assistant",
+          "content": "Welcome aboard."
+        },
+        {
+          "role": "system",
+          "content": "Sam: Sam is a new deckhand."
+        },
+        {
+          "role": "user",
+          "content": "Where do I sleep?"
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "persona at the top of the author's note (audit gap 9)",
+      "input": {
+        "characters": ["ada"],
+        "speaker_id": "c-ada",
+        "persona": {
+          "name": "Sam",
+          "description": "{{user}} is a new deckhand.",
+          "description_position": "note_top"
+        },
+        "author_note": "[Keep it short.]",
+        "history": [
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Welcome aboard."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where do I sleep?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        {
+          "role": "system",
+          "content": "Sam: Sam is a new deckhand.\n[Keep it short.]"
+        },
+        {
+          "role": "assistant",
+          "content": "Welcome aboard."
+        },
+        {
+          "role": "user",
+          "content": "Where do I sleep?"
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "persona at the bottom of the author's note, with no note of its own (audit gap 9)",
+      "input": {
+        "characters": ["ada"],
+        "speaker_id": "c-ada",
+        "persona": {
+          "name": "Sam",
+          "description": "{{user}} is a new deckhand.",
+          "description_position": "note_bottom"
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Welcome aboard."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where do I sleep?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        {
+          "role": "system",
+          "content": "Sam: Sam is a new deckhand."
+        },
+        {
+          "role": "assistant",
+          "content": "Welcome aboard."
+        },
+        {
+          "role": "user",
+          "content": "Where do I sleep?"
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "persona placed nowhere (audit gap 9): only macros read it",
+      "input": {
+        "characters": ["ada"],
+        "speaker_id": "c-ada",
+        "persona": {
+          "name": "Sam",
+          "description": "{{user}} is a new deckhand.",
+          "description_position": "none"
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Welcome aboard."
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where do I sleep?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write Ada's next reply in a fictional chat between Ada and Sam. Stay in character, and write only Ada's part.\n\nAda is a ship's engineer.\n\nAda's personality: dry, kind\n\nScenario: Sam has just come aboard.\n\nExample dialogue:\n<START>\nAda: Mind the coolant."
+        },
+        {
+          "role": "assistant",
+          "content": "Welcome aboard."
+        },
+        {
+          "role": "user",
+          "content": "Where do I sleep?"
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

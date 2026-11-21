@@ -27,6 +27,7 @@ import {
   LORE,
   MESSAGE_CHANNELS,
   MESSAGE_ROLES,
+  PERSONA,
   PICTURE,
   PRESET_DEFAULTS,
   PROMPT,
@@ -178,16 +179,53 @@ const PERSONA_COLUMNS: Columns = {
   description: plain('description'),
   avatar: plain('avatar'),
   is_default: plain('isDefault'),
+  title: plain('title'),
+  description_position: plain('descriptionPosition'),
+  description_depth: plain('descriptionDepth'),
+  description_role: plain('descriptionRole'),
+  lorebook_id: plain('lorebookId'),
+  character_ids: jsonList('characterIds'),
 };
 
 const personaDescription = z.string().max(LIMITS.persona_description_characters);
+// Audit gap 9: a title, where the description goes, its own lorebook, and characters it's locked to.
+const personaExtras = {
+  title: z.string().trim().max(PERSONA.title_characters),
+  description_position: z.enum(PERSONA.positions),
+  description_depth: z.number().int().min(0).max(PERSONA.depth_max),
+  description_role: z.enum(PERSONA.roles),
+  lorebook_id: z.string().min(1).nullable(),
+  character_ids: z
+    .array(z.string().min(1))
+    .max(PERSONA.locked_characters)
+    .refine((ids) => new Set(ids).size === ids.length, 'Each character once'),
+};
 const personaCreate = z.object({
   name,
   description: personaDescription.default(''),
   avatar: avatar.default(null),
   is_default: z.boolean().default(false),
+  title: personaExtras.title.default(''),
+  description_position: personaExtras.description_position.default('prompt'),
+  description_depth: personaExtras.description_depth.default(PERSONA.default_depth),
+  description_role: personaExtras.description_role.default('system'),
+  lorebook_id: personaExtras.lorebook_id.default(null),
+  character_ids: personaExtras.character_ids.default([]),
 });
-const personaUpdate = z.object({ name, description: personaDescription, avatar, is_default: z.boolean() }).partial();
+const personaUpdate = z
+  .object({ name, description: personaDescription, avatar, is_default: z.boolean(), ...personaExtras })
+  .partial();
+
+/** A persona's lorebook and locked characters must be the owner's own (audit gap 9). */
+async function checkPersonaReferences(ownerId: string, input: z.infer<typeof personaUpdate>): Promise<void> {
+  const owned = { createdById: ownerId };
+  if (input.lorebook_id != null && (await prisma.lorebook.count({ where: { ...owned, id: input.lorebook_id } })) === 0)
+    throw validationError('The lorebook must be one of yours', 'lorebook_id');
+  if (input.character_ids !== undefined && input.character_ids.length > 0) {
+    const found = await prisma.character.count({ where: { ...owned, id: { in: input.character_ids } } });
+    if (found !== input.character_ids.length) throw validationError('Every character must be one of yours', 'character_ids');
+  }
+}
 
 /** Only one persona is the default: making one so clears the flag on the others. */
 async function clearOtherDefaults(ownerId: string, keepId: string | null, stamp: Date): Promise<void> {
@@ -208,12 +246,15 @@ export const personas: ResourceSpec<PersonaRow, z.infer<typeof personaCreate>, z
   list: (ownerId) => prisma.persona.findMany({ where: { createdById: ownerId }, orderBy: { name: 'asc' } }),
   find: (id, ownerId) => prisma.persona.findFirst({ where: { id, createdById: ownerId } }),
   async insert(ownerId, input, stamp) {
+    await checkPersonaReferences(ownerId, input);
     if (input.is_default) await clearOtherDefaults(ownerId, null, stamp);
     return prisma.persona.create({
       data: { createdById: ownerId, ...written(PERSONA_COLUMNS, input, stamp) } as Prisma.PersonaUncheckedCreateInput,
     });
   },
   async updateIfCurrent(id, version, input, stamp, userId) {
+    const current = await prisma.persona.findUnique({ where: { id } });
+    if (current !== null) await checkPersonaReferences(current.createdById, input);
     const { count } = await prisma.persona.updateMany({
       where: { id, updatedAt: version },
       data: written(PERSONA_COLUMNS, input, stamp, userId) as Prisma.PersonaUncheckedUpdateManyInput,

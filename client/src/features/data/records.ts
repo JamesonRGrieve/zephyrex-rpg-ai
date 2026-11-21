@@ -20,6 +20,7 @@ import {
   LORE_POSITIONS,
   MESSAGE_CHANNELS,
   MESSAGE_ROLES,
+  PERSONA,
   QUICK_REPLY,
   REGEX,
   SAFETY,
@@ -82,6 +83,13 @@ export const personaSchema = z.object({
   description: z.string(),
   avatar: z.string().nullable(),
   is_default: z.boolean(),
+  // Audit gap 9.
+  title: z.string(),
+  description_position: z.enum(PERSONA.positions),
+  description_depth: z.number(),
+  description_role: z.enum(PERSONA.roles),
+  lorebook_id: z.string().nullable(),
+  character_ids: z.array(z.string()),
 });
 export type Persona = z.infer<typeof personaSchema>;
 
