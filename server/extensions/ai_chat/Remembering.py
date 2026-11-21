@@ -7,13 +7,17 @@ Memory.py, the twin of client/src/lib/memory.ts.
 
 Recall never stops a reply: without a model set to embed, or when it fails, the section is empty.
 An edited line is embedded again (its digest changed); a line no longer on the branch is forgotten.
+
+A character's memory across chats (AP8, MemoryAcross.py): when the replying character remembers
+across chats, recall also searches the memories of the person's other chats it was cast in (the
+requester's own chats only), within the same budget, under their own label.
 """
 
 from __future__ import annotations
 
 import hashlib
 import json
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 import httpx
@@ -24,9 +28,13 @@ from zephyrex.extensions.ai_chat.Memory import (  # type: ignore[import-not-foun
     embeddings_url,
     memory_chunks,
     memory_query,
-    memory_text,
-    recall,
     vectors_of,
+)
+from zephyrex.extensions.ai_chat.MemoryAcross import (  # type: ignore[import-not-found]
+    across_text,
+    cast_in,
+    recall_across,
+    remembers_across_chats,
 )
 from zephyrex.lib.Logging import logger
 from zephyrex.lib.SecretEncryption import decrypt_secret
@@ -71,20 +79,54 @@ async def _embed(endpoint: Any, inputs: Sequence[str]) -> list[list[float]] | No
 
 
 async def memories_for(
-    memories: Any, endpoints: Sequence[Any], chat_id: str, lines: Sequence[Mapping[str, str]]
+    memories: Any,
+    endpoints: Sequence[Any],
+    chat_id: str,
+    lines: Sequence[Mapping[str, str]],
+    speaker: Mapping[str, Any] | None = None,
+    chats: Callable[[], Sequence[Any]] = lambda: (),
 ) -> str:
     """The memories section for a chat's branch (``lines`` from Memory.story_lines): its older lines
     brought up to date (at most ``embed_batch`` new chunks a turn), then the ones closest to the
-    last lines. ``memories`` is the requester's ai_memories MemoryManager."""
+    last lines. ``memories`` is the requester's ai_memories MemoryManager; ``speaker`` (``id``,
+    ``name``, ``extensions``) the replying character, and ``chats`` the requester's chats, read
+    only when that character remembers across chats (AP8)."""
     try:
-        return await _remembering(memories, endpoints, chat_id, lines)
+        return await _remembering(memories, endpoints, chat_id, lines, speaker, chats)
     except Exception as error:  # recall never stops a reply
         logger.warning(f"Recall by meaning skipped: {error}")
         return ""
 
 
+def _elsewhere(
+    memories: Any, chat_id: str, model: str, speaker: Mapping[str, Any] | None, chats: Callable[[], Sequence[Any]]
+) -> list[Remembered]:
+    """What the speaker remembers from the requester's other chats it was cast in, embedded by the
+    same model; none unless it remembers across chats. In each chat's order, oldest chat first."""
+    if speaker is None or not remembers_across_chats(speaker.get("extensions")):
+        return []
+    others = cast_in(sorted(chats(), key=lambda chat: str(chat.created_at)), speaker["id"], chat_id)
+    rows = [
+        row
+        for other in others
+        for row in sorted(
+            memories.list(conversation_id=other, embedding_model=model),
+            key=lambda row: (str(row.created_at), row.key or ""),
+        )
+        if row.embedding
+    ]
+    return [
+        Remembered(text=row.content, vector=json.loads(row.embedding), order=order) for order, row in enumerate(rows)
+    ]
+
+
 async def _remembering(
-    memories: Any, endpoints: Sequence[Any], chat_id: str, lines: Sequence[Mapping[str, str]]
+    memories: Any,
+    endpoints: Sequence[Any],
+    chat_id: str,
+    lines: Sequence[Mapping[str, str]],
+    speaker: Mapping[str, Any] | None,
+    chats: Callable[[], Sequence[Any]],
 ) -> str:
     endpoint = embedder_of(endpoints)
     query = memory_query(lines)
@@ -124,7 +166,9 @@ async def _remembering(
         Remembered(text=texts[key], vector=vector, order=order[key])
         for key, vector in zip(missing, new_vectors, strict=True)
     ]
-    text: str = memory_text(recall(query_vector, remembered))
+    name = str(speaker["name"]) if speaker is not None else ""
+    elsewhere = _elsewhere(memories, chat_id, endpoint.model, speaker, chats)
+    text: str = across_text(recall_across(query_vector, remembered, elsewhere, name), name)
     return text
 
 

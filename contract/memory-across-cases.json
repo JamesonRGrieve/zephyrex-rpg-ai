@@ -1,0 +1,272 @@
+{
+  "$comment": "A character's memory across chats (AP8): cases both twins run (client/src/features/memory/across.test.ts, server/extensions/ai_chat/MemoryAcross_test.py). With the contract's memory block: extension 'zephyrex_rpg_memory', elsewhere_label 'From other chats with {{char}}:\\n' (7 tokens for Ada), prefix 6 tokens, recall 4, min_similarity 0.2, section_tokens 400.",
+  "flag_cases": [
+    {
+      "name": "off unless set",
+      "extensions": {},
+      "on": false
+    },
+    {
+      "name": "on when set",
+      "extensions": {
+        "zephyrex_rpg_memory": {
+          "across_chats": true
+        }
+      },
+      "on": true
+    },
+    {
+      "name": "only exactly true",
+      "extensions": {
+        "zephyrex_rpg_memory": {
+          "across_chats": "yes"
+        }
+      },
+      "on": false
+    },
+    {
+      "name": "not a flag object",
+      "extensions": {
+        "zephyrex_rpg_memory": true
+      },
+      "on": false
+    }
+  ],
+  "with_cases": [
+    {
+      "name": "turned on, beside the rest",
+      "extensions": {
+        "depth_prompt": 1
+      },
+      "on": true,
+      "result": {
+        "depth_prompt": 1,
+        "zephyrex_rpg_memory": {
+          "across_chats": true
+        }
+      }
+    },
+    {
+      "name": "turned off, no trace",
+      "extensions": {
+        "depth_prompt": 1,
+        "zephyrex_rpg_memory": {
+          "across_chats": true
+        }
+      },
+      "on": false,
+      "result": {
+        "depth_prompt": 1
+      }
+    }
+  ],
+  "recall_cases": [
+    {
+      "name": "this chat's first on a tie; the other chats' after, under their label",
+      "query": [
+        1,
+        0
+      ],
+      "here": [
+        {
+          "text": "H1",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 1
+        }
+      ],
+      "elsewhere": [
+        {
+          "text": "E0",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 0
+        }
+      ],
+      "recalled": {
+        "here": [
+          "H1"
+        ],
+        "elsewhere": [
+          "E0"
+        ]
+      },
+      "text": "Earlier in the story:\nH1\n\nFrom other chats with Ada:\nE0"
+    },
+    {
+      "name": "a closer line from another chat is kept before this chat's",
+      "query": [
+        1,
+        0
+      ],
+      "here": [
+        {
+          "text": "h0",
+          "vector": [
+            1,
+            1
+          ],
+          "order": 0
+        },
+        {
+          "text": "h1",
+          "vector": [
+            1,
+            1
+          ],
+          "order": 1
+        },
+        {
+          "text": "h2",
+          "vector": [
+            1,
+            1
+          ],
+          "order": 2
+        },
+        {
+          "text": "h3",
+          "vector": [
+            1,
+            1
+          ],
+          "order": 3
+        }
+      ],
+      "elsewhere": [
+        {
+          "text": "e0",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 0
+        }
+      ],
+      "recalled": {
+        "here": [
+          "h0",
+          "h1",
+          "h2"
+        ],
+        "elsewhere": [
+          "e0"
+        ]
+      },
+      "text": "Earlier in the story:\nh0\n\nh1\n\nh2\n\nFrom other chats with Ada:\ne0"
+    },
+    {
+      "name": "only the other chats' lines",
+      "query": [
+        1,
+        0
+      ],
+      "here": [
+        {
+          "text": "far",
+          "vector": [
+            0,
+            1
+          ],
+          "order": 0
+        }
+      ],
+      "elsewhere": [
+        {
+          "text": "E",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 0
+        }
+      ],
+      "recalled": {
+        "here": [],
+        "elsewhere": [
+          "E"
+        ]
+      },
+      "text": "Earlier in the story:\nFrom other chats with Ada:\nE"
+    },
+    {
+      "name": "the label's tokens count once a line from another chat is kept",
+      "query": [
+        1,
+        0
+      ],
+      "here": [
+        {
+          "text": "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+          "vector": [
+            1,
+            0
+          ],
+          "order": 0
+        },
+        {
+          "text": "h",
+          "vector": [
+            1,
+            0.2
+          ],
+          "order": 1
+        }
+      ],
+      "elsewhere": [
+        {
+          "text": "e",
+          "vector": [
+            1,
+            0.1
+          ],
+          "order": 0
+        }
+      ],
+      "recalled": {
+        "here": [
+          "yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+          "h"
+        ],
+        "elsewhere": []
+      },
+      "text": "Earlier in the story:\nyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy\n\nh"
+    },
+    {
+      "name": "nothing close, no section",
+      "query": [
+        1,
+        0
+      ],
+      "here": [
+        {
+          "text": "a",
+          "vector": [
+            0,
+            1
+          ],
+          "order": 0
+        }
+      ],
+      "elsewhere": [
+        {
+          "text": "b",
+          "vector": [
+            -1,
+            0
+          ],
+          "order": 0
+        }
+      ],
+      "recalled": {
+        "here": [],
+        "elsewhere": []
+      },
+      "text": ""
+    }
+  ]
+}

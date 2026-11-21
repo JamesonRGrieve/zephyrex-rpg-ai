@@ -36,4 +36,18 @@ describe('CharacterForm', () => {
   it('reads tags as a comma-separated list without blanks or repeats', () => {
     expect(parseTags(' fantasy, mentor,,fantasy ')).toEqual(['fantasy', 'mentor']);
   });
+
+  it('puts the editor’s own parts after the card and before About the card, and the folder inside it', () => {
+    render(
+      <CharacterForm
+        value={ADA_DRAFT}
+        onChange={() => undefined}
+        beforeNotes={<h2>In this app</h2>}
+        notesExtra={<p>Folder field</p>}
+      />,
+    );
+    const headings = screen.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent?.trim());
+    expect(headings).toEqual(['Who they are', 'How they open', 'How the model is steered', 'In this app', 'About the card']);
+    expect(screen.getByRole('region', { name: 'About the card' })).toContainElement(screen.getByText('Folder field'));
+  });
 });

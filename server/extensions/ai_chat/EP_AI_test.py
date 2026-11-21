@@ -729,6 +729,69 @@ class TestGenerate:
         assert server.delete(f"/v1/chat/{chat['id']}", headers=_headers(user, **{"If-Match": etag})).status_code in (200, 204)
         assert next(iter(server.get("/v1/memory", headers=_headers(user)).json().values())) == []
 
+    def test_a_character_remembers_across_chats_only_when_set_and_only_its_own(
+        self, server: TestClient, model_url: str
+    ) -> None:
+        def chat_with(user: Any, character: dict[str, Any], said: list[str]) -> dict[str, Any]:
+            chat = _create(server, user, "chat", title="Chat", character_ids=[character["id"]]).json()["chat"]
+            parent = None
+            for index, text in enumerate(said):
+                speaker = (
+                    {"role": "user"}
+                    if index % 2 == 0
+                    else {"role": "character", "speaker_character_id": character["id"]}
+                )
+                parent = _create(
+                    server, user, "chat_message", chat_id=chat["id"], parent_id=parent, swipes=[text], **speaker
+                ).json()["chat_message"]["id"]
+            return {"chat_id": chat["id"], "leaf_id": parent}
+
+        def system(user: Any, asked: dict[str, Any]) -> str:
+            prompt = server.post("/v1/ai_chat/prompt", json={"generate": asked}, headers=_headers(user))
+            assert prompt.status_code == 200, prompt.text
+            content: str = prompt.json()["prompt"]["messages"][0]["content"]
+            return content
+
+        def remembering(user: Any, character: dict[str, Any]) -> None:
+            fresh = server.get(f"/v1/character/{character['id']}", headers=_headers(user))
+            flagged = _put(
+                server,
+                user,
+                "character",
+                character["id"],
+                fresh.headers["ETag"],
+                extensions={**fresh.json()["character"]["extensions"], CONTRACT["memory"]["extension"]: {"across_chats": True}},
+            )
+            assert flagged.status_code == 200, flagged.text
+
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        bo = _create(server, user, "character", name="Bo").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, user, "model_endpoint", name="Embeddings", base_url=model_url, model="nomic-embed-text", roles=["embed"])
+        older = ["The coolant pump is failing.", "The valve is rusted."]
+        older += [f"Nothing much {index}." for index in range(CONTRACT["memory"]["recent_turns"] - 1)]
+        older += ["Check the coolant again."]
+        # The first chat's older lines are remembered as it is played.
+        assert "Earlier in the story:\nUser: The coolant pump is failing." in system(user, chat_with(user, ada, older))
+
+        later = chat_with(user, ada, ["Where were we?", "Check the coolant."])
+        assert "From other chats" not in system(user, later)
+        remembering(user, ada)
+        assert "Earlier in the story:\nFrom other chats with Ada:\nUser: The coolant pump is failing." in system(user, later)
+
+        # A character who was not in that chat recalls nothing from it, flag or not.
+        remembering(user, bo)
+        assert "Earlier in the story" not in system(user, chat_with(user, bo, ["Where were we?", "Check the coolant."]))
+
+        # Nor does anyone else's character, whatever it is called.
+        someone = create_user(server)
+        _create(server, someone, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, someone, "model_endpoint", name="Embeddings", base_url=model_url, model="nomic-embed-text", roles=["embed"])
+        their_ada = _create(server, someone, "character", name="Ada").json()["character"]
+        remembering(someone, their_ada)
+        assert "Earlier in the story" not in system(someone, chat_with(someone, their_ada, ["Where were we?", "Check the coolant."]))
+
     def test_a_line_is_read_aloud_only_by_a_model_set_to_speak(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)

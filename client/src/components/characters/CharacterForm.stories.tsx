@@ -32,3 +32,34 @@ export const Blank: Story = {
     initial: { ...ADA_DRAFT, name: 'New character', description: '', first_message: '', alternate_greetings: [], tags: [] },
   },
 };
+
+/** As the character editor lays it out: the card first, then what only this app keeps, the folder last. */
+export const InTheEditor: Story = {
+  render: (args) => (
+    <CharacterForm
+      value={args.initial}
+      onChange={() => undefined}
+      beforeNotes={
+        <section aria-labelledby='story-app' className='grid gap-2'>
+          <h2 id='story-app' className='text-lg font-semibold'>
+            In this app
+          </h2>
+          <p className='text-sm text-muted-foreground'>Lorebook, voice, expressions, memory across chats.</p>
+        </section>
+      }
+      notesExtra={<p className='text-sm'>Folder</p>}
+    />
+  ),
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const headings = canvas.getAllByRole('heading', { level: 2 }).map((heading) => heading.textContent?.trim());
+    await expect(headings).toEqual([
+      'Who they are',
+      'How they open',
+      'How the model is steered',
+      'In this app',
+      'About the card',
+    ]);
+    await expect(canvas.getByRole('region', { name: 'About the card' })).toContainElement(canvas.getByText('Folder'));
+  },
+};

@@ -9,6 +9,7 @@ import type { AddressInfo } from 'node:net';
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 import { LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { MEMORY } from '~/contract';
+import { MEMORY_EXTENSION } from '~/features/memory/across';
 import { prisma } from '~/lib/prisma';
 import { forgetChat, memoriesFor } from './memory';
 
@@ -53,6 +54,7 @@ beforeEach(async () => {
   failing = false;
   await prisma.modelEndpoint.deleteMany();
   await prisma.chatMemory.deleteMany();
+  await prisma.chat.deleteMany();
 });
 
 const recent = Array.from({ length: MEMORY.recent_turns - 1 }, (_unused, index) => ({
@@ -129,5 +131,48 @@ describe('recall by meaning (A19)', () => {
     failing = true;
     expect(await memoriesFor(LOCAL_OWNER_ID, 'chat-1', story())).toBe('');
     expect(await prisma.chatMemory.count()).toBe(0);
+  });
+});
+
+describe('a character’s memory across chats (AP8)', () => {
+  const ada = { id: 'c-ada', name: 'Ada', extensions: { [MEMORY_EXTENSION]: { across_chats: true } } };
+  const later = [
+    { id: 'l1', text: 'Bo: Where were we?' },
+    { id: 'l2', text: 'Ada: Check the coolant.' },
+  ];
+
+  async function chatOf(id: string, castIds: string[], createdById = LOCAL_OWNER_ID): Promise<void> {
+    await prisma.chat.create({
+      data: { id, createdById, title: id, characterIds: JSON.stringify(castIds), updatedAt: new Date() },
+    });
+  }
+
+  it('recalls from the other chats the character was in, only when it remembers across chats', async () => {
+    await addEmbedder();
+    await chatOf('chat-1', ['c-ada']);
+    await chatOf('chat-2', ['c-ada']);
+    await chatOf('chat-bo', ['c-bo']);
+    await memoriesFor(LOCAL_OWNER_ID, 'chat-1', story());
+    // Someone else's memory, however close, is never theirs to recall.
+    await prisma.chatMemory.create({
+      data: {
+        createdById: 'someone-else',
+        chatId: 'chat-1',
+        messageId: 'x',
+        chunkIndex: 0,
+        digest: '',
+        text: 'Eve: The coolant is mine.',
+        model: 'nomic-embed-text',
+        vector: '[1,0,0.01]',
+        updatedAt: new Date(),
+      },
+    });
+
+    expect(await memoriesFor(LOCAL_OWNER_ID, 'chat-2', later, undefined, { ...ada, extensions: {} })).toBe('');
+    expect(await memoriesFor(LOCAL_OWNER_ID, 'chat-2', later, undefined, ada)).toBe(
+      'Earlier in the story:\nFrom other chats with Ada:\nAda: The coolant pump is failing.',
+    );
+    // A character who was not in that chat recalls nothing from it.
+    expect(await memoriesFor(LOCAL_OWNER_ID, 'chat-bo', later, undefined, { ...ada, id: 'c-bo', name: 'Bo' })).toBe('');
   });
 });

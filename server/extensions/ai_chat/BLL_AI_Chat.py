@@ -47,7 +47,7 @@ from zephyrex.extensions.ai_character.BLL_AI_Character import (  # type: ignore[
     _tags,
     not_yours,
 )
-from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-not-found]  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-not-found]
     CHAT_MODES,
     CONTRACT,
     LIMITS,
@@ -1753,8 +1753,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
 
     async def _memories(self, body: GenerateRequest) -> str:
         """The chat's older lines recalled by meaning (A19, Remembering.py), by the requester's model
-        set to embed; nothing for the table GM, which reads only the recent table talk, and nothing
-        for a request _inputs refuses."""
+        set to embed, and the replying character's other chats when it remembers across chats
+        (AP8); nothing for the table GM, which reads only the recent table talk, and nothing for a
+        request _inputs refuses."""
         if body.mode == "table" or body.leaf_id is None:
             return ""
         try:
@@ -1765,8 +1766,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 else next(iter(self._manager(PersonaManager).list(is_default=True)), None)
             )
             messages = self._manager(ChatMessageManager).list(chat_id=chat.id)
-            names = {
-                character_id: self._manager(CharacterManager).get(id=character_id).name
+            cast = {
+                character_id: self._manager(CharacterManager).get(id=character_id)
                 for character_id in chat.character_ids or []
             }
         except HTTPException:
@@ -1786,10 +1787,17 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 for message in branch_to(messages, body.leaf_id)
             ],
             persona.name if persona is not None else DEFAULT_USER_NAME,
-            names,
+            {character_id: row.name for character_id, row in cast.items()},
         )
+        # Narrating (A20), the GM speaks: no character's memory across chats applies.
+        speaker = None if body.mode == "narrate" else cast.get(body.speaker_id or next(iter(cast), ""))
         text: str = await memories_for(
-            self._manager(MemoryManager), self._manager(ModelEndpointManager).list(), chat.id, lines
+            self._manager(MemoryManager),
+            self._manager(ModelEndpointManager).list(),
+            chat.id,
+            lines,
+            None if speaker is None else {"id": speaker.id, "name": speaker.name, "extensions": speaker.extensions},
+            lambda: self._manager(ChatManager).list(),
         )
         return text
 

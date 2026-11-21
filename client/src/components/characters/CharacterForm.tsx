@@ -5,7 +5,7 @@
  * the model is steered, and the card's own notes. Controlled: the caller holds the draft.
  */
 import { ImageUp, Plus, Trash2 } from 'lucide-react';
-import { type ReactElement, useId } from 'react';
+import { type ReactElement, type ReactNode, useId } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { DrawPictureButton } from '~/components/common/DrawPictureButton';
@@ -84,6 +84,8 @@ export function CharacterForm({
   onChange,
   onAvatarRefused,
   drawPortrait,
+  beforeNotes,
+  notesExtra,
 }: {
   value: CharacterDraft;
   onChange: (next: CharacterDraft) => void;
@@ -91,6 +93,10 @@ export function CharacterForm({
   onAvatarRefused?: (reason: string) => void;
   /** Asks the model set to draw for a portrait (A30); only a saved character can be drawn. */
   drawPortrait?: () => Promise<{ image: string }>;
+  /** Shown after the card's own sections and before About the card (the editor's "In this app"). */
+  beforeNotes?: ReactNode;
+  /** Shown at the end of About the card (the editor's folder). */
+  notesExtra?: ReactNode;
 }): ReactElement {
   const ids = { name: useId(), tags: useId(), creator: useId(), version: useId(), avatar: useId() };
   const set = <K extends keyof CharacterDraft>(key: K, next: CharacterDraft[K]) => onChange({ ...value, [key]: next });
@@ -255,6 +261,7 @@ export function CharacterForm({
         />
       </section>
 
+      {beforeNotes}
       <section aria-labelledby='card-notes' className='grid gap-4'>
         <h2 id='card-notes' className='text-lg font-semibold'>
           About the card
@@ -297,6 +304,7 @@ export function CharacterForm({
           rows={3}
           onChange={(next) => set('creator_notes', next)}
         />
+        {notesExtra}
       </section>
     </div>
   );

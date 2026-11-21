@@ -7,21 +7,25 @@
  *
  * Recall never stops a reply: without a model set to embed, or when it fails, the section is empty.
  * An edited line is embedded again (its digest changed); a line no longer on the branch is forgotten.
+ *
+ * A character's memory across chats (AP8, features/memory/across.ts): when the replying character
+ * remembers across chats, recall also searches the memories of the person's other chats it was cast
+ * in, within the same budget, under their own label.
  */
 import { createHash } from 'node:crypto';
 import { MEMORY } from '~/contract';
+import { acrossText, recallAcross, remembersAcrossChats } from '~/features/memory/across';
 import {
   embeddingsBody,
   embeddingsUrl,
   memoryChunks,
   memoryQuery,
-  memoryText,
-  recall,
+  type Remembered,
   type StoryLine,
   vectorsOf,
 } from '~/features/memory/memory';
 import { prisma } from '~/lib/prisma';
-import { endpoints } from '~/lib/rpgRecords';
+import { chats, endpoints } from '~/lib/rpgRecords';
 
 const NO_QUERY = new URLSearchParams();
 
@@ -69,15 +73,46 @@ export async function memoriesFor(
   chatId: string,
   lines: readonly StoryLine[],
   signal?: AbortSignal,
+  speaker: Speaker | null = null,
 ): Promise<string> {
-  return remembering(ownerId, chatId, lines, signal).catch(() => '');
+  return remembering(ownerId, chatId, lines, signal, speaker).catch(() => '');
+}
+
+/** The replying character (AP8): whose flag says whether its other chats are searched too. */
+export interface Speaker {
+  id: string;
+  name: string;
+  extensions: Readonly<Record<string, unknown>>;
+}
+
+/**
+ * What the speaker remembers from the person's other chats it was cast in (AP8), embedded by the
+ * same model; none unless it remembers across chats. In each chat's order, oldest chat first.
+ */
+async function elsewhereFor(ownerId: string, chatId: string, model: string, speaker: Speaker | null): Promise<Remembered[]> {
+  if (speaker === null || !remembersAcrossChats(speaker.extensions)) return [];
+  const castIn = (
+    await prisma.chat.findMany({ where: { createdById: ownerId, id: { not: chatId } }, orderBy: { createdAt: 'asc' } })
+  )
+    .filter((row) => (chats.fields(row).character_ids as string[]).includes(speaker.id))
+    .map((row) => row.id);
+  if (castIn.length === 0) return [];
+  const rows = await prisma.chatMemory.findMany({ where: { createdById: ownerId, model, chatId: { in: castIn } } });
+  rows.sort(
+    (a, b) =>
+      castIn.indexOf(a.chatId) - castIn.indexOf(b.chatId) ||
+      a.createdAt.getTime() - b.createdAt.getTime() ||
+      a.chunkIndex - b.chunkIndex,
+  );
+  return rows.map((row, order) => ({ text: row.text, vector: JSON.parse(row.vector) as number[], order }));
 }
 
 async function remembering(
   ownerId: string,
   chatId: string,
   lines: readonly StoryLine[],
-  signal?: AbortSignal,
+  signal: AbortSignal | undefined,
+  speaker: Speaker | null,
 ): Promise<string> {
   const embedder = await embedderOf(ownerId);
   const query = memoryQuery(lines);
@@ -128,7 +163,9 @@ async function remembering(
       key: keyOf(chunk.message_id, chunk.index),
     })),
   ].map(({ key, ...memory }) => ({ ...memory, order: wanted.get(key)?.order ?? 0 }));
-  return memoryText(recall(queryVector ?? [], remembered));
+  const elsewhere = await elsewhereFor(ownerId, chatId, embedder.model, speaker);
+  const name = speaker?.name ?? '';
+  return acrossText(recallAcross(queryVector ?? [], remembered, elsewhere, name), name);
 }
 
 /** Forgets a chat's memories (when the chat is deleted). */

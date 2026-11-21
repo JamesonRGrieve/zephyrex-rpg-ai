@@ -63,7 +63,7 @@ import type { RegexScript } from '~/features/chat/regex';
 import { regexScripts } from '~/lib/regexRecords';
 import { dataBankText } from '~/features/chat/dataBank';
 import { type StoryLine, storyLines } from '~/features/memory/memory';
-import { memoriesFor } from '~/lib/memory';
+import { memoriesFor, type Speaker } from '~/lib/memory';
 import { campaigns, scenarios } from '~/lib/campaignRecords';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
@@ -128,6 +128,8 @@ export async function generationInputs(
   paused: boolean;
   /** The branch's story lines, for recall by meaning (A19, `withMemories`). */
   lines: StoryLine[];
+  /** The replying character, whose flag says whether recall reaches its other chats (AP8). */
+  speaker: Speaker | null;
 }> {
   const chat = await chats.find(body.chat_id, ownerId);
   if (chat === null) throw notFound(chats.modelName);
@@ -304,22 +306,30 @@ export async function generationInputs(
       persona?.name ?? DEFAULT_USER_NAME,
       new Map(promptCharacters.map((character) => [character.id, character.name])),
     ),
+    speaker: ((row) =>
+      row === undefined
+        ? null
+        : { id: row.id, name: row.name, extensions: characters.fields(row).extensions as Record<string, unknown> })(
+      ordered.find((row) => row.id === speakerId),
+    ),
   };
 }
 
 /**
  * The prompt with the chat's older lines recalled by meaning (A19), by the person's model set to
- * embed; unchanged for the table GM, which reads only the recent table talk.
+ * embed, and the speaker's other chats when it remembers across chats (AP8); unchanged for the
+ * table GM, which reads only the recent table talk.
  */
 async function withMemories(
   ownerId: string,
   body: z.infer<typeof request>,
   prompt: PromptInput,
   lines: readonly StoryLine[],
+  speaker: Speaker | null,
   signal?: AbortSignal,
 ): Promise<PromptInput> {
   if (body.mode === 'table') return prompt;
-  return { ...prompt, memories: await memoriesFor(ownerId, body.chat_id, lines, signal) };
+  return { ...prompt, memories: await memoriesFor(ownerId, body.chat_id, lines, signal, speaker) };
 }
 
 /** A chat's campaign frame (A57), as frameText reads it; none when the campaign is gone. */
@@ -458,8 +468,8 @@ export async function inspectPrompt(nextRequest: NextRequest): Promise<Response>
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, activeLore, lines } = await generationInputs(owner.id, body);
-    const assembled = promptFor(body.mode, await withMemories(owner.id, body, prompt, lines, nextRequest.signal));
+    const { prompt, sampler, activeLore, lines, speaker } = await generationInputs(owner.id, body);
+    const assembled = promptFor(body.mode, await withMemories(owner.id, body, prompt, lines, speaker, nextRequest.signal));
     const messages = assembled.messages.map((message) => ({ ...message, tokens: estimateTokens(message) }));
     return Response.json({
       prompt: {
@@ -855,11 +865,11 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, endpoint, loreState, images, paused, lines } = await generationInputs(owner.id, body);
+    const { prompt, sampler, endpoint, loreState, images, paused, lines, speaker } = await generationInputs(owner.id, body);
     // Paused (A25): no story turns until the table resumes. The table GM still answers.
     if (paused && body.mode !== 'table')
       throw new ApiError(409, { message: 'The table has paused the game', code: 'paused' });
-    const assembled = promptFor(body.mode, await withMemories(owner.id, body, prompt, lines, nextRequest.signal));
+    const assembled = promptFor(body.mode, await withMemories(owner.id, body, prompt, lines, speaker, nextRequest.signal));
     // The lore timers move with the reply that read them.
     await saveLoreState(owner.id, body.chat_id, loreState);
 

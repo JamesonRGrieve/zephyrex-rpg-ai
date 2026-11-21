@@ -22,9 +22,11 @@ import { cardWithBook } from '~/features/import/characterCard';
 import { foldersOf } from '~/features/chat/library';
 import { LIMITS } from '~/contract';
 import { WriteProblem } from '../common/WriteProblem';
+import { remembersAcrossChats, withAcrossChats } from '~/features/memory/across';
 import { type CharacterVoice, voiceOf, withVoice } from '~/features/speech/voice';
 import { drawPicture } from '~/features/chat/inspectPrompt';
 import { ExpressionEditor } from './ExpressionEditor';
+import { MemoryAcross } from './MemoryAcross';
 import { VoicePicker } from './VoicePicker';
 import { type CharacterDraft, CharacterForm } from './CharacterForm';
 
@@ -65,8 +67,8 @@ export function draftOf(character: Character): CharacterDraft {
 
 /** A lorebook's entries, read as the signed-in person sees them. */
 export function entriesOfBook(client: ReturnType<typeof useClient>, lorebookId: string): Promise<EntryFields[]> {
-  const path = `/v1/lorebook_entry?${new URLSearchParams({ lorebook_id: lorebookId }).toString()}`;
-  return client.list(path, 'lorebook_entries', lorebookEntrySchema);
+  // The filter goes in list()'s params: it adds its own paging query, so a query in the path breaks.
+  return client.list('/v1/lorebook_entry', 'lorebook_entries', lorebookEntrySchema, { lorebook_id: lorebookId });
 }
 
 /** Whether the draft differs from what was opened. */
@@ -86,6 +88,7 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   const books = lorebooks.useList();
   const bookPicker = useId();
   const folderField = useId();
+  const appHeading = useId();
   const everyone = characters.useList();
   const [voice, setVoice] = useState<CharacterVoice | null>(null);
   const client = useClient();
@@ -132,44 +135,12 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
     );
   };
 
-  return (
-    <div className='pb-24'>
-      <div className='mb-6 flex flex-wrap gap-2'>
-        <Button type='button' className='h-11' onClick={() => void startChat()}>
-          <MessageSquarePlus aria-hidden /> Chat
-        </Button>
-        <Button type='button' variant='outline' className='h-11' onClick={() => void exportThis()}>
-          <Download aria-hidden /> Export card
-        </Button>
-        <Button type='button' variant='ghost' className='h-11 text-destructive' onClick={deleteCharacter}>
-          <Trash2 aria-hidden /> Delete
-        </Button>
-      </div>
-      <div className='mb-6 grid gap-1.5'>
-        <label htmlFor={folderField} className='text-sm font-medium'>
-          Folder
-        </label>
-        <Input
-          // Remounted when the saved folder changes, so it shows what was saved.
-          key={saved.folder}
-          id={folderField}
-          list={`${folderField}-list`}
-          defaultValue={saved.folder}
-          maxLength={LIMITS.name_characters}
-          placeholder='None'
-          className='h-11 max-w-sm'
-          onBlur={(event) => {
-            const next = event.target.value.trim();
-            if (next !== saved.folder) void update(saved, { folder: next }).then(() => notify('Saved'));
-          }}
-        />
-        <datalist id={`${folderField}-list`}>
-          {foldersOf(everyone.data ?? []).map((name) => (
-            <option key={name} value={name} />
-          ))}
-        </datalist>
-      </div>
-      <div className='mb-6 grid gap-1.5'>
+  const inThisApp = (
+    <section aria-labelledby={appHeading} className='grid gap-6'>
+      <h2 id={appHeading} className='text-lg font-semibold'>
+        In this app
+      </h2>
+      <div className='grid gap-1.5'>
         <label htmlFor={bookPicker} className='text-sm font-medium'>
           Lorebook
         </label>
@@ -195,7 +166,7 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
           ))}
         </select>
       </div>
-      <div className='mb-6 grid gap-2'>
+      <div className='grid gap-2'>
         <VoicePicker name={saved.name} value={voice ?? voiceOf(saved.extensions)} onChange={setVoice} />
         {voice !== null && (
           <Button
@@ -213,13 +184,66 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
           </Button>
         )}
       </div>
-      <div className='mb-6'>
+      <div>
         <ExpressionEditor characterId={saved.id} name={saved.name} />
+      </div>
+      <div>
+        <MemoryAcross
+          name={saved.name}
+          value={remembersAcrossChats(saved.extensions)}
+          onChange={(on) =>
+            void update(saved, { extensions: withAcrossChats(saved.extensions, on) }).then(() => notify('Saved'))
+          }
+        />
+      </div>
+    </section>
+  );
+  const folderNode = (
+    <div className='grid gap-1.5'>
+      <label htmlFor={folderField} className='text-sm font-medium'>
+        Folder
+      </label>
+      <Input
+        // Remounted when the saved folder changes, so it shows what was saved.
+        key={saved.folder}
+        id={folderField}
+        list={`${folderField}-list`}
+        defaultValue={saved.folder}
+        maxLength={LIMITS.name_characters}
+        placeholder='None'
+        className='h-11 max-w-sm'
+        onBlur={(event) => {
+          const next = event.target.value.trim();
+          if (next !== saved.folder) void update(saved, { folder: next }).then(() => notify('Saved'));
+        }}
+      />
+      <datalist id={`${folderField}-list`}>
+        {foldersOf(everyone.data ?? []).map((name) => (
+          <option key={name} value={name} />
+        ))}
+      </datalist>
+    </div>
+  );
+
+  return (
+    <div className='pb-24'>
+      <div className='mb-6 flex flex-wrap gap-2'>
+        <Button type='button' className='h-11' onClick={() => void startChat()}>
+          <MessageSquarePlus aria-hidden /> Chat
+        </Button>
+        <Button type='button' variant='outline' className='h-11' onClick={() => void exportThis()}>
+          <Download aria-hidden /> Export card
+        </Button>
+        <Button type='button' variant='ghost' className='h-11 text-destructive' onClick={deleteCharacter}>
+          <Trash2 aria-hidden /> Delete
+        </Button>
       </div>
       <CharacterForm
         key={saved.id}
         value={draft}
         onChange={setDraft}
+        beforeNotes={inThisApp}
+        notesExtra={folderNode}
         onAvatarRefused={(reason) => notify('Picture not used', reason)}
         drawPortrait={() => drawPicture({ kind: 'portrait', character_id: saved.id })}
       />
