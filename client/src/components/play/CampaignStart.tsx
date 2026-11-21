@@ -1,12 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 'use client';
 /**
- * Starting a campaign of a scenario (docs/DESIGN.md, The play model). The person picks the party
- * (the characters tagged PC by default; any character can join) and the seat they start in: the
- * GM, or any character. The seat can be swapped at any time once playing. The campaign's story is
- * one chat, marked a campaign by its play state, and opens on the scenario's situation as the
- * narrator's first line, which is where Session 1 starts.
+ * Starting a campaign (docs/DESIGN.md, The composed suite): the campaign is the wiki's, and so is
+ * its cast. The person picks the party (the campaign's player characters, wiki persons of kind
+ * `pc`, by default; any of its persons can join) and the seat they start in: the GM, or any of
+ * them. The seat can be swapped at any time once playing. The campaign's story is one chat, marked
+ * a campaign by its play state, whose campaign is the wiki campaign (the prompt reads its world
+ * from there), and opens on the campaign's description as the narrator's first line, which is
+ * where Session 1 starts.
  */
+import { worlds } from '@zephyrex-rpg/wiki/features/data/records';
 import { useRouter } from 'next/navigation';
 import { type ReactElement, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -14,12 +17,12 @@ import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { LIMITS } from '~/contract';
 import { campaignPlays, chatSessions } from '~/features/data/playRecords';
-import { type Character, campaigns, characters, chats, lorebooks, messages, scenarios } from '~/features/data/records';
+import { PARTY_TAG, useCast } from '~/features/data/cast';
+import { type Character, chats, messages } from '~/features/data/records';
 import { cn } from '~/lib/utils';
 import { initials } from '../characters/CharacterTile';
 
-/** The tag that marks a player character: the default party. */
-export const PARTY_TAG = 'PC';
+export { PARTY_TAG };
 
 /** The default party: the player characters, less the one the person plays. */
 export function defaultParty(cast: readonly Pick<Character, 'id' | 'tags'>[], playing: string | null): string[] {
@@ -196,10 +199,8 @@ export function CampaignStartForm({
 }
 
 export function CampaignStart({ campaignId, onStarted }: { campaignId: string; onStarted: () => void }): ReactElement {
-  const campaign = campaigns.useOne(campaignId);
-  const cast = characters.useList();
-  const scenarioList = scenarios.useList();
-  const books = lorebooks.useList();
+  const campaign = worlds.useOne(campaignId);
+  const cast = useCast(campaignId);
   const { create: createChat } = chats.useActions();
   const { create: createMessage } = messages.useActions();
   const { create: createPlay } = campaignPlays.useActions();
@@ -207,31 +208,28 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   const router = useRouter();
   const [starting, setStarting] = useState(false);
   const all = useMemo(() => cast.data ?? [], [cast.data]);
-  const scenario = (scenarioList.data ?? []).find((one) => one.campaign_id === campaignId) ?? null;
 
   const start = async ({ seat, playing, party }: StartChoice) => {
-    const frame = campaign.data;
-    if (frame === undefined) return;
+    const world = campaign.data;
+    if (world === undefined) return;
     setStarting(true);
     try {
       // The campaign's story is one chat: the party (and whoever the person starts as) are its cast.
       const members = playing === null || party.includes(playing) ? party : [...party, playing];
       const chat = await createChat({
-        title: frame.name.slice(0, LIMITS.chat_title_characters),
+        title: world.name.slice(0, LIMITS.chat_title_characters),
         character_ids: members.slice(0, LIMITS.characters_per_chat),
         mode: members.length > 1 ? 'group' : 'character',
         seat,
-        campaign_id: frame.id,
-        ...(scenario === null ? {} : { scenario_id: scenario.id }),
-        lorebook_ids: (books.data ?? []).map((book) => book.id).slice(0, LIMITS.lorebooks_per_chat),
-        folder: frame.name.slice(0, LIMITS.name_characters),
+        campaign_id: world.id,
+        folder: world.name.slice(0, LIMITS.name_characters),
       });
       const opening = await createMessage({
         chat_id: chat.id,
         parent_id: null,
         role: 'narrator',
         channel: 'ic',
-        swipes: [scenario?.situation.trim() || `${frame.name} begins.`],
+        swipes: [world.description?.trim() || `${world.name} begins.`],
       });
       await createPlay({ chat_id: chat.id, playing_id: playing });
       await createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id });

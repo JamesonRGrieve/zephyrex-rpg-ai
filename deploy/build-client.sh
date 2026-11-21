@@ -11,6 +11,7 @@ set -euo pipefail
 root=$(realpath -m "$1")
 out=$(realpath -m "$2")
 client="$root/zephyrex-rpg-ai/client"
+deploy=$(cd "$(dirname "$0")" && pwd)
 : "${RPG_AI_VARIANT:?}" "${APP_URI:?}" "${RPG_AI_SERVER_URI:?}"
 export CI=true NEXT_TELEMETRY_DISABLED=1
 export pnpm_config_verify_deps_before_run=false pnpm_config_manage_package_manager_versions=false
@@ -19,7 +20,10 @@ export pnpm_config_verify_deps_before_run=false pnpm_config_manage_package_manag
 
 cd "$client"
 pnpm install --frozen-lockfile
+# The Prisma client first: the wiki's lite API compiles against it (its models are in prisma/schema).
 pnpm exec prisma generate
+# The wiki's pages, compiled from its pinned checkout against this app's dependencies.
+"$deploy/compile-wiki.sh" "$root"
 NODE_ENV=production NEXT_OUTPUT_STANDALONE=1 NEXT_DIST_DIR=.next-deploy ./node_modules/.bin/next build
 
 # The standalone output is traced from the repository root (the build reads ../contract), so

@@ -12,6 +12,7 @@ import { useHidden } from 'zephyrex/hooks/useWrites';
 import {
   BookOpen,
   Clock3,
+  Dices,
   Download,
   Ellipsis,
   Flag,
@@ -83,7 +84,6 @@ import {
   type Character,
   type Chat,
   type ChatMessage,
-  characters,
   chats,
   endpoints,
   lorebookEntries,
@@ -115,7 +115,8 @@ import { sessionName } from '~/features/data/playRecords';
 import { useCampaign } from './useCampaign';
 import { useEndSession } from './useEndSession';
 import type { CanonNoticeValue } from './CanonNotice';
-import { PARTY_TAG } from './CampaignStart';
+import { PARTY_TAG, useCast } from '~/features/data/cast';
+import { RollSheet } from './RollSheet';
 import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -227,7 +228,7 @@ export function messageViews(
 
 function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const list = messages.useList({ chat_id: chat.id });
-  const cast = characters.useList();
+  const cast = useCast();
   const personaList = personas.useList();
   const presetList = presets.useList();
   const endpointList = endpoints.useList();
@@ -250,6 +251,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const running = scenarioList.data?.find((one) => one.id === chat.scenario_id);
   const { update: updateScenario } = scenarios.useActions();
   const [scenarioOpen, setScenarioOpen] = useState(false);
+  const [rollOpen, setRollOpen] = useState(false);
   const [namesOpen, setNamesOpen] = useState(false);
   const entryList = lorebookEntries.useList(undefined, namesOpen);
   const { create: createEntry } = lorebookEntries.useActions();
@@ -870,6 +872,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     noteCost(saved.id, result);
   };
 
+  /** A VTT roll's result, on the `roll` channel: a mechanical fact the story reads. */
+  const addRoll = async (line: string) => {
+    const saved = await create({ chat_id: chat.id, parent_id: leaf, role: 'system', channel: 'roll', swipes: [line] });
+    setLeafId(saved.id);
+  };
+
   const send = async (text: string, channel: ComposerChannel, images: string[] = []) => {
     const saved = await create({
       chat_id: chat.id,
@@ -1188,6 +1196,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   .finally(() => setSeatSaving(false));
               }}
             />
+          )}
+          {play.isCampaign && (
+            <Button
+              type='button'
+              variant='ghost'
+              className='h-11 max-sm:w-11 max-sm:px-0'
+              aria-label='Roll'
+              onClick={() => setRollOpen(true)}
+            >
+              <Dices aria-hidden className='size-4' />
+              <span className='max-sm:sr-only'>Roll</span>
+            </Button>
           )}
           <Button
             type='button'
@@ -1517,6 +1537,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               user: persona?.name ?? DEFAULT_USER_NAME,
             }),
           }))}
+      />
+      <RollSheet
+        open={rollOpen}
+        onOpenChange={setRollOpen}
+        rollers={chat.character_ids.flatMap((id) => {
+          const character = castById.get(id);
+          return character === undefined ? [] : [{ id, name: character.name }];
+        })}
+        initial={play.playingId}
+        onRolled={(line) =>
+          void addRoll(line).catch((error: unknown) =>
+            notify('The roll was not recorded', error instanceof Error ? error.message : undefined),
+          )
+        }
       />
       <Sheet open={namesOpen} onOpenChange={setNamesOpen}>
         <SheetContent

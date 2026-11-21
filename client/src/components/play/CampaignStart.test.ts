@@ -4,6 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('~/features/data/records', () => ({}));
 vi.mock('~/features/data/playRecords', () => ({}));
+vi.mock('~/features/data/cast', () => ({ PARTY_TAG: 'PC', useCast: () => ({}) }));
+vi.mock('@zephyrex-rpg/wiki/features/data/records', () => ({}));
 vi.mock('../characters/CharacterTile', () => ({ initials: () => '' }));
 
 const { defaultParty, startTitle, PARTY_TAG } = await import('./CampaignStart');

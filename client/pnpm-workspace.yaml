@@ -36,3 +36,9 @@ overrides:
   '@zephyrex/marketing': file:../../client-framework/packages/marketing
   '@jgrieve/forms': file:../../dynamic-form
   zod2gql: file:../../zod2gql
+  # The suite (docs/SUITE.md; the operator, 2026-11-21: "ai-rpg imports both separately"): the
+  # wiki's pages from the pinned wiki checkout (WIKI_REF; deploy/compile-wiki.sh builds its dist
+  # against this app's dependencies) and the VTT's play UI from the pinned VTT checkout (VTT_REF;
+  # source-only, transpiled by Next).
+  '@zephyrex-rpg/wiki': file:../../zephyrex-rpg-wiki/client/packages/wiki
+  '@zephyrex/vtt-play': file:../../zephyrex-vtt/client/packages/vtt-play

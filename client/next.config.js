@@ -30,6 +30,8 @@ const DEFAULT_PAGE_EXTENSIONS = ['tsx', 'ts', 'jsx', 'js'];
 const nextConfig = {
   outputFileTracingRoot: REPOSITORY_ROOT,
   turbopack: { root: REPOSITORY_ROOT },
+  // The VTT's play UI ships as TypeScript source (its package exports src/index.ts).
+  transpilePackages: ['@zephyrex/vtt-play'],
   // Lets the e2e suite build beside a running dev server without sharing its output.
   distDir: process.env.NEXT_DIST_DIR || '.next',
   // Self-contained server bundle for the Containerfile's runtime stage and the deploy.

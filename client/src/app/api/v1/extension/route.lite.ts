@@ -1,12 +1,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import { WIKI_LITE_EXTENSIONS } from '@zephyrex-rpg/wiki/lite';
 import { NextResponse } from 'next/server';
 
 /**
  * The server-side extensions this API serves, as server-framework lists its own
  * (`GET /v1/extension`). The UI turns a feature on when the extension serving it is listed, so
- * lite lists exactly what its own routes answer: characters and personas, lorebooks, chats and
- * their generation. Accounts, plans and the world and table (the wiki and VTT products) stay off because
- * their extensions are absent.
+ * lite lists exactly what its routes answer: characters and personas, lorebooks, chats and their
+ * generation, and the wiki's (its lite API is mounted at app/api/v1/[...wiki]). Accounts, plans
+ * and the table (the VTT) stay off because their extensions are absent.
  */
 export const LITE_EXTENSIONS = [
   {
@@ -36,5 +37,5 @@ export const LITE_EXTENSIONS = [
 ] as const;
 
 export function GET(): NextResponse {
-  return NextResponse.json({ extensions: LITE_EXTENSIONS });
+  return NextResponse.json({ extensions: [...LITE_EXTENSIONS, ...WIKI_LITE_EXTENSIONS] });
 }

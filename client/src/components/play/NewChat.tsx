@@ -13,7 +13,10 @@ import { useIsMobile } from 'zephyrex/hooks/useMobile';
 import { cn } from '~/lib/utils';
 import { LIMITS } from '~/contract';
 import { openingTurns } from '~/features/chat/turns';
-import { type Character, characters, chats, messages } from '~/features/data/records';
+import { people, worlds } from '@zephyrex-rpg/wiki/features/data/records';
+import { useCast } from '~/features/data/cast';
+import { sandboxCampaign, sharedCampaign } from '~/features/data/sandbox';
+import { type Character, chats, messages } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { CampaignStart } from './CampaignStart';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -35,8 +38,11 @@ export function NewChat({
   onOpenChange: (open: boolean) => void;
   campaignId?: string | null;
 }): ReactElement {
-  const list = characters.useList();
+  const list = useCast();
   const { create } = chats.useActions();
+  const personList = people.useList();
+  const worldList = worlds.useList();
+  const { create: createWorld } = worlds.useActions();
   const { create: createMessage } = messages.useActions();
   const router = useRouter();
   const mobile = useIsMobile();
@@ -54,11 +60,15 @@ export function NewChat({
     if (first === undefined) return;
     setStarting(true);
     try {
+      // Every chat plays in a wiki campaign: the one the cast share, else the person's Sandbox.
+      const campaignOf = new Map((personList.data ?? []).map((person) => [person.id, person.campaign_id]));
+      const playsIn =
+        campaignId ?? sharedCampaign(picked, campaignOf) ?? (await sandboxCampaign(worldList.data ?? [], createWorld));
       const chat = await create({
         title: chatTitle(cast),
         character_ids: picked,
         mode: cast.length > 1 ? 'group' : 'character',
-        ...(campaignId === null ? {} : { campaign_id: campaignId }),
+        campaign_id: playsIn,
       });
       // Each member greets in turn (A52): one message after another, each answering the last.
       await openingTurns(cast).reduce<Promise<string | null>>(

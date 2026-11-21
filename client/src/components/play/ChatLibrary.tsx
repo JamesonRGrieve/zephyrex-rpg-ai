@@ -19,6 +19,7 @@ import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
+import { useCast } from '~/features/data/cast';
 import { characters, chats, endpoints, messages, idOf } from '~/features/data/records';
 import { campaignPlays } from '~/features/data/playRecords';
 import { chatFromJsonl } from '~/features/import/stChat';
@@ -56,7 +57,7 @@ export function ChatLibrary({ kind = 'sandbox' }: { kind?: 'campaigns' | 'sandbo
     error: allChats.error ?? plays.error,
     mutate: allChats.mutate,
   };
-  const cast = characters.useList();
+  const cast = useCast();
   const models = endpoints.useList();
   const { remove, create: createChat } = chats.useActions();
   const { create: createCharacter } = characters.useActions();

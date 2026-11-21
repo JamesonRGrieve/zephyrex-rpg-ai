@@ -1,8 +1,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { authMagicLinkExtension } from '@zephyrex/auth-magic-link';
+import { wikiExtension } from '@zephyrex-rpg/wiki/extension';
 import { oauthConsumerExtension } from 'zephyrex/extensions/oauth_consumer';
 import type { ZephyrexClientExtension, ZephyrexConfig } from 'zephyrex';
 import { RpgAiLogo } from './brand/RpgAiLogo';
+
+/**
+ * Where the wiki's pages live (docs/SUITE.md, Together: rpg-ai composes the wiki, which owns the
+ * world). Its pages show when the server lists rpg_core (GET /v1/extension).
+ */
+const WIKI_BASE = 'w';
 
 /** Where a person works: their chats. `/` is the landing page for visitors. */
 export const HOME_PATH = '/play';
@@ -10,6 +17,7 @@ export const HOME_PATH = '/play';
 /** The app's pages (matched as path prefixes); in the hosted build they need a signed-in person. */
 const APP_ROUTES = [
   HOME_PATH,
+  `/${WIKI_BASE}`,
   '/campaigns',
   '/sandbox',
   '/scenarios',
@@ -110,8 +118,13 @@ const config: ZephyrexConfig = {
     },
   ],
   extensions: HOSTED
-    ? [rpgAiExtension, authMagicLinkExtension, ...(OAUTH_PROVIDERS.length === 0 ? [] : [oauthConsumerExtension])]
-    : [rpgAiExtension],
+    ? [
+        rpgAiExtension,
+        wikiExtension({ base: WIKI_BASE }),
+        authMagicLinkExtension,
+        ...(OAUTH_PROVIDERS.length === 0 ? [] : [oauthConsumerExtension]),
+      ]
+    : [rpgAiExtension, wikiExtension({ base: WIKI_BASE })],
 };
 
 export default config;
