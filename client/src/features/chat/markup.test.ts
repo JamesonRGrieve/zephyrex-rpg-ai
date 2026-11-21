@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { colourSpans, screenBlocks, stripMarkup } from './markup';
+import { colourSpans, locationBlocks, screenBlocks, stripMarkup } from './markup';
 
 describe('the narrator markup', () => {
   it('a screen is its own block, titled', () => {
@@ -27,5 +27,13 @@ describe('the narrator markup', () => {
   });
   it('strips for speech and summaries', () => {
     expect(stripMarkup('[screen: Auspex]\n[amber]CONTACT[/amber]\n[/screen]')).toBe('CONTACT');
+  });
+  it('a change of place is a block of its own, marked or as a heading', () => {
+    expect(locationBlocks('[location: The Rusty Tankard]\nSmoke hangs low.')).toEqual([
+      { kind: 'location', name: 'The Rusty Tankard' },
+      { kind: 'text', text: 'Smoke hangs low.' },
+    ]);
+    expect(locationBlocks('## The Cellar\nDark.')[0]).toEqual({ kind: 'location', name: 'The Cellar' });
+    expect(locationBlocks('She says **no** to him.')).toEqual([{ kind: 'text', text: 'She says **no** to him.' }]);
   });
 });

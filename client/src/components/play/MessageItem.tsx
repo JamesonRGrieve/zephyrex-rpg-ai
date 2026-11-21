@@ -27,6 +27,7 @@ import {
   Pencil,
   RotateCw,
   Trash2,
+  Map as MapIcon,
 } from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -36,7 +37,7 @@ import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
 import { textAndCode } from '~/features/chat/codeBlocks';
 import { roleplayPieces } from '~/features/chat/roleplayText';
-import { type Colour, colourSpans, screenBlocks } from '~/features/chat/markup';
+import { type Colour, colourSpans, locationBlocks, screenBlocks } from '~/features/chat/markup';
 import { splitReasoning } from '~/features/prompt/assemble';
 import { initials } from '../characters/CharacterTile';
 import { CodeRunner } from './CodeRunner';
@@ -214,7 +215,42 @@ export function Coloured({ text }: { text: string }): ReactElement {
   );
 }
 
+/** A change of place (the operator, 2026-11-21: "a grand banner with a map icon"). */
+export function LocationBanner({ name }: { name: string }): ReactElement {
+  return (
+    <div
+      role='note'
+      aria-label={`Now at ${name}`}
+      className='relative my-3 overflow-hidden rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-950/60 via-amber-900/30 to-amber-950/60 px-4 py-3 shadow-md'
+    >
+      <div className='flex items-center justify-center gap-3'>
+        <span className='h-px flex-1 bg-gradient-to-r from-transparent to-amber-400/60' aria-hidden />
+        <MapIcon className='size-5 shrink-0 text-amber-300' aria-hidden />
+        <span className='text-center font-serif text-lg font-semibold uppercase tracking-[0.2em] text-amber-100'>
+          {name}
+        </span>
+        <MapIcon className='size-5 shrink-0 text-amber-300' aria-hidden />
+        <span className='h-px flex-1 bg-gradient-to-l from-transparent to-amber-400/60' aria-hidden />
+      </div>
+    </div>
+  );
+}
+
 function StoryPieces({ text }: { text: string }): ReactElement {
+  const places = locationBlocks(text);
+  if (places.some((block) => block.kind === 'location'))
+    return (
+      <>
+        {places.map((block, index) =>
+          // Blocks have no identity beyond their place in this message.
+          block.kind === 'location' ? (
+            <LocationBanner key={index} name={block.name} />
+          ) : (
+            <StoryPieces key={index} text={block.kind === 'text' ? block.text.replace(/^\n+|\n+$/g, '') : ''} />
+          ),
+        )}
+      </>
+    );
   const blocks = screenBlocks(text);
   if (blocks.some((block) => block.kind === 'screen'))
     return (
@@ -223,7 +259,7 @@ function StoryPieces({ text }: { text: string }): ReactElement {
           block.kind === 'screen' ? (
             <ScreenBlock key={index} title={block.title} text={block.text} />
           ) : (
-            <StoryPieces key={index} text={block.text.replace(/^\n+|\n+$/g, '')} />
+            <StoryPieces key={index} text={(block.kind === 'text' ? block.text : '').replace(/^\n+|\n+$/g, '')} />
           ),
         )}
       </>

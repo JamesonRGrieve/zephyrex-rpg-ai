@@ -9,11 +9,39 @@
 export const PALETTE = ['red', 'amber', 'green', 'blue', 'gold', 'grey'] as const;
 export type Colour = (typeof PALETTE)[number];
 
-export type Block = { kind: 'text'; text: string } | { kind: 'screen'; title: string; text: string };
+export type Block =
+  { kind: 'text'; text: string } | { kind: 'screen'; title: string; text: string } | { kind: 'location'; name: string };
 export type Span = { colour: Colour | null; text: string };
 
 const SCREEN = /\[screen(?::\s*([^\]\n]*))?\]\n?([\s\S]*?)(?:\n?\[\/screen\]|$)/gi;
 const COLOUR = new RegExp(`\\[(${PALETTE.join('|')})\\]([\\s\\S]*?)\\[\\/\\1\\]`, 'gi');
+
+/**
+ * A change of place, as the narrator marks it (`[location: The Rusty Tankard]`) or as a heading on a
+ * line of its own (`## The Rusty Tankard`, `**The Rusty Tankard**`): shown as a banner, never as a
+ * plain title (the operator, 2026-11-21).
+ */
+const LOCATION = /^\s*(?:\[location:\s*([^\]\n]+)\]|#{1,6}\s+([^\n]+?)|\*\*([^*\n]{2,80})\*\*)\s*$/i;
+
+export function locationBlocks(text: string): Block[] {
+  const blocks: Block[] = [];
+  let buffer: string[] = [];
+  const flush = () => {
+    if (buffer.join('\n').trim() !== '') blocks.push({ kind: 'text', text: buffer.join('\n') });
+    buffer = [];
+  };
+  for (const line of text.split('\n')) {
+    const found = LOCATION.exec(line);
+    if (found === null) {
+      buffer.push(line);
+      continue;
+    }
+    flush();
+    blocks.push({ kind: 'location', name: (found[1] ?? found[2] ?? found[3] ?? '').trim().replace(/[*_#]+/g, '') });
+  }
+  flush();
+  return blocks;
+}
 
 /** The text in blocks: screens apart, the rest as text. An unclosed screen runs to the end. */
 export function screenBlocks(text: string): Block[] {
@@ -25,7 +53,7 @@ export function screenBlocks(text: string): Block[] {
     at = match.index + match[0].length;
   }
   if (at < text.length) blocks.push({ kind: 'text', text: text.slice(at) });
-  return blocks.filter((block) => block.kind === 'screen' || block.text !== '');
+  return blocks.filter((block) => block.kind !== 'text' || block.text !== '');
 }
 
 /** The text in spans: each palette colour's run apart, the rest plain. */
@@ -44,6 +72,7 @@ export function colourSpans(text: string): Span[] {
 /** The text with the markup taken out, for speech and summaries. */
 export function stripMarkup(text: string): string {
   return text
+    .replace(/^\s*\[location:\s*([^\]\n]+)\]\s*$/gim, '$1.')
     .replace(/\[screen(?::[^\]\n]*)?\]\n?/gi, '')
     .replace(/\n?\[\/screen\]/gi, '')
     .replace(COLOUR, '$2');
