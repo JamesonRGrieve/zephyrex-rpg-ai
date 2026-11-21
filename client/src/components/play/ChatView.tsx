@@ -1179,12 +1179,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               seat={play.playingId}
               party={chat.character_ids.flatMap((id) => {
                 const character = castById.get(id);
-                return character === undefined ? [] : [{ id, name: character.name, avatar: character.avatar }];
+                return character === undefined
+                  ? []
+                  : [{ id, name: character.name, avatar: character.avatar, pc: character.tags.includes(PARTY_TAG) }];
               })}
               everyone={(cast.data ?? []).map((character) => ({
                 id: character.id,
                 name: character.name,
                 avatar: character.avatar,
+                pc: character.tags.includes(PARTY_TAG),
               }))}
               onChange={(next) => {
                 setSeatSaving(true);

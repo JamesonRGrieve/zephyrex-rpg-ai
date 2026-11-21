@@ -17,6 +17,19 @@ export interface SeatCharacter {
   id: string;
   name: string;
   avatar: string | null;
+  /** A traditional player character (wiki kind `pc`); anyone else is listed as an NPC. */
+  pc?: boolean;
+}
+
+/**
+ * The seats as the picker lists them (the operator, 2026-11-21: separate the player characters
+ * from the NPCs, for other ways to play): the player characters, then the NPCs, each in seat order.
+ */
+export function seatGroups<C extends { pc?: boolean }>(ordered: readonly C[]): { label: string; members: C[] }[] {
+  return [
+    { label: 'Player characters', members: ordered.filter((one) => one.pc === true) },
+    { label: 'NPCs', members: ordered.filter((one) => one.pc !== true) },
+  ].filter((group) => group.members.length > 0);
 }
 
 /** The person's seat: the GM (null), or the id of the character they play. */
@@ -100,7 +113,11 @@ export function SeatPicker({
               <Crown className='size-5' aria-hidden /> <span className='font-medium'>The GM</span>
             </button>
           </li>
-          {shown.map((character) => (
+          {seatGroups(shown).flatMap((group) => [
+            <li key={`group-${group.label}`} role='presentation' className='px-2 pt-2 text-xs font-semibold text-muted-foreground'>
+              {group.label}
+            </li>,
+            ...group.members.map((character) => (
             <li key={character.id}>
               <button
                 type='button'
@@ -121,7 +138,8 @@ export function SeatPicker({
                 {inParty.has(character.id) && <span className='text-xs text-muted-foreground'>Party</span>}
               </button>
             </li>
-          ))}
+            )),
+          ])}
         </ul>
       </PopoverContent>
     </Popover>

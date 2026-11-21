@@ -21,6 +21,7 @@ import { PARTY_TAG, useCast } from '~/features/data/cast';
 import { openingLine } from '~/features/data/framing';
 import { type Character, chats, messages } from '~/features/data/records';
 import { cn } from '~/lib/utils';
+import { seatGroups } from './SeatPicker';
 import { initials } from '../characters/CharacterTile';
 
 export { PARTY_TAG };
@@ -147,20 +148,29 @@ export function CampaignStartForm({
               value={query}
               onChange={(event) => setQuery(event.target.value)}
             />
-            <ul className='grid max-h-72 gap-2 overflow-y-auto' aria-label='Characters to play'>
-              {found.map((character) => (
-                <li key={character.id}>
-                  <Row
-                    character={character}
-                    pressed={playing === character.id}
-                    onClick={() => {
-                      setPlaying(character.id);
-                      setParty(null);
-                    }}
-                  />
-                </li>
-              ))}
-            </ul>
+            <div role='group' aria-label='Characters to play' className='grid max-h-72 gap-3 overflow-y-auto'>
+              {seatGroups(found.map((character) => ({ ...character, pc: character.tags.includes(PARTY_TAG) }))).map(
+                (group) => (
+                  <ul key={group.label} className='grid gap-2' aria-label={group.label}>
+                    <li role='presentation' className='text-xs font-semibold text-muted-foreground'>
+                      {group.label}
+                    </li>
+                    {group.members.map((character) => (
+                      <li key={character.id}>
+                        <Row
+                          character={character}
+                          pressed={playing === character.id}
+                          onClick={() => {
+                            setPlaying(character.id);
+                            setParty(null);
+                          }}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ),
+              )}
+            </div>
           </section>
         )}
         <section aria-labelledby='start-party' className='grid gap-2'>

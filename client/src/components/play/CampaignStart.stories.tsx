@@ -46,7 +46,7 @@ export const AsAnyCharacter: Story = {
     await userEvent.click(canvas.getByRole('radio', { name: /A character/ }));
     await expect(canvas.getByRole('button', { name: 'Start the campaign' })).toBeDisabled();
     await userEvent.type(canvas.getByLabelText('Find a character'), 'mass');
-    const choices = within(canvas.getByRole('list', { name: 'Characters to play' }));
+    const choices = within(canvas.getByRole('group', { name: 'Characters to play' }));
     await userEvent.click(choices.getByRole('button', { name: /Massen/ }));
     await userEvent.click(canvas.getByRole('button', { name: 'Start the campaign' }));
     await expect(args.onStart).toHaveBeenCalledWith({ seat: 'player', playing: 'massen', party: ['gus', 'az'] });
