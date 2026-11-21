@@ -742,6 +742,13 @@
     "activation_regex_characters": 200
   },
   "search_apis": ["searxng", "brave"],
+  "world_lore": {
+    "$comment": "World Info over the wiki (the composed suite): a wiki world entity as a lore entry. Keys are its name, aliases and keywords; content its summary; its lore block (wiki S4d) sets the rest, else lore_defaults (wiki.json's). The wiki's positions map to this app's; outlet entries are left out (no {{outlet}} yet). features/lore/worldLore.ts, ai_chat/WorldLore.py, contract/world-lore-cases.json.",
+    "lore_defaults": {"always_active": false, "order": 100, "position": "before_character", "depth": 4, "probability": 100, "selective_logic": "and_any", "secondary_keys": [], "sticky": 0, "cooldown": 0, "delay": 0, "group": "", "group_weight": 100},
+    "positions": {"before_character": "before_char", "after_character": "after_char", "author_note_top": "before_an", "author_note_bottom": "after_an", "example_top": "before_example", "example_bottom": "after_example", "at_depth": "at_depth"},
+    "page_limit": 100,
+    "max_pages": 50
+  },
   "injections": {
     "$comment": "STscript's /inject (audit gap 5): a chat's named injections, kept until flushed. Each has an id, its text, where it goes (chat: at a depth in the chat, with a role; before or after: at the start or end of the system prompt). features/chat/injections.ts, ai_chat/Injections.py, assemble.ts and Prompt.py.",
     "max": 50,

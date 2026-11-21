@@ -19,6 +19,7 @@ Actions on ``/v1/ai_chat``:
 """
 
 import asyncio
+import inspect
 import json
 import random
 import re
@@ -32,6 +33,7 @@ from fastapi import HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel as PlainModel
 from pydantic import Field, field_validator, model_validator
+from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
 from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[import-not-found]
     CampaignFrameManager,
     ScenarioManager,
@@ -79,7 +81,7 @@ from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-
     native_request,
     openai_payload,
 )
-from zephyrex.extensions.ai_chat.PersonaPick import persona_books, persona_for  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.PersonaPick import persona_for  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
     ai_cast,
     played_persona,
@@ -114,9 +116,13 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_body,
     speech_url,
 )
+from zephyrex.extensions.ai_chat.WorldLore import (  # type: ignore[import-not-found]
+    WORLD_LORE,
+    wiki_campaign_of,
+    world_lore_entries,
+)
 from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
     ChatLoreStateManager,
-    LorebookEntryManager,
     LorebookManager,
 )
 from zephyrex.extensions.ai_memories.BLL_AI_Memories import MemoryManager
@@ -153,33 +159,6 @@ MAX_STORED_KEY: int = MAX_KEY * 2 + 256
 MAX_BOOKS: int = LIMITS["lorebooks_per_chat"]
 LORE: dict[str, Any] = CONTRACT["lore"]
 LORE_SETTING_RANGES = {"scan_depth", "token_budget", "recursion_steps"}
-LORE_ENTRY_FIELDS = (
-    "id",
-    "keys",
-    "secondary_keys",
-    "selective_logic",
-    "content",
-    "enabled",
-    "constant",
-    "position",
-    "depth",
-    "role",
-    "order",
-    "probability",
-    "group",
-    "group_weight",
-    "prioritize",
-    "sticky",
-    "cooldown",
-    "delay",
-    "exclude_recursion",
-    "prevent_recursion",
-    "delay_until_recursion",
-    "case_sensitive",
-    "match_whole_words",
-    "character_names",
-    "character_exclude",
-)
 UPSTREAM_TIMEOUT_SECONDS = 120.0
 
 
@@ -606,11 +585,32 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
             ("persona_id", PersonaManager),
             ("preset_id", GenerationPresetManager),
             ("endpoint_id", ModelEndpointManager),
-            ("campaign_id", CampaignFrameManager),
             ("scenario_id", ScenarioManager),
         ):
             if fields.get(field) is not None:
                 self._owned(manager, fields[field], field)
+        if fields.get("campaign_id") is not None:
+            self._check_campaign(fields["campaign_id"])
+
+    def _check_campaign(self, campaign_id: str) -> None:
+        """A chat's campaign is a wiki campaign the requester can see (the composed suite), asked of the
+        wiki's own world_entities ability; or, while frames remain, one of their campaign frames."""
+        try:
+            self._sibling(CampaignFrameManager).get(id=campaign_id)
+            return
+        except HTTPException:
+            pass
+        read = loaded_ability(self.model_registry, "rpg_core", "world_entities")
+        if read is None:
+            raise not_yours("campaign_id")
+        try:
+            page = read(self.model_registry, str(self.requester.id), campaign_id, limit=1)
+        except HTTPException as error:
+            raise not_yours("campaign_id") from error
+        if inspect.isawaitable(page):
+            close = getattr(page, "close", None)
+            if callable(close):
+                close()
 
     def create(self, **kwargs: Any) -> Any:
         kwargs.setdefault("mode", "character")
@@ -2127,6 +2127,59 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         if dict(variables["local"]) != dict(chats.get(id=chat_id).variables or {}):
             chats.update(chat_id, variables=dict(variables["local"]))
 
+    def _frame_of(self, campaign_id: str | None) -> Any:
+        """The campaign frame a chat names, as the prompt reads it; none for a wiki campaign (the
+        composed suite) or a frame that's gone."""
+        if campaign_id is None:
+            return None
+        try:
+            return frame_of(self._manager(CampaignFrameManager).get(id=campaign_id))
+        except HTTPException:
+            return None
+
+    def _wiki_campaign(self, campaign_id: str | None) -> str | None:
+        """A chat's wiki campaign: its campaign_id, or, while campaign frames remain, the wiki campaign
+        of the frame it names (WorldLore.wiki_campaign_of). Remove with the frames."""
+        if campaign_id is None:
+            return None
+        try:
+            frame = self._manager(CampaignFrameManager).get(id=campaign_id)
+        except HTTPException:
+            return campaign_id
+        wiki: str | None = wiki_campaign_of(campaign_id, {campaign_id: getattr(frame, "wiki_campaign_id", None)})
+        return wiki
+
+    def _world_entities(self, wiki_campaign: str | None) -> list[dict[str, Any]]:
+        """A wiki campaign's entities and its setting's canon, paged, under the requester's access;
+        none without the wiki or a campaign."""
+        if wiki_campaign is None:
+            return []
+        read = loaded_ability(self.model_registry, "rpg_core", "world_entities")
+        if read is None:
+            return []
+        found: list[dict[str, Any]] = []
+        after: str | None = None
+        for _ in range(WORLD_LORE["max_pages"]):
+            page = read(
+                self.model_registry,
+                str(self.requester.id),
+                wiki_campaign,
+                after=after,
+                limit=WORLD_LORE["page_limit"],
+                include_setting=True,
+            )
+            if inspect.isawaitable(page):
+                # A reply is assembled synchronously; an asynchronous wiki gives no lore.
+                close = getattr(page, "close", None)
+                if callable(close):
+                    close()
+                return found
+            found.extend(page.get("world_entities") or [])
+            after = page.get("next")
+            if not after:
+                break
+        return found
+
     def _inputs(
         self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply", memories: str = ""
     ) -> tuple[Any, dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
@@ -2141,11 +2194,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
 
         characters = self._manager(CharacterManager)
         cast = []
-        own_books: list[str] = []
         for character_id in chat.character_ids or []:
             row = characters.get(id=character_id)
-            if getattr(row, "lorebook_id", None):
-                own_books.append(row.lorebook_id)
             cast.append(
                 {
                     key: getattr(row, key)
@@ -2232,14 +2282,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for turn in history
             if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"] and not turn["hidden"]
         ]
-        # The persona's own lorebook joins the chat's while it's the one spoken as (audit gap 9).
-        book_ids = list(dict.fromkeys([*persona_books(persona_row, chat.lorebook_ids or []), *own_books]))
-        entries_manager = self._manager(LorebookEntryManager)
-        entries = [
-            {key: getattr(row, key) for key in LORE_ENTRY_FIELDS}
-            for book_id in book_ids
-            for row in entries_manager.list(lorebook_id=book_id)
-        ]
+        # World Info runs over the wiki (the composed suite): the chat's wiki campaign's entities and
+        # its setting's canon, through the wiki's world_entities ability; no wiki campaign, no lore.
+        entries = world_lore_entries(self._world_entities(self._wiki_campaign(chat.campaign_id)))
         timers = self._manager(ChatLoreStateManager)
         settings = {
             "scan_depth": LORE["defaults"]["scan_depth"],
@@ -2318,7 +2363,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             )
 
         template = self._template_of(endpoint)
-        frame = frame_of(self._manager(CampaignFrameManager).get(id=chat.campaign_id)) if chat.campaign_id else None
+        frame = self._frame_of(chat.campaign_id)
         assembled = assemble_prompt(
             cast,
             speaker_id,

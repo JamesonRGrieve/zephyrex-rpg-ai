@@ -433,7 +433,8 @@ async function checkChatReferences(ownerId: string, input: z.infer<typeof chatUp
     ['persona_id', () => prisma.persona.count({ where: { ...owned, id: input.persona_id ?? '' } })],
     ['preset_id', () => prisma.generationPreset.count({ where: { ...owned, id: input.preset_id ?? '' } })],
     ['endpoint_id', () => prisma.modelEndpoint.count({ where: { ...owned, id: input.endpoint_id ?? '' } })],
-    ['campaign_id', () => prisma.campaignFrame.count({ where: { ...owned, id: input.campaign_id ?? '' } })],
+    // A chat's campaign is a wiki campaign (the composed suite), or, while frames remain, one of the
+    // owner's frames; lite has one owner, so a wiki campaign it names is its own.
     ['scenario_id', () => prisma.scenario.count({ where: { ...owned, id: input.scenario_id ?? '' } })],
   ];
   const named = single.filter(([field]) => typeof input[field] === 'string');

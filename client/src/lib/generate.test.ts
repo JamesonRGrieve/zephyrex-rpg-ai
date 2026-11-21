@@ -41,6 +41,8 @@ let server: Server;
 let baseUrl = '';
 const received: Received[] = [];
 let answer: 'stream' | 'refuse' = 'stream';
+/** The wiki's world entities the fake server answers GET /api/v1/world_entity with (the composed suite). */
+let world: Record<string, unknown>[] | null = null;
 
 async function readBody(request: IncomingMessage): Promise<string> {
   const chunks: Buffer[] = [];
@@ -59,6 +61,14 @@ beforeAll(async () => {
         // A poll (GET) has no body.
         body: (text === '' ? {} : JSON.parse(text)) as Received['body'],
       });
+      if ((request.url ?? '').startsWith('/api/v1/world_entity')) {
+        if (world === null) response.writeHead(404).end('{}');
+        else
+          response
+            .writeHead(200, { 'Content-Type': 'application/json' })
+            .end(JSON.stringify({ world_entities: world, next: null }));
+        return;
+      }
       if (answer === 'refuse') {
         response.writeHead(401).end('{"error":"bad key"}');
         return;
@@ -209,16 +219,10 @@ describe('POST /v1/ai_chat/generate', () => {
 });
 
 describe('World Info in a reply', () => {
-  it('speaks as the persona locked to the character, its description at its depth and its lorebook read (audit gap 9)', async () => {
-    await prisma.lorebookEntry.deleteMany();
-    await prisma.lorebook.deleteMany();
+  it('speaks as the persona locked to the character, its description at its depth (audit gap 9)', async () => {
     await prisma.chatLoreState.deleteMany();
     await prisma.persona.deleteMany();
     const { ada, chat, line } = await seed();
-    const book = await prisma.lorebook.create({ data: { ...stamp(), name: 'Sam’s past' } });
-    await prisma.lorebookEntry.create({
-      data: { ...stamp(), lorebookId: book.id, keys: '["spanner"]', content: 'Sam once lost a spanner overboard.' },
-    });
     await prisma.persona.create({
       data: {
         ...stamp(),
@@ -227,7 +231,6 @@ describe('World Info in a reply', () => {
         descriptionPosition: 'depth',
         descriptionDepth: 1,
         descriptionRole: 'user',
-        lorebookId: book.id,
         characterIds: JSON.stringify([ada.id]),
       },
     });
@@ -237,32 +240,40 @@ describe('World Info in a reply', () => {
     expect(prompt.messages).toContainEqual(
       expect.objectContaining({ role: 'user', content: 'Sam: Sam is a new deckhand.' }),
     );
-    expect(prompt.messages.some((message) => message.content.includes('lost a spanner overboard'))).toBe(true);
     await prisma.persona.deleteMany();
   });
 
-  it('gives the model the entries the branch activates, and keeps a sticky entry’s timer', async () => {
-    await prisma.lorebookEntry.deleteMany();
-    await prisma.lorebook.deleteMany();
+  it('runs over the chat’s wiki campaign through the wiki’s API, and keeps a sticky entry’s timer', async () => {
     await prisma.chatLoreState.deleteMany();
     const { chat, line } = await seed();
-    const book = await prisma.lorebook.create({ data: { ...stamp(), name: 'Kestrel' } });
-    await prisma.lorebookEntry.create({
-      data: {
-        ...stamp(),
-        lorebookId: book.id,
-        keys: '["spanner"]',
-        content: 'The Kestrel’s spanners are cursed.',
-        sticky: 2,
+    await prisma.chat.update({ where: { id: chat.id }, data: { campaignId: 'wiki-world' } });
+    world = [
+      {
+        id: 'w1',
+        name: 'The Kestrel’s Hold',
+        aliases: [],
+        keywords: ['spanner'],
+        summary: 'The Kestrel’s spanners are cursed.',
+        deleted: false,
+        lore: { sticky: 2 },
       },
-    });
-    await prisma.lorebookEntry.create({
-      data: { ...stamp(), lorebookId: book.id, keys: '["coffee"]', content: 'never: only table talk says coffee' },
-    });
-    await prisma.chat.update({ where: { id: chat.id }, data: { lorebookIds: JSON.stringify([book.id]) } });
-
-    const response = await generate(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+      { id: 'w2', name: 'Coffee House', aliases: ['coffee'], summary: 'never: only table talk says coffee', deleted: false },
+    ];
+    // The wiki's resource is this app's own: the request comes to the fake server's origin.
+    const origin = new URL(baseUrl).origin;
+    const response = await generate(
+      new NextRequest(`${origin}/api/v1/ai_chat/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ generate: { chat_id: chat.id, leaf_id: line.id } }),
+      }),
+    );
     await events(response);
+    world = null;
+    expect(
+      received.some((one) => one.path.startsWith('/api/v1/world_entity?campaign_id=wiki-world&include_setting=true')),
+    ).toBe(true);
+    received.splice(0, received.length, ...received.filter((one) => !one.path.startsWith('/api/v1/world_entity')));
     const system = received[0]?.body.messages[0]?.content ?? '';
     expect(system).toContain('The Kestrel’s spanners are cursed.');
     expect(system).not.toContain('never: only table talk says coffee');

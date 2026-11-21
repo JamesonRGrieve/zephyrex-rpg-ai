@@ -819,22 +819,19 @@ class TestGenerate:
             ping = server.post("/v1/ai_chat/ping", json={"ping": {"endpoint_id": endpoint["id"]}}, headers=_headers(user)).json()["ping"]
             assert ping["ok"] is True and ping["has_model"] is True, ping
 
-    def test_a_persona_locked_to_the_character_speaks_with_its_lorebook_and_placed_description(self, server: TestClient, model_url: str) -> None:
+    def test_a_persona_locked_to_the_character_speaks_with_its_placed_description(self, server: TestClient, model_url: str) -> None:
         # Audit gap 9: no chosen persona and no default; the one locked to Ada is spoken as, its
-        # description at depth 1 as the user's line, its lorebook read with the chat's.
+        # description at depth 1 as the user's line. (World Info is the wiki's now.)
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]
         _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
-        book = _create(server, user, "lorebook", name="Sam's past").json()["lorebook"]
-        _create(server, user, "lorebook_entry", lorebook_id=book["id"], keys=["coolant"], content="Sam once flooded a reactor with coolant.")
-        _create(server, user, "persona", name="Sam", description="{{user}} is a new deckhand.", description_position="depth", description_depth=1, description_role="user", lorebook_id=book["id"], character_ids=[ada["id"]])
+        _create(server, user, "persona", name="Sam", description="{{user}} is a new deckhand.", description_position="depth", description_depth=1, description_role="user", character_ids=[ada["id"]])
         chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
         line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Where's the coolant?"]).json()["chat_message"]
         asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}
         messages = server.post("/v1/ai_chat/prompt", json=asked, headers=_headers(user)).json()["prompt"]["messages"]
         assert "Sam: Sam is a new deckhand." not in messages[0]["content"]
         assert {"role": "user", "content": "Sam: Sam is a new deckhand."} in [{"role": m["role"], "content": m["content"]} for m in messages[1:]]
-        assert any("flooded a reactor" in message["content"] for message in messages), messages
 
     def test_macros_read_the_chat_and_its_variables_and_a_reply_keeps_what_they_set(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
@@ -1096,14 +1093,19 @@ class TestGenerate:
             answer = server.post("/v1/ai_chat/speech", json={"speech": bad}, headers=_headers(user))
             assert answer.status_code == 422, (bad, answer.text)
 
-    def test_world_info_reaches_the_model_and_its_timer_is_kept(self, server: TestClient, model_url: str) -> None:
+    def test_world_info_runs_over_the_wiki_campaigns_entities(self, server: TestClient, model_url: str) -> None:
+        # The composed suite: World Info activates the chat's wiki campaign's entities by their names,
+        # aliases and keywords, read through the wiki's own ability; table talk never wakes one.
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]
         _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
-        book = _create(server, user, "lorebook", name="Kestrel").json()["lorebook"]
-        _create(server, user, "lorebook_entry", lorebook_id=book["id"], keys=["spanner"], content="The Kestrel's spanners are cursed.", sticky=2)
-        _create(server, user, "lorebook_entry", lorebook_id=book["id"], keys=["coffee"], content="never: only table talk says coffee")
-        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], lorebook_ids=[book["id"]]).json()["chat"]
+        world = _create(server, user, "campaign", name="The Salt Coast").json()["campaign"]
+        said = lambda text: [{"type": "p", "children": [{"text": text}]}]  # noqa: E731 - a test's shorthand
+        _create(server, user, "location", name="The Kestrel's Hold", kind="building", campaign_id=world["id"], aliases=["spanner locker"], keywords=["spanner"], entry=said("The Kestrel's spanners are cursed."))
+        _create(server, user, "location", name="Coffee House", kind="building", campaign_id=world["id"], entry=said("never: only table talk says coffee"))
+        refused = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "campaign_id": "not-a-campaign"}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], campaign_id=world["id"]).json()["chat"]
         ooc = _create(server, user, "chat_message", chat_id=chat["id"], role="user", channel="ooc", swipes=["brb, coffee"]).json()["chat_message"]
         line = _create(server, user, "chat_message", chat_id=chat["id"], parent_id=ooc["id"], role="user", swipes=["I hand her the spanner."]).json()["chat_message"]
 
@@ -1111,10 +1113,8 @@ class TestGenerate:
         response = server.post("/v1/ai_chat/generate", json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
         assert response.status_code == 200, response.text
         system = RECEIVED[0]["body"]["messages"][0]["content"]
-        assert "The Kestrel's spanners are cursed." in system
+        assert "The Kestrel's spanners are cursed." in system, system
         assert "never: only table talk says coffee" not in system
-        timers = server.get(f"/v1/chat_lore_state?chat_id={chat['id']}", headers=_headers(user)).json()["chat_lore_states"]
-        assert [list(state["state"].values()) for state in timers] == [[{"sticky_until": 3, "cooldown_until": 0}]]
 
     def test_refuses_a_lorebook_that_is_not_yours(self, server: TestClient, person: Any, other: Any) -> None:
         theirs = _create(server, other, "lorebook", name="Theirs").json()["lorebook"]

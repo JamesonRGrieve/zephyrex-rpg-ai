@@ -1,0 +1,255 @@
+{
+  "$comment": "World Info over the wiki: cases both twins run (client/src/features/lore/worldLore.test.ts, server/extensions/ai_chat/WorldLore_test.py).",
+  "entry_cases": [
+    {
+      "name": "S4c: name, aliases and keywords as keys, the summary as content, the wiki's defaults",
+      "entity": {
+        "id": "p1",
+        "name": "Inquisitor Vey",
+        "aliases": [
+          "Vey",
+          " vey ",
+          "The Hound"
+        ],
+        "keywords": [
+          "ordo hereticus",
+          ""
+        ],
+        "summary": " Vey hunts heretics. ",
+        "deleted": false
+      },
+      "entry": {
+        "id": "p1",
+        "keys": [
+          "Inquisitor Vey",
+          "Vey",
+          "The Hound",
+          "ordo hereticus"
+        ],
+        "secondary_keys": [],
+        "selective_logic": "and_any",
+        "content": "Vey hunts heretics.",
+        "enabled": true,
+        "constant": false,
+        "position": "before_char",
+        "depth": 4,
+        "role": "system",
+        "order": 100,
+        "probability": 100,
+        "group": "",
+        "group_weight": 100,
+        "prioritize": false,
+        "sticky": 0,
+        "cooldown": 0,
+        "delay": 0,
+        "exclude_recursion": false,
+        "prevent_recursion": false,
+        "delay_until_recursion": false,
+        "case_sensitive": null,
+        "match_whole_words": null,
+        "character_names": [],
+        "character_exclude": false
+      }
+    },
+    {
+      "name": "S4d: the lore block sets activation, positions mapped to this app's",
+      "entity": {
+        "id": "l1",
+        "name": "Hive Solenne",
+        "summary": "A hive world.",
+        "lore": {
+          "always_active": true,
+          "order": 5,
+          "position": "author_note_bottom",
+          "depth": 2,
+          "probability": 50,
+          "selective_logic": "not_any",
+          "secondary_keys": [
+            "storm"
+          ],
+          "sticky": 3,
+          "cooldown": 2,
+          "delay": 1,
+          "group": "places",
+          "group_weight": 7
+        }
+      },
+      "entry": {
+        "id": "l1",
+        "keys": [
+          "Hive Solenne"
+        ],
+        "secondary_keys": [
+          "storm"
+        ],
+        "selective_logic": "not_any",
+        "content": "A hive world.",
+        "enabled": true,
+        "constant": true,
+        "position": "after_an",
+        "depth": 2,
+        "role": "system",
+        "order": 5,
+        "probability": 50,
+        "group": "places",
+        "group_weight": 7,
+        "prioritize": false,
+        "sticky": 3,
+        "cooldown": 2,
+        "delay": 1,
+        "exclude_recursion": false,
+        "prevent_recursion": false,
+        "delay_until_recursion": false,
+        "case_sensitive": null,
+        "match_whole_words": null,
+        "character_names": [],
+        "character_exclude": false
+      }
+    },
+    {
+      "name": "a lore block's unreadable fields take the defaults",
+      "entity": {
+        "id": "x",
+        "name": "X",
+        "summary": "x.",
+        "lore": {
+          "order": "high",
+          "position": "sideways",
+          "selective_logic": "maybe",
+          "always_active": 1
+        }
+      },
+      "entry": {
+        "id": "x",
+        "keys": [
+          "X"
+        ],
+        "secondary_keys": [],
+        "selective_logic": "and_any",
+        "content": "x.",
+        "enabled": true,
+        "constant": false,
+        "position": "before_char",
+        "depth": 4,
+        "role": "system",
+        "order": 100,
+        "probability": 100,
+        "group": "",
+        "group_weight": 100,
+        "prioritize": false,
+        "sticky": 0,
+        "cooldown": 0,
+        "delay": 0,
+        "exclude_recursion": false,
+        "prevent_recursion": false,
+        "delay_until_recursion": false,
+        "case_sensitive": null,
+        "match_whole_words": null,
+        "character_names": [],
+        "character_exclude": false
+      }
+    },
+    {
+      "name": "at a depth, and an example position",
+      "entity": {
+        "id": "d",
+        "name": "D",
+        "summary": "d.",
+        "lore": {
+          "position": "at_depth",
+          "depth": 0
+        }
+      },
+      "entry": {
+        "id": "d",
+        "keys": [
+          "D"
+        ],
+        "secondary_keys": [],
+        "selective_logic": "and_any",
+        "content": "d.",
+        "enabled": true,
+        "constant": false,
+        "position": "at_depth",
+        "depth": 0,
+        "role": "system",
+        "order": 100,
+        "probability": 100,
+        "group": "",
+        "group_weight": 100,
+        "prioritize": false,
+        "sticky": 0,
+        "cooldown": 0,
+        "delay": 0,
+        "exclude_recursion": false,
+        "prevent_recursion": false,
+        "delay_until_recursion": false,
+        "case_sensitive": null,
+        "match_whole_words": null,
+        "character_names": [],
+        "character_exclude": false
+      }
+    },
+    {
+      "name": "an outlet entry is left out",
+      "entity": {
+        "id": "o",
+        "name": "O",
+        "summary": "o.",
+        "lore": {
+          "position": "outlet"
+        }
+      },
+      "entry": null
+    },
+    {
+      "name": "a deleted entity is left out",
+      "entity": {
+        "id": "g",
+        "name": "G",
+        "summary": "g.",
+        "deleted": true
+      },
+      "entry": null
+    },
+    {
+      "name": "an entity with nothing to say is left out",
+      "entity": {
+        "id": "e",
+        "name": "E",
+        "summary": "  "
+      },
+      "entry": null
+    }
+  ],
+  "campaign_cases": [
+    {
+      "name": "a chat's campaign is a wiki campaign",
+      "campaign_id": "w1",
+      "frames": {},
+      "wiki_campaign": "w1"
+    },
+    {
+      "name": "a frame names its wiki campaign",
+      "campaign_id": "f1",
+      "frames": {
+        "f1": "w9"
+      },
+      "wiki_campaign": "w9"
+    },
+    {
+      "name": "a frame with no wiki campaign",
+      "campaign_id": "f2",
+      "frames": {
+        "f2": null
+      },
+      "wiki_campaign": null
+    },
+    {
+      "name": "no campaign",
+      "campaign_id": null,
+      "frames": {},
+      "wiki_campaign": null
+    }
+  ]
+}

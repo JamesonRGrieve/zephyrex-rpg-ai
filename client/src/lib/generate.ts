@@ -35,13 +35,15 @@ import {
 import { branchTo } from '~/features/chat/branch';
 import { aiCast, playedPersona, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
 import { groupStops } from '~/features/chat/group';
-import { personaBooks, personaFor } from '~/features/prompt/personaPick';
+import { personaFor } from '~/features/prompt/personaPick';
 import { genMessages } from '~/features/prompt/gen';
+import { wikiCampaignOf, worldLoreEntries } from '~/features/lore/worldLore';
+import { NO_WORLD, type WorldReader, wikiReader } from '~/lib/wikiWorld';
 import { type ExtraBody, storedExtraBody, withExtraBody } from '~/features/models/extraBody';
 import type { GroupSettings } from '~/features/chat/groupSettings';
 import type { Injection } from '~/features/chat/injections';
 import type { Persona as PersonaRecord } from '~/features/data/records';
-import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
+import { activateLore, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import {
   type AssembledPrompt,
   assemblePrompt,
@@ -82,7 +84,6 @@ import {
   openAiPayload,
 } from '~/features/models/nativeApis';
 import { campaigns, scenarios } from '~/lib/campaignRecords';
-import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
 import { askDecider, decider } from '~/lib/decider';
 import { prisma } from '~/lib/prisma';
@@ -140,6 +141,7 @@ export async function generationInputs(
   body: z.infer<typeof request>,
   roll: () => number = Math.random,
   purpose: 'reply' | 'summary' | 'translate' = 'reply',
+  world: WorldReader = NO_WORLD,
 ): Promise<{
   prompt: PromptInput;
   sampler: Sampler;
@@ -221,8 +223,6 @@ export async function generationInputs(
           description_role: picked.description_role,
         },
   );
-  // The persona's own lorebook joins the chat's while it's the one spoken as.
-  const personaBookIds = personaBooks(playedRow === null ? picked : null, []);
 
   const messages = (await chatMessages.list(ownerId, new URLSearchParams({ chat_id: chat.id }))).map((row) => ({
     id: row.id,
@@ -271,18 +271,17 @@ export async function generationInputs(
   const storyTexts = history
     .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
     .map((turn) => turn.content);
-  const bookIds = [
-    ...new Set([
-      ...chatFields.lorebook_ids,
-      ...personaBookIds,
-      ...ordered.flatMap((row) => (row.lorebookId === null ? [] : [row.lorebookId])),
-    ]),
-  ];
-  const entryRows =
-    bookIds.length === 0
-      ? []
-      : await prisma.lorebookEntry.findMany({ where: { createdById: ownerId, lorebookId: { in: bookIds } } });
-  const entries = entryRows.map((row) => ({ id: row.id, ...(lorebookEntries.fields(row) as Omit<LoreEntry, 'id'>) }));
+  // World Info runs over the wiki (the composed suite): the chat's wiki campaign's entities and its
+  // setting's canon, read through the wiki's API; no wiki campaign, no world lore.
+  const frameRow =
+    chatFields.campaign_id === null
+      ? null
+      : await prisma.campaignFrame.findFirst({ where: { id: chatFields.campaign_id, createdById: ownerId } });
+  const wikiCampaign = wikiCampaignOf(
+    chatFields.campaign_id,
+    new Map(frameRow === null ? [] : [[frameRow.id, frameRow.wikiCampaignId]]),
+  );
+  const entries = wikiCampaign === null ? [] : worldLoreEntries(await world(wikiCampaign));
   const stateRow = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
   const priorState: LoreState = stateRow === null ? {} : (JSON.parse(stateRow.state) as LoreState);
   const settings: LoreSettings = {
@@ -644,7 +643,13 @@ export async function inspectPrompt(nextRequest: NextRequest): Promise<Response>
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, activeLore, lines, speaker } = await generationInputs(owner.id, body);
+    const { prompt, sampler, activeLore, lines, speaker } = await generationInputs(
+      owner.id,
+      body,
+      Math.random,
+      'reply',
+      wikiReader(nextRequest),
+    );
     const assembled = promptFor(body.mode, await withMemories(owner.id, body, prompt, lines, speaker, nextRequest.signal));
     const messages = assembled.messages.map((message) => ({ ...message, tokens: estimateTokens(message) }));
     return Response.json({
@@ -807,7 +812,13 @@ export async function summarize(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, endpoint } = await generationInputs(owner.id, body, Math.random, 'summary');
+    const { prompt, sampler, endpoint } = await generationInputs(
+      owner.id,
+      body,
+      Math.random,
+      'summary',
+      wikiReader(nextRequest),
+    );
     const asked = summaryPrompt(prompt);
     const stream = await askModel(endpoint, upstreamBody(endpoint, sampler, asked.messages, 'reply'), nextRequest.signal);
     const text = await collect(completionDeltas(stream)).catch(() => {
@@ -1132,7 +1143,13 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);
     const body = await readRequest(nextRequest);
-    const { prompt, sampler, endpoint, loreState, images, paused, lines, speaker } = await generationInputs(owner.id, body);
+    const { prompt, sampler, endpoint, loreState, images, paused, lines, speaker } = await generationInputs(
+      owner.id,
+      body,
+      Math.random,
+      'reply',
+      wikiReader(nextRequest),
+    );
     // Paused (A25): no story turns until the table resumes. The table GM still answers.
     if (paused && body.mode !== 'table')
       throw new ApiError(409, { message: 'The table has paused the game', code: 'paused' });

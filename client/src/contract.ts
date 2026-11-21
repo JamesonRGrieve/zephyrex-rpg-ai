@@ -101,6 +101,8 @@ export const NATIVE_APIS = contract.native_apis;
 /** Personas (audit gap 9): description positions, roles, and locks to characters. */
 /** Extra request fields per endpoint: their size, and the fields they never override. */
 export const EXTRA_BODY = contract.extra_body;
+/** World Info over the wiki (the composed suite): lore defaults and the wiki's positions mapped to this app's. */
+export const WORLD_LORE = contract.world_lore;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

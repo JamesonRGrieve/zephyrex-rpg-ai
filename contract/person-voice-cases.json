@@ -1,0 +1,75 @@
+{
+  "$comment": "A character from a wiki person (the composed suite): cases both twins run (client/src/features/prompt/personVoice.test.ts, server/extensions/ai_chat/PersonVoice_test.py).",
+  "cases": [
+    {
+      "name": "a full voice",
+      "person": {
+        "id": "p1",
+        "name": "Vey",
+        "summary": " An inquisitor. ",
+        "voice": {
+          "personality": "Cold, patient.",
+          "speech": "Clipped Gothic.",
+          "first_message": " You were expected. ",
+          "examples": [
+            "{{char}}: Kneel.",
+            " ",
+            "{{user}}: Why?\n{{char}}: Because."
+          ]
+        }
+      },
+      "character": {
+        "id": "p1",
+        "name": "Vey",
+        "description": "An inquisitor.",
+        "personality": "Cold, patient.\nSpeech: Clipped Gothic.",
+        "scenario": "",
+        "example_messages": "<START>\n{{char}}: Kneel.\n<START>\n{{user}}: Why?\n{{char}}: Because.",
+        "system_prompt": "",
+        "post_history_instructions": "",
+        "first_message": "You were expected."
+      }
+    },
+    {
+      "name": "speech alone",
+      "person": {
+        "id": "p1",
+        "name": "Vey",
+        "voice": {
+          "speech": "Whispers."
+        }
+      },
+      "character": {
+        "id": "p1",
+        "name": "Vey",
+        "description": "",
+        "personality": "Speech: Whispers.",
+        "scenario": "",
+        "example_messages": "",
+        "system_prompt": "",
+        "post_history_instructions": "",
+        "first_message": ""
+      }
+    },
+    {
+      "name": "no voice: the summary only",
+      "person": {
+        "id": "p1",
+        "name": "Vey",
+        "summary": "A clerk.",
+        "voice": null
+      },
+      "character": {
+        "id": "p1",
+        "name": "Vey",
+        "description": "A clerk.",
+        "personality": "",
+        "scenario": "",
+        "example_messages": "",
+        "system_prompt": "",
+        "post_history_instructions": "",
+        "first_message": ""
+      }
+    }
+  ]
+}
