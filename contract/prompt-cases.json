@@ -364,7 +364,7 @@
       "dropped": 0
     },
     {
-      "name": "continue: the character's last message comes after the instructions, for the model to carry on",
+      "name": "continue: the character's last message comes after the instructions and the continue nudge, for the model to carry on",
       "input": {
         "characters": [
           "bram"
@@ -405,6 +405,10 @@
         {
           "role": "system",
           "content": "Keep Bram's reply under 60 words."
+        },
+        {
+          "role": "system",
+          "content": "[Continue your last message without repeating its original content.]"
         },
         {
           "role": "assistant",
@@ -777,6 +781,176 @@
         {
           "role": "system",
           "content": "You are Bram.\n\nBram is the ship's cook.\n\nNotes that may be relevant:\nThe coolant spare is in bay two.\n\nSummary of the story so far:\nThey docked at Vell."
+        },
+        {
+          "role": "user",
+          "content": "Where is the coolant?"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "the person's own prompts (audit gap 3): one in the system message at its place, one at a depth, one turned off",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "summary": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where is the coolant?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "layout": [
+          {
+            "id": "main",
+            "enabled": true,
+            "max_tokens": null
+          },
+          {
+            "id": "custom:style",
+            "name": "Style",
+            "content": "Write in {{char}}'s clipped voice.",
+            "role": "system",
+            "position": "system",
+            "depth": 0,
+            "enabled": true,
+            "max_tokens": null
+          },
+          {
+            "id": "custom:reminder",
+            "name": "Reminder",
+            "content": "Remember the coolant.",
+            "role": "user",
+            "position": "depth",
+            "depth": 1,
+            "enabled": true,
+            "max_tokens": null
+          },
+          {
+            "id": "custom:off",
+            "name": "Off",
+            "content": "Never seen.",
+            "role": "system",
+            "position": "system",
+            "depth": 0,
+            "enabled": false,
+            "max_tokens": null
+          }
+        ]
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nWrite in Bram's clipped voice.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "Remember the coolant."
+        },
+        {
+          "role": "user",
+          "content": "Where is the coolant?"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "start reply with (audit gap 3): the reply's opening is the last message, its macros filled",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "summary": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where is the coolant?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "layout": [
+          {
+            "id": "prefill",
+            "content": "*{{char}} grins.*",
+            "enabled": true
+          }
+        ]
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "Where is the coolant?"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        },
+        {
+          "role": "assistant",
+          "content": "*Bram grins.*"
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "start reply with, turned off, adds nothing",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "summary": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where is the coolant?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "layout": [
+          {
+            "id": "prefill",
+            "content": "Ahem.",
+            "enabled": false
+          }
+        ]
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nBram is the ship's cook."
         },
         {
           "role": "user",

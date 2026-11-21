@@ -45,6 +45,8 @@ class Assembled:
     dropped: int
     # The chat's and the global variables after the prompt's macros set them (assemble_prompt only).
     variables: dict[str, dict[str, str]] | None = None
+    # "Start reply with" (audit gap 3): the last message's text, which the stored reply begins with.
+    prefill: str | None = None
 
 
 def prompt_layout(given: Sequence[Mapping[str, Any]] | None) -> list[dict[str, Any]]:
@@ -66,6 +68,66 @@ def prompt_layout(given: Sequence[Mapping[str, Any]] | None) -> list[dict[str, A
     ]
 
 
+OWN_PROMPT_PREFIX = "custom:"
+
+
+def own_prompt_of(entry: Mapping[str, Any]) -> dict[str, Any] | None:
+    """A layout entry as a person's own prompt (audit gap 3), or None when it isn't one or can't be
+    used: in the system message at its place in the order, or a message of its role at a depth."""
+    prompt_id, content = entry.get("id"), entry.get("content")
+    if not isinstance(prompt_id, str) or not prompt_id.startswith(OWN_PROMPT_PREFIX) or not isinstance(content, str):
+        return None
+    depth, budget = entry.get("depth"), entry.get("max_tokens")
+    name = entry.get("name")
+    return {
+        "id": prompt_id,
+        "name": name if isinstance(name, str) else prompt_id[len(OWN_PROMPT_PREFIX) :],
+        "content": content,
+        "role": entry.get("role") if entry.get("role") in ("user", "assistant") else "system",
+        "position": "depth" if entry.get("position") == "depth" else "system",
+        "depth": depth if isinstance(depth, int) and not isinstance(depth, bool) and depth >= 0 else 0,
+        "enabled": entry.get("enabled") is not False,
+        "max_tokens": budget if isinstance(budget, int | float) and not isinstance(budget, bool) else None,
+    }
+
+
+def prefill_of(given: Sequence[Mapping[str, Any]] | None) -> str:
+    """The layout's "start reply with" text (audit gap 3), when it has one turned on."""
+    entry = next((one for one in given or [] if one.get("id") == "prefill"), None)
+    content = entry.get("content") if entry is not None else None
+    return content if entry is not None and entry.get("enabled") is not False and isinstance(content, str) else ""
+
+
+def prompt_order(given: Sequence[Mapping[str, Any]] | None) -> list[dict[str, Any]]:
+    """The system message's order: the given sections and the person's own system prompts in the
+    layout's order (repeats dropped, at most the contract's number of own prompts), then the sections
+    it leaves out, on."""
+    known = PROMPT["sections"]
+    order: list[dict[str, Any]] = []
+    own = 0
+    for entry in given or []:
+        entry_id = entry.get("id")
+        if not isinstance(entry_id, str) or any(kept["id"] == entry_id for kept in order):
+            continue
+        if entry_id in known:
+            budget = entry.get("max_tokens")
+            order.append(
+                {
+                    "id": entry_id,
+                    "enabled": entry.get("enabled") is not False,
+                    "max_tokens": budget if isinstance(budget, int | float) and not isinstance(budget, bool) else None,
+                }
+            )
+            continue
+        prompt = own_prompt_of(entry)
+        if prompt is not None and own < PROMPT["own_prompts"]:
+            own += 1
+            order.append(prompt)
+    return order + [
+        {"id": id_, "enabled": True, "max_tokens": None} for id_ in known if all(kept["id"] != id_ for kept in order)
+    ]
+
+
 def _capped(text: str, max_tokens: int | None) -> str:
     """A section cut to its token budget (characters at the contract's ratio), whitespace trimmed."""
     text = text.strip()
@@ -76,10 +138,12 @@ def _capped(text: str, max_tokens: int | None) -> str:
 
 def _system_text(texts: Mapping[str, str], layout: Sequence[Mapping[str, Any]], fill: Callable[[str], str]) -> str:
     # Each section is cut to its budget once its macros are filled in: the budget is what the model reads.
+    # A person's own prompt in the system message sits at its place in the order (audit gap 3).
     parts = [
-        _capped(fill(texts[section["id"]]), section["max_tokens"])
+        _capped(fill(section["content"] if "content" in section else texts[section["id"]]), section["max_tokens"])
         for section in layout
-        if section["enabled"] and section["id"] in texts
+        if section["enabled"]
+        and (section.get("position") == "system" if "content" in section else section["id"] in texts)
     ]
     return "\n\n".join(part for part in parts if part)
 
@@ -368,7 +432,7 @@ def assemble_prompt(
 
     sections: Mapping[str, str] = (lore or {}).get("sections", {})
     arranged = {section["id"]: section for section in prompt_layout(layout)}
-    order = list(arranged.values())
+    order = prompt_order(layout)
 
     def kept(id_: str, text: str) -> str:
         section = arranged[id_]
@@ -439,10 +503,23 @@ def assemble_prompt(
         # The chat's current task (A53), a system line at its depth.
         task = fill(PROMPT["objective_prompt"].replace("{{task}}", objective.strip()))
         inserts.append((PROMPT["objective_depth"], {"role": "system", "content": task}))
+    # The person's own prompts placed in the history (audit gap 3), each at its depth.
+    for entry in order:
+        if "content" in entry and entry["enabled"] and entry["position"] == "depth":
+            content = _capped(fill(entry["content"]), entry["max_tokens"])
+            if content:
+                inserts.append((entry["depth"], {"role": entry["role"], "content": content}))
     instructions = kept("post_history", speaker["post_history_instructions"])
+    # "Start reply with" (audit gap 3): the reply's opening, as the last message (not when continuing).
+    prefill = "" if mode == "continue" else fill(prefill_of(layout))
     after = [{"role": "system", "content": instructions}] if instructions else []
     if mode == "impersonate":
         after.append({"role": "system", "content": fill(PROMPT["impersonate_prompt"])})
+    if mode == "continue":
+        # Continuing (audit gap 3): a nudge not to repeat what's there, just before the message carried on.
+        after.append({"role": "system", "content": fill(PROMPT["continue_nudge"])})
+    if prefill:
+        after.append({"role": "assistant", "content": prefill})
     # An X-carded turn (A25) stays in the chat but out of what the model reads.
     story_turns = [turn for turn in history if turn["channel"] in story and not turn.get("x_carded", False)]
     # Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
@@ -479,8 +556,15 @@ def assemble_prompt(
             placed.append(window[index])
     with_variables = variables if macros is not None else None
     if mode == "continue" and placed and placed[-1]["role"] == "assistant":
-        return Assembled(messages=[system, *placed[:-1], *after, placed[-1]], dropped=kept, variables=with_variables)
-    return Assembled(messages=[system, *placed, *after], dropped=kept, variables=with_variables)
+        return Assembled(
+            messages=[system, *placed[:-1], *after, placed[-1]],
+            dropped=kept,
+            variables=with_variables,
+            prefill=prefill or None,
+        )
+    return Assembled(
+        messages=[system, *placed, *after], dropped=kept, variables=with_variables, prefill=prefill or None
+    )
 
 
 def summary_prompt(

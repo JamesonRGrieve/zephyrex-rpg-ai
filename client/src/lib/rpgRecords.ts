@@ -570,20 +570,34 @@ const ranged = (setting: keyof typeof SAMPLER_RANGES) =>
 const wholeRanged = (setting: keyof typeof SAMPLER_RANGES) => ranged(setting).int();
 const stop = z.array(z.string().min(1).max(LIMITS.stop_string_characters)).max(LIMITS.preset_stop_strings);
 /** The prompt manager's layout (A16): each section at most once, in the order given. */
+const sectionBudget = z.number().int().min(PROMPT.section_token_range[0]).max(PROMPT.section_token_range[1]).nullable();
+/** The prompt manager's layout (A16): its sections, the person's own prompts and "start reply with" (audit gap 3). */
 export const promptLayout = z
   .array(
-    z
-      .object({
-        id: z.enum(PROMPT.sections),
-        enabled: z.boolean(),
-        max_tokens: z.number().int().min(PROMPT.section_token_range[0]).max(PROMPT.section_token_range[1]).nullable(),
-      })
-      .strict(),
+    z.union([
+      z.object({ id: z.enum(PROMPT.sections), enabled: z.boolean(), max_tokens: sectionBudget }).strict(),
+      z
+        .object({
+          id: z.string().regex(/^custom:[\w-]{1,60}$/),
+          name: z.string().max(LIMITS.name_characters),
+          content: z.string().max(LIMITS.card_field_characters),
+          role: z.enum(['system', 'user', 'assistant']),
+          position: z.enum(['system', 'depth']),
+          depth: z.number().int().min(0).max(PROMPT.own_prompt_depth),
+          enabled: z.boolean(),
+          max_tokens: sectionBudget,
+        })
+        .strict(),
+      z
+        .object({ id: z.literal('prefill'), content: z.string().max(LIMITS.card_field_characters), enabled: z.boolean() })
+        .strict(),
+    ]),
   )
-  .max(PROMPT.sections.length)
+  .max(PROMPT.sections.length + PROMPT.own_prompts + 1)
+  .refine((entries) => new Set(entries.map((entry) => entry.id)).size === entries.length, 'An entry is in the layout once')
   .refine(
-    (sections) => new Set(sections.map((section) => section.id)).size === sections.length,
-    'A section is in the layout once',
+    (entries) => entries.filter((entry) => entry.id.startsWith('custom:')).length <= PROMPT.own_prompts,
+    `At most ${PROMPT.own_prompts} prompts of your own`,
   );
 const presetFields = {
   temperature: ranged('temperature'),

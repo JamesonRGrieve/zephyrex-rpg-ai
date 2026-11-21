@@ -11,6 +11,7 @@
 import useSWR, { type SWRResponse, useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
+import type { LayoutEntry } from '~/features/prompt/assemble';
 import {
   CAMPAIGN,
   CHAT_MODES,
@@ -19,7 +20,6 @@ import {
   LORE_POSITIONS,
   MESSAGE_CHANNELS,
   MESSAGE_ROLES,
-  PROMPT,
   QUICK_REPLY,
   REGEX,
   SAFETY,
@@ -142,7 +142,8 @@ export const presetSchema = z.object({
   max_tokens: z.number(),
   context_tokens: z.number(),
   stop: z.array(z.string()),
-  prompt_layout: z.array(z.object({ id: z.enum(PROMPT.sections), enabled: z.boolean(), max_tokens: z.number().nullable() })),
+  // Its sections, the person's own prompts and "start reply with" (audit gap 3), checked by the server.
+  prompt_layout: z.array(z.custom<LayoutEntry>((entry) => typeof entry === 'object' && entry !== null && 'id' in entry)),
   logit_bias: z.record(z.string(), z.number()),
   negative_prompt: z.string(),
   guidance_scale: z.number().nullable(),

@@ -8,7 +8,7 @@ import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Slider } from 'zephyrex/ui/slider';
 import { PromptLayoutEditor } from '~/components/prompt/PromptLayoutEditor';
-import type { PromptSection } from '~/features/prompt/assemble';
+import type { LayoutEntry } from '~/features/prompt/assemble';
 import { WriteProblem } from '~/components/common/WriteProblem';
 import { LIMITS, PRESET_DEFAULTS, SAMPLER_RANGES, type SamplerSetting, SAMPLER_EXTRAS } from '~/contract';
 import { type Preset, presets, refreshedByRecords } from '~/features/data/records';
@@ -96,7 +96,7 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
   const [name, setName] = useState(preset?.name ?? '');
   const [values, setValues] = useState<Samplers>(() => samplersOf(preset ?? PRESET_DEFAULTS));
   const [stops, setStops] = useState((preset?.stop ?? []).join('\n'));
-  const [layout, setLayout] = useState<PromptSection[]>(preset?.prompt_layout ?? []);
+  const [layout, setLayout] = useState<LayoutEntry[]>(preset?.prompt_layout ?? []);
   const [bias, setBias] = useState(
     Object.entries(preset?.logit_bias ?? {})
       .map(([token, value]) => `${token}: ${value}`)
@@ -261,10 +261,15 @@ function PresetForm({ preset, done }: { preset: Preset | null; done: () => void 
         <Button type='submit' className='h-11 flex-1' disabled={name.trim() === ''}>
           Save
         </Button>
-        <Button type='button' variant='outline' className='h-11' onClick={() => {
+        <Button
+          type='button'
+          variant='outline'
+          className='h-11'
+          onClick={() => {
             setValues(samplersOf(PRESET_DEFAULTS));
             setFurther({});
-          }}>
+          }}
+        >
           Defaults
         </Button>
       </div>

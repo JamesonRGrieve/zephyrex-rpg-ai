@@ -675,6 +675,26 @@ class TestGenerate:
         refused = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "variables": too_many}}, headers=_headers(user))
         assert refused.status_code == 422, refused.text
 
+    def test_own_prompts_and_start_reply_with_reach_the_model_and_the_reply(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        own = {"id": "custom:style", "name": "Style", "content": "Write as {{char}}, briefly.", "role": "system", "position": "system", "depth": 0, "enabled": True, "max_tokens": None}
+        bad = server.post("/v1/generation_preset", json={"generation_preset": {"name": "x", "prompt_layout": [{**own, "role": "narrator"}]}}, headers=_headers(user))
+        assert bad.status_code == 422, bad.text
+        layout = [own, {"id": "prefill", "content": "*{{char}} nods.*", "enabled": True}]
+        preset = _create(server, user, "generation_preset", name="Own", prompt_layout=layout).json()["generation_preset"]
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]], preset_id=preset["id"]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+        messages = server.post("/v1/ai_chat/prompt", json=asked, headers=_headers(user)).json()["prompt"]["messages"]
+        assert messages[0]["content"].startswith("Write as Ada, briefly.")
+        assert {"role": messages[-1]["role"], "content": messages[-1]["content"]} == {"role": "assistant", "content": "*Ada nods.*"}
+        RECEIVED.clear()
+        reply = server.post("/v1/ai_chat/generate", json=asked, headers=_headers(user))
+        assert reply.text.index('"*Ada nods.*"') < reply.text.index("event: done"), reply.text
+        assert RECEIVED[0]["body"]["messages"][-1] == {"role": "assistant", "content": "*Ada nods.*"}
+
     def test_a_sprite_is_chosen_only_from_the_characters_own_labels(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

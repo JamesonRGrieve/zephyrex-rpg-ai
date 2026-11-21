@@ -117,6 +117,9 @@
       "roll"
     ],
     "impersonate_prompt": "Write {{user}}'s next reply in this chat, in {{user}}'s own voice. Write only {{user}}'s part.",
+    "continue_nudge": "[Continue your last message without repeating its original content.]",
+    "own_prompts": 20,
+    "own_prompt_depth": 1000,
     "modes": [
       "reply",
       "continue",

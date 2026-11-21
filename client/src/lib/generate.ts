@@ -54,7 +54,7 @@ import {
   type ModelMessage,
   type PromptInput,
   type PromptMode,
-  type PromptSection,
+  type LayoutEntry,
   type PromptTurn,
 } from '~/features/prompt/assemble';
 import { type InstructTemplate, instructStops, renderInstruct } from '~/features/prompt/instruct';
@@ -91,7 +91,7 @@ export interface Sampler {
   max_tokens: number;
   context_tokens: number;
   stop: string[];
-  prompt_layout: PromptSection[];
+  prompt_layout: LayoutEntry[];
   logit_bias?: Record<string, number>;
   negative_prompt?: string;
   guidance_scale?: number | null;
@@ -357,8 +357,7 @@ function macroContext(
   const userName = persona?.name ?? DEFAULT_USER_NAME;
   const story = new Set<string>(PROMPT.story_channels);
   const lines = path.filter((message) => story.has(message.channel));
-  const lastOf = (role?: string) =>
-    [...lines].reverse().find((message) => role === undefined || message.role === role);
+  const lastOf = (role?: string) => [...lines].reverse().find((message) => role === undefined || message.role === role);
   const textOf = (message: (typeof lines)[number] | undefined) => message?.swipes[message.swipe_index] ?? '';
   const lastUser = lastOf('user');
   const now = Date.now();
@@ -962,13 +961,20 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
     await saveLoreState(owner.id, body.chat_id, loreState);
     await saveVariables(owner.id, body.chat_id, prompt.macros?.local ?? {}, assembled.variables?.local);
 
+    // "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.
+    const prefill = assembled.prefill ?? '';
+    const mode = prefill !== '' ? 'continue' : body.mode === 'table' ? 'reply' : body.mode;
     const upstream = await askModel(
       endpoint,
-      upstreamBody(endpoint, sampler, assembled.messages, body.mode === 'table' ? 'reply' : body.mode, images),
+      upstreamBody(endpoint, sampler, assembled.messages, mode, images),
       nextRequest.signal,
     );
     const deltas = completionDeltas(upstream);
     const stream = new ReadableStream<Uint8Array>({
+      // The reply begins with its prefill, so what's kept is the whole reply.
+      start(controller) {
+        if (prefill !== '') controller.enqueue(event('delta', { text: prefill }));
+      },
       async pull(controller) {
         try {
           const next = await deltas.next();

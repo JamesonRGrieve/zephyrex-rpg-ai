@@ -193,25 +193,61 @@ def _lorebook_ids(ids: Any) -> Any:
     return ids
 
 
+_OWN_PROMPT_ID = re.compile(r"^custom:[\w-]{1,60}$", re.ASCII)
+_OWN_PROMPT_KEYS = {"id", "name", "content", "role", "position", "depth", "enabled", "max_tokens"}
+
+
 def _prompt_layout(layout: Any) -> Any:
-    """The prompt manager's layout (A16): known sections, each at most once, with a budget in range."""
+    """The prompt manager's layout (A16): known sections, the person's own prompts and "start reply
+    with" (audit gap 3), each at most once, as lib/rpgRecords.ts checks it."""
     if layout is None:
         return None
     low, high = PROMPT["section_token_range"]
+    longest = LIMITS["card_field_characters"]
     seen: set[str] = set()
-    for section in layout:
-        if not isinstance(section, dict) or set(section) != {"id", "enabled", "max_tokens"}:
-            raise ValueError("Each section is {id, enabled, max_tokens}")
-        if section["id"] not in PROMPT["sections"] or section["id"] in seen:
-            raise ValueError("A section is a known one, in the layout once")
-        if not isinstance(section["enabled"], bool):
-            raise ValueError("A section's enabled is true or false")
-        budget = section["max_tokens"]
-        if budget is not None and (
-            isinstance(budget, bool) or not isinstance(budget, int) or not low <= budget <= high
-        ):
-            raise ValueError(f"A section's max_tokens is null or {low} to {high}")
-        seen.add(section["id"])
+    own = 0
+    for entry in layout:
+        entry_id = entry.get("id") if isinstance(entry, dict) else None
+        if not isinstance(entry_id, str) or entry_id in seen:
+            raise ValueError("An entry has an id, and is in the layout once")
+        if entry_id == "prefill":
+            if set(entry) != {"id", "content", "enabled"} or not isinstance(entry["content"], str):
+                raise ValueError("Start reply with is {id, content, enabled}")
+            if len(entry["content"]) > longest or not isinstance(entry["enabled"], bool):
+                raise ValueError(f"Start reply with is at most {longest} characters, enabled true or false")
+        elif _OWN_PROMPT_ID.match(entry_id):
+            own += 1
+            depth = entry.get("depth")
+            if (
+                set(entry) != _OWN_PROMPT_KEYS
+                or not isinstance(entry["name"], str)
+                or len(entry["name"]) > MAX_NAME
+                or not isinstance(entry["content"], str)
+                or len(entry["content"]) > longest
+                or entry["role"] not in ("system", "user", "assistant")
+                or entry["position"] not in ("system", "depth")
+                or isinstance(depth, bool)
+                or not isinstance(depth, int)
+                or not 0 <= depth <= PROMPT["own_prompt_depth"]
+                or not isinstance(entry["enabled"], bool)
+            ):
+                raise ValueError(
+                    "A prompt of your own is {id, name, content, role, position, depth, enabled, max_tokens}, in range"
+                )
+        elif entry_id in PROMPT["sections"]:
+            if set(entry) != {"id", "enabled", "max_tokens"} or not isinstance(entry["enabled"], bool):
+                raise ValueError("Each section is {id, enabled, max_tokens}")
+        else:
+            raise ValueError("A section is a known one, a prompt of your own, or start reply with")
+        if "max_tokens" in entry:
+            budget = entry["max_tokens"]
+            if budget is not None and (
+                isinstance(budget, bool) or not isinstance(budget, int) or not low <= budget <= high
+            ):
+                raise ValueError(f"A section's max_tokens is null or {low} to {high}")
+        seen.add(entry_id)
+    if own > PROMPT["own_prompts"]:
+        raise ValueError(f"At most {PROMPT['own_prompts']} prompts of your own")
     return layout
 
 
@@ -2130,7 +2166,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         request: dict[str, Any] = {
             "url": completions_url(endpoint.base_url, endpoint.api or "chat"),
             "headers": {"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-            "json": upstream_body(endpoint, sampler, assembled.messages, body.mode, images, template),
+            # "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.
+            "json": upstream_body(
+                endpoint, sampler, assembled.messages, "continue" if assembled.prefill else body.mode, images, template
+            ),
         }
         context = {
             "cast": cast,
@@ -2618,6 +2657,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             text = await horde_text(_context["endpoint"], _context["key"], request["json"])
 
             async def answered() -> AsyncIterator[str]:
+                if assembled.prefill:
+                    yield frame("delta", {"text": assembled.prefill})
                 joiner = ReasoningJoiner()
                 delta = joiner.take(json.dumps({"choices": [{"text": text}]}))
                 if delta is not None:
@@ -2649,6 +2690,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             )
 
         async def events() -> AsyncIterator[str]:
+            # The reply begins with its prefill, so what's kept is the whole reply.
+            if assembled.prefill:
+                yield frame("delta", {"text": assembled.prefill})
             joiner = ReasoningJoiner()
             try:
                 async for line in upstream.aiter_lines():

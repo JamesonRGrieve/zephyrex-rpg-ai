@@ -98,7 +98,7 @@ export interface PromptInput {
   /** What is asked for (`reply` when left out). */
   mode?: PromptMode;
   /** The prompt manager's layout (the contract's order, all on, when left out). */
-  layout?: readonly PromptSection[];
+  layout?: readonly LayoutEntry[];
   /** The chat's own system prompt; blank keeps the card's. */
   system_prompt?: string;
   /** The chat's rolling summary of the story so far (A19); blank leaves the section out. */
@@ -297,6 +297,99 @@ export interface PromptSection {
   max_tokens: number | null;
 }
 
+/**
+ * A person's own prompt in the prompt manager (audit gap 3), kept in the preset's layout: in the
+ * system message at its place in the order (position `system`), or as a message of its role at a
+ * depth in the history (position `depth`), as SillyTavern's prompt manager places them.
+ */
+export interface OwnPrompt {
+  /** `custom:` and a name of the person's choosing. */
+  id: string;
+  name: string;
+  content: string;
+  role: 'system' | 'user' | 'assistant';
+  position: 'system' | 'depth';
+  depth: number;
+  enabled: boolean;
+  max_tokens: number | null;
+}
+
+/** "Start reply with" (audit gap 3): the text the model's reply begins with. */
+export interface PrefillEntry {
+  id: 'prefill';
+  content: string;
+  enabled: boolean;
+}
+
+export type LayoutEntry = PromptSection | OwnPrompt | PrefillEntry;
+
+export const OWN_PROMPT_PREFIX = 'custom:';
+
+const field = (entry: object, name: string): unknown => Reflect.get(entry, name);
+
+/** A layout entry as a person's own prompt, or null when it isn't one or can't be used. */
+export function ownPromptOf(entry: object): OwnPrompt | null {
+  const id = field(entry, 'id');
+  const content = field(entry, 'content');
+  if (typeof id !== 'string' || !id.startsWith(OWN_PROMPT_PREFIX) || typeof content !== 'string') return null;
+  const role = field(entry, 'role');
+  const position = field(entry, 'position');
+  const depth = field(entry, 'depth');
+  const budget = field(entry, 'max_tokens');
+  return {
+    id,
+    name: typeof field(entry, 'name') === 'string' ? (field(entry, 'name') as string) : id.slice(OWN_PROMPT_PREFIX.length),
+    content,
+    role: role === 'user' || role === 'assistant' ? role : 'system',
+    position: position === 'depth' ? 'depth' : 'system',
+    depth: typeof depth === 'number' && Number.isInteger(depth) && depth >= 0 ? depth : 0,
+    enabled: field(entry, 'enabled') !== false,
+    max_tokens: typeof budget === 'number' ? budget : null,
+  };
+}
+
+/** The layout's "start reply with" text, when it has one turned on. */
+export function prefillOf(given: readonly object[] | undefined): string {
+  const entry = (given ?? []).find((one) => field(one, 'id') === 'prefill');
+  const content = entry === undefined ? '' : field(entry, 'content');
+  return entry !== undefined && field(entry, 'enabled') !== false && typeof content === 'string' ? content : '';
+}
+
+/**
+ * The system message's order: the given sections and the person's own system prompts in the
+ * layout's order (repeats dropped, at most the contract's number of own prompts), then the sections
+ * it leaves out, on.
+ */
+export function promptOrder(given: readonly object[] | undefined): (PromptSection | OwnPrompt)[] {
+  const known: readonly string[] = PROMPT.sections;
+  const order: (PromptSection | OwnPrompt)[] = [];
+  let own = 0;
+  for (const entry of given ?? []) {
+    const id = field(entry, 'id');
+    if (typeof id !== 'string' || order.some((kept) => kept.id === id)) continue;
+    if (known.includes(id)) {
+      const budget = field(entry, 'max_tokens');
+      order.push({
+        id: id as PromptSectionId,
+        enabled: field(entry, 'enabled') !== false,
+        max_tokens: typeof budget === 'number' ? budget : null,
+      });
+      continue;
+    }
+    const prompt = ownPromptOf(entry);
+    if (prompt !== null && own < PROMPT.own_prompts) {
+      own += 1;
+      order.push(prompt);
+    }
+  }
+  return [
+    ...order,
+    ...PROMPT.sections
+      .filter((id) => !order.some((kept) => kept.id === id))
+      .map((id) => ({ id, enabled: true, max_tokens: null })),
+  ];
+}
+
 /** The layout in full: the given sections in order (unknown and repeated ones dropped), then the rest, on. */
 export function promptLayout(
   given: readonly { id: string; enabled?: boolean; max_tokens?: number | null }[] | undefined,
@@ -343,6 +436,8 @@ export interface AssembledPrompt {
   dropped: number;
   /** The chat's and the global variables after the prompt's macros set them (assemblePrompt only). */
   variables?: { local: Record<string, string>; global: Record<string, string> };
+  /** "Start reply with" (audit gap 3): the last message's text, which the stored reply begins with. */
+  prefill?: string;
 }
 
 /** The person's name when no persona is chosen. */
@@ -358,12 +453,16 @@ type LoreSections = LoreResult['sections'];
 
 function systemText(
   texts: Partial<Record<PromptSectionId, string>>,
-  layout: readonly PromptSection[],
+  order: readonly (PromptSection | OwnPrompt)[],
   fill: (text: string) => string,
 ): string {
   // Each section is cut to its budget once its macros are filled in: the budget is what the model reads.
-  return layout
+  // A person's own prompt in the system message sits at its place in the order (audit gap 3).
+  return order
     .flatMap((section) => {
+      if ('content' in section) {
+        return section.enabled && section.position === 'system' ? [capped(fill(section.content), section.max_tokens)] : [];
+      }
       const text = texts[section.id];
       return section.enabled && text !== undefined ? [capped(fill(text), section.max_tokens)] : [];
     })
@@ -475,6 +574,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
 
   const loreSections: LoreSections = input.lore?.sections ?? {};
   const layout = promptLayout(input.layout);
+  const order = promptOrder(input.layout);
   const sectionText = (id: PromptSectionId, text: string): string => {
     const section = layout.find((one) => one.id === id);
     return section === undefined || !section.enabled ? '' : capped(fill(text), section.max_tokens);
@@ -520,7 +620,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     memories: input.memories ?? '',
     summary: (input.summary ?? '').trim() === '' ? '' : PROMPT.summary_prefix + (input.summary ?? ''),
   };
-  const system: ModelMessage = { role: 'system', content: systemText(texts, layout, fill) };
+  const system: ModelMessage = { role: 'system', content: systemText(texts, order, fill) };
   const note = fill(noteBlock(sectionText('author_note', input.author_note), loreSections));
   // The speaker's Character's Note (gap 7); the narrator has none.
   const cardNote = narrating ? null : characterNote(speaker);
@@ -545,12 +645,23 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
             },
           },
         ]),
+    // The person's own prompts placed in the history (audit gap 3), each at its depth.
+    ...order.flatMap((entry) => {
+      if (!('content' in entry) || !entry.enabled || entry.position !== 'depth') return [];
+      const content = capped(fill(entry.content), entry.max_tokens);
+      return content === '' ? [] : [{ depth: entry.depth, message: { role: entry.role, content } }];
+    }),
   ];
   const mode = input.mode ?? 'reply';
   const instructions = sectionText('post_history', speaker.post_history_instructions);
+  // "Start reply with" (audit gap 3): the reply's opening, as the last message (not when continuing).
+  const prefill = mode === 'continue' ? '' : fill(prefillOf(input.layout));
   const after: ModelMessage[] = [
     ...(instructions === '' ? [] : [{ role: 'system' as const, content: instructions }]),
     ...(mode === 'impersonate' ? [{ role: 'system' as const, content: fill(PROMPT.impersonate_prompt) }] : []),
+    // Continuing (audit gap 3): a nudge not to repeat what's there, just before the message carried on.
+    ...(mode === 'continue' ? [{ role: 'system' as const, content: fill(PROMPT.continue_nudge) }] : []),
+    ...(prefill === '' ? [] : [{ role: 'assistant' as const, content: prefill }]),
   ];
   // An X-carded turn (A25) stays in the chat but out of what the model reads.
   const storyTurns = input.history.filter((turn) => story.has(turn.channel) && turn.x_carded !== true);
@@ -572,7 +683,10 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     messages.reduce((total, message) => total + estimateTokens(message), 0);
   const fixed = cost([system, ...after, ...inserts.map((insert) => insert.message)]);
 
-  const withVariables = input.macros === undefined ? {} : { variables };
+  const withVariables = {
+    ...(input.macros === undefined ? {} : { variables }),
+    ...(prefill === '' ? {} : { prefill }),
+  };
   // Keep the newest turns that fit; everything older is dropped.
   let kept = history.length;
   let used = fixed;
