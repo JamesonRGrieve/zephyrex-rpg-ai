@@ -807,7 +807,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   );
   const inAppBar = (controls: ReactElement) =>
     appBar !== null ? (
-      createPortal(<div className='flex min-w-0 items-center justify-end gap-1'>{controls}</div>, appBar)
+      createPortal(<div className='flex min-w-0 flex-nowrap items-center justify-end gap-0.5'>{controls}</div>, appBar)
     ) : (
       <div className='sticky top-12 z-20 mx-auto flex w-full max-w-3xl flex-wrap items-center justify-end gap-1 bg-background/95 px-3 py-2 backdrop-blur'>
         {controls}
@@ -1345,14 +1345,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               // The mode in force, always in view (A66).
               <Badge
                 variant='outline'
-                className='shrink-0'
+                className='shrink-0 max-sm:hidden'
                 title={`${campaign.name}: ${MODE_HINTS[campaign.resolution_mode]}`}
               >
                 {MODE_LABELS[campaign.resolution_mode]}
               </Badge>
             )}
             {/* Wraps inside the screen on a phone: never wider than the bar (the audit's 780 px phone). */}
-            <div className='flex max-w-full min-w-0 flex-wrap justify-end gap-1'>
+            <div className='flex min-w-0 flex-nowrap items-center justify-end gap-1'>
               {play.isCampaign && (
                 // The seat hot-swaps at any time: the GM or any character (docs/DESIGN.md, The play model).
                 <SeatPicker
@@ -1423,7 +1423,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <Button
                 type='button'
                 variant='outline'
-                className='h-11 max-sm:w-11 max-sm:px-0'
+                className='h-11 max-sm:hidden'
                 onClick={() => void xCardLatest()}
                 aria-label='X-card the latest reply'
               >
@@ -1437,6 +1437,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end'>
                   {/* The app bar keeps only what play needs at hand; the rest is here (the operator, 2026-11-21). */}
+                  <DropdownMenuItem className='sm:hidden' onSelect={() => void xCardLatest()}>
+                    <X aria-hidden /> X-card the latest reply
+                  </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
                     <Settings2 aria-hidden /> Chat settings
                   </DropdownMenuItem>

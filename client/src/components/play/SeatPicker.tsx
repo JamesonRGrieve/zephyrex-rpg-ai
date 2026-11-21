@@ -87,7 +87,7 @@ export function SeatPicker({
               </Avatar>
             )}
           </span>
-          <span className='truncate'>
+          <span className='max-w-24 truncate max-sm:max-w-16'>
             <span className='sr-only'>Your seat: </span>
             {current?.name ?? 'the GM'}
           </span>
@@ -116,35 +116,39 @@ export function SeatPicker({
             </button>
           </li>
           {seatGroups(shown).flatMap((group) => [
-            <li key={`group-${group.label}`} role='presentation' className='px-2 pt-2 text-xs font-semibold text-muted-foreground'>
+            <li
+              key={`group-${group.label}`}
+              role='presentation'
+              className='px-2 pt-2 text-xs font-semibold text-muted-foreground'
+            >
               {group.label}
             </li>,
             ...group.members.map((character) => (
-            <li key={character.id}>
-              <button
-                type='button'
-                aria-pressed={seat === character.id}
-                onClick={() => choose(character.id)}
-                className={cn(
-                  'flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-accent',
-                  seat === character.id && 'bg-accent',
-                )}
-              >
-                <span aria-hidden className='flex shrink-0'>
-                  <Avatar className='size-7'>
-                    {character.avatar !== null && <AvatarImage src={character.avatar} alt='' />}
-                    <AvatarFallback className='text-[10px]'>{initials(character.name)}</AvatarFallback>
-                  </Avatar>
-                </span>
-                <span className='min-w-0 flex-1'>
-                  <span className='block truncate'>{character.name}</span>
-                  {character.line !== undefined && character.line !== '' && (
-                    <span className='line-clamp-2 block text-xs text-muted-foreground'>{character.line}</span>
+              <li key={character.id}>
+                <button
+                  type='button'
+                  aria-pressed={seat === character.id}
+                  onClick={() => choose(character.id)}
+                  className={cn(
+                    'flex min-h-11 w-full items-center gap-2 rounded-md px-2 text-left hover:bg-accent',
+                    seat === character.id && 'bg-accent',
                   )}
-                </span>
-                {inParty.has(character.id) && <span className='text-xs text-muted-foreground'>Party</span>}
-              </button>
-            </li>
+                >
+                  <span aria-hidden className='flex shrink-0'>
+                    <Avatar className='size-7'>
+                      {character.avatar !== null && <AvatarImage src={character.avatar} alt='' />}
+                      <AvatarFallback className='text-[10px]'>{initials(character.name)}</AvatarFallback>
+                    </Avatar>
+                  </span>
+                  <span className='min-w-0 flex-1'>
+                    <span className='block truncate'>{character.name}</span>
+                    {character.line !== undefined && character.line !== '' && (
+                      <span className='line-clamp-2 block text-xs text-muted-foreground'>{character.line}</span>
+                    )}
+                  </span>
+                  {inParty.has(character.id) && <span className='text-xs text-muted-foreground'>Party</span>}
+                </button>
+              </li>
             )),
           ])}
         </ul>
