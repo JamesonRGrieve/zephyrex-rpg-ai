@@ -67,6 +67,7 @@ import { memoriesFor, type Speaker } from '~/lib/memory';
 import { campaigns, scenarios } from '~/lib/campaignRecords';
 import { lorebookEntries } from '~/lib/loreRecords';
 import { completionDeltas } from '~/lib/completionStream';
+import { askDecider, decider } from '~/lib/decider';
 import { prisma } from '~/lib/prisma';
 import { chatMessages, chats, characters, endpoints, personas, presets } from '~/lib/rpgRecords';
 
@@ -735,6 +736,19 @@ export async function expression(nextRequest: NextRequest): Promise<Response> {
       })
     ).map((row) => row.label);
     if (labels.length === 0) return Response.json({ expression: { label: null } });
+    // A decision model, when the person has one (the decide role), answers this as a choice among
+    // the labels; without one, or when it gives no answer, the chat's own model is asked as before.
+    const deciding = await decider(owner.id);
+    if (deciding !== null) {
+      const answers = await askDecider(
+        deciding,
+        splitReasoning(asked.text).reply,
+        { expression: { type: 'choice', instructions: 'Which feeling fits how this line is said?', criteria: labels } },
+        nextRequest.signal,
+      );
+      const decided = answers?.expression;
+      if (decided != null && 'choice' in decided) return Response.json({ expression: { label: decided.choice } });
+    }
     const { sampler, endpoint } = await generationInputs(
       owner.id,
       { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'reply', endpoint_id: null },

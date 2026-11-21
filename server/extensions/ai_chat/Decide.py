@@ -111,3 +111,45 @@ def batch_questions(state_characters: int, question_characters: Sequence[int], b
     if current:
         batches.append(current)
     return batches
+
+
+# A decision model answers in about a second; past this, the caller falls back.
+DECIDE_TIMEOUT_SECONDS = 8.0
+
+
+def completion_content(body: Any) -> str | None:
+    """A chat completion's first message content, or None when the body isn't one."""
+    if not isinstance(body, Mapping):
+        return None
+    choices = body.get("choices")
+    if not isinstance(choices, list) or not choices or not isinstance(choices[0], Mapping):
+        return None
+    message = choices[0].get("message")
+    content = message.get("content") if isinstance(message, Mapping) else None
+    return content if isinstance(content, str) else None
+
+
+async def ask_decider(
+    base_url: str, model: str, api_key: str, state: str, questions: Mapping[str, Mapping[str, Any]]
+) -> dict[str, dict[str, Any] | None] | None:
+    """The questions' answers from the decision model at ``base_url``, or None when it couldn't be
+    asked (unreachable, refused, or not a completion), so the caller does what it did before."""
+    import httpx
+
+    headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
+    try:
+        async with httpx.AsyncClient(timeout=DECIDE_TIMEOUT_SECONDS) as client:
+            answer = await client.post(
+                f"{base_url.rstrip('/')}/chat/completions",
+                headers=headers,
+                json=decide_request(model, state, questions),
+            )
+    except httpx.HTTPError:
+        return None
+    if answer.status_code >= 400:
+        return None
+    try:
+        content = completion_content(answer.json())
+    except ValueError:
+        return None
+    return None if content is None else read_answers(questions, content)

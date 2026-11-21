@@ -6,6 +6,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
+import httpx
 import pytest
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import (  # type: ignore[import-not-found]
@@ -41,3 +42,58 @@ def test_asks_for_a_json_object_with_the_message_as_the_last_user_turn() -> None
         "state": "A tea party.",
         "questions": {"a": {"type": "noul", "instructions": "Rain?"}},
     }
+
+
+# The real client class, taken once: each stub below wraps it, never a previous stub.
+_REAL_CLIENT = httpx.AsyncClient
+
+QUESTIONS = {"expression": {"type": "choice", "instructions": "Which feeling fits?", "criteria": ["angry", "calm"]}}
+
+
+def _client_answering(monkeypatch: pytest.MonkeyPatch, respond: Any) -> list[Any]:
+    """httpx clients made inside ask_decider answer through ``respond``; the requests are kept."""
+    seen: list[Any] = []
+    real = _REAL_CLIENT
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        result: httpx.Response = respond(request)
+        return result
+
+    monkeypatch.setattr(httpx, "AsyncClient", lambda **kwargs: real(transport=httpx.MockTransport(handler), **kwargs))
+    return seen
+
+
+def _completion(content: str) -> Any:
+    return httpx.Response(200, json={"choices": [{"message": {"role": "assistant", "content": content}}]})
+
+
+def test_ask_decider_asks_once_and_reads_only_answers_among_the_options(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from zephyrex.extensions.ai_chat.Decide import ask_decider
+
+    choice = {"type": "choice", "choice": "angry", "probabilities": {"angry": 0.9}}
+    answer = json.dumps({"answers": {"expression": choice}})
+    seen = _client_answering(monkeypatch, lambda request: _completion(answer))
+    answers = asyncio.run(
+        ask_decider("http://gateway.test/v1/", "3-5gb/d1-2b", "k", "I will tear you apart", QUESTIONS)
+    )
+    assert answers == {"expression": {"choice": "angry", "probability": 0.9}}
+    assert len(seen) == 1 and str(seen[0].url) == "http://gateway.test/v1/chat/completions"
+    assert seen[0].headers["Authorization"] == "Bearer k"
+    sent = json.loads(seen[0].content)
+    assert sent["model"] == "3-5gb/d1-2b"
+    assert json.loads(sent["messages"][-1]["content"])["state"] == "I will tear you apart"
+
+
+def test_ask_decider_gives_none_when_refused_and_refuses_unknown_choices(monkeypatch: pytest.MonkeyPatch) -> None:
+    import asyncio
+
+    from zephyrex.extensions.ai_chat.Decide import ask_decider
+
+    _client_answering(monkeypatch, lambda request: httpx.Response(503, text="busy"))
+    assert asyncio.run(ask_decider("http://gateway.test/v1", "m", "", "x", QUESTIONS)) is None
+    smug = '{"answers": {"expression": {"type": "choice", "choice": "smug"}}}'
+    _client_answering(monkeypatch, lambda request: _completion(smug))
+    assert asyncio.run(ask_decider("http://gateway.test/v1", "m", "", "x", QUESTIONS)) == {"expression": None}

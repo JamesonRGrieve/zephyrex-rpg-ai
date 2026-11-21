@@ -58,6 +58,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     SAMPLER_RANGES,
 )
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import instruct_stops, render_instruct  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
@@ -2186,6 +2187,26 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         labels = [row.label for row in self._manager(CharacterExpressionManager).list(character_id=asked.character_id)]
         if not labels:
             return ExpressionEnvelope(expression=Expression(label=None))
+        # A decision model, when the person has one (the decide role), answers this as a choice among
+        # the labels; without one, or when it gives no answer, the chat's own model is asked as before.
+        deciding = self._decider()
+        if deciding is not None:
+            answers = await ask_decider(
+                deciding.base_url,
+                deciding.model,
+                decrypt_secret(deciding.api_key) if deciding.api_key else "",
+                split_reasoning(asked.text)[1],
+                {
+                    "expression": {
+                        "type": "choice",
+                        "instructions": "Which feeling fits how this line is said?",
+                        "criteria": labels,
+                    }
+                },
+            )
+            decided = (answers or {}).get("expression")
+            if decided is not None and "choice" in decided:
+                return ExpressionEnvelope(expression=Expression(label=decided["choice"]))
         _assembled, _request, sampler, _active, context = self._inputs(
             GenerateRequest(chat_id=asked.chat_id), save_timers=False, purpose="summary"
         )
@@ -2196,6 +2217,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         except HTTPException:
             answer = ""
         return ExpressionEnvelope(expression=Expression(label=pick_option(answer, labels)))
+
+    def _decider(self) -> Any:
+        """The person's model serving the decide role (the default one first), or None."""
+        rows = sorted(
+            (row for row in self._manager(ModelEndpointManager).list() if "decide" in (row.roles or [])),
+            key=lambda row: row.name,
+        )
+        return next((row for row in rows if row.is_default), rows[0] if rows else None)
 
     def _picture_prompt(self, asked: PictureRequest) -> str:
         """What the picture route asks the image model to draw, for each kind (the lite twin's picturePrompt)."""
