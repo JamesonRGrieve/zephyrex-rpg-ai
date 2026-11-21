@@ -19,8 +19,7 @@ export interface TestOptions {
 }
 
 export type RollPick =
-  | { kind: 'none' }
-  | { kind: 'test'; name: string; difficulty: string; label: string; source: 'system' };
+  { kind: 'none' } | { kind: 'test'; name: string; difficulty: string; label: string; source: 'system' };
 
 type Option = { kind: 'none' } | { kind: 'test'; name: string; label: string };
 
