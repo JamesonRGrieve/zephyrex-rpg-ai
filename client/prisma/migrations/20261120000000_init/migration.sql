@@ -65,6 +65,7 @@ CREATE TABLE "Chat" (
     "voxIds" TEXT NOT NULL DEFAULT '[]',
     "canonChecks" BOOLEAN NOT NULL DEFAULT true,
     "narratorStyle" TEXT NOT NULL DEFAULT '{}',
+    "statusLine" TEXT NOT NULL DEFAULT '',
     "background" TEXT,
     "objectives" TEXT NOT NULL DEFAULT '[]',
     "contentRating" TEXT,

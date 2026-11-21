@@ -907,6 +907,20 @@ class TestGenerate:
         assert tick["moves"] == [{"person_id": cook["id"], "from": bridge["id"], "to": galley["id"]}]
         assert tick["arrivals"] == []
 
+    def test_the_status_line_is_written_and_kept(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-21: campaigns told apart by "concise descriptions maintained by campaign events".
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        assert chat["status_line"] == ""
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["We find the log."]).json()["chat_message"]
+        answer = server.post("/v1/ai_chat/status_line", json={"status_line": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user))
+        assert answer.status_code == 200, answer.text
+        text = answer.json()["status_line"]["text"]
+        assert 0 < len(text) <= CONTRACT["status_line"]["characters"]
+        assert server.get(f"/v1/chat/{chat['id']}", headers=_headers(user)).json()["chat"]["status_line"] == text
+
     def test_cut_takes_out_only_the_lines_named(self, server: TestClient) -> None:
         # Audit gap 5: STscript's /cut; the cut lines' replies move up to their parents.
         user = create_user(server)

@@ -112,6 +112,7 @@ export const chatSchema = z.object({
   vox_ids: z.array(z.string()).default([]),
   canon_checks: z.boolean().default(true),
   narrator_style: z.record(z.string(), z.unknown()).default({}),
+  status_line: z.string().default(''),
   background: z.string().nullable(),
   objectives: z.array(z.object({ text: z.string(), done: z.boolean() })),
   content_rating: z.enum(SAFETY.ratings).nullable(),

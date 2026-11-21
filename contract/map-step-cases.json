@@ -1,0 +1,153 @@
+{
+  "$comment": "The map following the story: cases both twins run (client/src/features/world/mapStep.test.ts, server/extensions/ai_chat/MapStep_test.py).",
+  "locations": [
+    {
+      "id": "ship",
+      "name": "The Ship",
+      "parent_id": null
+    },
+    {
+      "id": "bridge",
+      "name": "the Bridge",
+      "parent_id": "ship"
+    },
+    {
+      "id": "enginarium",
+      "name": "Enginarium",
+      "parent_id": "ship"
+    },
+    {
+      "id": "bay2",
+      "name": "Bay Two",
+      "parent_id": "enginarium"
+    },
+    {
+      "id": "galley",
+      "name": "Galley",
+      "parent_id": "ship"
+    },
+    {
+      "id": "hab",
+      "name": "Hab Deck",
+      "parent_id": "ship"
+    }
+  ],
+  "persons": [
+    {
+      "id": "wren",
+      "name": "Wren",
+      "location_id": "bridge"
+    },
+    {
+      "id": "tess",
+      "name": "Tessaly Kord",
+      "location_id": null
+    }
+  ],
+  "items": [
+    {
+      "speaker_id": "wren",
+      "kind": "do",
+      "manner": null,
+      "target_id": null,
+      "target_name": null,
+      "text": "charges down to the Galley."
+    },
+    {
+      "speaker_id": "tess",
+      "kind": "do",
+      "manner": null,
+      "target_id": null,
+      "target_name": null,
+      "text": "punches it."
+    },
+    {
+      "speaker_id": "tess",
+      "kind": "say",
+      "manner": "speak",
+      "target_id": "wren",
+      "target_name": null,
+      "text": "Go!"
+    },
+    {
+      "speaker_id": null,
+      "kind": "narrate",
+      "manner": null,
+      "target_id": null,
+      "target_name": null,
+      "text": "The deck shakes."
+    },
+    {
+      "speaker_id": "tess",
+      "kind": "do",
+      "manner": null,
+      "target_id": null,
+      "target_name": null,
+      "text": "climbs into the Hab Deck."
+    }
+  ],
+  "movers": [
+    {
+      "id": "wren",
+      "action": "charges down to the Galley."
+    },
+    {
+      "id": "tess",
+      "action": "climbs into the Hab Deck."
+    }
+  ],
+  "questions": {
+    "wren": {
+      "type": "choice",
+      "instructions": "After this, where is Wren? charges down to the Galley. Pick the place the story now puts them, or stay.",
+      "criteria": [
+        "Stay at the Bridge",
+        "The Ship",
+        "Enginarium",
+        "Galley",
+        "Hab Deck"
+      ]
+    },
+    "tess": {
+      "type": "choice",
+      "instructions": "After this, where is Tessaly Kord? climbs into the Hab Deck. Pick the place the story now puts them, or stay.",
+      "criteria": [
+        "Hab Deck"
+      ]
+    }
+  },
+  "picks": {
+    "wren": {
+      "Stay at the Bridge": "bridge",
+      "The Ship": "ship",
+      "Enginarium": "enginarium",
+      "Galley": "galley",
+      "Hab Deck": "hab"
+    },
+    "tess": {
+      "Hab Deck": "hab"
+    }
+  },
+  "fallbacks": {
+    "wren": "bridge",
+    "tess": null
+  },
+  "no_movement_items": [
+    {
+      "speaker_id": "tess",
+      "kind": "do",
+      "manner": null,
+      "target_id": null,
+      "target_name": null,
+      "text": "punches it."
+    },
+    {
+      "speaker_id": "wren",
+      "kind": "do",
+      "manner": null,
+      "target_id": null,
+      "target_name": null,
+      "text": "raises a fist."
+    }
+  ]
+}

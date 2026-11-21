@@ -888,6 +888,20 @@
     "question": "Who or what is {{actor}} acting on? ({{action}})",
     "threshold": 0.5
   },
+  "map_step": {
+    "$comment": "The map follows the story (the operator, 2026-11-21: \"The GM needs to update the map based on what I say in narrative mode\"). Free first: only the latest round's do lines with a movement word make anyone a mover. Each mover's options are real places only (stay, around where they are, and any place the line names; world_tick's options), one decide question each; the GM's account applies the moves (the VTT's pilot_token when loaded, else the wiki's move_person). features/world/mapStep.ts, ai_chat/MapStep.py, contract/map-step-cases.json.",
+    "instructions": "After this, where is {{name}}? {{action}} Pick the place the story now puts them, or stay.",
+    "movement_words": ["walk", "walks", "run", "runs", "charge", "charges", "climb", "climbs", "enter", "enters", "leave", "leaves", "head", "heads", "go", "goes", "move", "moves", "step", "steps", "follow", "follows", "cross", "crosses", "retreat", "retreats", "flee", "flees", "descend", "descends", "ascend", "ascends", "sprint", "sprints", "crawl", "crawls", "return", "returns", "approach", "approaches", "rush", "rushes", "dash", "dashes", "slip", "slips", "duck", "ducks", "jump", "jumps", "drop", "drops"]
+  },
+  "status_line": {
+    "$comment": "A campaign's line under the scenarios (the operator, 2026-11-21: \"concise descriptions maintained by campaign events to tell them apart\"): one spoiler-safe sentence, at most characters long, rewritten by the summary model at each session end and every every_turns story turns, from the rolling summary and the latest lines only (what the players have seen; never world records). features/chat/statusLine.ts, ai_chat/StatusLine.py, contract/status-line-cases.json.",
+    "every_turns": 10,
+    "characters": 100,
+    "lines": 12,
+    "prompt": "Write one sentence of at most 100 characters for a list of campaigns: what the party has done and where things stand, so the player can tell this campaign apart. Use only what the players have seen. No quotes, no lead-in.",
+    "summary_heading": "The story so far:",
+    "lines_heading": "Latest:"
+  },
   "group_settings": {
     "$comment": "Group chat modes (audit gap 6), a chat's group_settings: card_mode swap (the speaker's card) or join (every member's card, each between the join prefix and suffix); order natural, list or pooled; allow_self (natural order may pick who just spoke); auto_seconds (the next member replies by itself after that long idle, 0 off); scenario (replaces each card's scenario). features/chat/turns.ts, features/prompt/assemble.ts, ai_chat/Prompt.py.",
     "card_modes": ["swap", "join"],

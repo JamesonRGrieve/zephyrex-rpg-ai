@@ -294,6 +294,7 @@ const CHAT_COLUMNS: Columns = {
   vox_ids: jsonList('voxIds'),
   canon_checks: plain('canonChecks'),
   narrator_style: jsonObject('narratorStyle'),
+  status_line: plain('statusLine'),
   background: plain('background'),
   objectives: jsonList('objectives'),
   content_rating: plain('contentRating'),
@@ -350,6 +351,8 @@ const chatFields = {
   vox_ids: z.array(recordId).max(LIMITS.characters_per_chat),
   /** Canon warnings on lines; off for a campaign that breaks canon on purpose. */
   canon_checks: z.boolean(),
+  /** One spoiler-safe sentence on where the campaign stands (features/chat/statusLine.ts). */
+  status_line: z.string().max(200),
   /** The narrator's sliders (features/models/narratorStyle.ts): each 0-1, or null for any. */
   narrator_style: z.record(z.string(), z.unknown()).superRefine((value, context) => {
     const problem = styleProblem(value);
@@ -413,6 +416,7 @@ const chatCreate = z.object({
   vox_ids: chatFields.vox_ids.default([]),
   canon_checks: chatFields.canon_checks.default(true),
   narrator_style: chatFields.narrator_style.default({}),
+  status_line: chatFields.status_line.default(''),
   background: avatar.default(null),
   objectives: chatFields.objectives.default([]),
   content_rating: chatFields.content_rating.default(null),

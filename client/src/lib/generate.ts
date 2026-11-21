@@ -39,7 +39,9 @@ import { aiCast, sessionStartIndex, sessionsSummary } from '~/features/chat/play
 import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
 import { clarifyNeed, clarifyQuestions, shouldAsk } from '~/features/chat/clarify';
-import { parsePlayerLines } from '~/features/chat/playerLines';
+import { mapQuestions, movers } from '~/features/world/mapStep';
+import { statusClean, statusMessages } from '~/features/chat/statusLine';
+import { parsePlayerLines, stripMarkup } from '~/features/chat/playerLines';
 import { isAttempt, rollPick, rollQuestions } from '~/features/chat/rollDecision';
 import { partyBriefing, partyOf, partyText } from '~/features/prompt/party';
 import {
@@ -913,6 +915,54 @@ export async function summarize(nextRequest: NextRequest): Promise<Response> {
   }
 }
 
+const statusRequest = z.object({
+  chat_id: z.string().min(1),
+  leaf_id: z.string().min(1).nullable().default(null),
+});
+
+/**
+ * `POST /v1/ai_chat/status_line` (the operator, 2026-11-21: campaigns told apart by "concise
+ * descriptions maintained by campaign events"): the summary model writes one spoiler-safe sentence
+ * from the rolling summary and the latest story lines only (features/chat/statusLine.ts), and the
+ * chat keeps it, without touching its version. Call it at each session end and every
+ * status_line.every_turns story turns. Answer `{ "status_line": { "text" } }`.
+ */
+export async function statusLine(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = statusRequest.safeParse(Reflect.get(envelope, 'status_line'));
+    if (!parsed.success) throw validationError('A status_line object with a chat_id is required', 'status_line');
+    const asked = parsed.data;
+    const { prompt, sampler, endpoint } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'reply', endpoint_id: null, forbid: null },
+      Math.random,
+      'summary',
+      wikiReader(nextRequest),
+    );
+    const story = new Set<string>(PROMPT.story_channels);
+    const lines = prompt.history
+      .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
+      .map((turn) => stripMarkup(turn.content));
+    const stream = await askModel(
+      endpoint,
+      upstreamBody(endpoint, sampler, statusMessages(prompt.summary ?? '', lines), 'reply'),
+      nextRequest.signal,
+    );
+    const text = statusClean(
+      await collect(completionDeltas(stream)).catch(() => {
+        throw new ApiError(502, { message: 'The model stopped mid-line', code: 'model_refused' });
+      }),
+    );
+    if (text === '') throw new ApiError(502, { message: 'The model gave no line', code: 'model_refused' });
+    await prisma.chat.updateMany({ where: { id: asked.chat_id, createdById: owner.id }, data: { statusLine: text } });
+    return Response.json({ status_line: { text } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
 const genRequest = z.object({
   chat_id: z.string().min(1),
   leaf_id: z.string().min(1).nullable().default(null),
@@ -1395,6 +1445,83 @@ export async function clarify(nextRequest: NextRequest): Promise<Response> {
       nextRequest.signal,
     );
     return shouldAsk(answers?.ambiguous) ? Response.json({ clarify: player }) : none;
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const mapStepRequest = z.object({
+  chat_id: z.string().min(1),
+  leaf_id: z.string().min(1).nullable().default(null),
+});
+
+/**
+ * `POST /v1/ai_chat/map_step` (the operator, 2026-11-21: "The GM needs to update the map based on what
+ * I say in narrative mode"): the latest round's do lines with a movement word (free to find; no model
+ * call without one) each get one decide question among real places (features/world/mapStep.ts); the
+ * moves go through the wiki's person moves, the GM's alone. Answer `{ "map_step": { "skipped",
+ * "reason", "moves": [{ "person_id", "from", "to", "to_name" }] } }`.
+ */
+export async function mapStep(nextRequest: NextRequest): Promise<Response> {
+  const answer = (moves: { person_id: string; from: string | null; to: string; to_name: string }[], reason: string | null) =>
+    Response.json({ map_step: { skipped: reason !== null, reason, moves } });
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = mapStepRequest.safeParse(Reflect.get(envelope, 'map_step'));
+    if (!parsed.success) throw validationError('A map_step object with a chat_id is required', 'map_step');
+    const asked = parsed.data;
+    const chat = await chats.find(asked.chat_id, owner.id);
+    if (chat === null) throw notFound(chats.modelName);
+    const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+    const playingId = play?.playingId ?? null;
+    const reader = wikiReader(nextRequest);
+    const { prompt, world } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null, forbid: null },
+      Math.random,
+      'reply',
+      reader,
+    );
+    const story = new Set<string>(PROMPT.story_channels);
+    const storyTurns = prompt.history.filter(
+      (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
+    );
+    // The latest round: from the person's last line on.
+    const from = storyTurns.map((turn) => turn.role).lastIndexOf('user');
+    const round = from === -1 ? storyTurns : storyTurns.slice(from);
+    const actor = prompt.persona?.name ?? DEFAULT_USER_NAME;
+    const people = [...prompt.characters, ...(playingId === null ? [] : [{ id: playingId, name: actor }])];
+    const moving = movers(round.flatMap((turn) => parsePlayerLines(turn.content, people)));
+    if (moving.length === 0) return answer([], 'nobody moved');
+    const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
+    const locations = world
+      .filter((entity) => entity.kind === 'location' && entity.deleted !== true)
+      .map((entity) => ({
+        id: entity.id,
+        name: entity.name,
+        parent_id: (field(entity, 'parent_id') as string | null | undefined) ?? null,
+        aliases: [...((field(entity, 'aliases') as string[] | undefined) ?? [])],
+      }));
+    const persons = world
+      .filter((entity) => entity.kind === 'person' && entity.deleted !== true)
+      .map((entity) => ({
+        id: entity.id,
+        name: entity.name,
+        location_id: (field(entity, 'location_id') as string | null | undefined) ?? null,
+      }));
+    const { questions, picks, fallbacks } = mapQuestions(moving, persons, locations);
+    if (Object.keys(questions).length === 0) return answer([], 'nowhere to go');
+    const deciding = await decider(owner.id);
+    if (deciding === null) return answer([], 'no decision model');
+    const answers = await askDecider(deciding, round.map((turn) => turn.content).join('\n'), questions, nextRequest.signal);
+    const moves: { person_id: string; from: string | null; to: string; to_name: string }[] = [];
+    for (const move of tickMoves(answers, picks, fallbacks, persons)) {
+      if (await reader.movePerson(move.person_id, move.to, 'the story moved them')) {
+        moves.push({ ...move, to_name: locations.find((location) => location.id === move.to)?.name ?? move.to });
+      }
+    }
+    return answer(moves, null);
   } catch (error) {
     return apiErrorResponse(error);
   }

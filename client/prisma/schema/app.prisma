@@ -90,6 +90,8 @@ model Chat {
   canonChecks  Boolean  @default(true)
   /// The narrator's sliders (spice, verbosity, darkness, humour; absent: any): a JSON object.
   narratorStyle String  @default("{}")
+  /// One spoiler-safe sentence on where the campaign stands (the summary model keeps it).
+  statusLine   String   @default("")
   background   String?
   objectives   String   @default("[]")
   contentRating String?

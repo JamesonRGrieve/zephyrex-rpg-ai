@@ -1,0 +1,70 @@
+{
+  "$comment": "A campaign's status line: cases both twins run (client/src/features/chat/statusLine.test.ts, server/extensions/ai_chat/StatusLine_test.py).",
+  "messages_cases": [
+    {
+      "name": "the summary and the latest twelve lines",
+      "summary": "The cell boarded the Escapade.",
+      "lines": [
+        "line 0",
+        "line 1",
+        "line 2",
+        "line 3",
+        "line 4",
+        "line 5",
+        "line 6",
+        "line 7",
+        "line 8",
+        "line 9",
+        "line 10",
+        "line 11",
+        "line 12",
+        "line 13",
+        "line 14"
+      ],
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write one sentence of at most 100 characters for a list of campaigns: what the party has done and where things stand, so the player can tell this campaign apart. Use only what the players have seen. No quotes, no lead-in."
+        },
+        {
+          "role": "user",
+          "content": "The story so far:\nThe cell boarded the Escapade.\n\nLatest:\nline 3\nline 4\nline 5\nline 6\nline 7\nline 8\nline 9\nline 10\nline 11\nline 12\nline 13\nline 14"
+        }
+      ]
+    },
+    {
+      "name": "no summary yet",
+      "summary": "  ",
+      "lines": [
+        "Wren found the log."
+      ],
+      "messages": [
+        {
+          "role": "system",
+          "content": "Write one sentence of at most 100 characters for a list of campaigns: what the party has done and where things stand, so the player can tell this campaign apart. Use only what the players have seen. No quotes, no lead-in."
+        },
+        {
+          "role": "user",
+          "content": "Latest:\nWren found the log."
+        }
+      ]
+    }
+  ],
+  "clean_cases": [
+    {
+      "name": "the operator's example stays as it is",
+      "text": "Wren and Tessaly found the purged log; the hymn on Deck C has gone silent",
+      "line": "Wren and Tessaly found the purged log; the hymn on Deck C has gone silent"
+    },
+    {
+      "name": "quotes, a lead-in line break and a dash go",
+      "text": "\n\"Wren found the log—the hymn has stopped.\"\nMore words.",
+      "line": "Wren found the log, the hymn has stopped."
+    },
+    {
+      "name": "too long: cut at a word, with an ellipsis",
+      "text": "The cell slipped aboard the Escapade at Port Wander, found the purged cogitator logs, lost the trail in the Deck C chapel, and now waits",
+      "line": "The cell slipped aboard the Escapade at Port Wander, found the purged cogitator logs, lost the..."
+    }
+  ]
+}

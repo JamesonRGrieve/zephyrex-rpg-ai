@@ -79,6 +79,7 @@ from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-fo
     render_instruct,
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.MapStep import map_questions, movers  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.NarratorStyle import (  # type: ignore[import-not-found]
     NARRATOR_STYLE,
@@ -102,7 +103,7 @@ from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
     session_start_index,
     sessions_summary,
 )
-from zephyrex.extensions.ai_chat.PlayerLines import parse_player_lines  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.PlayerLines import parse_player_lines, strip_markup  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     DEFAULT_USER_NAME,
     assemble_prompt,
@@ -136,6 +137,7 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_body,
     speech_url,
 )
+from zephyrex.extensions.ai_chat.StatusLine import status_clean, status_messages  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-not-found]
     present_cast,
     turn_pick,
@@ -531,6 +533,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     narrator_style: dict[str, Any] = Field(
         default_factory=dict, description="The narrator's sliders (spice, verbosity, darkness, humour; absent: any)"
     )
+    status_line: str = Field("", description="One spoiler-safe sentence on where the campaign stands")
     background: str | None = Field(None, description="A picture behind the chat (a data URL)")
     objectives: list[dict[str, Any]] = Field(
         default_factory=list, description="Its tasks in order; the first not done is put to the model"
@@ -577,6 +580,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         vox_ids: list[str] = Field(default_factory=list)
         canon_checks: bool = True
         narrator_style: dict[str, Any] = Field(default_factory=dict)
+        status_line: str = Field("", max_length=200)
         background: str | None = None
         objectives: list[dict[str, Any]] = Field(default_factory=list)
         content_rating: str | None = None
@@ -609,6 +613,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         vox_ids: list[str] | None = None
         canon_checks: bool | None = None
         narrator_style: dict[str, Any] | None = None
+        status_line: str | None = Field(None, max_length=200)
         background: str | None = None
         objectives: list[dict[str, Any]] | None = None
         content_rating: str | None = None
@@ -735,6 +740,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("vox_ids", [])
         kwargs.setdefault("canon_checks", True)
         kwargs.setdefault("narrator_style", {})
+        kwargs.setdefault("status_line", "")
         kwargs.setdefault("objectives", [])
         kwargs.setdefault("variables", {})
         kwargs.setdefault("group_settings", {})
@@ -1810,6 +1816,47 @@ class ClarifyEnvelope(PlainModel):
     clarify: dict[str, Any] | None = None
 
 
+class MapStepRequest(PlainModel):
+    """The map follows the story's movements (the operator, 2026-11-21)."""
+
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+
+
+class MapStepRequestEnvelope(PlainModel):
+    map_step: MapStepRequest
+
+
+class MapStep(PlainModel):
+    skipped: bool
+    reason: str | None = None
+    #: Each move applied: person_id, from, to and to_name.
+    moves: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class MapStepEnvelope(PlainModel):
+    map_step: MapStep
+
+
+class StatusLineRequest(PlainModel):
+    """A campaign's spoiler-safe status line, rewritten (the operator, 2026-11-21)."""
+
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+
+
+class StatusLineRequestEnvelope(PlainModel):
+    status_line: StatusLineRequest
+
+
+class StatusLineText(PlainModel):
+    text: str
+
+
+class StatusLineEnvelope(PlainModel):
+    status_line: StatusLineText
+
+
 class CutRequest(PlainModel):
     """STscript's /cut (audit gap 5): the messages to take out, all of one chat."""
 
@@ -2772,6 +2819,34 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         text = await self._ask(context, sampler, translate_prompt(asked.text, asked.language))
         return TranslateEnvelope(translate=TranslateRequest(chat_id=asked.chat_id, text=text, language=asked.language))
 
+    @custom_route(
+        method="POST",
+        path="/status_line",
+        input_model=StatusLineRequestEnvelope,
+        output_model=StatusLineEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="The campaign's one spoiler-safe status line, rewritten by the summary model and kept",
+    )
+    async def status_line_route(self, body: StatusLineRequestEnvelope) -> StatusLineEnvelope:
+        asked = body.status_line
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        _assembled, _request, sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id), save_timers=False, purpose="summary"
+        )
+        story = set(PROMPT["story_channels"])
+        lines = [
+            strip_markup(turn["content"])
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        text = status_clean(await self._ask(context, sampler, status_messages(chat.summary or "", lines)))
+        if not text:
+            raise HTTPException(status_code=502, detail={"message": "The model gave no line", "code": "model_refused"})
+        self._manager(ChatManager).update(chat.id, status_line=text)
+        return StatusLineEnvelope(status_line=StatusLineText(text=text))
+
     def _data_bank(self, chat: Any, story: list[str], gm: bool) -> str:
         """The data bank's notes for this turn (A41), from the wiki (the composed suite, mapping item 4):
         the chat's wiki campaign's documents, through the wiki's campaign_documents ability."""
@@ -3499,6 +3574,84 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             getattr(deciding, "extra_body", None),
         )
         return ClarifyEnvelope(clarify=questions["player"]) if should_ask((answers or {}).get("ambiguous")) else none
+
+    @custom_route(
+        method="POST",
+        path="/map_step",
+        input_model=MapStepRequestEnvelope,
+        output_model=MapStepEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="The map follows the story: whoever the latest round moved goes to a real place the GM picks",
+    )
+    async def map_step_route(self, body: MapStepRequestEnvelope) -> MapStepEnvelope:
+        def answer(moves: list[dict[str, Any]], reason: str | None) -> MapStepEnvelope:
+            return MapStepEnvelope(map_step=MapStep(skipped=reason is not None, reason=reason, moves=moves))
+
+        asked = body.map_step
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        requester = str(self.requester.id)
+        playing_id, _marks = play_context(requester, self.model_registry, chat.id)
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id, mode="narrate"), save_timers=False
+        )
+        story = set(PROMPT["story_channels"])
+        story_turns = [
+            turn
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        # The latest round: from the person's last line on.
+        users = [index for index, turn in enumerate(story_turns) if turn["role"] == "user"]
+        round_turns = story_turns[users[-1] :] if users else story_turns
+        persona = context["persona"]
+        actor = persona["name"] if persona is not None else DEFAULT_USER_NAME
+        people = [*context["cast"], *([{"id": playing_id, "name": actor}] if playing_id is not None else [])]
+        moving = movers([item for turn in round_turns for item in parse_player_lines(turn["content"], people)])
+        if not moving:
+            return answer([], "nobody moved")
+        world = context["world"]
+        locations = [
+            {
+                "id": entity["id"],
+                "name": entity["name"],
+                "parent_id": entity.get("parent_id"),
+                "aliases": list(entity.get("aliases") or []),
+            }
+            for entity in world
+            if entity.get("kind") == "location" and not entity.get("deleted")
+        ]
+        persons = [
+            {"id": entity["id"], "name": entity["name"], "location_id": entity.get("location_id")}
+            for entity in world
+            if entity.get("kind") == "person" and not entity.get("deleted")
+        ]
+        questions, picks, fallbacks = map_questions(moving, persons, locations)
+        if not questions:
+            return answer([], "nowhere to go")
+        deciding = self._decider()
+        if deciding is None:
+            return answer([], "no decision model")
+        answers = await ask_decider(
+            deciding.base_url,
+            deciding.model,
+            decrypt_secret(deciding.api_key) if deciding.api_key else "",
+            "\n".join(turn["content"] for turn in round_turns),
+            questions,
+            getattr(deciding, "extra_body", None),
+        )
+        names = {location["id"]: location["name"] for location in locations}
+        moves = [
+            {**move, "to_name": names.get(str(move["to"]), move["to"])}
+            for move in tick_moves(answers, picks, fallbacks, persons)
+            if await move_person(self.model_registry, requester, str(move["person_id"]), str(move["to"]), "the story")
+        ]
+        return answer(moves, None)
 
     @custom_route(
         method="POST",

@@ -121,6 +121,10 @@ export const NARRATOR_STYLE = contract.narrator_style;
 export const PLAYER_LINES = contract.player_lines;
 /** The GM's question tool: when a do line's target is ambiguous. */
 export const CLARIFY = contract.clarify;
+/** The map following the story: movement words and the question. */
+export const MAP_STEP = contract.map_step;
+/** A campaign's spoiler-safe status line. */
+export const STATUS_LINE = contract.status_line;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];
