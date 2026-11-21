@@ -37,7 +37,7 @@ os.environ.setdefault("CLOUD_LOCAL_DIRECTORY", str(Path(__file__).resolve().pare
 # - the wiki: places, factions and relationships, items, journals and hooks, tags and statuses,
 #   property kits, posts, rpg_core (campaigns, settings, the person fields). rpg_log stays out: it
 #   still imports the retired rpg_state;
-# - the VTT: game systems, traits, dice and tests, scenes, tables, modules;
+# - the VTT: game systems, traits, modules, dice and tests, scenes, tables;
 # - this product: ai_lorebook, ai_character and ai_campaign until they move into the wiki (docs/DESIGN.md,
 #   The composed suite), and ai_chat.
 _FRAMEWORK = [
@@ -62,7 +62,8 @@ _WIKI = [
     "entity_posts",
     "rpg_core",
 ]
-_VTT = ["rpg_systems", "rpg_traits", "rpg_dice", "rpg_scene", "rpg_table", "rpg_modules"]
+# rpg_dice depends on rpg_modules (VTT da7c8fa: a module's traits count only where it is enabled).
+_VTT = ["rpg_systems", "rpg_traits", "rpg_modules", "rpg_dice", "rpg_scene", "rpg_table"]
 _AI = ["ai_lorebook", "ai_character", "ai_campaign", "ai_chat"]
 EXTENSIONS = ",".join(_FRAMEWORK + _WIKI + _VTT + _AI)
 # Sign-in through the operator's identity provider (Authentik; ai_chat/SignIn.py), when one is
