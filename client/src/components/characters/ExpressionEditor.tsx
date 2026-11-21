@@ -66,7 +66,7 @@ export function ExpressionSprites({
         <ul className='flex flex-wrap gap-3' aria-label='Sprites'>
           {shown.map((sprite) => (
             <li key={sprite.id} className='grid justify-items-center gap-1'>
-              <img src={sprite.image} alt={`${name}, ${sprite.label}`} className='size-20 rounded-md border object-cover' />
+              <img referrerPolicy='no-referrer' src={sprite.image} alt={`${name}, ${sprite.label}`} className='size-20 rounded-md border object-cover' />
               <span className='text-xs'>{sprite.label}</span>
               <Button
                 type='button'

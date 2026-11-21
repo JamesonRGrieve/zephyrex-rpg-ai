@@ -269,7 +269,7 @@ export function Composer({
             {images.map((url, index) => (
               // Attached pictures have no identity beyond their place in this line.
               <div key={index} className='relative'>
-                <img src={url} alt={`Attached picture ${index + 1}`} className='size-16 rounded-md border object-cover' />
+                <img referrerPolicy='no-referrer' src={url} alt={`Attached picture ${index + 1}`} className='size-16 rounded-md border object-cover' />
                 <button
                   type='button'
                   className='absolute -top-2 -right-2 flex size-7 items-center justify-center rounded-full border bg-background'

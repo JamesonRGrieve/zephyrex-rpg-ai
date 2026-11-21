@@ -293,7 +293,7 @@ export function MessageItem({
                   // Pictures have no identity beyond their place in this message.
                   <li key={index}>
                     <a href={url} target='_blank' rel='noreferrer' className='block'>
-                      <img
+                      <img referrerPolicy='no-referrer'
                         src={url}
                         alt={`Picture ${index + 1} from ${message.speaker}`}
                         className='max-h-40 max-w-full rounded-md border object-contain'

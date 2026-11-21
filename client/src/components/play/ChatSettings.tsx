@@ -411,7 +411,7 @@ export function ChatSettings({
             <span className='text-sm font-medium'>Background</span>
             <div className='flex flex-wrap items-center gap-3'>
               {draft.background !== null && (
-                <img src={draft.background} alt='' className='h-16 w-28 rounded-md border object-cover' />
+                <img referrerPolicy='no-referrer' src={draft.background} alt='' className='h-16 w-28 rounded-md border object-cover' />
               )}
               <label
                 htmlFor={ids.background}

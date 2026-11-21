@@ -42,7 +42,7 @@ export function TalkingSprite({
 
   const showTalking = moving && talkingImage !== null && open;
   return (
-    <img
+    <img referrerPolicy='no-referrer'
       src={showTalking ? talkingImage : image}
       alt={alt}
       data-speaking={speaking ? '' : undefined}

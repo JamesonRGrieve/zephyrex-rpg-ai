@@ -65,7 +65,7 @@ function usePictures(ids: readonly string[]): ReadonlyMap<string, string> {
     for (let start = 0; start < ids.length; start += IDS_PER_READ) {
       const chunk = ids.slice(start, start + IDS_PER_READ);
       const body = pictureRows.parse(await client.get('/v1/world_entity', { ids: chunk.join(',') }));
-      for (const row of body.world_entities) if (row.picture) found.set(row.id, `/api${row.picture}`);
+      for (const row of body.world_entities) if (row.picture) found.set(row.id, row.picture.startsWith('/') ? `/api${row.picture}` : row.picture);
     }
     return found;
   });
