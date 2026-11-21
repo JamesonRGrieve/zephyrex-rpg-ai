@@ -179,9 +179,11 @@ binding; the owner of each piece is named.
   cast and outcomes. It never writes dialogue, thoughts, decisions or actions for any cast member,
   above all the person's own character, and stops where one would react. A character never decides
   what the person's character says, does, feels or knows, and never voices another cast member.
-  This is held by the prompt, by a post-check on every narration and reply (named and described
-  cast members), and by contract cases taken from the play-test transcripts. A violation is a bug
-  that blocks play.
+  This is held by the system prompts (every cast member named, the person's seat first, with the
+  party roster and the shared briefing) and by stop strings at cast names, with contract cases
+  taken from the play-test transcripts. It is not held by a model post-check, which would spend a
+  second generation on every line (the operator: "Catching it after generation is a horrendous
+  waste of compute"); at most a free text match on cast names. A violation is a bug that blocks play.
 - **Proportion.** A reply's length follows what it answers: a small action gets a small reaction,
   or none.
 - **The party knows itself.** Party members travelling together know each other; every party voice
