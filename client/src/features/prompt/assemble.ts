@@ -700,7 +700,7 @@ export function narrateRule(persona: PromptPersona | null, characters: readonly 
     .replaceAll('{{example}}', example)
     .replaceAll('{{names}}', names.join(', '));
   // Small models follow a worked example far better than a rule (the play-test).
-  return `${rule} ${seatRule}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
+  return `${rule} ${seatRule} ${PROMPT.narrate_markup}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
 }
 
 /** A regeneration's forbidden span, with whom it wrote for; nothing without one. */
@@ -799,6 +799,8 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
               speaker.system_prompt.trim() !== '' ? speaker.system_prompt : PROMPT.default_system_prompt,
               PROMPT.in_character,
               castRule(PROMPT.voice_cast, persona, input.characters, speaker.id),
+              // Structured lines (features/chat/playerLines.ts): each of the speaker's items on its own line.
+              PROMPT.voice_lines,
             ]
               .filter((part) => part !== '')
               .join(' '),

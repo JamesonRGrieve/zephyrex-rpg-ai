@@ -1,9 +1,10 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Group guards (SillyTavern's name stop strings).
 
-In a scene with several speakers, a reply ends where it starts someone else's line: "\\nName:" for the
-person, then the cast, never the speaker; narrating, the person's and every cast member's; writing the
-person's own line, the cast's. SillyTavern's group nudge is left out (it made the lab's Cydonia 24B
+In a scene with several speakers, a reply ends where it starts someone else's structured line ("\\nName",
+say or do; PlayerLines.py): the person's seat first (its name and "*First"), then the cast's, the most
+recent speakers first, never the speaker's; narrating, the seat's only; writing the person's own line,
+the cast's. SillyTavern's group nudge is left out (it made the lab's Cydonia 24B
 worse; group.ts says how). The twin of client/src/features/chat/group.ts, held to contract/group-cases.json.
 """
 
@@ -28,13 +29,14 @@ def group_stops(mode: str, speaker: str, cast: Sequence[str], person: str, recen
     # The narrator may voice the cast only in @@Name interludes, so it stops only at the seat.
     if mode == "impersonate" or not seat:
         seat_stops: list[str] = []
-    elif mode == "narrate":
-        seat_stops = [f"\n@@{seat}", f"\n{seat}:"]
     else:
-        seat_stops = [f"\n{seat}:", f"\n*{first}"]
-    # The narrator voices the cast only in @@ interludes: their "Name:" lines stop it too.
+        seat_stops = [f"\n{seat}", f"\n*{first}"]
+    # Structured lines (PlayerLines.py): a line opening with a name is that person's, say or do; the
+    # narrator may write the cast's lines, a voice only its own.
     cast_stops = [
-        f"\n{name}:" for name in (name.strip() for name in others) if name and name != speaker and name != seat
+        f"\n{name}"
+        for name in (name.strip() for name in ([] if mode == "narrate" else others))
+        if name and name != speaker and name != seat
     ]
     unique: list[str] = []
     for stop in [*seat_stops, *cast_stops]:

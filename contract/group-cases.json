@@ -13,10 +13,10 @@
       ],
       "person": "Massen",
       "stops": [
-        "\nMassen:",
+        "\nMassen",
         "\n*Massen",
-        "\nGus Veridan:",
-        "\nMagnus Karlsson:"
+        "\nGus Veridan",
+        "\nMagnus Karlsson"
       ]
     },
     {
@@ -28,7 +28,7 @@
       ],
       "person": "You",
       "stops": [
-        "\nYou:",
+        "\nYou",
         "\n*You"
       ]
     },
@@ -42,13 +42,13 @@
       ],
       "person": "You",
       "stops": [
-        "\nYou:",
+        "\nYou",
         "\n*You",
-        "\nA.Z.:"
+        "\nA.Z."
       ]
     },
     {
-      "name": "the GM narrating: the seat's interlude and line, then the cast's lines (it voices them only in @@ interludes)",
+      "name": "the GM narrating: only the seat's line starts (it may write the cast's own lines)",
       "mode": "narrate",
       "speaker": "",
       "cast": [
@@ -57,10 +57,8 @@
       ],
       "person": "Massen",
       "stops": [
-        "\n@@Massen",
-        "\nMassen:",
-        "\nGus Veridan:",
-        "\nA.Z.:"
+        "\nMassen",
+        "\n*Massen"
       ]
     },
     {
@@ -73,8 +71,8 @@
       ],
       "person": "You",
       "stops": [
-        "\nGus Veridan:",
-        "\nA.Z.:"
+        "\nGus Veridan",
+        "\nA.Z."
       ]
     },
     {
@@ -103,14 +101,14 @@
       ],
       "person": "",
       "stops": [
-        "\nB:",
-        "\nC:",
-        "\nD:",
-        "\nE:"
+        "\nB",
+        "\nC",
+        "\nD",
+        "\nE"
       ]
     },
     {
-      "name": "narrating with a seat of two names: its interlude and line, then the cast's",
+      "name": "narrating with a seat of two names: its line start and its first name's action",
       "mode": "narrate",
       "speaker": "",
       "cast": [
@@ -119,16 +117,14 @@
       ],
       "person": "Tessaly Kord",
       "stops": [
-        "\n@@Tessaly Kord",
-        "\nTessaly Kord:",
-        "\nVardane:",
-        "\nKord:"
+        "\nTessaly Kord",
+        "\n*Tessaly"
       ]
     },
     {
-      "name": "the most recent speakers' lines come first, within the four",
-      "mode": "narrate",
-      "speaker": "",
+      "name": "a voice: the seat's forms, then the most recent speakers' line starts, within the four",
+      "mode": "reply",
+      "speaker": "Vardane",
       "cast": [
         "Vardane",
         "Kord",
@@ -140,10 +136,10 @@
         "Kord"
       ],
       "stops": [
-        "\n@@Tessaly Kord",
-        "\nTessaly Kord:",
-        "\nThe Acolyte:",
-        "\nKord:"
+        "\nTessaly Kord",
+        "\n*Tessaly",
+        "\nThe Acolyte",
+        "\nKord"
       ]
     }
   ]

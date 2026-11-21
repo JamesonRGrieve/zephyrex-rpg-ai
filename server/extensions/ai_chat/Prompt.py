@@ -474,7 +474,8 @@ def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping
         .replace("{{names}}", ", ".join(names))
     )
     # Small models follow a worked example far better than a rule (the play-test).
-    return f"{rule} {seat_rule}\n{str(PROMPT['narrate_example']).replace('{{example}}', example)}"
+    example_text = str(PROMPT["narrate_example"]).replace("{{example}}", example)
+    return f"{rule} {seat_rule} {PROMPT['narrate_markup']}\n{example_text}"
 
 
 def forbid_text(forbid: Mapping[str, Any] | None) -> str:
@@ -575,7 +576,8 @@ def assemble_prompt(
         # Nobody speaks for anyone else: every other voice at the table, by name and look; and it stays
         # in character.
         ruled = cast_rule(PROMPT["voice_cast"], persona, characters, speaker["id"])
-        main = " ".join(part for part in (main, PROMPT["in_character"], ruled) if part)
+        # Structured lines (PlayerLines.py): each of the speaker's items on a line of its own.
+        main = " ".join(part for part in (main, PROMPT["in_character"], ruled, PROMPT["voice_lines"]) if part)
     # The narrator sliders' lines (NarratorStyle.py): length, and the narrator's tone.
     if style.strip():
         main = f"{main}\n\n{style.strip()}"

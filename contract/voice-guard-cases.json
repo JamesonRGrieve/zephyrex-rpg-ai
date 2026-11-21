@@ -56,7 +56,7 @@
       ]
     },
     {
-      "name": "the seat's interlude cuts the narration there",
+      "name": "structured lines: a line opening with a cast member's name is theirs; the seat's @@ line cuts the narration there",
       "seat": "Tessaly Kord",
       "cast": [
         {
@@ -71,7 +71,7 @@
       "text": "Vardane turns to you.\n@@Tessaly\n\"Fine,\" I say.\n@@Narrator\nMore.",
       "segments": [
         {
-          "speaker_id": null,
+          "speaker_id": "var",
           "text": "Vardane turns to you."
         }
       ]
@@ -135,7 +135,7 @@
       ]
     },
     {
-      "name": "the seat's own line in its name cuts there",
+      "name": "the seat's own line in its name cuts there (and a line opening with a cast name is theirs)",
       "seat": "Rask",
       "cast": [
         {
@@ -150,7 +150,7 @@
       "text": "Vardane looks over.\nRask: I say nothing.\nMore.",
       "segments": [
         {
-          "speaker_id": null,
+          "speaker_id": "var",
           "text": "Vardane looks over."
         }
       ]
@@ -281,6 +281,31 @@
           "text": "The way the light falls on the wet stone."
         }
       ]
+    },
+    {
+      "name": "structured lines: Narrator lines, a say and a do in a cast member's name, and the seat's line cutting there",
+      "seat": "Tessaly Kord",
+      "cast": [
+        {
+          "id": "wren",
+          "name": "Wren"
+        }
+      ],
+      "text": "Narrator: The lights flicker.\nWren (to everyone, whispers): \"Down.\"\nWren drops behind a crate.\nNarrator: Boots on the stairs.\nTessaly Kord draws her pistol.\nNarrator: More.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "The lights flicker."
+        },
+        {
+          "speaker_id": "wren",
+          "text": "Wren (to everyone, whispers): \"Down.\"\nWren drops behind a crate."
+        },
+        {
+          "speaker_id": null,
+          "text": "Boots on the stairs."
+        }
+      ]
     }
   ],
   "speaks_cases": [
@@ -390,6 +415,38 @@
       "name": "in character: no match",
       "text": "\"With the what?\" Wren hisses. \"The seals. Look.\"",
       "hit": null
+    }
+  ],
+  "dash_cases": [
+    {
+      "name": "a line broken off ends in an ellipsis",
+      "text": "Something's wrong with the—",
+      "plain": "Something's wrong with the..."
+    },
+    {
+      "name": "before a closing quote too",
+      "text": "\"Wait—\" she says.",
+      "plain": "\"Wait...\" she says."
+    },
+    {
+      "name": "an aside between dashes becomes commas",
+      "text": "The hold—the whole deck—shudders.",
+      "plain": "The hold, the whole deck, shudders."
+    },
+    {
+      "name": "before a new sentence, a full stop",
+      "text": "He stops—Then he runs.",
+      "plain": "He stops. Then he runs."
+    },
+    {
+      "name": "the AI's double hyphen counts",
+      "text": "Wren -- quiet now -- listens.",
+      "plain": "Wren, quiet now, listens."
+    },
+    {
+      "name": "no dash, no change",
+      "text": "The door seals.",
+      "plain": "The door seals."
     }
   ]
 }

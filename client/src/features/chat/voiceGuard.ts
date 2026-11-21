@@ -8,7 +8,11 @@
  * as a stranger, so the caller regenerates once with the span forbidden. Pure, and held to
  * contract/voice-guard-cases.json with ai_chat/VoiceGuard.py.
  */
-import { PROMPT, VOICE_GUARD } from '~/contract';
+import { PLAYER_LINES, PROMPT, VOICE_GUARD } from '~/contract';
+import { lineSpeaker } from './playerLines';
+
+/** The seat, among the people a line may open with. */
+const SEAT = '\u0000seat';
 
 export interface Segment {
   /** The cast member speaking in an interlude, or null for the narrator. */
@@ -107,6 +111,13 @@ export function narrateSegments(
       speaker = cast.find((member) => isNamed(said, member.name))?.id ?? null;
       continue;
     }
+    // Structured lines (playerLines.ts): "Narrator: …" is the narrator's; a line opening with a cast
+    // member's name is theirs; one opening with the seat's cuts the narration there.
+    const narrated = new RegExp(`^${PLAYER_LINES.narrator}:\\s*`, 'iu').exec(trimmed);
+    if (narrated !== null) {
+      push(null, trimmed.slice(narrated[0].length));
+      continue;
+    }
     // The play-test: a line in a cast member's name ("The Acolyte: …" or "*The Acolyte …") is theirs too,
     // for that line; the seat's name cuts the narration there.
     const tagged = /^([^:\n]{1,60}):\s*(.*)$/u.exec(trimmed);
@@ -122,6 +133,12 @@ export function narrateSegments(
         push(actor.id, line);
         continue;
       }
+    }
+    const opener = lineSpeaker(trimmed, [...cast, ...(seat.trim() === '' ? [] : [{ id: SEAT, name: seat }])]);
+    if (opener === SEAT) break;
+    if (opener !== null) {
+      push(opener, line);
+      continue;
     }
     if (speaker === null) {
       const split = attributed(line, cast);
@@ -223,4 +240,16 @@ export function completeText(text: string): string {
   const line = trimmed.lastIndexOf('\n');
   const cut = Math.max(end, line);
   return cut <= 0 ? '' : trimmed.slice(0, cut).trimEnd();
+}
+
+/**
+ * A reply without em dashes (the operator: "heavy em dash discouragement"), no model call: one that
+ * breaks a line off becomes an ellipsis, one before a new sentence a full stop, any other a comma;
+ * "--" counts as one too.
+ */
+export function plainDashes(text: string): string {
+  return text
+    .replace(/[ \t]*(?:—|--)(?=["”’'*)]|[ \t]*(?:\n|$))/gu, '...')
+    .replace(/[ \t]*(?:—|--)[ \t]*(?=["“‘']?[A-Z])/gu, '. ')
+    .replace(/[ \t]*(?:—|--)[ \t]*/gu, ', ');
 }

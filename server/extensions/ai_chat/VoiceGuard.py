@@ -14,8 +14,12 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.PlayerLines import line_speaker  # type: ignore[import-not-found]
 
 VOICE_GUARD: dict[str, Any] = CONTRACT["voice_guard"]
+PLAYER_LINES: dict[str, Any] = CONTRACT["player_lines"]
+# The seat, among the people a line may open with.
+_SEAT = "\u0000seat"
 _SENTENCE = re.compile(r"[^.!?]*(?:[.!?]+[\"”’']?(?=\s|$))?")  # noqa: RUF001
 
 
@@ -107,6 +111,12 @@ def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) ->
                 break
             speaker = member_of(said)
             continue
+        # Structured lines (PlayerLines.py): "Narrator: ..." is the narrator's; a line opening with a cast
+        # member's name is theirs; one opening with the seat's cuts the narration there.
+        narrated = re.match(rf"{re.escape(PLAYER_LINES['narrator'])}:\s*", trimmed, re.IGNORECASE)
+        if narrated is not None:
+            push(None, trimmed[narrated.end() :])
+            continue
         # The play-test: a line in a cast member's name ("The Acolyte: ..." or "*The Acolyte ...") is theirs
         # too, for that line; the seat's name cuts the narration there.
         tagged = re.match(r"([^:\n]{1,60}):\s*(.*)$", trimmed)
@@ -122,6 +132,12 @@ def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) ->
             if actor is not None:
                 push(actor, line)
                 continue
+        opener = line_speaker(trimmed, [*cast, *([{"id": _SEAT, "name": seat}] if seat.strip() else [])])
+        if opener == _SEAT:
+            break
+        if opener is not None:
+            push(opener, line)
+            continue
         if speaker is None and (split := _attributed(line, cast)) is not None:
             if split["before"].strip():
                 push(None, split["before"])
@@ -217,3 +233,11 @@ def complete_text(text: str) -> str:
         end = match.end()
     cut = max(end, trimmed.rfind("\n"))
     return "" if cut <= 0 else trimmed[:cut].rstrip()
+
+
+def plain_dashes(text: str) -> str:
+    """A reply without em dashes, no model call: one that breaks a line off becomes an ellipsis, one
+    before a new sentence a full stop, any other a comma; "--" counts as one too."""
+    text = re.sub(r"[ \t]*(?:—|--)(?=[\"”’'*)]|[ \t]*(?:\n|$))", "...", text)  # noqa: RUF001
+    text = re.sub(r"[ \t]*(?:—|--)[ \t]*(?=[\"“‘']?[A-Z])", ". ", text)  # noqa: RUF001
+    return re.sub(r"[ \t]*(?:—|--)[ \t]*", ", ", text)
