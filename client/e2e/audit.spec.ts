@@ -31,6 +31,7 @@ const THEMES = ['dark', 'light'] as const;
 const VISITOR_PAGES = ['/', '/user', '/docs/privacy'];
 const APP_PAGES = [
   '/play',
+  '/sandbox',
   '/campaigns',
   '/campaigns/session-zero',
   '/scenarios',

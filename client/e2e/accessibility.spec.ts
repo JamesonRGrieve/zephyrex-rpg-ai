@@ -14,6 +14,7 @@ const STANDARDS = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'];
 const VISITOR_PAGES = ['/', '/user', '/docs/privacy'];
 const APP_PAGES = [
   '/play',
+  '/sandbox',
   '/campaigns',
   '/scenarios',
   '/characters',
