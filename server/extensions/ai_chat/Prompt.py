@@ -33,6 +33,7 @@ from zephyrex.extensions.ai_chat.Macros import MacroContext, expand_all, expand_
 from zephyrex.extensions.ai_chat.Regex import apply_regex  # type: ignore[import-not-found]
 
 PERSONA: dict[str, Any] = CONTRACT["persona"]
+GROUP_SETTINGS: dict[str, Any] = CONTRACT["group_settings"]
 DEFAULT_USER_NAME = "User"
 NARRATOR = "Narrator"
 
@@ -444,6 +445,7 @@ def assemble_prompt(
     memories: str = "",
     macros: Mapping[str, Any] | None = None,
     template: Mapping[str, Any] | None = None,
+    group_modes: Mapping[str, Any] | None = None,
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -510,6 +512,34 @@ def assemble_prompt(
             if character["description"].strip()
         ]
     )
+    # A group's joined cards and its own scenario (audit gap 6).
+    modes = group_modes or {}
+    in_group = len(characters) > 1
+    joining = in_group and not narrating and modes.get("card_mode") == "join"
+    group_scenario = str(modes.get("scenario") or "").strip() if in_group else ""
+
+    def member_card(character: Mapping[str, Any]) -> str:
+        own = {"char": character["name"], "user": user_name}
+        parts = [
+            part
+            for part in (
+                character["description"].strip(),
+                f"{{{{char}}}}'s personality: {character['personality']}" if character["personality"].strip() else "",
+                "" if group_scenario or not character["scenario"].strip() else f"Scenario: {character['scenario']}",
+            )
+            if part
+        ]
+        if not parts:
+            return ""
+        prefix = modes.get("join_prefix")
+        suffix = modes.get("join_suffix")
+        affixed = [
+            GROUP_SETTINGS["join_prefix"] if prefix is None else str(prefix),
+            *parts,
+            GROUP_SETTINGS["join_suffix"] if suffix is None else str(suffix),
+        ]
+        return "\n".join(fill(part, own) for part in affixed if part.strip())
+
     # The persona's description where it's placed (audit gap 9); in the persona section by default.
     persona_line = (
         f"{{{{user}}}}: {persona['description']}" if persona is not None and persona["description"].strip() else ""
@@ -522,13 +552,19 @@ def assemble_prompt(
         "campaign": frame_text(frame),
         "running_scenario": scenario_text(scenario),
         "lore_before_char": sections.get("before_char", ""),
-        "description": cast_text
+        "description": "\n\n".join(card for card in (member_card(character) for character in characters) if card)
+        if joining
+        else cast_text
         if narrating and any(character["description"].strip() for character in characters)
         else speaker["description"],
         "personality": f"{{{{char}}}}'s personality: {speaker['personality']}"
-        if speaker["personality"].strip()
+        if not joining and speaker["personality"].strip()
         else "",
-        "scenario": f"Scenario: {speaker['scenario']}" if speaker["scenario"].strip() else "",
+        "scenario": f"Scenario: {group_scenario}"
+        if group_scenario
+        else f"Scenario: {speaker['scenario']}"
+        if not joining and speaker["scenario"].strip()
+        else "",
         "lore_after_char": sections.get("after_char", ""),
         "persona": persona_line if persona_at == "prompt" else "",
         "lore_before_example": sections.get("before_example", ""),

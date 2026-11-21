@@ -28,7 +28,18 @@
  * own and the model carries on from it, so the post-history instructions go before it), and
  * `impersonate` (the person's own next line, asked for by the contract's instruction at the end).
  */
-import { CAMPAIGN, EXPRESSION, PERSONA, PICTURE, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
+import {
+  CAMPAIGN,
+  EXPRESSION,
+  GROUP_SETTINGS,
+  PERSONA,
+  PICTURE,
+  PROMPT,
+  REASONING,
+  SAFETY,
+  SCENARIO,
+  TABLE,
+} from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
 import { expandAll, expandMacros, type MacroContext, type MacroNames } from './macros';
@@ -126,6 +137,16 @@ export interface PromptInput {
    * gap 4): a story string in place of the card's sections, and every turn named.
    */
   template?: { story_string: string; example_separator: string; chat_start: string; include_names: boolean };
+  /**
+   * A group's modes (audit gap 6): `join` puts every member's card in the system prompt, each
+   * between the join prefix and suffix; `scenario` replaces each card's scenario.
+   */
+  group?: {
+    card_mode?: (typeof GROUP_SETTINGS.card_modes)[number];
+    join_prefix?: string;
+    join_suffix?: string;
+    scenario?: string;
+  };
   /**
    * What SillyTavern's macros read beyond the names (audit gap 1): the card's and persona's fields,
    * the last lines, the clock, a random source and the chat's variables. Without it only the names
@@ -657,6 +678,26 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
           `- ${character.name}: ${fill(character.description.trim(), { char: character.name, user: userName })}`,
       ),
   ].join('\n');
+  // A group's joined cards and its own scenario (audit gap 6).
+  const groupModes = input.group ?? {};
+  const inGroup = input.characters.length > 1;
+  const joining = inGroup && !narrating && groupModes.card_mode === 'join';
+  const groupScenario = inGroup ? (groupModes.scenario ?? '').trim() : '';
+  const memberCard = (character: PromptCharacter): string => {
+    const own = { char: character.name, user: userName };
+    const parts = [
+      character.description.trim(),
+      character.personality.trim() === '' ? '' : `{{char}}'s personality: ${character.personality}`,
+      groupScenario !== '' || character.scenario.trim() === '' ? '' : `Scenario: ${character.scenario}`,
+    ].filter((part) => part !== '');
+    if (parts.length === 0) return '';
+    const prefix = groupModes.join_prefix ?? GROUP_SETTINGS.join_prefix;
+    const suffix = groupModes.join_suffix ?? GROUP_SETTINGS.join_suffix;
+    return [prefix, ...parts, suffix]
+      .filter((part) => part.trim() !== '')
+      .map((part) => fill(part, own))
+      .join('\n');
+  };
   const persona = input.persona;
   // The persona's description where it's placed (audit gap 9); in the persona section by default.
   const personaLine = persona === null || persona.description.trim() === '' ? '' : `{{user}}: ${persona.description}`;
@@ -676,12 +717,21 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     running_scenario: scenarioText(input.scenario),
     lore_before_char: loreSections.before_char ?? '',
     // The narrator reads every character, in brief: each one's description with its own name filled in.
-    description:
-      narrating && input.characters.some((character) => character.description.trim() !== '')
+    description: joining
+      ? input.characters
+          .map(memberCard)
+          .filter((card) => card !== '')
+          .join('\n\n')
+      : narrating && input.characters.some((character) => character.description.trim() !== '')
         ? castText
         : speaker.description,
-    personality: speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
-    scenario: speaker.scenario.trim() === '' ? '' : `Scenario: ${speaker.scenario}`,
+    personality: joining || speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
+    scenario:
+      groupScenario !== ''
+        ? `Scenario: ${groupScenario}`
+        : joining || speaker.scenario.trim() === ''
+          ? ''
+          : `Scenario: ${speaker.scenario}`,
     lore_after_char: loreSections.after_char ?? '',
     persona: personaAt === 'prompt' ? personaLine : '',
     lore_before_example: loreSections.before_example ?? '',

@@ -44,6 +44,7 @@ import {
 } from '~/contract';
 import { samplerProblem } from '~/features/prompt/samplers';
 import { extraBodyProblem } from '~/features/models/extraBody';
+import { groupSettingsProblem } from '~/features/chat/groupSettings';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -297,6 +298,7 @@ const CHAT_COLUMNS: Columns = {
   table_notes: jsonList('tableNotes'),
   paused: plain('paused'),
   variables: jsonObject('variables'),
+  group_settings: jsonObject('groupSettings'),
   campaign_id: plain('campaignId'),
   scenario_id: plain('scenarioId'),
 };
@@ -363,6 +365,11 @@ const chatFields = {
   variables: z
     .record(z.string().min(1).max(LIMITS.name_characters), z.string().max(LIMITS.variable_value_characters))
     .refine((values) => Object.keys(values).length <= LIMITS.chat_variables, 'Too many variables'),
+  /** A group's modes (audit gap 6): card mode, order, allow self, auto-reply, scenario. */
+  group_settings: z.record(z.string(), z.unknown()).superRefine((value, context) => {
+    const problem = groupSettingsProblem(value);
+    if (problem !== null) context.addIssue({ code: 'custom', message: problem });
+  }),
   /** The campaign it belongs to (A57); its frame is read every turn. */
   campaign_id: recordId.nullable(),
   /** The scenario it runs (A59, A60); the GM's view of it is read every turn. */
@@ -392,6 +399,7 @@ const chatCreate = z.object({
   table_notes: chatFields.table_notes.default([]),
   paused: chatFields.paused.default(false),
   variables: chatFields.variables.default({}),
+  group_settings: chatFields.group_settings.default({}),
   campaign_id: chatFields.campaign_id.default(null),
   scenario_id: chatFields.scenario_id.default(null),
 });

@@ -37,6 +37,7 @@ def test_case(case: dict[str, Any]) -> None:
         table_notes=given.get("table_notes"),
         frame=given.get("frame"),
         scenario=given.get("scenario"),
+        group_modes=given.get("group"),
     )
     assert result.messages == case["messages"]
     assert result.dropped == case["dropped"]

@@ -116,6 +116,8 @@ import type { CanonNoticeValue } from './CanonNotice';
 import { PARTY_TAG } from './CampaignStart';
 import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
+import { useAutoReply } from './useAutoReply';
+import type { GroupSettings } from '~/features/chat/groupSettings';
 import { Recap } from './Recap';
 import { MessageItem, type MessageView } from './MessageItem';
 
@@ -250,6 +252,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const router = useRouter();
   const [leafId, setLeafId] = useState<string | null>(() => params.get('at'));
   const [writingAfter, setWritingAfter] = useState<{ parentId: string | null; speakerId: string } | null>(null);
+  // A seat change being saved (the play model): auto-reply waits for it.
+  const [seatSaving, setSeatSaving] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [treeOpen, setTreeOpen] = useState(false);
   const endSession = useEndSession(chat);
@@ -312,6 +316,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const castNames = new Map(chat.character_ids.map((id) => [id, castById.get(id)?.name ?? '']));
   // Each member's talkativeness (gap 7): with no one named, who speaks up next in a group.
   const castTalk = new Map(chat.character_ids.map((id) => [id, talkativenessOf(castById.get(id)?.extensions)]));
+  // A group's turn order and allow-self (audit gap 6).
+  const groupModes = chat.group_settings as GroupSettings;
+  const turnOptions = { order: groupModes.order, allowSelf: groupModes.allow_self };
   const persona = useMemo(() => {
     const found = personaList.data ?? [];
     return found.find((one) => one.id === chat.persona_id) ?? found.find((one) => one.is_default) ?? null;
@@ -347,7 +354,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       chosen ??
       (picked !== null && chat.character_ids.includes(picked)
         ? picked
-        : nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames, castTalk));
+        : nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames, castTalk, turnOptions));
     setPicked(null);
     if (speakerId === null) return null;
     setWritingAfter({ parentId, speakerId });
@@ -877,7 +884,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await reply.write({
       chat_id: chat.id,
       leaf_id: leaf,
-      speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk),
+      speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions),
       mode: 'impersonate',
     });
     return result?.text ?? null;
@@ -889,7 +896,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const summary = await summarizeBranch({
         chat_id: chat.id,
         leaf_id: leaf,
-        speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk),
+        speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions),
       });
       if (summary.dropped > 0) notify('The oldest turns did not fit', `${summary.dropped} were left out of the summary.`);
       return summary.text;
@@ -925,7 +932,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         await inspectPrompt({
           chat_id: chat.id,
           leaf_id: leaf,
-          speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk),
+          speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions),
         }),
       );
     } catch (error) {
@@ -1030,6 +1037,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     );
   };
 
+  // Auto-reply (audit gap 6): a quiet group's next member speaks by itself, never over a reply
+  // being written, a seat change being saved, or a paused table.
+  useAutoReply({
+    seconds: chat.character_ids.length > 1 ? (groupModes.auto_seconds ?? 0) : 0,
+    ready: !writing && writingAfter === null && !seatSaving && !chat.paused && list.data !== undefined,
+    quietKey: leaf ?? '',
+    onTurn: () => void replyAfter(leaf, branch),
+  });
+
   if (list.error !== undefined) return <LoadProblem what='this chat' error={list.error} onRetry={() => list.mutate()} />;
 
   const pending = writingAfter === null ? undefined : castById.get(writingAfter.speakerId);
@@ -1110,13 +1126,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 name: character.name,
                 avatar: character.avatar,
               }))}
-              onChange={(next) =>
+              onChange={(next) => {
+                setSeatSaving(true);
                 void play
                   .setSeat(next, (id) => castById.get(id)?.tags.includes(PARTY_TAG) ?? false)
                   .catch((error: unknown) =>
                     notify('The seat was not changed', error instanceof Error ? error.message : undefined),
                   )
-              }
+                  .finally(() => setSeatSaving(false));
+              }}
             />
           )}
           <Button
@@ -1406,7 +1424,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             return character === undefined ? [] : [{ id, name: character.name }];
           })}
           picked={picked}
-          upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk)}
+          upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions)}
           onPick={setPicked}
         />
       )}
@@ -1442,8 +1460,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             autoRun: reply.auto_run,
             text: expandMacros(reply.message, {
               char:
-                castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk) ?? '')?.name ??
-                NARRATOR,
+                castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk, turnOptions) ?? '')
+                  ?.name ?? NARRATOR,
               user: persona?.name ?? DEFAULT_USER_NAME,
             }),
           }))}
@@ -1575,6 +1593,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           table_notes: chat.table_notes,
           campaign_id: chat.campaign_id,
           scenario_id: chat.scenario_id,
+          group_settings: chat.group_settings as GroupSettings,
         }}
         scenarios={(scenarioList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}
         campaigns={(campaignList.data ?? []).map((one) => ({ id: one.id, name: one.name }))}

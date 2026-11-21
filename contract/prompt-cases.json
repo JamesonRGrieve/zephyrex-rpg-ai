@@ -1869,6 +1869,174 @@
         }
       ],
       "dropped": 0
+    },
+    {
+      "name": "a group joining cards (audit gap 6): every member's card between its prefix and suffix, no card's own sections after",
+      "input": {
+        "characters": ["ada", "bram"],
+        "speaker_id": "c-bram",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "[{{char}} is hungry.]",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "One"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Two"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-bram",
+            "content": "Three"
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Four"
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Five"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "group": {
+          "card_mode": "join"
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\n<Ada>\nAda is a ship's engineer.\nAda's personality: dry, kind\nScenario: Sam has just come aboard.\n</Ada>\n\n<Bram>\nBram is the ship's cook.\n</Bram>"
+        },
+        {
+          "role": "user",
+          "content": "Sam: One"
+        },
+        {
+          "role": "system",
+          "content": "[Bram is hungry.]"
+        },
+        {
+          "role": "user",
+          "content": "Ada: Two"
+        },
+        {
+          "role": "assistant",
+          "content": "Three"
+        },
+        {
+          "role": "user",
+          "content": "Narrator: Four"
+        },
+        {
+          "role": "user",
+          "content": "Sam: Five"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "a group scenario (audit gap 6) replaces the speaker's card scenario",
+      "input": {
+        "characters": ["ada", "bram"],
+        "speaker_id": "c-bram",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "[{{char}} is hungry.]",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "One"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-ada",
+            "content": "Two"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-bram",
+            "content": "Three"
+          },
+          {
+            "role": "narrator",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Four"
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Five"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "group": {
+          "scenario": "A storm batters the {{char}}'s galley."
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram.\n\nBram is the ship's cook.\n\nScenario: A storm batters the Bram's galley."
+        },
+        {
+          "role": "user",
+          "content": "Sam: One"
+        },
+        {
+          "role": "system",
+          "content": "[Bram is hungry.]"
+        },
+        {
+          "role": "user",
+          "content": "Ada: Two"
+        },
+        {
+          "role": "assistant",
+          "content": "Three"
+        },
+        {
+          "role": "user",
+          "content": "Narrator: Four"
+        },
+        {
+          "role": "user",
+          "content": "Sam: Five"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
     }
   ],
   "summary_cases": [

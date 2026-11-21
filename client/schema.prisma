@@ -94,6 +94,8 @@ model Chat {
   paused       Boolean  @default(false)
   /// The chat's macro and STscript variables (audit gap 1), as a JSON object of strings.
   variables    String   @default("{}")
+  /// A group's modes (audit gap 6): card mode, order, allow self, auto-reply, scenario; a JSON object.
+  groupSettings String  @default("{}")
   campaignId   String?
   scenarioId   String?
   createdAt    DateTime @default(now())

@@ -37,6 +37,7 @@ import { aiCast, playedPersona, sessionStartIndex, sessionsSummary } from '~/fea
 import { groupStops } from '~/features/chat/group';
 import { personaBooks, personaFor } from '~/features/prompt/personaPick';
 import { type ExtraBody, storedExtraBody, withExtraBody } from '~/features/models/extraBody';
+import type { GroupSettings } from '~/features/chat/groupSettings';
 import type { Persona as PersonaRecord } from '~/features/data/records';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import {
@@ -171,6 +172,7 @@ export async function generationInputs(
     campaign_id: string | null;
     scenario_id: string | null;
     variables: Record<string, string>;
+    group_settings: GroupSettings;
   };
 
   const cast = await prisma.character.findMany({ where: { createdById: ownerId, id: { in: chatFields.character_ids } } });
@@ -363,6 +365,8 @@ export async function generationInputs(
       safety: { content_rating: chatFields.content_rating, lines: chatFields.lines, veils: chatFields.veils },
       table_notes: chatFields.table_notes,
       frame: chatFields.campaign_id === null ? null : await campaignFrame(ownerId, chatFields.campaign_id),
+      // A group's joined cards and own scenario (audit gap 6).
+      group: chatFields.group_settings,
       scenario: chatFields.scenario_id === null ? null : await runningScenario(ownerId, chatFields.scenario_id),
       data_bank: dataBankText(await dataBankDocuments(ownerId, chat.id, chatFields.character_ids), storyTexts),
       regex: (await regexScripts.list(ownerId, NO_QUERY)).map((row) => regexScripts.fields(row) as unknown as RegexScript),

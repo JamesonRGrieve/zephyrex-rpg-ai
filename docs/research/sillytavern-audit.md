@@ -161,15 +161,15 @@ meaning in lite, and World Info vector matching.
 | Item | Status | Where, or what's missing |
 |---|---|---|
 | Manual, list and natural order | covered | `features/chat/turns.ts`, `NextSpeaker.tsx` (A10) |
-| Pooled order | missing | |
+| Pooled order | covered | `features/chat/turns.ts` `pooledSpeaker`, chat `group_settings.order` (gap 6) |
 | Mute a member; force a member to talk | covered | chat `muted_ids`, pick who speaks next (A52) |
 | Group greetings in turn | covered | A52 |
-| Swap character cards vs join character cards (join prefix and suffix) | missing | the speaker's card only |
-| Auto-mode (members keep talking on a timer) | missing | |
-| Allow self responses | missing | |
-| Group scenario override | missing | |
+| Swap character cards vs join character cards (join prefix and suffix) | covered | `group_settings.card_mode`, `assemble.ts` / `Prompt.py` member cards (gap 6) |
+| Auto-mode (members keep talking on a timer) | covered | `group_settings.auto_seconds`, `components/play/useAutoReply.ts` (gap 6) |
+| Allow self responses | covered | `group_settings.allow_self`, `turns.ts` (gap 6) |
+| Group scenario override | covered | `group_settings.scenario` (gap 6) |
 | Peek a member's definitions | partial | open the character's page; no in-chat peek |
-| Group nudge prompt template | missing | |
+| Group nudge prompt template | left out | made Cydonia 24B worse in the live A/B (2026-11-21); group stop strings instead (`features/chat/group.ts`) |
 | Member management in the chat (add, remove, reorder) | covered | `ChatSettings.tsx` |
 | Group avatar (collage or custom) | missing | |
 

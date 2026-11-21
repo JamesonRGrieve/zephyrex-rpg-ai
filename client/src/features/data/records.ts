@@ -120,6 +120,7 @@ export const chatSchema = z.object({
   paused: z.boolean(),
   // STscript and macro variables kept with the chat ({{getvar}}, /setvar), name to value.
   variables: z.record(z.string(), z.string()).default({}),
+  group_settings: z.record(z.string(), z.unknown()).default({}),
   campaign_id: z.string().nullable(),
   scenario_id: z.string().nullable(),
 });

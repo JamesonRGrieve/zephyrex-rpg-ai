@@ -21,6 +21,8 @@ import { parseTags } from '~/features/chat/library';
 import { type Objective, ObjectivesEditor } from './ObjectivesEditor';
 import { type TableNoteValue, TableNotesEditor } from './TableNotesEditor';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
+import type { GroupSettings } from '~/features/chat/groupSettings';
+import { GroupModes } from './GroupModes';
 
 const RATING_LABELS = { general: 'General', teen: 'Teen', mature: 'Mature' } as const;
 const SEATS = [
@@ -52,6 +54,8 @@ export interface ChatSettingsValue {
   table_notes: TableNoteValue[];
   campaign_id: string | null;
   scenario_id: string | null;
+  /** A group's modes (audit gap 6); absent for none set. */
+  group_settings?: GroupSettings;
 }
 
 /** What a chat sets of World Info's settings; the rest take the contract's defaults. */
@@ -473,6 +477,9 @@ export function ChatSettings({
                 </label>
               ))}
             </fieldset>
+          )}
+          {cast.length > 1 && (
+            <GroupModes value={draft.group_settings ?? {}} onChange={(next) => set('group_settings', next)} />
           )}
           <fieldset className='grid gap-3 rounded-lg border p-3'>
             <legend className='px-1 text-sm font-medium'>Table safety</legend>

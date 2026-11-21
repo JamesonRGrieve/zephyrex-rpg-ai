@@ -2,6 +2,7 @@
 /**
  * Whose turn it is, and what a fork offers. Pure helpers over a chat's branch.
  */
+import { GROUP_SETTINGS } from '~/contract';
 import type { TreeMessage } from './branch';
 
 export interface TurnMessage extends TreeMessage {
@@ -24,6 +25,7 @@ export function mentionedSpeaker(
   branch: readonly TurnMessage[],
   muted: readonly string[],
   names: ReadonlyMap<string, string>,
+  allowSelf = false,
 ): string | null {
   const last = [...branch].reverse().find((message) => message.channel === 'ic');
   const text = last?.swipes?.[last.swipe_index ?? 0] ?? '';
@@ -31,7 +33,7 @@ export function mentionedSpeaker(
   let found: { id: string; at: number } | null = null;
   for (const id of characterIds) {
     const name = (names.get(id) ?? '').trim();
-    if (name === '' || muted.includes(id) || id === last?.speaker_character_id) continue;
+    if (name === '' || muted.includes(id) || (!allowSelf && id === last?.speaker_character_id)) continue;
     const at = text.search(new RegExp(`(?<![\\p{L}\\p{N}])${escaped(name)}(?![\\p{L}\\p{N}])`, 'iu'));
     if (at !== -1 && (found === null || at < found.at)) found = { id, at };
   }
@@ -58,6 +60,39 @@ export function seededDraw(seed: string): number {
   return hash / 0x100000000;
 }
 
+/** How a group takes turns (audit gap 6): its order, and whether natural order may pick who just spoke. */
+export interface TurnOptions {
+  order?: (typeof GROUP_SETTINGS.orders)[number];
+  allowSelf?: boolean;
+}
+
+/**
+ * Pooled order (audit gap 6, SillyTavern's): a member who hasn't spoken since the person's last
+ * story line, drawn by the branch's seed; once all have, any member but the last to speak.
+ */
+export function pooledSpeaker(
+  characterIds: readonly string[],
+  branch: readonly TurnMessage[],
+  muted: readonly string[],
+): string | null {
+  const awake = characterIds.filter((id) => !muted.includes(id));
+  if (awake.length === 0) return null;
+  const lastPerson = branch.findLastIndex((message) => message.role === 'user' && message.channel === 'ic');
+  const spoken = new Set(
+    branch
+      .slice(lastPerson + 1)
+      .filter((message) => message.role === 'character' && message.channel === 'ic')
+      .map((message) => message.speaker_character_id),
+  );
+  const lastSpeaker = [...branch]
+    .reverse()
+    .find((message) => message.role === 'character' && message.channel === 'ic')?.speaker_character_id;
+  const unheard = awake.filter((id) => !spoken.has(id));
+  const pool = unheard.length > 0 ? unheard : awake.length > 1 ? awake.filter((id) => id !== lastSpeaker) : awake;
+  const draw = seededDraw(`${branch.at(-1)?.id ?? ''}:pool`);
+  return pool[Math.floor(draw * pool.length)] ?? null;
+}
+
 /**
  * Who replies next. Alone, the one character. In a group, the member the last story line names
  * (natural order, when `names` is given); failing that, with `talkativeness` given (gap 7, as
@@ -71,24 +106,31 @@ export function nextSpeaker(
   muted: readonly string[] = [],
   names?: ReadonlyMap<string, string>,
   talkativeness?: ReadonlyMap<string, number>,
+  options: TurnOptions = {},
 ): string | null {
   if (characterIds.length === 0) return null;
-  if (names !== undefined && characterIds.length > 1) {
-    const named = mentionedSpeaker(characterIds, branch, muted, names);
+  const order = options.order ?? 'natural';
+  if (order === 'pooled' && characterIds.length > 1) return pooledSpeaker(characterIds, branch, muted);
+  const natural = order === 'natural';
+  if (natural && names !== undefined && characterIds.length > 1) {
+    const named = mentionedSpeaker(characterIds, branch, muted, names, options.allowSelf ?? false);
     if (named !== null) return named;
   }
   const last = [...branch].reverse().find((message) => message.role === 'character' && message.channel === 'ic');
   const index =
     last === undefined || last.speaker_character_id === null ? -1 : characterIds.indexOf(last.speaker_character_id);
-  const order = characterIds
+  const turnOrder = characterIds
     .map((_id, step) => characterIds[(index + 1 + step) % characterIds.length] as string)
     .filter((id) => !muted.includes(id));
-  if (talkativeness !== undefined && characterIds.length > 1) {
+  if (natural && talkativeness !== undefined && characterIds.length > 1) {
     const seed = branch.at(-1)?.id ?? '';
-    const eager = order.find((id) => seededDraw(`${seed}:${id}`) < (talkativeness.get(id) ?? 0.5));
+    // Without allow_self, the one who just spoke waits unless no one else wins the draw.
+    const lastId = last?.speaker_character_id ?? null;
+    const drawn = options.allowSelf === true ? turnOrder : turnOrder.filter((id) => id !== lastId);
+    const eager = drawn.find((id) => seededDraw(`${seed}:${id}`) < (talkativeness.get(id) ?? 0.5));
     if (eager !== undefined) return eager;
   }
-  return order[0] ?? null;
+  return turnOrder[0] ?? null;
 }
 
 /** The messages that share `message`'s parent (its alternatives at a fork), and its place among them. */

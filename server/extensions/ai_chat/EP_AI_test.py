@@ -699,6 +699,23 @@ class TestGenerate:
         body = RECEIVED[0]["body"]
         assert (body["reasoning_effort"], body["temperature"], body["model"], body["stream"]) == ("none", 0.1, "tiny", True)
 
+    def test_a_group_joins_every_members_card_and_its_own_scenario(self, server: TestClient, model_url: str) -> None:
+        # Audit gap 6: join mode puts every member's card in the prompt; the group scenario replaces the cards'.
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada", description="{{char}} is an engineer.", scenario="Docked.").json()["character"]
+        bram = _create(server, user, "character", name="Bram", description="{{char}} is the cook.").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        refused = server.post("/v1/chat", json={"chat": {"title": "x", "character_ids": [ada["id"]], "group_settings": {"order": "random"}}}, headers=_headers(user))
+        assert refused.status_code == 422, refused.text
+        settings = {"card_mode": "join", "scenario": "A storm hits.", "order": "pooled"}
+        chat = _create(server, user, "chat", title="Crew", character_ids=[ada["id"], bram["id"]], group_settings=settings).json()["chat"]
+        assert chat["group_settings"] == settings
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Hi."]).json()["chat_message"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": bram["id"]}}
+        system = server.post("/v1/ai_chat/prompt", json=asked, headers=_headers(user)).json()["prompt"]["messages"][0]["content"]
+        assert "<Ada>\nAda is an engineer.\n</Ada>" in system and "<Bram>\nBram is the cook.\n</Bram>" in system, system
+        assert "Scenario: A storm hits." in system and "Docked." not in system, system
+
     def test_a_presets_further_samplers_reach_only_the_apis_that_take_them(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

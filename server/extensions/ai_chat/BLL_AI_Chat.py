@@ -62,6 +62,7 @@ from zephyrex.extensions.ai_chat.DataBank import data_bank_text  # type: ignore[
 from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.ExtraBody import extra_body_problem, with_extra_body  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Group import group_stops  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.GroupSettings import group_settings_problem  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-found]
     active_template,
     instruct_stops,
@@ -325,6 +326,15 @@ def _base_url(url: Any) -> Any:
 
 
 class ChatChecks(PlainModel):
+    @field_validator("group_settings", check_fields=False)
+    @classmethod
+    def _checked_group_settings(cls, value: Any) -> Any:
+        """A group's modes (audit gap 6, GroupSettings.py)."""
+        problem = None if value is None else group_settings_problem(value)
+        if problem is not None:
+            raise ValueError(problem)
+        return value
+
     @field_validator("variables", check_fields=False)
     @classmethod
     def _checked_variables(cls, value: Any) -> Any:
@@ -490,6 +500,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     variables: dict[str, str] = Field(
         default_factory=dict, description="The chat's macro and STscript variables, name to text"
     )
+    group_settings: dict[str, Any] = Field(
+        default_factory=dict, description="A group's modes: card mode, order, allow self, auto-reply, scenario"
+    )
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
 
@@ -519,6 +532,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         campaign_id: str | None = None
         scenario_id: str | None = None
         variables: dict[str, str] = Field(default_factory=dict)
+        group_settings: dict[str, Any] = Field(default_factory=dict)
 
     class Update(ChatChecks, BaseModel):
         title: str | None = Field(None, min_length=1, max_length=MAX_TITLE)
@@ -546,6 +560,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         campaign_id: str | None = None
         scenario_id: str | None = None
         variables: dict[str, str] | None = None
+        group_settings: dict[str, Any] | None = None
 
     class Search(ApplicationModel.Search):
         title: StringSearchModel | None = None
@@ -593,6 +608,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("muted_ids", [])
         kwargs.setdefault("objectives", [])
         kwargs.setdefault("variables", {})
+        kwargs.setdefault("group_settings", {})
         kwargs.setdefault("lines", [])
         kwargs.setdefault("veils", [])
         kwargs.setdefault("table_notes", [])
@@ -2281,6 +2297,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             macro_context(chat, path, cast, speaker_id, persona, endpoint.model),
             # A text API's own template may carry SillyTavern's context template (audit gap 4).
             template if isinstance(template, dict) and endpoint.api in ("text", "horde") else None,
+            # A group's joined cards and own scenario (audit gap 6).
+            chat.group_settings or {},
         )
         if body.mode == "table":
             # The table GM (A11, A20) reads the table talk, with the story for reference only.

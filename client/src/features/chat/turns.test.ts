@@ -4,6 +4,7 @@ import {
   greetingSwipes,
   nextSpeaker,
   openingTurns,
+  pooledSpeaker,
   seededDraw,
   siblingsOf,
   talkativenessOf,
@@ -150,5 +151,43 @@ describe('talkativeness (gap 7)', () => {
 
   it('alone, the one character speaks whatever its talkativeness', () => {
     expect(nextSpeaker(['a'], [line('m1', null)], [], new Map(), new Map([['a', 0]]))).toBe('a');
+  });
+});
+
+describe('group orders (audit gap 6)', () => {
+  const words = (id: string, speaker: string | null, text: string, role = 'character') => ({
+    id,
+    parent_id: null,
+    role,
+    channel: 'ic',
+    speaker_character_id: speaker,
+    swipes: [text],
+    swipe_index: 0,
+  });
+  const names = new Map([
+    ['a', 'Ada'],
+    ['b', 'Bram'],
+    ['c', 'Cass'],
+  ]);
+
+  it('list order ignores who is named and takes the cast in turn', () => {
+    const branch = [words('1', 'a', 'Cass, hand me that.')];
+    expect(nextSpeaker(['a', 'b', 'c'], branch, [], names)).toBe('c');
+    expect(nextSpeaker(['a', 'b', 'c'], branch, [], names, undefined, { order: 'list' })).toBe('b');
+  });
+
+  it('allow_self lets natural order give the floor back to who just spoke', () => {
+    const branch = [words('1', 'a', 'Ada mutters to herself.')];
+    expect(nextSpeaker(['a', 'b'], branch, [], names)).toBe('b');
+    expect(nextSpeaker(['a', 'b'], branch, [], names, undefined, { allowSelf: true })).toBe('a');
+  });
+
+  it('pooled order gives each member a turn after the person speaks, then anyone but the last', () => {
+    const branch = [words('1', null, 'Status?', 'user'), words('2', 'a', 'Fine.'), words('3', 'c', 'Same.')];
+    expect(pooledSpeaker(['a', 'b', 'c'], branch, [])).toBe('b');
+    expect(nextSpeaker(['a', 'b', 'c'], branch, [], names, undefined, { order: 'pooled' })).toBe('b');
+    const all = [...branch, words('4', 'b', 'Aye.')];
+    expect(['a', 'c']).toContain(pooledSpeaker(['a', 'b', 'c'], all, []));
+    expect(pooledSpeaker(['a', 'b'], branch, ['a', 'b'])).toBeNull();
   });
 });

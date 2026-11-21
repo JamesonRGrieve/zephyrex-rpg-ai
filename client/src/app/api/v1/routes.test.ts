@@ -256,6 +256,25 @@ describe('model endpoints', () => {
   });
 });
 
+describe('a group chat’s modes (audit gap 6)', () => {
+  it('keeps its group settings and refuses an unknown one', async () => {
+    const ada = await created<{ id: string }>(postCharacter, '/v1/character', 'character', { name: 'Ada' });
+    const post = (settings: unknown) =>
+      postChat(
+        call('/v1/chat', {
+          method: 'POST',
+          body: { chat: { title: 'Crew', character_ids: [ada.record.id], group_settings: settings } },
+        }),
+        none,
+      );
+    expect(await (await post({ card_mode: 'join', order: 'pooled', auto_seconds: 30 })).json()).toMatchObject({
+      chat: { group_settings: { card_mode: 'join', order: 'pooled', auto_seconds: 30 } },
+    });
+    expect((await post({ nudge: 'x' })).status).toBe(422);
+    expect((await post({ order: 'random' })).status).toBe(422);
+  });
+});
+
 describe('extra request fields on an endpoint', () => {
   it('keeps an object of extra fields and refuses one that sets the conversation', async () => {
     const post = (extra: unknown) =>
