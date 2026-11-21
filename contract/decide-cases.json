@@ -1,0 +1,236 @@
+{
+  "description": "The decide role's protocol (Self Hosted AI's d1-2b, 2026-11-21): a chat completion whose last user message is {state, questions}; the reply's content is {answers}. Both twins (client/src/features/decide/decide.ts, server/extensions/ai_chat/Decide.py) build requests and read answers as these cases say. An answer outside the options the caller supplied is refused (null): a decision model only ever chooses among them.",
+  "token_budget": 3500,
+  "build": [
+    {
+      "name": "one of each kind, over one state",
+      "state": "The inquisitor glares; the servitor hums; the guard grips his lasgun.",
+      "questions": {
+        "speaker": {
+          "type": "choice",
+          "instructions": "Who speaks next?",
+          "criteria": [
+            "Inquisitor",
+            "Servitor",
+            "Guard"
+          ]
+        },
+        "violence": {
+          "type": "noul",
+          "instructions": "Is violence about to break out?"
+        },
+        "danger": {
+          "type": "score",
+          "instructions": "How dangerous is the room?",
+          "criteria": [
+            "harmless",
+            "minor",
+            "serious"
+          ]
+        }
+      },
+      "message": {
+        "state": "The inquisitor glares; the servitor hums; the guard grips his lasgun.",
+        "questions": {
+          "speaker": {
+            "type": "choice",
+            "instructions": "Who speaks next?",
+            "criteria": {
+              "Inquisitor": "",
+              "Servitor": "",
+              "Guard": ""
+            }
+          },
+          "violence": {
+            "type": "noul",
+            "instructions": "Is violence about to break out?"
+          },
+          "danger": {
+            "type": "score",
+            "instructions": "How dangerous is the room?",
+            "criteria": [
+              "harmless",
+              "minor",
+              "serious"
+            ]
+          }
+        }
+      }
+    },
+    {
+      "name": "a choice's options may carry a description",
+      "state": "A tea party.",
+      "questions": {
+        "lore": {
+          "type": "choice",
+          "instructions": "Which entry fits?",
+          "criteria": {
+            "Engines": "How the ship's engines work",
+            "Etiquette": "Manners at table"
+          }
+        }
+      },
+      "message": {
+        "state": "A tea party.",
+        "questions": {
+          "lore": {
+            "type": "choice",
+            "instructions": "Which entry fits?",
+            "criteria": {
+              "Engines": "How the ship's engines work",
+              "Etiquette": "Manners at table"
+            }
+          }
+        }
+      }
+    }
+  ],
+  "parse": [
+    {
+      "name": "every kind read",
+      "questions": {
+        "speaker": {
+          "type": "choice",
+          "instructions": "Who speaks next?",
+          "criteria": [
+            "Inquisitor",
+            "Servitor",
+            "Guard"
+          ]
+        },
+        "violence": {
+          "type": "noul",
+          "instructions": "Is violence about to break out?"
+        },
+        "danger": {
+          "type": "score",
+          "instructions": "How dangerous?",
+          "criteria": [
+            "harmless",
+            "minor",
+            "serious"
+          ]
+        }
+      },
+      "content": "{\"model\": \"d1-2b\", \"answers\": {\"speaker\": {\"type\": \"choice\", \"choice\": \"Guard\", \"probabilities\": {\"Inquisitor\": 0.1, \"Servitor\": 0.05, \"Guard\": 0.85}}, \"violence\": {\"type\": \"noul\", \"noul\": 0.86}, \"danger\": {\"type\": \"score\", \"score\": \"serious\"}}}",
+      "answers": {
+        "speaker": {
+          "choice": "Guard",
+          "probability": 0.85
+        },
+        "violence": {
+          "probability": 0.86
+        },
+        "danger": {
+          "level": "serious",
+          "index": 2
+        }
+      }
+    },
+    {
+      "name": "an answer outside the options is refused, the rest kept",
+      "questions": {
+        "speaker": {
+          "type": "choice",
+          "instructions": "Who speaks next?",
+          "criteria": [
+            "Inquisitor",
+            "Guard"
+          ]
+        },
+        "violence": {
+          "type": "noul",
+          "instructions": "Fight?"
+        }
+      },
+      "content": "{\"answers\": {\"speaker\": {\"type\": \"choice\", \"choice\": \"Emperor\"}, \"violence\": {\"type\": \"noul\", \"noul\": 0.2}}}",
+      "answers": {
+        "speaker": null,
+        "violence": {
+          "probability": 0.2
+        }
+      }
+    },
+    {
+      "name": "a probability outside 0..1, a missing answer and a wrong kind are refused",
+      "questions": {
+        "a": {
+          "type": "noul",
+          "instructions": "A?"
+        },
+        "b": {
+          "type": "noul",
+          "instructions": "B?"
+        },
+        "c": {
+          "type": "score",
+          "instructions": "C?",
+          "criteria": [
+            "low",
+            "high"
+          ]
+        }
+      },
+      "content": "{\"answers\": {\"a\": {\"type\": \"noul\", \"noul\": 1.7}, \"c\": {\"type\": \"noul\", \"noul\": 0.5}}}",
+      "answers": {
+        "a": null,
+        "b": null,
+        "c": null
+      }
+    },
+    {
+      "name": "content that isn't JSON refuses every answer",
+      "questions": {
+        "a": {
+          "type": "noul",
+          "instructions": "A?"
+        }
+      },
+      "content": "I think yes.",
+      "answers": {
+        "a": null
+      }
+    }
+  ],
+  "batch": [
+    {
+      "name": "questions split so each request stays within the budget",
+      "state_characters": 6000,
+      "question_characters": [
+        3000,
+        3000,
+        3000,
+        500
+      ],
+      "budget": 3500,
+      "batches": [
+        [
+          0,
+          1
+        ],
+        [
+          2,
+          3
+        ]
+      ]
+    },
+    {
+      "name": "all in one when they fit",
+      "state_characters": 400,
+      "question_characters": [
+        200,
+        200,
+        200
+      ],
+      "budget": 3500,
+      "batches": [
+        [
+          0,
+          1,
+          2
+        ]
+      ]
+    }
+  ],
+  "batch_rule": "A request's tokens are estimated as ceil(characters / 4) for the state plus each question's JSON; questions fill a request in order while the total stays within token_budget; a question that would cross it starts the next request (which repeats the state). A question too large on its own still goes, alone."
+}
