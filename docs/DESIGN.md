@@ -240,6 +240,16 @@ binding; the owner of each piece is named.
   the wiki (concept, appearance, personality, history, relationships, voice), with "Make this RAW"
   handing off to the VTT builder.
 
+**The narrator's style**
+
+- **Sliders pick the model and tune it** (the operator, 2026-11-21): spice, verbosity, darkness and
+  humour in the campaign's settings. Each model endpoint carries reputation scores (spice
+  tolerance, verbosity, prose, darkness, humour, instruction adherence, speed), seeded from the
+  models' known reputation and editable on the Models page. The narrator uses the story model
+  nearest the sliders, with adherence as a floor; an endpoint chosen for the chat always wins.
+  Verbosity also sets the length; spice and darkness set the tone line, always capped by the
+  campaign's table-safety rating.
+
 **Tooling**
 
 - Imports and wipes use the framework's batch routes (plural create, batch update and delete),
