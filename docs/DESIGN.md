@@ -175,9 +175,11 @@ binding; the owner of each piece is named.
 
 **Who speaks, and for whom**
 
-- **Nobody speaks for anyone else.** The narrator narrates the world, the scene, people outside the
-  cast and outcomes. It never writes dialogue, thoughts, decisions or actions for any cast member,
-  above all the person's own character, and stops where one would react. A character never decides
+- **Nobody speaks for the person, and nobody is narrated speaking.** The narrator narrates the
+  world, the scene and outcomes. In the same response it may think and act for NPCs and for the AI
+  party members (never the person's own character), but only as **interludes credited to them**:
+  speaker-tagged segments saved and shown as that character's own lines, never prose such as
+  "she laughed and said…" (the operator, 2026-11-21). A character never decides
   what the person's character says, does, feels or knows, and never voices another cast member.
   This is held by the system prompts (every cast member named, the person's seat first, with the
   party roster and the shared briefing) and by stop strings at cast names, with contract cases
