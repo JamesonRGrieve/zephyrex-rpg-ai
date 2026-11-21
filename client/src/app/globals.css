@@ -18,13 +18,3 @@
   padding-top: env(safe-area-inset-top);
 }
 
-/* A grid with no column template sizes its one column to its widest content, so a long title, a
-   nowrap summary or a button made the page wider than a phone (the operator, 2026-11-21:
-   "horizontal scroll everywhere"; e2e/overflow.spec.ts). Every grid's default column is the
-   container's width instead. :where() keeps this at zero specificity, so any grid-cols-* (at any
-   breakpoint) still wins. Generic: proposed to the framework's base styles (Zephyrex Client). */
-@layer base {
-  :where(.grid) {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
