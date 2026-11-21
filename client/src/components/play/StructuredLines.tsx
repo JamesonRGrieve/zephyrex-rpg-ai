@@ -7,7 +7,20 @@
  * whisper, shout, vox, voxcast) and tagged with whom it's to; an action is its own accented line;
  * anything else is narration.
  */
-import { Brain, Cpu, EyeOff, Footprints, Hand, MessageCircle, Radio, RadioTower, Search, Sparkles, Swords, type LucideIcon } from 'lucide-react';
+import {
+  Brain,
+  Cpu,
+  EyeOff,
+  Footprints,
+  Hand,
+  MessageCircle,
+  Radio,
+  RadioTower,
+  Search,
+  Sparkles,
+  Swords,
+  type LucideIcon,
+} from 'lucide-react';
 import { type ActionKind, actionKind } from '~/features/chat/actionKind';
 import type { ReactElement } from 'react';
 import { cn } from '~/lib/utils';
@@ -92,7 +105,7 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
     }
     return { kind: 'narrate', text: line };
   });
-  return structured === 0 ? null : shown;
+  return structured === 0 ? null : shown.flatMap(withSpeechApart);
 }
 
 const BUBBLE: Record<Manner, string> = {
@@ -180,4 +193,27 @@ const ACTION_ICONS: Record<ActionKind, { icon: LucideIcon; label: string }> = {
 function ActionIcon({ kind }: { kind: ActionKind }): ReactElement {
   const { icon: Icon, label } = ACTION_ICONS[kind];
   return <Icon className='mt-0.5 size-4 shrink-0 text-primary' aria-label={label} />;
+}
+
+/**
+ * An action that carries speech is the action, then the words as a bubble (the operator, 2026-11-21:
+ * Brakka's "Snorts… wiping foam from her beard. "Aye, I reckon…"" was one action card). Attribution
+ * left between quotes ("she says") stays with the action.
+ */
+export function withSpeechApart(line: ShownLine): ShownLine[] {
+  if (line.kind !== 'do' || !/["“]/.test(line.text)) return [line];
+  const pieces: ShownLine[] = [];
+  let at = 0;
+  for (const match of line.text.matchAll(/["“]([^"”]+)["”]/g)) {
+    const before = line.text.slice(at, match.index).trim().replace(/[,:]$/, '').trim();
+    if (before !== '') pieces.push({ ...line, text: before });
+    pieces.push({ kind: 'say', speaker: line.speaker, target: line.target, manner: 'speak', text: (match[1] ?? '').trim() });
+    at = match.index + match[0].length;
+  }
+  const after = line.text
+    .slice(at)
+    .trim()
+    .replace(/^[,.]\s*/, '');
+  if (after !== '' && /\p{L}/u.test(after)) pieces.push({ ...line, text: after });
+  return pieces.length === 0 ? [line] : pieces;
 }
