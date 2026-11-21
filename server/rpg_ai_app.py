@@ -31,9 +31,10 @@ os.environ.setdefault("CLOUD_LOCAL_DIRECTORY", str(Path(__file__).resolve().pare
 
 # The suite, composed (docs/SUITE.md, Together; the operator, 2026-11-21): one server with the
 # wiki's and the VTT's extensions, in dependency order.
-# - framework: sessions and sign-in links, email, genealogy (persons), acl_rbac and conversations
-#   (the VTT's tables and whispers), cloud and attachments (pictures and files on records), metadata
-#   (record properties), ai_memories (recall by meaning, A19);
+# - framework: sessions and sign-in links, email, genealogy (persons), acl_rbac, conversations and
+#   rooms (the VTT's tables, whispers and live scene and table rooms), cloud and attachments
+#   (pictures and files on records), metadata (record properties), ai_memories (recall by meaning,
+#   A19);
 # - the wiki: places, factions and relationships, items, journals and hooks, tags and statuses,
 #   property kits, posts, rpg_core (campaigns, settings, the person fields). rpg_log stays out: it
 #   still imports the retired rpg_state;
@@ -47,6 +48,7 @@ _FRAMEWORK = [
     "genealogy",
     "acl_rbac",
     "conversations",
+    "rooms",
     "cloud",
     "attachments",
     "metadata",
