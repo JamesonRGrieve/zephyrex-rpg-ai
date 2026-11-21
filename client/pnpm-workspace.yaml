@@ -34,6 +34,7 @@ overrides:
   '@zephyrex/auth-magic-link': file:../../client-framework/packages/auth-magic-link
   '@zephyrex/lite': file:../../client-framework/packages/lite
   '@zephyrex/marketing': file:../../client-framework/packages/marketing
+  '@zephyrex/rooms': file:../../client-framework/packages/rooms
   '@jgrieve/forms': file:../../dynamic-form
   zod2gql: file:../../zod2gql
   # The suite (docs/SUITE.md; the operator, 2026-11-21: "ai-rpg imports both separately"): the

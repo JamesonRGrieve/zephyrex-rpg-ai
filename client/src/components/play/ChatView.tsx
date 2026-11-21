@@ -21,6 +21,7 @@ import {
   Pause,
   Play,
   ScanText,
+  ScrollText,
   Settings2,
   X,
 } from 'lucide-react';
@@ -118,6 +119,8 @@ import { useEndSession } from './useEndSession';
 import type { CanonNoticeValue } from './CanonNotice';
 import { PARTY_TAG, useCast } from '~/features/data/cast';
 import { RollSheet } from './RollSheet';
+import { SheetPanel } from './SheetPanel';
+import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { SeatPicker } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -256,6 +259,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const { update: updateScenario } = scenarios.useActions();
   const [scenarioOpen, setScenarioOpen] = useState(false);
   const [rollOpen, setRollOpen] = useState(false);
+  const [sheetOpen, setSheetOpen] = useState(false);
   const [namesOpen, setNamesOpen] = useState(false);
   const entryList = lorebookEntries.useList(undefined, namesOpen);
   const { create: createEntry } = lorebookEntries.useActions();
@@ -824,6 +828,33 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const aiIds = new Set(play.isCampaign ? play.aiIds : chat.character_ids);
       let current = [...path];
       let parent: ChatMessage = start;
+      // After a character's line, the decision model decides whether a roll is called for; the VTT
+      // rolls it, the result is a roll line, and the narrator narrates it (never changing it).
+      const rollAfter = async (line: ChatMessage): Promise<boolean> => {
+        const actor = line.speaker_character_id;
+        if (line.role !== 'character' || actor === null) return true;
+        const roll = await decideRoll(chat.id, line.id, actor);
+        if (roll === null) return true;
+        let text: string;
+        try {
+          text = await makeRoll(roll, castById.get(actor)?.name ?? 'The character');
+        } catch (error) {
+          notify('The roll was not made', error instanceof Error ? error.message : undefined);
+          return true;
+        }
+        const rolled = await create({ chat_id: chat.id, parent_id: line.id, role: 'system', channel: 'roll', swipes: [text] });
+        setLeafId(rolled.id);
+        current = [...current, rolled];
+        const told = await narrateAfter(rolled.id);
+        if (told === null) {
+          parent = rolled;
+          return false;
+        }
+        parent = told;
+        current = [...current, told];
+        return true;
+      };
+      if (!(await rollAfter(start))) return;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
         const next = await decideNextTurn(chat.id, parent.id);
         if (!next.decided) break;
@@ -840,6 +871,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         if (saved === null) return;
         parent = saved;
         current = [...current, saved];
+        if (!(await rollAfter(saved))) return;
       }
       if (parent !== start) return;
     }
@@ -1251,6 +1283,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <span className='max-sm:sr-only'>Roll</span>
             </Button>
           )}
+          {play.isCampaign && (
+            <Button
+              type='button'
+              variant='ghost'
+              className='h-11 max-sm:w-11 max-sm:px-0'
+              aria-label='Character sheet'
+              onClick={() => setSheetOpen(true)}
+            >
+              <ScrollText aria-hidden className='size-4' />
+              <span className='max-sm:sr-only'>Sheet</span>
+            </Button>
+          )}
           <Button
             type='button'
             variant={chat.paused ? 'default' : 'ghost'}
@@ -1579,6 +1623,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               user: persona?.name ?? DEFAULT_USER_NAME,
             }),
           }))}
+      />
+      <SheetPanel
+        open={sheetOpen}
+        onOpenChange={setSheetOpen}
+        cast={chat.character_ids.flatMap((id) => {
+          const character = castById.get(id);
+          return character === undefined ? [] : [{ id, name: character.name }];
+        })}
+        initial={play.playingId}
       />
       <RollSheet
         open={rollOpen}

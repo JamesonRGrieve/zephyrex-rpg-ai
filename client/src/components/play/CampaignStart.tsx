@@ -11,6 +11,8 @@
  */
 import { journals, worlds } from '@zephyrex-rpg/wiki/features/data/records';
 import { useRouter } from 'next/navigation';
+import { useClient } from 'zephyrex';
+import { z } from 'zod';
 import { type ReactElement, useMemo, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -18,6 +20,7 @@ import { Input } from 'zephyrex/ui/input';
 import { LIMITS } from '~/contract';
 import { campaignPlays, chatSessions } from '~/features/data/playRecords';
 import { PARTY_TAG, useCast } from '~/features/data/cast';
+import { type OpeningEntity, openingFor } from '~/features/campaign/opening';
 import { openingLine } from '~/features/data/framing';
 import { type Character, chats, messages } from '~/features/data/records';
 import { cn } from '~/lib/utils';
@@ -211,6 +214,17 @@ export function CampaignStartForm({
   );
 }
 
+const instantiated = z.object({ campaign: z.object({ id: z.string() }), id_map: z.record(z.string(), z.string()) });
+
+/**
+ * Copy on start (the operator, 2026-11-21): a campaign plays in its own copy of the scenario, so play
+ * never changes the scenario. The wiki copies every record and link, and answers with an id map.
+ */
+export function remapChoice(choice: StartChoice, idMap: Readonly<Record<string, string>>): StartChoice {
+  const to = (id: string) => idMap[id] ?? id;
+  return { seat: choice.seat, playing: choice.playing === null ? null : to(choice.playing), party: choice.party.map(to) };
+}
+
 export function CampaignStart({ campaignId, onStarted }: { campaignId: string; onStarted: () => void }): ReactElement {
   const campaign = worlds.useOne(campaignId);
   const cast = useCast(campaignId);
@@ -220,14 +234,37 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   const { create: createPlay } = campaignPlays.useActions();
   const { create: createSession } = chatSessions.useActions();
   const router = useRouter();
+  const client = useClient();
   const [starting, setStarting] = useState(false);
   const all = useMemo(() => cast.data ?? [], [cast.data]);
 
-  const start = async ({ seat, playing, party }: StartChoice) => {
-    const world = campaign.data;
-    if (world === undefined) return;
+  /**
+   * The opening, told (the operator, 2026-11-21: "It should also not ask where I am. It should tell
+   * me."): the framing's situation, then where the seat's character starts and who is there with them,
+   * from the playthrough's own records. The situation alone when they can't be read.
+   */
+  const toldOpening = async (campaignId: string, seated: string | null, situation: string): Promise<string> => {
+    try {
+      const page = await client.get('/v1/world_entity', { campaign_id: campaignId, limit: '500' });
+      const rows = Reflect.get(Object(page), 'world_entities');
+      const entities = Array.isArray(rows) ? (rows as OpeningEntity[]) : [];
+      return openingFor(seated, situation, entities, null, null).text || situation;
+    } catch {
+      return situation;
+    }
+  };
+
+  const start = async (choice: StartChoice) => {
+    const scenario = campaign.data;
+    if (scenario === undefined) return;
     setStarting(true);
     try {
+      // The playthrough: the scenario's own copy, its cast remapped to the copies.
+      const copy = instantiated.parse(
+        await client.post(`/v1/campaign/${scenario.id}/instantiate`, { instantiate: { name: scenario.name } }),
+      );
+      const world = { ...scenario, id: copy.campaign.id };
+      const { seat, playing, party } = remapChoice(choice, copy.id_map);
       // The campaign's story is one chat: the party (and whoever the person starts as) are its cast.
       const members = playing === null || party.includes(playing) ? party : [...party, playing];
       const chat = await createChat({
@@ -246,7 +283,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
         parent_id: null,
         role: 'narrator',
         channel: 'ic',
-        swipes: [openingLine(world, notes.data ?? [])],
+        swipes: [await toldOpening(world.id, playing, openingLine(scenario, notes.data ?? []))],
       });
       await createPlay({ chat_id: chat.id, playing_id: playing });
       await createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id });
