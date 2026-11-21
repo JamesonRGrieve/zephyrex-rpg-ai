@@ -59,9 +59,9 @@ def map_questions(
             labels[label] = id_
         questions[mover["id"]] = {
             "type": "choice",
-            "instructions": MAP_STEP["instructions"].replace("{{name}}", str(person["name"])).replace(
-                "{{action}}", mover["action"]
-            ),
+            "instructions": MAP_STEP["instructions"]
+            .replace("{{name}}", str(person["name"]))
+            .replace("{{action}}", mover["action"]),
             "criteria": list(labels),
         }
         picks[mover["id"]] = labels
