@@ -251,6 +251,7 @@ const CHAT_COLUMNS: Columns = {
   veils: jsonList('veils'),
   table_notes: jsonList('tableNotes'),
   paused: plain('paused'),
+  variables: jsonObject('variables'),
   campaign_id: plain('campaignId'),
   scenario_id: plain('scenarioId'),
 };
@@ -312,6 +313,10 @@ const chatFields = {
     .max(LIMITS.table_notes),
   /** Paused (A25): no story turns until the table resumes; the table GM still answers. */
   paused: z.boolean(),
+  /** The chat's macro and STscript variables (audit gap 1): names to text. */
+  variables: z
+    .record(z.string().min(1).max(LIMITS.name_characters), z.string().max(LIMITS.variable_value_characters))
+    .refine((values) => Object.keys(values).length <= LIMITS.chat_variables, 'Too many variables'),
   /** The campaign it belongs to (A57); its frame is read every turn. */
   campaign_id: recordId.nullable(),
   /** The scenario it runs (A59, A60); the GM's view of it is read every turn. */
@@ -339,6 +344,7 @@ const chatCreate = z.object({
   veils: chatFields.veils.default([]),
   table_notes: chatFields.table_notes.default([]),
   paused: chatFields.paused.default(false),
+  variables: chatFields.variables.default({}),
   campaign_id: chatFields.campaign_id.default(null),
   scenario_id: chatFields.scenario_id.default(null),
 });

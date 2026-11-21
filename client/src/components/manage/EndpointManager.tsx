@@ -43,6 +43,7 @@ const ROLE_LABELS: Record<EndpointRole, string> = {
   voice: 'Voices',
   search: 'Web search',
   embed: 'Memory (recall by meaning)',
+  decide: 'Decisions (expressions, picks)',
 };
 
 /** Common local servers' addresses, to fill in with one tap. */

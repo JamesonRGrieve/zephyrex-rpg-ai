@@ -31,7 +31,7 @@
 import { CAMPAIGN, EXPRESSION, PICTURE, PROMPT, REASONING, SAFETY, SCENARIO, TABLE } from '~/contract';
 import type { DepthInsert, LoreResult } from '~/features/lore/activate';
 import { applyRegex, type RegexScript } from '~/features/chat/regex';
-import { expandMacros, type MacroNames } from './macros';
+import { expandAll, expandMacros, type MacroContext, type MacroNames } from './macros';
 
 export interface PromptCharacter {
   id: string;
@@ -84,6 +84,12 @@ export interface PromptInput {
   data_bank?: string;
   /** The chat's older lines recalled by meaning (A19, lib/memory.ts); blank for none. */
   memories?: string;
+  /**
+   * What SillyTavern's macros read beyond the names (audit gap 1): the card's and persona's fields,
+   * the last lines, the clock, a random source and the chat's variables. Without it only the names
+   * are filled.
+   */
+  macros?: Omit<MacroContext, 'names'>;
   /** The table's safety tools (A25). */
   safety?: SafetySettings;
   /** The table's notes (A11): house rules, pacing, tone, reminders. */
@@ -308,6 +314,8 @@ export interface AssembledPrompt {
   messages: ModelMessage[];
   /** History turns left out to fit the window, oldest first. */
   dropped: number;
+  /** The chat's and the global variables after the prompt's macros set them (assemblePrompt only). */
+  variables?: { local: Record<string, string>; global: Record<string, string> };
 }
 
 /** The person's name when no persona is chosen. */
@@ -324,13 +332,13 @@ type LoreSections = LoreResult['sections'];
 function systemText(
   texts: Partial<Record<PromptSectionId, string>>,
   layout: readonly PromptSection[],
-  names: MacroNames,
+  fill: (text: string) => string,
 ): string {
   // Each section is cut to its budget once its macros are filled in: the budget is what the model reads.
   return layout
     .flatMap((section) => {
       const text = texts[section.id];
-      return section.enabled && text !== undefined ? [capped(expandMacros(text, names), section.max_tokens)] : [];
+      return section.enabled && text !== undefined ? [capped(fill(text), section.max_tokens)] : [];
     })
     .filter((part) => part !== '')
     .join('\n\n');
@@ -427,6 +435,13 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   if (speaker === undefined) throw new Error('The speaker must be one of the chat’s characters');
   const userName = input.persona?.name ?? DEFAULT_USER_NAME;
   const names: MacroNames = { char: speaker.name, user: userName };
+  // Every macro in the prompt, filled in order, the variables carried from one to the next.
+  let variables = { local: { ...input.macros?.local }, global: { ...input.macros?.global } };
+  const fill = (text: string, as: MacroNames = names): string => {
+    const filled = expandAll(text, { ...input.macros, names: as, ...variables });
+    variables = { local: filled.local, global: filled.global };
+    return filled.text;
+  };
   const namesById = new Map(input.characters.map((character) => [character.id, character.name]));
   const group = input.characters.length > 1 || narrating;
   const story = new Set<string>(PROMPT.story_channels);
@@ -435,7 +450,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const layout = promptLayout(input.layout);
   const sectionText = (id: PromptSectionId, text: string): string => {
     const section = layout.find((one) => one.id === id);
-    return section === undefined || !section.enabled ? '' : capped(expandMacros(text, names), section.max_tokens);
+    return section === undefined || !section.enabled ? '' : capped(fill(text), section.max_tokens);
   };
   const override = input.system_prompt ?? '';
   const castText = [
@@ -444,7 +459,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
       .filter((character) => character.description.trim() !== '')
       .map(
         (character) =>
-          `- ${character.name}: ${expandMacros(character.description.trim(), { char: character.name, user: userName })}`,
+          `- ${character.name}: ${fill(character.description.trim(), { char: character.name, user: userName })}`,
       ),
   ].join('\n');
   const persona = input.persona;
@@ -478,13 +493,13 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     memories: input.memories ?? '',
     summary: (input.summary ?? '').trim() === '' ? '' : PROMPT.summary_prefix + (input.summary ?? ''),
   };
-  const system: ModelMessage = { role: 'system', content: systemText(texts, layout, names) };
-  const note = expandMacros(noteBlock(sectionText('author_note', input.author_note), loreSections), names);
+  const system: ModelMessage = { role: 'system', content: systemText(texts, layout, fill) };
+  const note = fill(noteBlock(sectionText('author_note', input.author_note), loreSections));
   const inserts: Insert[] = [
     ...(note === '' ? [] : [{ depth: PROMPT.author_note_depth, message: { role: 'system' as const, content: note } }]),
     ...(input.lore?.at_depth ?? []).map((insert: DepthInsert) => ({
       depth: insert.depth,
-      message: { role: insert.role, content: expandMacros(insert.content, names) },
+      message: { role: insert.role, content: fill(insert.content) },
     })),
     // The chat's current task (A53), a system line at its depth.
     ...((input.objective ?? '').trim() === ''
@@ -494,7 +509,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
             depth: PROMPT.objective_depth,
             message: {
               role: 'system' as const,
-              content: expandMacros(PROMPT.objective_prompt.replace('{{task}}', (input.objective ?? '').trim()), names),
+              content: fill(PROMPT.objective_prompt.replace('{{task}}', (input.objective ?? '').trim())),
             },
           },
         ]),
@@ -504,7 +519,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const after: ModelMessage[] = [
     ...(instructions === '' ? [] : [{ role: 'system' as const, content: instructions }]),
     ...(mode === 'impersonate'
-      ? [{ role: 'system' as const, content: expandMacros(PROMPT.impersonate_prompt, names) }]
+      ? [{ role: 'system' as const, content: fill(PROMPT.impersonate_prompt) }]
       : []),
   ];
   // An X-carded turn (A25) stays in the chat but out of what the model reads.
@@ -527,6 +542,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
     messages.reduce((total, message) => total + estimateTokens(message), 0);
   const fixed = cost([system, ...after, ...inserts.map((insert) => insert.message)]);
 
+  const withVariables = input.macros === undefined ? {} : { variables };
   // Keep the newest turns that fit; everything older is dropped.
   let kept = history.length;
   let used = fixed;
@@ -541,9 +557,9 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   // Continuing: the last message is the one being carried on, so it comes after the instructions.
   const last = placed.at(-1);
   if (mode === 'continue' && last !== undefined && last.role === 'assistant') {
-    return { messages: [system, ...placed.slice(0, -1), ...after, last], dropped: kept };
+    return { messages: [system, ...placed.slice(0, -1), ...after, last], dropped: kept, ...withVariables };
   }
-  return { messages: [system, ...placed, ...after], dropped: kept };
+  return { messages: [system, ...placed, ...after], dropped: kept, ...withVariables };
 }
 
 /**

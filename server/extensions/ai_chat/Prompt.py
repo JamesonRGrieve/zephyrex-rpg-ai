@@ -22,28 +22,17 @@ person's own next line, asked for by the contract's instruction at the end).
 
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 from typing import Any
 
 # Resolves only at runtime, through the extensions namespace path.
 from zephyrex.extensions.ai_character.Contract import CONTRACT, PROMPT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Macros import MacroContext, expand_all, expand_macros  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Regex import apply_regex  # type: ignore[import-not-found]
 
 DEFAULT_USER_NAME = "User"
 NARRATOR = "Narrator"
-MACROS: tuple[tuple[re.Pattern[str], str], ...] = (
-    (re.compile(r"\{\{\s*char\s*\}\}", re.IGNORECASE), "char"),
-    (re.compile(r"\{\{\s*user\s*\}\}", re.IGNORECASE), "user"),
-    (re.compile(r"<BOT>"), "char"),
-    (re.compile(r"<USER>"), "user"),
-)
-
-
-def expand_macros(text: str, names: Mapping[str, str]) -> str:
-    for pattern, name in MACROS:
-        text = pattern.sub(lambda _match, value=names[name]: value, text)
-    return text
 
 
 def estimate_tokens(message: Mapping[str, str]) -> int:
@@ -54,6 +43,8 @@ def estimate_tokens(message: Mapping[str, str]) -> int:
 class Assembled:
     messages: list[dict[str, str]]
     dropped: int
+    # The chat's and the global variables after the prompt's macros set them (assemble_prompt only).
+    variables: dict[str, dict[str, str]] | None = None
 
 
 def prompt_layout(given: Sequence[Mapping[str, Any]] | None) -> list[dict[str, Any]]:
@@ -75,10 +66,10 @@ def _capped(text: str, max_tokens: int | None) -> str:
     return text[: max_tokens * PROMPT["characters_per_token"]].rstrip()
 
 
-def _system_text(texts: Mapping[str, str], layout: Sequence[Mapping[str, Any]], names: Mapping[str, str]) -> str:
+def _system_text(texts: Mapping[str, str], layout: Sequence[Mapping[str, Any]], fill: Callable[[str], str]) -> str:
     # Each section is cut to its budget once its macros are filled in: the budget is what the model reads.
     parts = [
-        _capped(expand_macros(texts[section["id"]], names), section["max_tokens"])
+        _capped(fill(texts[section["id"]]), section["max_tokens"])
         for section in layout
         if section["enabled"] and section["id"] in texts
     ]
@@ -272,6 +263,7 @@ def assemble_prompt(
     frame: Mapping[str, Any] | None = None,
     scenario: Mapping[str, Any] | None = None,
     memories: str = "",
+    macros: Mapping[str, Any] | None = None,
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -285,6 +277,19 @@ def assemble_prompt(
         raise ValueError("The speaker must be one of the chat’s characters")
     user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
     names = {"char": speaker["name"], "user": user_name}
+    # Every macro in the prompt (audit gap 1), filled in order, the variables carried from one to the
+    # next. ``macros`` holds what they read beyond the names (MacroContext's other fields).
+    given = dict(macros or {})
+    variables = {"local": dict(given.pop("local", {}) or {}), "global": dict(given.pop("global_", {}) or {})}
+
+    def fill(text: str, as_: Mapping[str, str] | None = None) -> str:
+        filled = expand_all(
+            text,
+            MacroContext(names=as_ or names, local=variables["local"], global_=variables["global"], **given),
+        )
+        variables["local"], variables["global"] = filled.local, filled.global_
+        text_out: str = filled.text
+        return text_out
     names_by_id = {character["id"]: character["name"] for character in characters}
     group = len(characters) > 1 or narrating
     story = set(PROMPT["story_channels"])
@@ -295,7 +300,7 @@ def assemble_prompt(
 
     def kept(id_: str, text: str) -> str:
         section = arranged[id_]
-        return _capped(expand_macros(text, names), section["max_tokens"]) if section["enabled"] else ""
+        return _capped(fill(text), section["max_tokens"]) if section["enabled"] else ""
 
     if system_prompt.strip():
         main = system_prompt
@@ -307,7 +312,7 @@ def assemble_prompt(
     cast_text = "\n".join(
         [PROMPT["cast_heading"]]
         + [
-            f"- {character['name']}: {expand_macros(character['description'].strip(), {'char': character['name'], 'user': user_name})}"
+            f"- {character['name']}: {fill(character['description'].strip(), {'char': character['name'], 'user': user_name})}"
             for character in characters
             if character["description"].strip()
         ]
@@ -333,26 +338,26 @@ def assemble_prompt(
         "memories": memories,
         "summary": PROMPT["summary_prefix"] + summary if summary.strip() else "",
     }
-    system = {"role": "system", "content": _system_text(texts, order, names)}
+    system = {"role": "system", "content": _system_text(texts, order, fill)}
     block = "\n".join(
         part.strip()
         for part in (sections.get("before_an", ""), kept("author_note", author_note), sections.get("after_an", ""))
         if part.strip()
     )
-    note = expand_macros(block, names)
+    note = fill(block)
     inserts: list[tuple[int, dict[str, str]]] = [(PROMPT["author_note_depth"], {"role": "system", "content": note})] if note else []
     inserts += [
-        (insert["depth"], {"role": insert["role"], "content": expand_macros(insert["content"], names)})
+        (insert["depth"], {"role": insert["role"], "content": fill(insert["content"])})
         for insert in (lore or {}).get("at_depth", [])
     ]
     if objective.strip():
         # The chat's current task (A53), a system line at its depth.
-        task = expand_macros(PROMPT["objective_prompt"].replace("{{task}}", objective.strip()), names)
+        task = fill(PROMPT["objective_prompt"].replace("{{task}}", objective.strip()))
         inserts.append((PROMPT["objective_depth"], {"role": "system", "content": task}))
     instructions = kept("post_history", speaker["post_history_instructions"])
-    after = [{"role": "system", "content": expand_macros(instructions, names)}] if instructions else []
+    after = [{"role": "system", "content": instructions}] if instructions else []
     if mode == "impersonate":
-        after.append({"role": "system", "content": expand_macros(PROMPT["impersonate_prompt"], names)})
+        after.append({"role": "system", "content": fill(PROMPT["impersonate_prompt"])})
     # An X-carded turn (A25) stays in the chat but out of what the model reads.
     story_turns = [turn for turn in history if turn["channel"] in story and not turn.get("x_carded", False)]
     # Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
@@ -380,9 +385,10 @@ def assemble_prompt(
         placed += [message for depth, message in inserts if max(0, len(window) - depth) == index]
         if index < len(window):
             placed.append(window[index])
+    with_variables = variables if macros is not None else None
     if mode == "continue" and placed and placed[-1]["role"] == "assistant":
-        return Assembled(messages=[system, *placed[:-1], *after, placed[-1]], dropped=kept)
-    return Assembled(messages=[system, *placed, *after], dropped=kept)
+        return Assembled(messages=[system, *placed[:-1], *after, placed[-1]], dropped=kept, variables=with_variables)
+    return Assembled(messages=[system, *placed, *after], dropped=kept, variables=with_variables)
 
 
 def summary_prompt(

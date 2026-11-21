@@ -758,6 +758,53 @@
       "dropped": 0
     },
     {
+      "name": "SillyTavern's macros filled through the whole prompt, the variables carried along (audit gap 1)",
+      "input": {
+        "characters": [
+          "bram"
+        ],
+        "speaker_id": "c-bram",
+        "persona": null,
+        "author_note": "",
+        "summary": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Where is the coolant?"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400,
+        "system_prompt": "You are {{char}}.{{setvar::mood::grim}} It is {{weekday}}. Mood: {{getvar::mood}}. Rank: {{.rank}}.",
+        "macros": {
+          "now": {
+            "epoch_ms": 1795269909000,
+            "utc_offset_minutes": -420
+          },
+          "local": {
+            "rank": "cook"
+          }
+        }
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Bram. It is Saturday. Mood: grim. Rank: cook.\n\nBram is the ship's cook."
+        },
+        {
+          "role": "user",
+          "content": "Where is the coolant?"
+        },
+        {
+          "role": "system",
+          "content": "Keep Bram's reply under 60 words."
+        }
+      ],
+      "dropped": 0
+    },
+    {
       "name": "recalled memories (A19) sit after the data bank's notes and before the summary",
       "input": {
         "characters": [

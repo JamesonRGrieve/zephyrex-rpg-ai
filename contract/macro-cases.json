@@ -1,0 +1,403 @@
+{
+  "$comment": "SillyTavern's macros (audit gap 1): cases both twins run (client/src/features/prompt/macros.test.ts, server/extensions/ai_chat/Macros_test.py). A context's `random` is the sequence of draws in [0, 1), used in order; `now` is epoch milliseconds and the person's offset from UTC in minutes. Pick's index is FNV-1a (32-bit, UTF-8) of chat id, NUL, the whole text, NUL, the macro as written, NUL, its occurrence, modulo the items.",
+  "cases": [
+    {
+      "name": "the names in every spelling",
+      "text": "{{char}} greets {{ USER }}. <BOT> waves at <USER>.",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "Ada greets Sam. Ada waves at Sam.",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "an unknown macro stays as written, its inner macros filled",
+      "text": "{{wobble::x}} {char} {{wobble::{{char}}}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "{{wobble::x}} {char} {{wobble::Ada}}",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "the card's and persona's fields",
+      "text": "{{description}}|{{personality}}|{{scenario}}|{{persona}}|{{mesExamples}}|{{charPrompt}}|{{charJailbreak}}|{{model}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "fields": {
+          "description": "A pilot.",
+          "personality": "Dry.",
+          "scenario": "A ship.",
+          "persona": "A cook.",
+          "mesExamples": "<START>",
+          "charPrompt": "Be Ada.",
+          "charInstruction": "Stay short.",
+          "model": "tiny"
+        }
+      },
+      "text_out": "A pilot.|Dry.|A ship.|A cook.|<START>|Be Ada.|Stay short.|tiny",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "a field not given is empty",
+      "text": "[{{scenario}}]",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "[]",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "group names in a group",
+      "text": "{{group}}/{{charIfNotGroup}}/{{notChar}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "group": "Ada, Bo",
+        "not_char": "Bo, Sam"
+      },
+      "text_out": "Ada, Bo/Ada, Bo/Bo, Sam",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "group names outside a group",
+      "text": "{{group}}/{{charIfNotGroup}}/{{notChar}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "Ada/Ada/Sam",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "the chat's last lines and the input",
+      "text": "{{lastMessage}}|{{lastUserMessage}}|{{lastCharMessage}}|{{lastMessageId}}|{{input}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "chat": {
+          "last_message": "Aye.",
+          "last_user_message": "Ready?",
+          "last_char_message": "Aye.",
+          "last_message_id": "m-9",
+          "input": "Go"
+        }
+      },
+      "text_out": "Aye.|Ready?|Aye.|m-9|Go",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "idle duration, seconds",
+      "text": "{{idle_duration}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "chat": {
+          "idle_seconds": 30
+        }
+      },
+      "text_out": "a few seconds",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "idle duration, minutes",
+      "text": "{{idle_duration}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "chat": {
+          "idle_seconds": 600
+        }
+      },
+      "text_out": "10 minutes",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "idle duration, hours",
+      "text": "{{idle_duration}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "chat": {
+          "idle_seconds": 7200
+        }
+      },
+      "text_out": "2 hours",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "idle duration, a day",
+      "text": "{{idle_duration}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "chat": {
+          "idle_seconds": 100000
+        }
+      },
+      "text_out": "a day",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "idle duration, days",
+      "text": "{{idle_duration}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "chat": {
+          "idle_seconds": 864000
+        }
+      },
+      "text_out": "10 days",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "idle duration unknown stays",
+      "text": "{{idle_duration}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "{{idle_duration}}",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "the time in the person's zone, another zone and a format",
+      "text": "{{time}}|{{date}}|{{weekday}}|{{isotime}}|{{isodate}}|{{time_UTC+2}}|{{datetimeformat::YYYY-MM-DD HH:mm:ss [at] ddd}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "now": {
+          "epoch_ms": 1795269909000,
+          "utc_offset_minutes": -420
+        }
+      },
+      "text_out": "7:05 AM|November 21, 2026|Saturday|07:05|2026-11-21|4:05 PM|2026-11-21 07:05:09 at Sat",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "no clock, so the time stays",
+      "text": "{{time}} {{date}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "{{time}} {{date}}",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "random from a list, either syntax, and a die",
+      "text": "{{random::a::b::c}} {{random:x,y}} {{roll:d6}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "random": [
+          0.5,
+          0.0,
+          0.99
+        ]
+      },
+      "text_out": "b x 6",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "dice with a count and a bonus or penalty",
+      "text": "{{roll:2d6+1}} {{roll::3d4-1}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "random": [
+          0.0,
+          0.5,
+          0.25,
+          0.25,
+          0.25
+        ]
+      },
+      "text_out": "6 5",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "no random source, so random and roll stay",
+      "text": "{{random::a::b}} {{roll:d6}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "{{random::a::b}} {{roll:d6}}",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "pick is stable per chat, text and place",
+      "text": "{{pick::a::b::c}} {{pick::a::b::c}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "chat": {
+          "chat_id": "chat-1"
+        }
+      },
+      "text_out": "a c",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "variables set, added, counted and read",
+      "text": "{{setvar::mood::grim}}{{getvar::mood}} {{addvar::hp::5}}{{getvar::hp}} {{incvar::hp}} {{decvar::count}} {{.mood}} {{setglobalvar::seen::1}}{{$seen}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "local": {
+          "hp": "10"
+        }
+      },
+      "text_out": "grim 15 16 -1 grim 1",
+      "local_out": {
+        "hp": "16",
+        "mood": "grim",
+        "count": "-1"
+      },
+      "global_out": {
+        "seen": "1"
+      }
+    },
+    {
+      "name": "addvar joins text that isn't a number",
+      "text": "{{addvar::log::a}}{{addvar::log::b}}{{getvar::log}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "ab",
+      "local_out": {
+        "log": "ab"
+      },
+      "global_out": {}
+    },
+    {
+      "name": "the older single-colon and space spellings",
+      "text": "{{getvar:hp}} {{getvar hp}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "local": {
+          "hp": "3"
+        }
+      },
+      "text_out": "3 3",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "newline, noop, comments, trim, reverse and outlets",
+      "text": "a{{newline}}b{{noop}}{{// a note}}c\n\n{{trim}}\n\nd {{reverse::abc}}{{outlet::x}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        }
+      },
+      "text_out": "a\nbcd cba",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "nested macros, the innermost first",
+      "text": "{{reverse::{{char}}}} {{random::{{char}}::{{user}}}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "random": [
+          0.9
+        ]
+      },
+      "text_out": "adA Sam",
+      "local_out": null,
+      "global_out": null
+    },
+    {
+      "name": "names are case-insensitive",
+      "text": "{{CHAR}} {{Random::a}}",
+      "context": {
+        "names": {
+          "char": "Ada",
+          "user": "Sam"
+        },
+        "random": [
+          0.2
+        ]
+      },
+      "text_out": "Ada a",
+      "local_out": null,
+      "global_out": null
+    }
+  ]
+}

@@ -41,7 +41,9 @@
     "data_documents": 200,
     "safety_items": 50,
     "table_notes": 50,
-    "campaign_list_items": 30
+    "campaign_list_items": 30,
+    "chat_variables": 200,
+    "variable_value_characters": 10000
   },
   "message_roles": [
     "user",
@@ -523,7 +525,8 @@
     "image",
     "voice",
     "search",
-    "embed"
+    "embed",
+    "decide"
   ],
   "sampler_extras": {
     "logit_bias_range": [

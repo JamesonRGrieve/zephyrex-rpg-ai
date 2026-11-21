@@ -82,7 +82,7 @@ export const ENDPOINT_APIS = contract.endpoint_apis as unknown as readonly ['cha
 export const INSTRUCT_CUSTOM = contract.instruct_custom;
 /** AI Horde (A48): where a text job is submitted and polled, and how long to wait. */
 export const HORDE = contract.horde;
-/** What a model can be used for (A27): replies, the GM's voices, summaries, translation, pictures, speech, search, embeddings. */
+/** What a model can be used for (A27): replies, the GM's voices, summaries, translation, pictures, speech, search, embeddings, decisions. */
 export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly [
   'story',
   'gm',
@@ -92,6 +92,7 @@ export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly [
   'voice',
   'search',
   'embed',
+  'decide',
 ];
 /** Web search sources (A42), kept as endpoints serving only the search role (cases in contract/search-cases.json). */
 export const SEARCH_APIS = contract.search_apis as unknown as readonly ['searxng', 'brave'];
