@@ -48,7 +48,7 @@ export async function worldTick(chatId: string, leafId: string, minutes: number,
 
 export interface Clarify {
   question: string;
-  /** Each a choice; `value` is the person's line rewritten with the ambiguity settled. */
+  /** Each a choice: its label names the target, its value is the person's id. */
   options: { label: string; value: string }[];
 }
 
@@ -69,4 +69,17 @@ export async function clarify(chatId: string, leafId: string): Promise<Clarify |
     return typeof label === 'string' && typeof value === 'string' ? [{ label, value }] : [];
   });
   return options.length < 2 ? null : { question, options };
+}
+
+/** The person's actions that named no target, aimed at `target`: `Name act…` → `Name (at Target) act…`. */
+export function aimAt(text: string, seatName: string, target: string): string {
+  if (seatName === '') return text;
+  return text
+    .split('\n')
+    .map((line) => {
+      if (!line.startsWith(`${seatName} `)) return line;
+      const rest = line.slice(seatName.length + 1);
+      return /^[(:]/.test(rest) ? line : `${seatName} (at ${target}) ${rest}`;
+    })
+    .join('\n');
 }

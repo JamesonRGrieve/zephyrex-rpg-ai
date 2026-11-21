@@ -127,7 +127,7 @@ import { ContextPanel } from './ContextPanel';
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments, plainDashes } from '~/features/chat/voiceGuard';
-import { clarify, mapStep, worldTick } from '~/features/chat/mapStep';
+import { aimAt, clarify, mapStep, worldTick } from '~/features/chat/mapStep';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
@@ -992,13 +992,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         );
         const chosen = question.options.find((one) => one.label === picked);
         if (chosen !== undefined) {
+          // The pick names the target: each of the person's actions that named none is aimed at it.
+          const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
           const index = start.swipe_index ?? 0;
-          await update(start, { swipes: start.swipes.map((old, at) => (at === index ? chosen.value : old)) });
-          current = current.map((one) =>
-            one.id === start.id
-              ? { ...one, swipes: start.swipes.map((old, at) => (at === index ? chosen.value : old)) }
-              : one,
-          );
+          const aimed = aimAt(start.swipes[index] ?? '', seatName, chosen.label);
+          const swipes = start.swipes.map((old, at) => (at === index ? aimed : old));
+          await update(start, { swipes });
+          current = current.map((one) => (one.id === start.id ? { ...one, swipes } : one));
         }
       }
       if (!(await rollAfter(start, true))) return;
