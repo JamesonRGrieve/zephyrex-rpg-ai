@@ -34,7 +34,8 @@ def _minutes(time: str) -> int:
 
 def _on_day(slot: Mapping[str, Any], day: int) -> bool:
     days = slot.get("days")
-    return days is None or day % 7 in days
+    # 0 is Monday, and the campaign's day 1 a Monday (the wiki's clock).
+    return days is None or (day - 1) % 7 in days
 
 
 def routine_slot(routine: Sequence[Mapping[str, Any]] | None, clock: Mapping[str, Any]) -> dict[str, Any] | None:

@@ -184,12 +184,12 @@
     {
       "name": "a party voice: the others, its relationships (notes, else the tie's kind), and the shared briefing",
       "speaker": "var",
-      "text": "{{char}} has travelled with this party a long time and knows each of them by name, face and role: Tessaly Kord (A woman with a brass hand.), Ilsa Marrow (A psyker.).\n{{char}} and Tessaly Kord: he pulled her out of the hive fire\n{{char}} and Ilsa Marrow: rival\nWhat the party knows (shared):\nYou are a cell of four, eighteen months aboard the Escapade."
+      "text": "{{char}} has travelled with this party a long time and knows each of them by name, face and role: Tessaly Kord (A woman with a brass hand.), Ilsa Marrow (A psyker.).\n{{char}} and Tessaly Kord: he pulled her out of the hive fire\n{{char}} and Ilsa Marrow: rival\nWhat the party knows (shared):\nYou are a cell of four, eighteen months aboard the Escapade.\nNever invent shared history beyond what is written here."
     },
     {
       "name": "the narrator: everyone, and the briefing",
       "speaker": null,
-      "text": "The party, who know each other well: Tessaly Kord (A woman with a brass hand.), Vardane (The cell's grim leader.), Ilsa Marrow (A psyker.).\nWhat the party knows (shared):\nYou are a cell of four, eighteen months aboard the Escapade."
+      "text": "The party, who know each other well: Tessaly Kord (A woman with a brass hand.), Vardane (The cell's grim leader.), Ilsa Marrow (A psyker.).\nWhat the party knows (shared):\nYou are a cell of four, eighteen months aboard the Escapade.\nNever invent shared history beyond what is written here."
     },
     {
       "name": "a voice outside the party: nothing",

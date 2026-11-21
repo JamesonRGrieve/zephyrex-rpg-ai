@@ -22,7 +22,9 @@ def _names(text: str, name: str) -> bool:
     """Whether a line names a member: their full name or their first name, as a whole word."""
     full = name.strip()
     first = full.split()[0] if full.split() else ""
-    words = [full, *([first] if len(first) >= 3 and first != full else [])]
+    # A title's article is no name: "The Acolyte" is never "The".
+    usable = len(first) >= 3 and first != full and first.lower() not in ("the", "a", "an")
+    words = [full, *([first] if usable else [])]
     return any(
         word and re.search(rf"(^|[^\w]|_){re.escape(word)}($|[^\w]|_)", text, re.IGNORECASE) is not None
         for word in words

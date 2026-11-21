@@ -885,6 +885,28 @@ class TestGenerate:
         # The wordier of the two that may narrate; never the 8b one, however near its traits are.
         assert RECEIVED[-1]["body"]["model"] == "magnum-diamond-24b"
 
+    def test_a_world_tick_moves_the_clock_and_npcs_follow_their_routines(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-21: "the GM/decision agent should pilot them on the map as time advances".
+        user = create_user(server)
+        campaign = _campaign(server, user)
+        bridge = _create(server, user, "location", name="Bridge", kind="building", campaign_id=campaign).json()["location"]
+        galley = _create(server, user, "location", name="Galley", kind="building", campaign_id=campaign).json()["location"]
+        routine = [{"from": "00:00", "to": "23:59", "days": None, "location_id": galley["id"], "activity": "cooking"}]
+        cook = _create(
+            server, user, "person", name="Calloway", kind="npc", campaign_id=campaign, location_id=bridge["id"], routine=routine
+        ).json()["person"]
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        asked = {"world_tick": {"chat_id": chat["id"], "minutes": 30, "reason": "half an hour passes"}}
+        answer = server.post("/v1/ai_chat/world_tick", json=asked, headers=_headers(user))
+        assert answer.status_code == 200, answer.text
+        tick = answer.json()["world_tick"]
+        assert (tick["skipped"], tick["now"]["day"], tick["now"]["time"]) == (False, 1, "08:30")
+        # No decision model: the NPC goes where its routine says.
+        assert tick["moves"] == [{"person_id": cook["id"], "from": bridge["id"], "to": galley["id"]}]
+        assert tick["arrivals"] == []
+
     def test_cut_takes_out_only_the_lines_named(self, server: TestClient) -> None:
         # Audit gap 5: STscript's /cut; the cut lines' replies move up to their parents.
         user = create_user(server)

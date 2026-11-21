@@ -22,7 +22,9 @@ const word = (text: string, needle: string): boolean =>
 const nameForms = (name: string): string[] => {
   const full = name.trim();
   const first = full.split(/\s+/)[0] ?? '';
-  return [full, ...(first.length >= 3 && first !== full ? [first] : [])].filter((form) => form !== '');
+  // A title's article is no name: "The Acolyte" is never "The".
+  const usable = first.length >= 3 && first !== full && !['the', 'a', 'an'].includes(first.toLowerCase());
+  return [full, ...(usable ? [first] : [])].filter((form) => form !== '');
 };
 const isNamed = (said: string, name: string): boolean =>
   nameForms(name).some((form) => form.toLowerCase() === said.trim().toLowerCase());
@@ -30,18 +32,40 @@ const isNamed = (said: string, name: string): boolean =>
 /** A narration's parts in order: the narrator's and each interlude's, the seat's name cutting it there. */
 export function narrateSegments(text: string, cast: readonly { id: string; name: string }[], seat: string): Segment[] {
   const parts: { speaker_id: string | null; lines: string[] }[] = [];
+  const push = (who: string | null, line: string): void => {
+    const last = parts.at(-1);
+    if (last !== undefined && last.speaker_id === who) last.lines.push(line);
+    else parts.push({ speaker_id: who, lines: [line] });
+  };
+  const leads = (line: string, name: string): boolean =>
+    nameForms(name).some((form) => new RegExp(`^\\*\\s*${escaped(form)}($|[^\\p{L}\\p{N}])`, 'iu').test(line));
+  const isSeat = (said: string): boolean => seat.trim() !== '' && isNamed(said, seat);
   let speaker: string | null = null;
   for (const line of text.split('\n')) {
     const trimmed = line.trim();
     if (trimmed.startsWith(PROMPT.interlude_mark)) {
       const said = trimmed.slice(PROMPT.interlude_mark.length).trim();
-      if (seat.trim() !== '' && isNamed(said, seat)) break;
+      if (isSeat(said)) break;
       speaker = cast.find((member) => isNamed(said, member.name))?.id ?? null;
       continue;
     }
-    const last = parts.at(-1);
-    if (last !== undefined && last.speaker_id === speaker) last.lines.push(line);
-    else parts.push({ speaker_id: speaker, lines: [line] });
+    // The play-test: a line in a cast member's name ("The Acolyte: …" or "*The Acolyte …") is theirs too,
+    // for that line; the seat's name cuts the narration there.
+    const tagged = /^([^:\n]{1,60}):\s*(.*)$/u.exec(trimmed);
+    if (tagged !== null && (isSeat(tagged[1] ?? '') || cast.some((member) => isNamed(tagged[1] ?? '', member.name)))) {
+      if (isSeat(tagged[1] ?? '')) break;
+      push(cast.find((member) => isNamed(tagged[1] ?? '', member.name))?.id ?? null, tagged[2] ?? '');
+      continue;
+    }
+    if (trimmed.startsWith('*')) {
+      if (seat.trim() !== '' && leads(trimmed, seat)) break;
+      const actor = cast.find((member) => leads(trimmed, member.name));
+      if (actor !== undefined) {
+        push(actor.id, line);
+        continue;
+      }
+    }
+    push(speaker, line);
   }
   const segments: Segment[] = [];
   for (const part of parts) {

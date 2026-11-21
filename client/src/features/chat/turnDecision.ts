@@ -45,7 +45,9 @@ function escaped(text: string): string {
 function names(text: string, name: string): boolean {
   const full = name.trim();
   const first = full.split(/\s+/)[0] ?? '';
-  return [full, ...(first.length >= 3 && first !== full ? [first] : [])].some(
+  // A title's article is no name: "The Acolyte" is never "The".
+  const usable = first.length >= 3 && first !== full && !['the', 'a', 'an'].includes(first.toLowerCase());
+  return [full, ...(usable ? [first] : [])].some(
     (word) => word !== '' && new RegExp(`(^|[^\\p{L}\\p{N}])${escaped(word)}($|[^\\p{L}\\p{N}])`, 'iu').test(text),
   );
 }

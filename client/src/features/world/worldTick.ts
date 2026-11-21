@@ -20,7 +20,7 @@ export interface Clock {
 export interface RoutineSlot {
   from: string;
   to: string;
-  /** Days of the week (day % 7) it runs on; every day when absent or null. */
+  /** Days of the week it runs on, 0 Monday (the wiki's; day 1 is a Monday); every day when absent or null. */
   days?: readonly number[] | null;
   location_id: string | null;
   activity?: string;
@@ -62,7 +62,7 @@ const minutes = (time: string): number => {
 };
 
 const onDay = (slot: RoutineSlot, day: number): boolean =>
-  slot.days === undefined || slot.days === null || slot.days.includes(((day % 7) + 7) % 7);
+  slot.days === undefined || slot.days === null || slot.days.includes((((day - 1) % 7) + 7) % 7);
 
 /** The routine slot running at a time: the first that holds it (an overnight slot counts from its start day). */
 export function routineSlot(routine: readonly RoutineSlot[] | null | undefined, clock: Clock): RoutineSlot | null {

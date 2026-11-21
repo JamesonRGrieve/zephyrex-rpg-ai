@@ -118,7 +118,7 @@
     "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}}, and stop where {{user}} would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.",
     "cast_heading": "The characters:",
     "group_max_tokens": 350,
-    "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. You may give any other character a moment in their own voice, only as an interlude: a line with only @@ and their name (e.g. @@{{example}}), then their words and actions as they would say and do them, then a line @@Narrator before your narration goes on. Outside an interlude, never write what they say, think or decide. The characters you may voice: {{names}}.",
+    "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. You may give any other character a moment in their own voice, only as an interlude: a line with only @@ and their name (e.g. @@{{example}}), then their words and actions in the third person, as they would say and do them, then a line @@Narrator before your narration goes on. Outside an interlude, never write what they say, think or decide. The characters you may voice: {{names}}.",
     "narrate_open": "You never write dialogue, thoughts, decisions or actions for anyone at the table. Describe them only as others see them, and stop the moment one would act or speak.",
     "interlude_mark": "@@",
     "narrator_mark": "Narrator",
@@ -832,6 +832,7 @@
     "narrator": "The party, who know each other well: {{members}}.",
     "relationship": "{{char}} and {{name}}: {{note}}",
     "briefing_heading": "What the party knows (shared):",
+    "no_invention": "Never invent shared history beyond what is written here.",
     "briefing_names": ["player briefing", "who you are", "handout", "cover story"]
   },
   "voice_guard": {

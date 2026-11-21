@@ -26,7 +26,9 @@ def _word(text: str, needle: str) -> bool:
 def _forms(name: str) -> list[str]:
     full = name.strip()
     first = full.split()[0] if full.split() else ""
-    return [form for form in [full, *([first] if len(first) >= 3 and first != full else [])] if form]
+    # A title's article is no name: "The Acolyte" is never "The".
+    usable = len(first) >= 3 and first != full and first.lower() not in ("the", "a", "an")
+    return [form for form in [full, *([first] if usable else [])] if form]
 
 
 def _is_named(said: str, name: str) -> bool:
@@ -36,20 +38,48 @@ def _is_named(said: str, name: str) -> bool:
 def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) -> list[dict[str, Any]]:
     """A narration's parts in order: the narrator's and each interlude's, the seat's name cutting it there."""
     parts: list[dict[str, Any]] = []
+
+    def push(who: str | None, line: str) -> None:
+        if parts and parts[-1]["speaker_id"] == who:
+            parts[-1]["lines"].append(line)
+        else:
+            parts.append({"speaker_id": who, "lines": [line]})
+
+    def leads(line: str, name: str) -> bool:
+        return any(re.match(rf"\*\s*{re.escape(form)}(?![^\W_])", line, re.IGNORECASE) for form in _forms(name))
+
+    def is_seat(said: str) -> bool:
+        return bool(seat.strip()) and _is_named(said, seat)
+
+    def member_of(said: str) -> str | None:
+        return next((str(member["id"]) for member in cast if _is_named(said, str(member["name"]))), None)
+
     speaker: str | None = None
     mark = str(PROMPT["interlude_mark"])
     for line in text.split("\n"):
         trimmed = line.strip()
         if trimmed.startswith(mark):
             said = trimmed[len(mark) :].strip()
-            if seat.strip() and _is_named(said, seat):
+            if is_seat(said):
                 break
-            speaker = next((str(member["id"]) for member in cast if _is_named(said, str(member["name"]))), None)
+            speaker = member_of(said)
             continue
-        if parts and parts[-1]["speaker_id"] == speaker:
-            parts[-1]["lines"].append(line)
-        else:
-            parts.append({"speaker_id": speaker, "lines": [line]})
+        # The play-test: a line in a cast member's name ("The Acolyte: ..." or "*The Acolyte ...") is theirs
+        # too, for that line; the seat's name cuts the narration there.
+        tagged = re.match(r"([^:\n]{1,60}):\s*(.*)$", trimmed)
+        if tagged is not None and (is_seat(tagged.group(1)) or member_of(tagged.group(1)) is not None):
+            if is_seat(tagged.group(1)):
+                break
+            push(member_of(tagged.group(1)), tagged.group(2))
+            continue
+        if trimmed.startswith("*"):
+            if seat.strip() and leads(trimmed, seat):
+                break
+            actor = next((str(member["id"]) for member in cast if leads(trimmed, str(member["name"]))), None)
+            if actor is not None:
+                push(actor, line)
+                continue
+        push(speaker, line)
     segments: list[dict[str, Any]] = []
     for part in parts:
         body = "\n".join(part["lines"]).strip()

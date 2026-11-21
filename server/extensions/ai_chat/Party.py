@@ -91,4 +91,6 @@ def party_text(
                 lines.append(PARTY["relationship"].replace("{{name}}", other["name"]).replace("{{note}}", note))
     if briefing:
         lines.append("\n".join([PARTY["briefing_heading"], *briefing]))
+    # The play-test: a party voice made up months of shared work the scenario never gave them.
+    lines.append(PARTY["no_invention"])
     return "\n".join(lines)

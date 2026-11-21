@@ -75,6 +75,85 @@
           "text": "Vardane turns to you."
         }
       ]
+    },
+    {
+      "name": "the e2e's miss: a line in a cast member's name, and an action led by one, are theirs for that line",
+      "seat": "Rask",
+      "cast": [
+        {
+          "id": "aco",
+          "name": "The Acolyte"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        }
+      ],
+      "text": "The hold shudders.\nThe Acolyte: The Acolyte's eyes widen… 'Chief Petty Officer, you will provide a full report. Immediately.'\nThe lamps gutter.\n*Vardane rises slowly, hand on his blade.*\nThe door seals.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "The hold shudders."
+        },
+        {
+          "speaker_id": "aco",
+          "text": "The Acolyte's eyes widen… 'Chief Petty Officer, you will provide a full report. Immediately.'"
+        },
+        {
+          "speaker_id": null,
+          "text": "The lamps gutter."
+        },
+        {
+          "speaker_id": "var",
+          "text": "*Vardane rises slowly, hand on his blade.*"
+        },
+        {
+          "speaker_id": null,
+          "text": "The door seals."
+        }
+      ]
+    },
+    {
+      "name": "a title's article is no name: \"*The engines\" is the narrator's, not The Acolyte's",
+      "seat": "Rask",
+      "cast": [
+        {
+          "id": "aco",
+          "name": "The Acolyte"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        }
+      ],
+      "text": "*The engines whine.*\nThe deck tilts.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "*The engines whine.*\nThe deck tilts."
+        }
+      ]
+    },
+    {
+      "name": "the seat's own line in its name cuts there",
+      "seat": "Rask",
+      "cast": [
+        {
+          "id": "aco",
+          "name": "The Acolyte"
+        },
+        {
+          "id": "var",
+          "name": "Vardane"
+        }
+      ],
+      "text": "Vardane looks over.\nRask: I say nothing.\nMore.",
+      "segments": [
+        {
+          "speaker_id": null,
+          "text": "Vardane looks over."
+        }
+      ]
     }
   ],
   "speaks_cases": [

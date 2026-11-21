@@ -134,7 +134,9 @@ from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-no
     turn_state,
 )
 from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
+    advance_clock,
     campaign_documents,
+    move_person,
     persons_for,
     test_options,
 )
@@ -146,6 +148,12 @@ from zephyrex.extensions.ai_chat.WorldCast import (  # type: ignore[import-not-f
 from zephyrex.extensions.ai_chat.WorldLore import (  # type: ignore[import-not-found]
     wiki_campaign_of,
     world_lore_entries,
+)
+from zephyrex.extensions.ai_chat.WorldTick import (  # type: ignore[import-not-found]
+    arrivals,
+    tick_moves,
+    tick_questions,
+    tick_state,
 )
 from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[import-not-found]
     ChatLoreStateManager,
@@ -1749,6 +1757,33 @@ class NeedsRollEnvelope(PlainModel):
     needs_roll: NeedsRoll
 
 
+class WorldTickRequest(PlainModel):
+    """In-world time passes and NPCs go about their routines (the operator, 2026-11-21)."""
+
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+    minutes: int = Field(..., ge=1, le=525_600)
+    reason: str = Field("", max_length=200)
+
+
+class WorldTickRequestEnvelope(PlainModel):
+    world_tick: WorldTickRequest
+
+
+class WorldTick(PlainModel):
+    #: True (and nothing moved) without a wiki campaign, or for anyone but its GM.
+    skipped: bool
+    reason: str | None = None
+    now: dict[str, Any] | None = None
+    moves: list[dict[str, Any]] = Field(default_factory=list)
+    #: Who came into the party's scene, for the caller to narrate.
+    arrivals: list[str] = Field(default_factory=list)
+
+
+class WorldTickEnvelope(PlainModel):
+    world_tick: WorldTick
+
+
 class CutRequest(PlainModel):
     """STscript's /cut (audit gap 5): the messages to take out, all of one chat."""
 
@@ -2566,6 +2601,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 "" if body.mode == "impersonate" else speaker_name,
                 [character["name"] for character in cast],
                 persona["name"] if persona is not None else DEFAULT_USER_NAME,
+                # The most recent speakers first, for the four stops there are.
+                [
+                    character["name"]
+                    for turn in reversed(history)
+                    if turn["role"] == "character"
+                    for character in cast
+                    if character["id"] == turn["speaker_character_id"]
+                ],
             )
             sampler = {**sampler, "stop": list(dict.fromkeys([*sampler["stop"], *stops]))}
             # In proportion (the operator's play-test): a group turn or the narrator's is short.
@@ -3216,6 +3259,115 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 formula=pick.get("formula"),
                 label=pick.get("label"),
             )
+        )
+
+    @custom_route(
+        method="POST",
+        path="/world_tick",
+        input_model=WorldTickRequestEnvelope,
+        output_model=WorldTickEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="In-world time passes: the wiki clock moves on and NPCs go where routine and motive take them",
+    )
+    async def world_tick_route(self, body: WorldTickRequestEnvelope) -> WorldTickEnvelope:
+        asked = body.world_tick
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        if wiki is None:
+            return WorldTickEnvelope(world_tick=WorldTick(skipped=True, reason="no wiki campaign"))
+        requester = str(self.requester.id)
+        reason = asked.reason.strip() or "time passes"
+        clock = await advance_clock(self.model_registry, requester, wiki, asked.minutes, reason)
+        if clock is None:
+            return WorldTickEnvelope(world_tick=WorldTick(skipped=True, reason="only the GM moves the clock"))
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, _marks = play_context(requester, self.model_registry, chat.id)
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id, mode="narrate"), save_timers=False
+        )
+        world = context["world"]
+        story = set(PROMPT["story_channels"])
+        story_turns = [
+            turn
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        locations = [
+            {
+                "id": entity["id"],
+                "name": entity["name"],
+                "parent_id": entity.get("parent_id"),
+                "aliases": list(entity.get("aliases") or []),
+            }
+            for entity in world
+            if entity.get("kind") == "location" and not entity.get("deleted")
+        ]
+        at = scene_location([{"text": turn["content"], "channel": "story"} for turn in story_turns], locations)
+        reach = present_cast(
+            context["cast"],
+            {
+                "tokens": None,
+                "scene_location": at,
+                "location_parents": {location["id"]: location["parent_id"] for location in locations},
+                "person_locations": {
+                    entity["id"]: entity.get("location_id") for entity in world if entity.get("kind") == "person"
+                },
+                "recent": [
+                    {
+                        "speaker_id": playing_id
+                        if turn["role"] == "user"
+                        else turn["speaker_character_id"]
+                        if turn["role"] == "character"
+                        else None,
+                        "text": turn["content"],
+                    }
+                    for turn in story_turns
+                ],
+                "vox": chat.vox_ids or [],
+            },
+        )
+        # The party travels with the person; those in the scene stay; the seat is the person's.
+        still = [
+            *reach["present"],
+            *[one["id"] for one in party_of(world, chat.character_ids or [], playing_id)],
+            *([playing_id] if playing_id is not None else []),
+        ]
+        persons = [
+            {
+                "id": entity["id"],
+                "name": entity["name"],
+                "location_id": entity.get("location_id"),
+                "routine": entity.get("routine"),
+                "motivations": entity.get("motivations"),
+            }
+            for entity in world
+            if entity.get("kind") == "person" and not entity.get("deleted")
+        ]
+        questions, picks, fallbacks = tick_questions(persons, locations, clock, still)
+        answers = None
+        deciding = self._decider() if questions else None
+        if deciding is not None:
+            place = next((location["name"] for location in locations if location["id"] == at), None)
+            answers = await ask_decider(
+                deciding.base_url,
+                deciding.model,
+                decrypt_secret(deciding.api_key) if deciding.api_key else "",
+                tick_state(clock, place),
+                questions,
+                getattr(deciding, "extra_body", None),
+            )
+        moves = [
+            move
+            for move in tick_moves(answers, picks, fallbacks, persons)
+            if await move_person(self.model_registry, requester, str(move["person_id"]), str(move["to"]), reason)
+        ]
+        return WorldTickEnvelope(
+            world_tick=WorldTick(skipped=False, now=clock, moves=moves, arrivals=arrivals(moves, at, locations))
         )
 
     @custom_route(

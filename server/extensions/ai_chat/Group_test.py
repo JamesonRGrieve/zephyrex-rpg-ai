@@ -13,4 +13,5 @@ CASES: dict[str, Any] = json.loads((REPOSITORY_ROOT / "contract" / "group-cases.
 
 @pytest.mark.parametrize("case", CASES["cases"], ids=lambda case: case["name"])
 def test_stops(case: dict[str, Any]) -> None:
-    assert group_stops(case["mode"], case["speaker"], case["cast"], case["person"]) == case["stops"]
+    stops = group_stops(case["mode"], case["speaker"], case["cast"], case["person"], case.get("recent", []))
+    assert stops == case["stops"]

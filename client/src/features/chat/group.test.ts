@@ -5,6 +5,7 @@ import { type GuardMode, groupStops } from './group';
 
 describe('group stop strings (contract/group-cases.json)', () => {
   it.each(cases.cases)('$name', (one) => {
-    expect(groupStops(one.mode as GuardMode, one.speaker, one.cast, one.person)).toEqual(one.stops);
+    const recent = 'recent' in one ? (one.recent as string[]) : [];
+    expect(groupStops(one.mode as GuardMode, one.speaker, one.cast, one.person, recent)).toEqual(one.stops);
   });
 });

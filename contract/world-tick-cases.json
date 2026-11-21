@@ -115,9 +115,9 @@
       "location_id": "hab"
     },
     {
-      "name": "a slot on its day of the week comes first",
+      "name": "a slot on its day of the week comes first (0 is Monday, day 1 a Monday: day 9 is a Tuesday)",
       "clock": {
-        "day": 8,
+        "day": 9,
         "time": "09:00"
       },
       "location_id": "bay2"
@@ -125,7 +125,7 @@
     {
       "name": "off its day, the everyday slot",
       "clock": {
-        "day": 9,
+        "day": 10,
         "time": "09:00"
       },
       "location_id": "bridge"

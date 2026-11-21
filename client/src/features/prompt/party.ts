@@ -103,5 +103,7 @@ export function partyText(
     }
   }
   if (briefing.length > 0) lines.push([PARTY.briefing_heading, ...briefing].join('\n'));
+  // The play-test: a party voice made up months of shared work the scenario never gave them.
+  lines.push(PARTY.no_invention);
   return lines.join('\n');
 }

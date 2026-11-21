@@ -41,6 +41,15 @@ import { genMessages } from '~/features/prompt/gen';
 import { rollPick, rollQuestions } from '~/features/chat/rollDecision';
 import { partyBriefing, partyOf, partyText } from '~/features/prompt/party';
 import {
+  type Move,
+  type RoutineSlot,
+  type TickPerson,
+  arrivals,
+  tickMoves,
+  tickQuestions,
+  tickState,
+} from '~/features/world/worldTick';
+import {
   type NarratorStyle,
   type StyleEndpoint,
   type Traits,
@@ -394,6 +403,14 @@ export async function generationInputs(
                 body.mode === 'impersonate' ? '' : speakerName,
                 aiCharacters.map((character) => character.name),
                 persona?.name ?? DEFAULT_USER_NAME,
+                // The most recent speakers first, for the four stops there are.
+                [...history]
+                  .reverse()
+                  .flatMap((turn) =>
+                    turn.role === 'character'
+                      ? aiCharacters.filter((one) => one.id === turn.speaker_character_id).map((one) => one.name)
+                      : [],
+                  ),
               ),
             ]),
           ],
@@ -1154,6 +1171,121 @@ export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
         ...(pick.kind === 'test' ? { name: pick.name, difficulty: pick.difficulty } : {}),
         ...(pick.kind === 'formula' ? { formula: pick.formula } : {}),
       },
+    });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+const worldTickRequest = z.object({
+  chat_id: z.string().min(1),
+  leaf_id: z.string().min(1).nullable().default(null),
+  minutes: z.number().int().min(1).max(525_600),
+  reason: z.string().max(200).default(''),
+});
+
+/**
+ * `POST /v1/ai_chat/world_tick` (the operator, 2026-11-21: "Each character should have its own routine
+ * and motivations and the GM/decision agent should pilot them on the map as time advances"). The
+ * wiki campaign's clock moves on by `minutes` (the GM's alone: for anyone else nothing happens), then
+ * each NPC not in the scene, not of the party and not the seat goes where the decision model picks
+ * among real places (features/world/worldTick.ts), else where its routine says, through the wiki's
+ * person moves. Request `{ "world_tick": { "chat_id", "leaf_id", "minutes", "reason" } }`; answer
+ * `{ "world_tick": { "skipped", "reason", "now", "moves", "arrivals" } }`: arrivals came into the
+ * party's scene, for the caller to narrate.
+ */
+export async function worldTick(nextRequest: NextRequest): Promise<Response> {
+  const skipped = (reason: string) =>
+    Response.json({ world_tick: { skipped: true, reason, now: null, moves: [], arrivals: [] } });
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = worldTickRequest.safeParse(Reflect.get(envelope, 'world_tick'));
+    if (!parsed.success) throw validationError('A world_tick object with a chat_id and minutes is required', 'world_tick');
+    const asked = parsed.data;
+    const chat = await chats.find(asked.chat_id, owner.id);
+    if (chat === null) throw notFound(chats.modelName);
+    const fields = chats.fields(chat) as { campaign_id: string | null; character_ids: string[]; vox_ids: string[] };
+    const frameRow =
+      fields.campaign_id === null
+        ? null
+        : await prisma.campaignFrame.findFirst({ where: { id: fields.campaign_id, createdById: owner.id } });
+    const wikiCampaign = wikiCampaignOf(
+      fields.campaign_id,
+      new Map(frameRow === null ? [] : [[frameRow.id, frameRow.wikiCampaignId]]),
+    );
+    if (wikiCampaign === null) return skipped('no wiki campaign');
+    const reader = wikiReader(nextRequest);
+    const reason = asked.reason.trim() || 'time passes';
+    const clock = await reader.advanceClock(wikiCampaign, asked.minutes, reason);
+    if (clock === null) return skipped('only the GM moves the clock');
+    const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+    const playingId = play?.playingId ?? null;
+    const { prompt, world } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'narrate', endpoint_id: null, forbid: null },
+      Math.random,
+      'reply',
+      reader,
+    );
+    const story = new Set<string>(PROMPT.story_channels);
+    const storyTurns = prompt.history.filter(
+      (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
+    );
+    const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
+    const locations = world
+      .filter((entity) => entity.kind === 'location' && entity.deleted !== true)
+      .map((entity) => ({
+        id: entity.id,
+        name: entity.name,
+        parent_id: (field(entity, 'parent_id') as string | null | undefined) ?? null,
+        aliases: [...((field(entity, 'aliases') as string[] | undefined) ?? [])],
+      }));
+    const at = sceneLocation(
+      storyTurns.map((turn) => ({ text: turn.content, channel: 'story' })),
+      locations,
+    );
+    const { present } = presentCast(prompt.characters, {
+      tokens: null,
+      scene_location: at,
+      location_parents: Object.fromEntries(locations.map((location) => [location.id, location.parent_id])),
+      person_locations: Object.fromEntries(
+        world
+          .filter((entity) => entity.kind === 'person')
+          .map((entity) => [entity.id, (field(entity, 'location_id') as string | null | undefined) ?? null]),
+      ),
+      recent: storyTurns.map((turn) => ({
+        speaker_id: turn.role === 'user' ? playingId : turn.role === 'character' ? turn.speaker_character_id : null,
+        text: turn.content,
+      })),
+      vox: fields.vox_ids,
+    });
+    // The party travels with the person; those in the scene stay; the seat is the person's.
+    const still = [
+      ...present,
+      ...partyOf(world, fields.character_ids, playingId).map((one) => one.id),
+      ...(playingId === null ? [] : [playingId]),
+    ];
+    const persons: TickPerson[] = world
+      .filter((entity) => entity.kind === 'person' && entity.deleted !== true)
+      .map((entity) => ({
+        id: entity.id,
+        name: entity.name,
+        location_id: (field(entity, 'location_id') as string | null | undefined) ?? null,
+        routine: (field(entity, 'routine') as RoutineSlot[] | null | undefined) ?? null,
+        motivations: (field(entity, 'motivations') as string[] | null | undefined) ?? null,
+      }));
+    const { questions, picks, fallbacks } = tickQuestions(persons, locations, clock, still);
+    const deciding = Object.keys(questions).length === 0 ? null : await decider(owner.id);
+    const place = locations.find((location) => location.id === at)?.name ?? null;
+    const answers =
+      deciding === null ? null : await askDecider(deciding, tickState(clock, place), questions, nextRequest.signal);
+    const moves: Move[] = [];
+    for (const move of tickMoves(answers, picks, fallbacks, persons)) {
+      if (await reader.movePerson(move.person_id, move.to, reason)) moves.push(move);
+    }
+    return Response.json({
+      world_tick: { skipped: false, reason: null, now: clock, moves, arrivals: arrivals(moves, at, locations) },
     });
   } catch (error) {
     return apiErrorResponse(error);

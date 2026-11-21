@@ -48,7 +48,7 @@
       ]
     },
     {
-      "name": "the GM narrating: stops only at the person's seat (the cast it may voice in @@ interludes)",
+      "name": "the GM narrating: the seat's interlude and line, then the cast's lines (it voices them only in @@ interludes)",
       "mode": "narrate",
       "speaker": "",
       "cast": [
@@ -59,7 +59,8 @@
       "stops": [
         "\n@@Massen",
         "\nMassen:",
-        "\n*Massen"
+        "\nGus Veridan:",
+        "\nA.Z.:"
       ]
     },
     {
@@ -109,7 +110,7 @@
       ]
     },
     {
-      "name": "narrating with a seat of two names: its interlude, its line, and its first name's forms",
+      "name": "narrating with a seat of two names: its interlude and line, then the cast's",
       "mode": "narrate",
       "speaker": "",
       "cast": [
@@ -120,8 +121,29 @@
       "stops": [
         "\n@@Tessaly Kord",
         "\nTessaly Kord:",
-        "\n*Tessaly",
-        "\n@@Tessaly"
+        "\nVardane:",
+        "\nKord:"
+      ]
+    },
+    {
+      "name": "the most recent speakers' lines come first, within the four",
+      "mode": "narrate",
+      "speaker": "",
+      "cast": [
+        "Vardane",
+        "Kord",
+        "The Acolyte"
+      ],
+      "person": "Tessaly Kord",
+      "recent": [
+        "The Acolyte",
+        "Kord"
+      ],
+      "stops": [
+        "\n@@Tessaly Kord",
+        "\nTessaly Kord:",
+        "\nThe Acolyte:",
+        "\nKord:"
       ]
     }
   ]

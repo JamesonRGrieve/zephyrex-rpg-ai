@@ -18,6 +18,17 @@ export interface WorldReader {
   byIds: (ids: readonly string[]) => Promise<CastEntity[]>;
   /** A campaign's documents for the data bank (mapping item 4; GET /api/v1/campaign_document). */
   documents: (campaignId: string) => Promise<WikiDocument[]>;
+  /** The campaign's clock advanced (GM only; POST /api/v1/campaign/{id}/clock), or null when refused. */
+  advanceClock: (campaignId: string, minutes: number, reason: string) => Promise<WikiClock | null>;
+  /** A person moved (GM only; POST /api/v1/person_move); false when refused. */
+  movePerson: (personId: string, locationId: string, reason: string) => Promise<boolean>;
+}
+
+/** The wiki's campaign clock: minutes from day 1, 00:00, as its day and "HH:MM". */
+export interface WikiClock {
+  minutes: number;
+  day: number;
+  time: string;
 }
 
 export interface WikiDocument {
@@ -27,7 +38,13 @@ export interface WikiDocument {
   text: string;
 }
 
-export const NO_WORLD: WorldReader = { campaign: async () => [], byIds: async () => [], documents: async () => [] };
+export const NO_WORLD: WorldReader = {
+  campaign: async () => [],
+  byIds: async () => [],
+  documents: async () => [],
+  advanceClock: async () => null,
+  movePerson: async () => false,
+};
 
 /** A reader that asks this app's own wiki resource, with the request's cookies (the caller's access). */
 export function wikiReader(request: Request): WorldReader {
@@ -74,5 +91,30 @@ export function wikiReader(request: Request): WorldReader {
     const rows: unknown = Reflect.get(Object(await answer.json().catch(() => null)), 'campaign_documents');
     return Array.isArray(rows) ? (rows as WikiDocument[]) : [];
   };
-  return { campaign, byIds, documents };
+  const post = async (path: string, body: unknown): Promise<unknown> => {
+    const answer = await fetch(`${origin}${path}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(cookie === null ? {} : { cookie }) },
+      body: JSON.stringify(body),
+      signal: request.signal,
+    }).catch(() => null);
+    return answer === null || !answer.ok ? null : answer.json().catch(() => null);
+  };
+  const advanceClock = async (campaignId: string, minutes: number, reason: string): Promise<WikiClock | null> => {
+    const clock: unknown = Reflect.get(
+      Object(await post(`/api/v1/campaign/${encodeURIComponent(campaignId)}/clock`, { clock: { minutes, reason } })),
+      'clock',
+    );
+    const day: unknown = Reflect.get(Object(clock), 'day');
+    const time: unknown = Reflect.get(Object(clock), 'time');
+    const total: unknown = Reflect.get(Object(clock), 'minutes');
+    return typeof day === 'number' && typeof time === 'string' && typeof total === 'number'
+      ? { minutes: total, day, time }
+      : null;
+  };
+  const movePerson = async (personId: string, locationId: string, reason: string): Promise<boolean> =>
+    (await post('/api/v1/person_move', {
+      person_move: { person_id: personId, to_location_id: locationId, reason },
+    })) !== null;
+  return { campaign, byIds, documents, advanceClock, movePerson };
 }

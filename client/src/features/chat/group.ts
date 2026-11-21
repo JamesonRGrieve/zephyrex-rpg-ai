@@ -16,9 +16,16 @@ import cases from '../../../../contract/group-cases.json';
 export type GuardMode = 'reply' | 'continue' | 'impersonate' | 'table' | 'narrate';
 
 /** The stop strings for one turn: `cast` is the AI's characters, `person` who the person speaks as. */
-export function groupStops(mode: GuardMode, speaker: string, cast: readonly string[], person: string): string[] {
+export function groupStops(
+  mode: GuardMode,
+  speaker: string,
+  cast: readonly string[],
+  person: string,
+  recent: readonly string[] = [],
+): string[] {
   if (mode === 'table') return [];
-  const others = cast.filter((name) => name !== speaker);
+  // The most recent speakers first (the play-test: the narrator wrote "The Acolyte: …").
+  const others = [...recent.filter((name) => cast.includes(name)), ...cast].filter((name) => name !== speaker);
   const seat = person.trim();
   const first = seat.split(/\s+/)[0] ?? '';
   // Nobody writes for the person's seat (the operator's play-test): its line-start forms come first.
@@ -27,14 +34,12 @@ export function groupStops(mode: GuardMode, speaker: string, cast: readonly stri
     mode === 'impersonate' || seat === ''
       ? []
       : mode === 'narrate'
-        ? [`\n@@${seat}`, `\n${seat}:`, `\n*${first}`, `\n@@${first}`]
+        ? [`\n@@${seat}`, `\n${seat}:`]
         : [`\n${seat}:`, `\n*${first}`];
-  const castStops =
-    mode === 'narrate'
-      ? []
-      : others
-          .map((name) => name.trim())
-          .filter((name) => name !== '' && name !== speaker && name !== seat)
-          .map((name) => `\n${name}:`);
+  // The narrator voices the cast only in @@ interludes: their "Name:" lines stop it too.
+  const castStops = others
+    .map((name) => name.trim())
+    .filter((name) => name !== '' && name !== speaker && name !== seat)
+    .map((name) => `\n${name}:`);
   return [...new Set([...seatStops, ...castStops])].slice(0, cases.max_stops);
 }

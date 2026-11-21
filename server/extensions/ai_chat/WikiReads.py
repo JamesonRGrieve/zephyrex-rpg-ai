@@ -111,3 +111,35 @@ async def test_options(model_registry: Any, requester_id: str, person_id: str) -
     except HTTPException:
         return None
     return dict(options) if isinstance(options, dict) else None
+
+
+async def _call(ability: Any, *args: Any, **kwargs: Any) -> Any:
+    """An ability's answer, awaited when it's a coroutine; None when it refuses (an HTTPException)."""
+    try:
+        answer = ability(*args, **kwargs)
+        return await answer if inspect.isawaitable(answer) else answer
+    except HTTPException:
+        return None
+
+
+async def advance_clock(
+    model_registry: Any, requester_id: str, campaign_id: str, minutes: int, reason: str
+) -> dict[str, Any] | None:
+    """The wiki campaign's clock moved on (the GM's alone): {minutes, day, time}, or None when refused."""
+    advance = loaded_ability(model_registry, "rpg_core", "advance_clock")
+    if advance is None:
+        return None
+    clock = await _call(advance, model_registry, requester_id, campaign_id, minutes, reason=reason)
+    return dict(clock) if isinstance(clock, dict) and "day" in clock and "time" in clock else None
+
+
+async def move_person(model_registry: Any, requester_id: str, person_id: str, location_id: str, reason: str) -> bool:
+    """A person moved to a real place: by the VTT's pilot_token when it's loaded (its token follows, and it
+    sets the wiki location), else by the wiki's move_person (the GM's alone). False when refused."""
+    pilot = loaded_ability(model_registry, "rpg_scene", "pilot_token")
+    if pilot is not None and await _call(pilot, requester_id, person_id, location_id=location_id) is not None:
+        return True
+    move = loaded_ability(model_registry, "rpg_core", "move_person")
+    if move is None:
+        return False
+    return await _call(move, model_registry, requester_id, person_id, location_id, reason=reason) is not None
