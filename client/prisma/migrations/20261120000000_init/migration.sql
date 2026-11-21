@@ -63,6 +63,7 @@ CREATE TABLE "Chat" (
     "folder" TEXT NOT NULL DEFAULT '',
     "mutedIds" TEXT NOT NULL DEFAULT '[]',
     "voxIds" TEXT NOT NULL DEFAULT '[]',
+    "canonChecks" BOOLEAN NOT NULL DEFAULT true,
     "background" TEXT,
     "objectives" TEXT NOT NULL DEFAULT '[]',
     "contentRating" TEXT,

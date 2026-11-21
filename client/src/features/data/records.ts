@@ -110,6 +110,7 @@ export const chatSchema = z.object({
   folder: z.string(),
   muted_ids: z.array(z.string()),
   vox_ids: z.array(z.string()).default([]),
+  canon_checks: z.boolean().default(true),
   background: z.string().nullable(),
   objectives: z.array(z.object({ text: z.string(), done: z.boolean() })),
   content_rating: z.enum(SAFETY.ratings).nullable(),

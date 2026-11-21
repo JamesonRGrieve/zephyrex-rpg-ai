@@ -1,5 +1,5 @@
 {
-  "$comment": "Canon warnings (docs/DESIGN.md, Canon warnings): the decision model's questions over a line and the canon in reach, and the notice its answers give (red: flagrantly breaks in-universe canon; yellow: likely contravenes established canon). client/src/features/chat/canon.ts and server/extensions/ai_chat/Canon.py run these cases.",
+  "$comment": "Canon warnings (docs/DESIGN.md, Canon warnings): the decision model's questions over a line and the canon in reach, and the notice its answers give (red: flagrantly breaks in-universe canon; yellow: likely contravenes established canon). client/src/features/chat/canon.ts and server/extensions/ai_chat/Canon.py run these cases. A chat's canon_checks (true by default; the operator, 2026-11-21: \"permanently dismiss for this campaign\") turns the warnings off: canon_check answers none, unchecked.",
   "none_option": "none of them",
   "max_facts": 12,
   "fact_characters": 400,

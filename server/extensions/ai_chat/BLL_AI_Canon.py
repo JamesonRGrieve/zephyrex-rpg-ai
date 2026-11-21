@@ -97,7 +97,8 @@ class CanonCheckManager(AbstractBLLManager[Any], RouterMixin):
 
         chat = manager(ChatManager).get(id=asked.chat_id)
         deciding = next((row for row in manager(ModelEndpointManager).list() if "decide" in (row.roles or [])), None)
-        if deciding is None:
+        # A campaign that breaks canon on purpose turns its warnings off (the chat's canon_checks).
+        if deciding is None or getattr(chat, "canon_checks", True) is False:
             return CanonVerdictEnvelope(canon_check=CanonVerdict(level="none", fact=None, reason="", checked=False))
         entries = [
             entry

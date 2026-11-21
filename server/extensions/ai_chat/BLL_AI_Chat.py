@@ -491,6 +491,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     vox_ids: list[str] = Field(
         default_factory=list, description="Cast members on vox: away from the scene, but a line can reach them"
     )
+    canon_checks: bool = Field(True, description="Canon warnings on lines (off for a campaign that breaks canon)")
     background: str | None = Field(None, description="A picture behind the chat (a data URL)")
     objectives: list[dict[str, Any]] = Field(
         default_factory=list, description="Its tasks in order; the first not done is put to the model"
@@ -535,6 +536,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         folder: str = Field("", max_length=MAX_NAME)
         muted_ids: list[str] = Field(default_factory=list)
         vox_ids: list[str] = Field(default_factory=list)
+        canon_checks: bool = True
         background: str | None = None
         objectives: list[dict[str, Any]] = Field(default_factory=list)
         content_rating: str | None = None
@@ -565,6 +567,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         folder: str | None = Field(None, max_length=MAX_NAME)
         muted_ids: list[str] | None = None
         vox_ids: list[str] | None = None
+        canon_checks: bool | None = None
         background: str | None = None
         objectives: list[dict[str, Any]] | None = None
         content_rating: str | None = None
@@ -689,6 +692,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("folder", "")
         kwargs.setdefault("muted_ids", [])
         kwargs.setdefault("vox_ids", [])
+        kwargs.setdefault("canon_checks", True)
         kwargs.setdefault("objectives", [])
         kwargs.setdefault("variables", {})
         kwargs.setdefault("group_settings", {})

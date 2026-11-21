@@ -845,6 +845,23 @@ class TestGenerate:
         stranger = {"needs_roll": {**asked["needs_roll"], "character_id": "nobody"}}
         assert server.post("/v1/ai_chat/needs_roll", json=stranger, headers=_headers(user)).status_code == 422
 
+    def test_canon_warnings_can_be_turned_off_for_a_chat(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-21: "a 'permanently dismiss for this campaign' button for radical looney
+        # toon campaigns". canon_checks is on by default; off, the canon check answers unchecked.
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        made = _chat(server, user, "chat", title="Toons", character_ids=[ada["id"]])
+        assert made.json()["chat"]["canon_checks"] is True
+        turned = _put(server, user, "chat", made.json()["chat"]["id"], made.headers["ETag"], canon_checks=False)
+        assert turned.status_code == 200, turned.text
+        assert turned.json()["chat"]["canon_checks"] is False
+        asked = {"canon_check": {"chat_id": made.json()["chat"]["id"], "text": "The Emperor tap-dances.", "speaker": "Ada"}}
+        verdict = server.post("/v1/canon_check", json=asked, headers=_headers(user))
+        assert verdict.status_code == 200, verdict.text
+        assert verdict.json()["canon_check"] == {"level": "none", "fact": None, "reason": "", "checked": False}
+
     def test_cut_takes_out_only_the_lines_named(self, server: TestClient) -> None:
         # Audit gap 5: STscript's /cut; the cut lines' replies move up to their parents.
         user = create_user(server)

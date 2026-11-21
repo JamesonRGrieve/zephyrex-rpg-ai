@@ -86,6 +86,8 @@ model Chat {
   mutedIds     String   @default("[]")
   /// Cast members on vox: away from the scene, but a line can reach them (decided turns); a JSON list.
   voxIds       String   @default("[]")
+  /// Canon warnings on lines; off for a campaign that breaks canon on purpose.
+  canonChecks  Boolean  @default(true)
   background   String?
   objectives   String   @default("[]")
   contentRating String?

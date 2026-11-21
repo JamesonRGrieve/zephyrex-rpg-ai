@@ -64,6 +64,8 @@ export async function canonCheck(nextRequest: NextRequest): Promise<Response> {
     const unchecked = Response.json({ canon_check: { level: 'none', fact: null, reason: '', checked: false } });
     const chat = await prisma.chat.findFirst({ where: { id: asked.chat_id, createdById: owner.id } });
     if (chat === null) throw validationError('That chat is not one of yours', 'chat_id');
+    // A campaign that breaks canon on purpose turns its warnings off (the chat's canon_checks).
+    if (!chat.canonChecks) return unchecked;
     const deciding = await decider(owner.id);
     if (deciding === null) return unchecked;
     const bookIds = parseList(chat.lorebookIds);

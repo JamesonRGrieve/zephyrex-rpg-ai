@@ -291,6 +291,7 @@ const CHAT_COLUMNS: Columns = {
   folder: plain('folder'),
   muted_ids: jsonList('mutedIds'),
   vox_ids: jsonList('voxIds'),
+  canon_checks: plain('canonChecks'),
   background: plain('background'),
   objectives: jsonList('objectives'),
   content_rating: plain('contentRating'),
@@ -345,6 +346,8 @@ const chatFields = {
   muted_ids: z.array(recordId).max(LIMITS.characters_per_chat),
   /** Cast members on vox: away from the scene, but a line can reach them (decided turns). */
   vox_ids: z.array(recordId).max(LIMITS.characters_per_chat),
+  /** Canon warnings on lines; off for a campaign that breaks canon on purpose. */
+  canon_checks: z.boolean(),
   /** A picture behind the chat (A31), a data URL as an avatar is. */
   background: avatar,
   /** The chat's tasks, in order (A53); the first not done is put to the model. */
@@ -401,6 +404,7 @@ const chatCreate = z.object({
   folder: chatFields.folder.default(''),
   muted_ids: chatFields.muted_ids.default([]),
   vox_ids: chatFields.vox_ids.default([]),
+  canon_checks: chatFields.canon_checks.default(true),
   background: avatar.default(null),
   objectives: chatFields.objectives.default([]),
   content_rating: chatFields.content_rating.default(null),
