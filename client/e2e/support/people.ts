@@ -58,8 +58,8 @@ export async function signIn(page: Page, email: string = freshEmail()): Promise<
   await page.getByPlaceholder('your@example.com').fill(email);
   await page.getByRole('button', { name: 'Continue with Email' }).click();
   await page.goto(await newestLink(email, before));
-  // Signing in lands on the chats (zephyrex.config auth.home).
+  // Signing in lands on the campaigns (zephyrex.config auth.home).
   await page.waitForURL((url) => url.pathname === '/play');
-  await expect(page.getByRole('heading', { level: 1, name: 'Your chats' })).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: 'Your campaigns' })).toBeVisible();
   return email;
 }

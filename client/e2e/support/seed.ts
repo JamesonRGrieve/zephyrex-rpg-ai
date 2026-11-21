@@ -11,7 +11,11 @@ import type { Page } from '@playwright/test';
  * Playwright's page.request doesn't send a Secure cookie over http, so on a hosted build at
  * 127.0.0.1 (where the browser itself accepts one) it answered 401 while the page was signed in.
  */
-async function post(page: Page, resource: string, fields: Record<string, unknown>): Promise<{ id: string }> {
+export async function post(
+  page: Page,
+  resource: string,
+  fields: Record<string, unknown>,
+): Promise<{ id: string }> {
   if (!page.url().startsWith('http')) await page.goto('/play');
   const answer = await page.evaluate(
     async ({ resource, fields }) => {

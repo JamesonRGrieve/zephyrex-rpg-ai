@@ -8,16 +8,13 @@
 import { expect, type Page, test } from '@playwright/test';
 import { MODEL_URL } from '../playwright.config';
 import { isHosted, signIn } from './support/people';
+// The page's own fetch: on a hosted build the session cookie and CSRF token go with it.
+import { post } from './support/seed';
 
 test.beforeEach(async ({ page }, testInfo) => {
   if (isHosted(testInfo)) await signIn(page);
 });
 
-async function post<T>(page: Page, path: string, body: object): Promise<T> {
-  const answer = await page.request.post(`/api/v1/${path}`, { data: { [path]: body } });
-  expect(answer.ok(), `${path}: ${await answer.text()}`).toBe(true);
-  return (await answer.json())[path] as T;
-}
 
 async function seat(page: Page, name: string | null): Promise<void> {
   await page.getByRole('button', { name: /^Your seat:/ }).click();
@@ -44,7 +41,7 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
   });
   for (const name of ['Gus Veridan', 'A.Z.']) await post(page, 'character', { name, tags: ['PC'], folder: 'The Cell' });
   await post(page, 'character', { name: 'Massen', tags: ['NPC'], folder: 'Solenne' });
-  const frame = await post<{ id: string }>(page, 'campaign_frame', {
+  const frame = await post(page, 'campaign_frame', {
     name: 'Solenne',
     premise: 'Acolytes on a quiet moon.',
   });

@@ -60,6 +60,26 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
     chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${id}`)), 'chat'));
 
   /**
+   * Writes the chat from its saved state. A reply still being saved (the round before) can move
+   * the version on between the read and the write, and the write is refused (412): read again and
+   * re-apply, a few times. The change is computed from the fresh chat each time, so it is idempotent.
+   */
+  const writeChat = async (
+    id: string,
+    change: (current: Chat) => Parameters<typeof updateChat>[1],
+  ): Promise<void> => {
+    for (let attempt = 1; ; attempt += 1) {
+      const current = await freshChat(id);
+      try {
+        await updateChat(current, change(current));
+        return;
+      } catch (error) {
+        if (attempt >= 3) throw error;
+      }
+    }
+  };
+
+  /**
    * Takes a seat. An NPC taken over joins the party while played: when the seat moves off a
    * character who isn't a party member (`isPartyMember`, the PC tag), they leave it again.
    */
@@ -67,17 +87,18 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
     if (play === null) return;
     const previous = play.playing_id;
     await updatePlay(play, { playing_id: next });
-    const current = await freshChat();
     const leaving = previous !== null && previous !== next && !isPartyMember(previous) ? previous : null;
-    const kept = current.character_ids.filter((id) => id !== leaving);
-    const joins = next !== null && !kept.includes(next);
-    const cast = joins ? [...kept, next] : kept;
     // One write to the chat: the seat, and who is in the party now.
-    await updateChat(current, {
-      seat: next === null ? 'gm' : 'player',
-      ...(cast.length === current.character_ids.length && !joins
-        ? {}
-        : { character_ids: cast, mode: cast.length > 1 ? ('group' as const) : ('character' as const) }),
+    await writeChat(chat.id, (current) => {
+      const kept = current.character_ids.filter((id) => id !== leaving);
+      const joins = next !== null && !kept.includes(next);
+      const cast = joins ? [...kept, next] : kept;
+      return {
+        seat: next === null ? 'gm' : 'player',
+        ...(cast.length === current.character_ids.length && !joins
+          ? {}
+          : { character_ids: cast, mode: cast.length > 1 ? ('group' as const) : ('character' as const) }),
+      };
     });
   };
 
@@ -167,7 +188,7 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
     if (kept.length === 0)
       await createSession({ chat_id: copy.id, number: 1, start_message_id: ids.get(upTo[0]?.id ?? '') ?? '' });
     if (copyingCast.length !== chat.character_ids.length)
-      await updateChat(await freshChat(copy.id), { character_ids: chat.character_ids, mode: chat.mode });
+      await writeChat(copy.id, () => ({ character_ids: chat.character_ids, mode: chat.mode }));
     return copy.id;
   };
 
