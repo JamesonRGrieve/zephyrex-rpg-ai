@@ -13,6 +13,9 @@ export default defineConfig({
     maxWorkers: '100%',
     globals: true,
     exclude: ['**/node_modules/**', '.next/**', 'e2e/**', 'tests/**', '**/*.stories.{ts,tsx}'],
+    // The framework is inlined, so this app's module mocks reach the framework code that imports them.
+    // Vitest tests a RegExp against the module's full path.
+    server: { deps: { inline: ['zephyrex', /\/node_modules\/@zephyrex\//] } },
   },
   resolve: {
     alias: {
