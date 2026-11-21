@@ -126,7 +126,7 @@ import { SheetPanel } from './SheetPanel';
 import { ContextPanel } from './ContextPanel';
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
-import { completeText, metaBreak, narrateSegments } from '~/features/chat/voiceGuard';
+import { completeText, metaBreak, narrateSegments, plainDashes } from '~/features/chat/voiceGuard';
 import { mapStep, worldTick } from '~/features/chat/mapStep';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
@@ -846,13 +846,26 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const storyWrite = async (request: Parameters<typeof reply.write>[0]) => {
     let result = await timedWrite(request);
     if (result === null) return null;
+    // An empty answer (a soft refusal, a stream that ended with nothing) never vanishes silently
+    // (the operator, 2026-11-21: "I also didn't get a response"): one more try, then a notice.
+    if (completeText(result.text).trim() === '') {
+      const again = await timedWrite({ ...request, forbid: { names: [], span: '' } });
+      if (again !== null) result = again;
+    }
     const broke = metaBreak(result.text);
     if (broke !== null) {
       const again = await timedWrite({ ...request, forbid: { names: [], span: broke.span } });
       if (again !== null) result = again;
     }
-    const whole = completeText(result.text);
-    return whole.trim() === '' ? null : { ...result, text: whole };
+    const whole = plainDashes(completeText(result.text));
+    if (whole.trim() === '') {
+      notify(
+        'The model gave no reply',
+        'It answered with nothing twice: often a refusal under the chat’s content rating. Try again, or rephrase.',
+      );
+      return null;
+    }
+    return { ...result, text: whole };
   };
   const noteCost = (id: string, written: { text: string; seconds: number }) =>
     setReplyCost((current) => new Map(current).set(id, replyStats(written.text, written.seconds)));
@@ -930,11 +943,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       let parent: ChatMessage = start;
       // After a character's line, the decision model decides whether a roll is called for; the VTT
       // rolls it, the result is a roll line, and the narrator narrates it (never changing it).
-      const rollAfter = async (line: ChatMessage): Promise<boolean> => {
+      // The person's own turn always gets the narrator's account of what happens (the operator,
+      // 2026-11-21: "no required narrator description"), rolled for or not.
+      const rollAfter = async (line: ChatMessage, narrateAnyway = false): Promise<boolean> => {
         const actor = line.speaker_character_id;
         if (line.role !== 'character' || actor === null) return true;
         const roll = await decideRoll(chat.id, line.id, actor);
-        if (roll === null) return true;
+        if (roll === null) {
+          if (!narrateAnyway) return true;
+          const told = await narrateAfter(line.id);
+          if (told === null) return false;
+          parent = told;
+          current = [...current, told];
+          return true;
+        }
         let text: string;
         try {
           text = await makeRoll(roll, castById.get(actor)?.name ?? 'The character');
@@ -960,7 +982,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         current = [...current, told];
         return true;
       };
-      if (!(await rollAfter(start))) return;
+      if (!(await rollAfter(start, true))) return;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
         const next = await decideNextTurn(chat.id, parent.id);
         if (!next.decided) break;
