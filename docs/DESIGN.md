@@ -142,6 +142,100 @@ Whoever writes a line, a player or the GM (person or AI), it is checked against 
 - Notices are table information, never part of the story: they don't enter the prompt (the OOC rule).
 - The warning says why (the canon it conflicts with, quoted from the lore or summary where one is found), so the person can correct it or decide it's intended.
 
+### The play-test rulings (the operator, 2026-11-21)
+
+The first live play-tests of Voidship Escapade on the composed suite set these rules. Each is
+binding; the owner of each piece is named.
+
+**Scenarios, campaigns and canon layers**
+
+- **Copy on start.** A scenario is a wiki campaign marked `is_scenario`, which play never edits.
+  Starting a campaign instantiates it (`POST /v1/campaign/{id}/instantiate`): a playthrough with its
+  own copy of every person, place, item, journal, hook and link, linked back by `scenario_id`. Play
+  changes only the copy. Setting canon is shared and read-only. (Wiki: instantiate; rpg-ai: Start.)
+- **Scenarios are grouped by setting, then by system**, and carry **provenance** (homebrew,
+  official or adapted, with the source; official material is parsed in for personal use) and
+  **play-style tags** (freeform, combat-heavy, narrative, mystery, exploration, social, horror,
+  dungeon-crawl, plus the person's own) to filter by. (Wiki: provenance, world_taxonomy.)
+- **Scenarios list no characters.** The cast belongs to the campaign; the scenario holds its people
+  as wiki records.
+- **Setting canon is the official material:** the 40k compendiums (the wh40k-rpg Foundry system's
+  printed-book records) and, for D&D, the whole 5e SRD, imported as setting-wide records with
+  provenance official and their book and page. (Wiki: compendium_import.)
+
+**The opening**
+
+- **It tells, never asks.** The narrator's first line is the framing note's Opening Situation, then
+  where the seat's character is and who is there. It never asks "where are you?".
+- **It never spoils.** A campaign's description is a spoiler-free subtitle; GM truths (a Gellar
+  field flicker) never appear in openings, briefings or subtitles.
+- **Starting positions per character.** Each person (NPCs especially, PCs too) starts at their own
+  location: the wiki person's location in the scenario, else their token in the VTT's initial scene,
+  else the framing's default. (Wiki: location_id; VTT: scene state; rpg-ai: openingFor.)
+
+**Who speaks, and for whom**
+
+- **Nobody speaks for anyone else.** The narrator narrates the world, the scene, people outside the
+  cast and outcomes. It never writes dialogue, thoughts, decisions or actions for any cast member,
+  above all the person's own character, and stops where one would react. A character never decides
+  what the person's character says, does, feels or knows, and never voices another cast member.
+  This is held by the prompt, by a post-check on every narration and reply (named and described
+  cast members), and by contract cases taken from the play-test transcripts. A violation is a bug
+  that blocks play.
+- **Proportion.** A reply's length follows what it answers: a small action gets a small reaction,
+  or none.
+- **The party knows itself.** Party members travelling together know each other; every party voice
+  carries the roster.
+- **Secrets stay with the GM.** Records marked GM-only (an NPC's secrets, the scenario's truths,
+  briefings for the GM) reach only the GM and narrator prompts and that NPC's own voice. To anyone
+  else a GM-only person is just a name. The same holds for the data bank.
+
+**The turn loop** (the decision model runs the table)
+
+1. The person writes a line. Something always answers it: a decided pause straight after their own
+   line becomes the GM's narration.
+2. After any character's line, the decision model decides **whether a roll is called for, and
+   which**: a test from the campaign's system pack (the VTT's test options for that character), or
+   the light dice style when there's no pack or sheet. The VTT rolls it; the result is a roll line.
+3. **Then the narrator, always,** narrates the roll's outcome as it fell, never changing it.
+4. The decision model decides who goes next: a character **present in the scene** (a VTT token, a
+   location at or inside the scene's, or someone just in the scene's lines), one **reachable by
+   vox** when the line calls for it, **the GM interjecting**, or **a pause** for the person. What a
+   pause means depends on the seat: as the GM, when the story needs a ruling; as a character, when
+   that character is addressed or it is their moment.
+5. The turn-order bar is retired; manual orders remain selectable in chat settings.
+
+**A living world**
+
+- **Routines and motivations.** Every person has a routine (where they are and what they do, by
+  in-world time) and motivations. Present characters act from their motivations.
+- **The world tick.** As in-world time advances (scene changes, time skips, every few turns), the
+  GM agent moves each absent NPC by its routine and motivations, choosing only real locations, and
+  pilots its token on the map (the VTT's pilot_token, with pathing and walls). Arrivals into the
+  party's scene are narrated. Moves are GM-side; the person sees only what their characters see.
+- **Last known locations.** The right-hand panel lists the characters present, and the last known
+  location of everyone else, as the party last saw them (never their live position).
+- **The right-hand panel's sections are mutually exclusive accordions.**
+
+**Characters**
+
+- **The pickers say who someone is:** a role or class and a one-line description, with player
+  characters and NPCs listed apart (for other ways to play: the person may play any NPC).
+- **Pictures everywhere**, uploaded or linked from outside (fandom, wikis), shown with no referrer.
+- **A character sheet in the session**, from the VTT; rolling with no sheet falls back to a formula,
+  never an error.
+- **Character building, both ways, at parity with the wh40k-rpg Foundry system and OrcPub:** RAW
+  building from each system's pack in the VTT (origins, characteristics, aptitudes, XP, talents
+  with prerequisites, psychic powers, gear; 5e species, classes, backgrounds, ability scores,
+  level-up, spells, multiclassing), illegal choices shown and refused; and narrative building in
+  the wiki (concept, appearance, personality, history, relationships, voice), with "Make this RAW"
+  handing off to the VTT builder.
+
+**Tooling**
+
+- Imports and wipes use the framework's batch routes (plural create, batch update and delete),
+  never one request per record.
+
 ### Mapping onto what exists
 
 _Superseded by [The composed suite](#the-composed-suite-the-operator-2026-11-21): the records below are rpg-ai's own, built standalone; they move to the wiki and the VTT and are then removed._
