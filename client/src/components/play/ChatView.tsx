@@ -49,13 +49,17 @@ import {
   summarizeBranch,
   translateText,
 } from '~/features/chat/inspectPrompt';
-import { storyEpub, storyLines } from '~/features/export/epub';
+import { speakingStore, useSpeaking } from '~/features/speech/speaking';
+import { ScriptPrompt } from './ScriptPrompt';
+import { TalkingSprite } from './TalkingSprite';
+import { illustrationPoints, type StoryLine, storyEpub, storyLines } from '~/features/export/epub';
 import { runScript } from '~/features/chat/stscript';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
 import { type Command, COMMAND_HELP, parseCommand } from '~/features/chat/commands';
-import { speak, speechSupport, voiceOf } from '~/features/speech/voice';
+import { type CharacterVoice, speak, speechSupport, voiceFrom, voiceOf } from '~/features/speech/voice';
+import { voiceParts } from '~/features/speech/voiceActing';
 import { hasVoiceModel, speakOnServer } from '~/features/speech/serverVoice';
 import { DEFAULT_USER_NAME, splitReasoning } from '~/features/prompt/assemble';
 import { expandMacros } from '~/features/prompt/macros';
@@ -131,6 +135,9 @@ const SCRIPT_ACTIONS: ReadonlySet<string> = new Set([
 /** Global script variables: shared by every chat while the page is open. */
 const SCRIPT_GLOBALS = new Map<string, string>();
 
+/** The sprite label a talking head flips to while its line is read aloud (A54). */
+const TALKING_LABEL = 'talking';
+
 /** Each export's file type and ending. */
 const EXPORT_FILES = {
   jsonl: { type: 'application/jsonl', ending: 'jsonl' },
@@ -188,6 +195,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const scenarioList = scenarios.useList();
   const spriteList = characterExpressions.useList();
   const sprites = spriteList.data ?? [];
+  // Who is being read aloud (A54): the stage shows them talking.
+  const speaking = useSpeaking();
   const [stage, setStage] = useState<{ characterId: string; label: string } | null>(null);
   const staged =
     stage === null
@@ -218,6 +227,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const end = useRef<HTMLDivElement>(null);
   // This chat's script variables (A37), while it is open.
   const scriptLocals = useRef(new Map<string, string>());
+  // A script asking the person (/input, /buttons), answered through ScriptPrompt.
+  const [asking, setAsking] = useState<{
+    prompt: string;
+    options: readonly string[] | null;
+    resolve: (answer: string | null) => void;
+  } | null>(null);
 
   // Oldest first, whatever order the back end answers in: the tree's latest leaf is the last child.
   const all = useMemo(() => [...hidden.shown].sort((a, b) => a.created_at.localeCompare(b.created_at)), [hidden.shown]);
@@ -330,19 +345,64 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   };
 
   /**
-   * Reads a character's line aloud in their voice (A29): by the model set to speak when the person has
-   * one (server voices), else by this device; a server failure says why and falls back to the device.
+   * Reads `text` in `voice` (A29): by the model set to speak when the person has one (server voices),
+   * else by this device; a server failure says why and falls back to the device. `done` runs once
+   * the line has ended, however it ended.
    */
-  const readAloud = (characterId: string | null, text: string) => {
-    const voice = voiceOf(castById.get(characterId ?? '')?.extensions ?? {});
+  const speakLine = (text: string, voice: CharacterVoice, done: () => void) => {
     if (!hasVoiceModel(endpointList.data)) {
-      speak(text, voice);
+      if (!speak(text, voice, done)) done();
       return;
     }
-    speakOnServer(text, voice).catch((error: unknown) => {
-      notify('Not read aloud', error instanceof Error ? error.message : undefined);
-      speak(text, voice);
-    });
+    speakOnServer(text, voice, done)
+      .then((spoke) => {
+        if (!spoke) done();
+      })
+      .catch((error: unknown) => {
+        notify('Not read aloud', error instanceof Error ? error.message : undefined);
+        if (!speak(text, voice, done)) done();
+      });
+  };
+
+  // Each reading gets a number; a part of an older one never starts once a newer one has.
+  const reading = useRef(0);
+
+  /**
+   * Reads a line aloud, voice-acted (the operator, 2026-11-20): narration in the narrator's voice
+   * (this device's setting), and each quote in the voice of whoever is named beside it, a character
+   * in the chat or an NPC of the running scenario. A quote with no one named is the speaker's own:
+   * the character whose reply it is, or the narrator for the GM's lines.
+   */
+  const readAloud = (characterId: string | null, text: string) => {
+    reading.current += 1;
+    const run = reading.current;
+    // The stage shows the speaker talking while the line is read (A54).
+    const speaker = characterId ?? '';
+    const finished = () => {
+      if (reading.current === run) speakingStore.end(speaker);
+    };
+    speakingStore.start(speaker);
+    const npcs = running?.cast ?? [];
+    const members = chat.character_ids.flatMap((id) => castById.get(id) ?? []);
+    const own = characterId === null ? null : (castById.get(characterId)?.name ?? null);
+    const parts = voiceParts(text, [...members.map((one) => one.name), ...npcs.map((npc) => npc.name)], own);
+    const voiceFor = (name: string | null): CharacterVoice => {
+      if (name === null) return settings.narratorVoice;
+      const member = members.find((one) => one.name === name);
+      if (member !== undefined) return voiceOf(member.extensions);
+      const npc = npcs.find((one) => one.name === name);
+      return npc?.voice === undefined ? settings.narratorVoice : voiceFrom(npc.voice);
+    };
+    const next = (index: number) => {
+      const part = parts[index];
+      if (reading.current !== run) return;
+      if (part === undefined) {
+        finished();
+        return;
+      }
+      speakLine(part.text, voiceFor(part.speaker), () => next(index + 1));
+    };
+    next(0);
   };
 
   /** Text as saved, after the regex scripts that change what is stored (A33). */
@@ -365,7 +425,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * branch's end (each new line the parent of the next), and the other commands run as typed.
    * Variables last while the chat is open; global ones while the page is.
    */
-  const runUserScript = async (script: string) => {
+  const runUserScript = async (script: string, setInput?: (text: string) => void) => {
     let parent = leaf;
     const addLine = async (fields: Omit<Parameters<typeof create>[0], 'chat_id' | 'parent_id'>) => {
       const saved = await create({ ...fields, chat_id: chat.id, parent_id: parent });
@@ -382,6 +442,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       globals: SCRIPT_GLOBALS,
       macros: (text) => expandMacros(text, names),
       echo: (text) => notify(text),
+      setInput,
+      ask: (prompt, options) => new Promise((resolve) => setAsking({ prompt, options, resolve })),
       act: async ({ name, text, args }) => {
         if (name === 'sys') {
           await addLine({ role: 'narrator', channel: 'ic', swipes: [text] });
@@ -684,7 +746,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * The shown branch as a file: SillyTavern's JSONL or plain text (every turn, table talk
    * included), or an illustrated EPUB of the story alone (AP10).
    */
-  const exportBranch = (format: 'jsonl' | 'text' | 'epub') => {
+  const exportBranch = async (format: 'jsonl' | 'text' | 'epub', illustrate = false) => {
     const speakers = messageViews(branch, all, castById, persona);
     const named = branch.map((message, index) => ({ ...message, name: speakers[index]?.speaker ?? NARRATOR }));
     const nameOf = new Map(named.map((message) => [message.id, message.name]));
@@ -705,8 +767,36 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               identifier: `urn:rpg-ai:chat:${chat.id}:${leaf ?? 'start'}`,
               language: navigator.language,
               modified: new Date().toISOString(),
-              lines: storyLines(branch, (message) => nameOf.get(message.id) ?? NARRATOR),
+              lines: await bookLines(
+                storyLines(branch, (message) => nameOf.get(message.id) ?? NARRATOR),
+                illustrate,
+              ),
             });
+    download(content, format);
+  };
+
+  /**
+   * The book's lines; illustrated (AP10), each long run without a picture gets one drawn of the
+   * scene up to its last line. Drawn for the book only: the chat keeps nothing. A picture that
+   * can't be drawn is left out, and the book is made without it.
+   */
+  const bookLines = async (lines: StoryLine[], illustrate: boolean): Promise<StoryLine[]> => {
+    if (!illustrate) return lines;
+    const points = illustrationPoints(lines);
+    const drawn = [...lines];
+    // One at a time, chained: an image model is slow, and each picture follows the story so far.
+    await points.reduce(async (previous, index, done) => {
+      await previous;
+      const line = drawn[index];
+      if (line?.id === undefined) return;
+      notify('Drawing pictures for the book', `${done + 1} of ${points.length}`);
+      const picture = await drawPicture({ kind: 'scene', chat_id: chat.id, leaf_id: line.id }).catch(() => null);
+      if (picture !== null) drawn[index] = { ...line, images: [picture.image] };
+    }, Promise.resolve());
+    return drawn;
+  };
+
+  const download = (content: string | Uint8Array<ArrayBuffer>, format: keyof typeof EXPORT_FILES) => {
     const file = EXPORT_FILES[format];
     const url = URL.createObjectURL(new Blob([content], { type: file.type }));
     const link = Object.assign(document.createElement('a'), {
@@ -842,14 +932,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
                 <GitFork aria-hidden /> Every branch
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => exportBranch('jsonl')}>
+              <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
                 <Download aria-hidden /> Export for SillyTavern
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => exportBranch('text')}>
+              <DropdownMenuItem onSelect={() => void exportBranch('text')}>
                 <Download aria-hidden /> Export as text
               </DropdownMenuItem>
-              <DropdownMenuItem onSelect={() => exportBranch('epub')}>
+              <DropdownMenuItem onSelect={() => void exportBranch('epub')}>
                 <BookOpen aria-hidden /> Export as a book (EPUB)
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => void exportBranch('epub', true)}>
+                <BookOpen aria-hidden /> Export as an illustrated book
               </DropdownMenuItem>
             </DropdownMenuContent>
           </DropdownMenu>
@@ -977,13 +1070,27 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         )}
       </ol>
       <div ref={end} />
+      {asking !== null && (
+        <ScriptPrompt
+          prompt={asking.prompt}
+          options={asking.options}
+          onAnswer={(answer) => {
+            asking.resolve(answer);
+            setAsking(null);
+          }}
+        />
+      )}
       {staged !== undefined && settings.showExpressions && (
         // The stage (A4): the latest speaker, as their line feels.
         <figure className='mx-auto flex w-full max-w-3xl items-end justify-center px-3'>
-          <img
-            src={staged.image}
+          <TalkingSprite
+            image={staged.image}
+            talkingImage={
+              sprites.find((sprite) => sprite.character_id === staged.character_id && sprite.label === TALKING_LABEL)
+                ?.image ?? null
+            }
+            speaking={speaking === staged.character_id}
             alt={`${castById.get(staged.character_id)?.name ?? 'The speaker'}, ${staged.label}`}
-            className='max-h-48 rounded-lg object-contain'
           />
         </figure>
       )}
@@ -1006,7 +1113,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
         onNarrate={chat.character_ids.length > 0 ? () => void narrate() : undefined}
         onCommand={(command) => void runCommand(command)}
-        onScript={(script) => void runUserScript(script)}
+        onScript={(script, setInput) => void runUserScript(script, setInput)}
         castNames={chat.character_ids.flatMap((id) => castById.get(id)?.name ?? [])}
         repliesWritten={repliesWritten}
         quickReplies={(quickList.data ?? [])

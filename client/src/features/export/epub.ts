@@ -10,6 +10,8 @@ import { dataUrlBytes } from '~/features/import/pngCard';
 import { type ZipEntry, zipStore } from './zip';
 
 export interface StoryLine {
+  /** The message the line is, so a picture can be drawn of the scene up to it. */
+  id?: string;
   speaker: string;
   text: string;
   /** Picture URLs; only data URLs can be put in the book. */
@@ -23,11 +25,41 @@ export function storyLines(branch: readonly ChatMessage[], speakerOf: (message: 
   return branch
     .filter((message) => message.channel === 'ic' && STORY_ROLES.has(message.role) && !message.x_carded)
     .map((message) => ({
+      id: message.id,
       speaker: speakerOf(message),
       text: message.swipes[message.swipe_index] ?? '',
       images: message.images,
     }))
     .filter((line) => line.text.trim() !== '' || line.images.length > 0);
+}
+
+/** How many lines may pass without a picture before one is drawn, and the most drawn for one book. */
+export const ILLUSTRATE_EVERY = 6;
+export const ILLUSTRATE_MOST = 8;
+
+/**
+ * Where an illustrated book draws pictures (AP10): the last line of each run of `every` lines with
+ * no picture of their own, at most `most`, so a long chat doesn't ask for dozens of pictures.
+ */
+export function illustrationPoints(
+  lines: readonly StoryLine[],
+  every: number = ILLUSTRATE_EVERY,
+  most: number = ILLUSTRATE_MOST,
+): number[] {
+  const points: number[] = [];
+  let since = 0;
+  lines.forEach((line, index) => {
+    if (line.images.length > 0) {
+      since = 0;
+      return;
+    }
+    since += 1;
+    if (since === every && points.length < most) {
+      points.push(index);
+      since = 0;
+    }
+  });
+  return points;
 }
 
 /** Pictures an EPUB reader must show (EPUB 3.3 core media types), and their file endings. */

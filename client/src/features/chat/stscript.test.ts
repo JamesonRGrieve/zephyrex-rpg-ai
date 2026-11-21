@@ -126,6 +126,34 @@ describe('runScript', () => {
     expect(Number.isInteger(value) && value >= 1 && value <= 6).toBe(true);
   });
 
+  it('asks the person, offers choices, and fills the composer', async () => {
+    const chat = host();
+    const asked: [string, readonly string[] | null][] = [];
+    chat.ask = async (prompt, options) => {
+      asked.push([prompt, options]);
+      return options === null ? 'Ana' : (options[1] ?? null);
+    };
+    let input = '';
+    chat.setInput = (text) => {
+      input = text;
+    };
+    const named = await runScript('/input What is your name? | /setvar key=who {{pipe}}', chat);
+    expect(named.pipe).toBe('Ana');
+    expect(chat.locals.get('who')).toBe('Ana');
+    const chosen = await runScript('/buttons labels=["Fight","Flee"] What now? | /setinput I {{pipe}}!', chat);
+    expect(chosen.pipe).toBe('I Flee!');
+    expect(input).toBe('I Flee!');
+    expect(asked).toEqual([
+      ['What is your name?', null],
+      ['What now?', ['Fight', 'Flee']],
+    ]);
+    expect((await runScript('/buttons What now?', chat)).stopped).toBe('/buttons needs labels=["…", "…"]');
+  });
+
+  it('stops /input with no one to ask', async () => {
+    expect((await runScript('/input Name?', host())).stopped).toBe('/input needs a person to ask');
+  });
+
   it('passes named arguments to the chat’s own commands', async () => {
     const chat = host();
     await runScript('/sendas name=Mira The door creaks.', chat);

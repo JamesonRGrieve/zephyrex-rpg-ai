@@ -28,8 +28,15 @@ export interface ScriptHost {
   globals: Map<string, string>;
   /** Fills in the chat's macros ({{user}}, {{char}}, …) after the script's own. */
   macros?: (text: string) => string;
-  /** Shows a message to the person (`/echo`). */
+  /** Shows a message to the person (`/echo`, `/popup`). */
   echo(text: string): void;
+  /**
+   * Asks the person (`/input`, `/buttons`): their text, or the option they chose; null when they
+   * dismissed it. Without it, those commands stop the script.
+   */
+  ask?: (prompt: string, options: readonly string[] | null) => Promise<string | null>;
+  /** Puts text in the composer for the person to edit and send (`/setinput`). */
+  setInput?: (text: string) => void;
 }
 
 export interface ScriptResult {
@@ -181,6 +188,10 @@ const MATH: Record<string, (values: number[]) => number> = {
 const SCRIPT_COMMANDS = new Set([
   ...Object.keys(MATH),
   'rand',
+  'input',
+  'buttons',
+  'setinput',
+  'popup',
   'len',
   'trim',
   'upper',
@@ -339,6 +350,32 @@ export async function runScript(script: string, host: ScriptHost): Promise<Scrip
     }
 
     switch (call.name) {
+      case 'input':
+      case 'buttons': {
+        if (host.ask === undefined) throw new Stop(`/${call.name} needs a person to ask`);
+        let options: string[] | null = null;
+        if (call.name === 'buttons') {
+          const labels: unknown = (() => {
+            try {
+              return JSON.parse(arg('labels'));
+            } catch {
+              return null;
+            }
+          })();
+          if (!Array.isArray(labels) || labels.length === 0 || !labels.every((label) => typeof label === 'string'))
+            throw new Stop('/buttons needs labels=["…", "…"]');
+          options = labels;
+        }
+        const answer = await host.ask(unnamedText, options);
+        return answer ?? '';
+      }
+      case 'setinput':
+        if (host.setInput === undefined) throw new Stop('/setinput needs a composer');
+        host.setInput(unnamedText);
+        return unnamedText;
+      case 'popup':
+        host.echo(unnamedText);
+        return pipe;
       case 'rand': {
         // A number for a script (a choice, a variation), never a game roll: rolls go through the VTT.
         const from = Number(arg('from') || 0);

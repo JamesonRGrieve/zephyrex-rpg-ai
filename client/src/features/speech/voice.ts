@@ -29,7 +29,11 @@ const clamp = (value: unknown, [low, high]: readonly [number, number], fallback:
 
 /** A character's voice from its card's extensions; the defaults for anything missing or unreadable. */
 export function voiceOf(extensions: Readonly<Record<string, unknown>>): CharacterVoice {
-  const stored: unknown = extensions[VOICE_EXTENSION];
+  return voiceFrom(extensions[VOICE_EXTENSION]);
+}
+
+/** A voice from what was stored (a card's extension, a scenario NPC's voice); defaults for anything unreadable. */
+export function voiceFrom(stored: unknown): CharacterVoice {
   const name: unknown = Reflect.get(Object(stored), 'name');
   const server: unknown = Reflect.get(Object(stored), 'server');
   return {
@@ -51,10 +55,7 @@ export function serverVoiceName(value: unknown): string | null {
 export function withVoice(extensions: Readonly<Record<string, unknown>>, voice: CharacterVoice): Record<string, unknown> {
   const rest = Object.fromEntries(Object.entries(extensions).filter(([key]) => key !== VOICE_EXTENSION));
   const isDefault =
-    voice.name === null &&
-    voice.rate === DEFAULT_VOICE.rate &&
-    voice.pitch === DEFAULT_VOICE.pitch &&
-    voice.server === null;
+    voice.name === null && voice.rate === DEFAULT_VOICE.rate && voice.pitch === DEFAULT_VOICE.pitch && voice.server === null;
   return isDefault ? rest : { ...rest, [VOICE_EXTENSION]: voice };
 }
 
@@ -78,8 +79,11 @@ export function speechSupport(scope: object = globalThis): { speak: boolean; lis
   };
 }
 
-/** Reads `text` aloud in `voice` (stopping whatever was being read); false when the browser cannot. */
-export function speak(text: string, voice: CharacterVoice): boolean {
+/**
+ * Reads `text` aloud in `voice` (stopping whatever was being read); false when the browser cannot.
+ * `onEnd` is called once the line ends, is stopped or fails (A54's talking heads).
+ */
+export function speak(text: string, voice: CharacterVoice, onEnd?: () => void): boolean {
   if (!speechSupport().speak) return false;
   const spoken = speakableText(text);
   if (spoken === '') return false;
@@ -88,6 +92,10 @@ export function speak(text: string, voice: CharacterVoice): boolean {
   if (chosen !== undefined) utterance.voice = chosen;
   utterance.rate = voice.rate;
   utterance.pitch = voice.pitch;
+  if (onEnd !== undefined) {
+    utterance.onend = onEnd;
+    utterance.onerror = onEnd;
+  }
   speechSynthesis.cancel();
   speechSynthesis.speak(utterance);
   return true;

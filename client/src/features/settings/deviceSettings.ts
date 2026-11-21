@@ -6,6 +6,7 @@
  * the browser's storage, read through guards: a private window or blocked storage gives the defaults.
  */
 import type { DeviceTier } from '~/features/device/tier';
+import { type CharacterVoice, DEFAULT_VOICE, voiceFrom } from '~/features/speech/voice';
 
 export type TierChoice = 'auto' | DeviceTier;
 
@@ -27,6 +28,8 @@ export interface DeviceSettings {
   autoTranslate: boolean;
   /** The person's own stylesheet over the theme (A49), applied on this device only. */
   customCss: string;
+  /** How the narrator and the GM sound when their lines are voice-acted (NPCs have their own). */
+  narratorVoice: CharacterVoice;
 }
 
 /** The most custom CSS kept: a stylesheet, not a store for anything else. */
@@ -46,6 +49,7 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   showExpressions: true,
   autoTranslate: false,
   customCss: '',
+  narratorVoice: DEFAULT_VOICE,
 };
 
 const oneOf = <T extends string>(options: readonly T[], value: unknown, fallback: T): T =>
@@ -73,6 +77,7 @@ export function parseDeviceSettings(text: string | null): DeviceSettings {
     autoTranslate: Reflect.get(Object(stored), 'autoTranslate') === true,
     showExpressions: Reflect.get(Object(stored), 'showExpressions') !== false,
     customCss: customCssOf(Reflect.get(Object(stored), 'customCss')),
+    narratorVoice: voiceFrom(Reflect.get(Object(stored), 'narratorVoice')),
   };
 }
 

@@ -62,6 +62,12 @@ describe('device settings', () => {
     expect(parseDeviceSettings(long).customCss).toHaveLength(CUSTOM_CSS_LIMIT);
   });
 
+  it('keeps the narrator’s voice, its rate and pitch inside their ranges', () => {
+    const stored = JSON.stringify({ narratorVoice: { name: 'Daniel', rate: 9, pitch: 0.7, server: 'onyx' } });
+    expect(parseDeviceSettings(stored).narratorVoice).toEqual({ name: 'Daniel', rate: 2, pitch: 0.7, server: 'onyx' });
+    expect(parseDeviceSettings(null).narratorVoice).toEqual({ name: null, rate: 1, pitch: 1, server: null });
+  });
+
   it('uses the measured tier unless the person chose one', () => {
     expect(effectiveTier('auto', 'standard')).toBe('standard');
     expect(effectiveTier('light', 'strong')).toBe('light');

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import type { ChatMessage } from '~/features/data/records';
-import { escapeXml, lineXhtml, storyEpub, storyLines } from './epub';
+import { escapeXml, illustrationPoints, lineXhtml, storyEpub, storyLines } from './epub';
 import { unzipStore } from './zip';
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
@@ -44,9 +44,9 @@ describe('storyLines', () => {
       (each) => (each.role === 'user' ? 'Ana' : each.role === 'narrator' ? 'Narrator' : 'Mira'),
     );
     expect(lines).toEqual([
-      { speaker: 'Ana', text: 'I open the door.', images: [] },
-      { speaker: 'Mira', text: 'Chosen.', images: [PNG] },
-      { speaker: 'Narrator', text: 'Night falls.', images: [] },
+      { id: '1', speaker: 'Ana', text: 'I open the door.', images: [] },
+      { id: '7', speaker: 'Mira', text: 'Chosen.', images: [PNG] },
+      { id: '8', speaker: 'Narrator', text: 'Night falls.', images: [] },
     ]);
   });
 });
@@ -97,5 +97,24 @@ describe('storyEpub', () => {
     expect(story).not.toContain('example.com');
     expect(story).toContain('<p class="speaker">Mira</p>');
     expect(story).not.toContain('<p class="speaker">Ana</p>');
+  });
+});
+
+describe('illustrationPoints', () => {
+  const line = (images: string[] = []) => ({ speaker: 'A', text: 'x', images });
+
+  it('draws at the end of each run of lines with no picture, and counts again after one', () => {
+    const lines = [line(), line(), line(), line(['p']), line(), line(), line(), line(), line()];
+    expect(illustrationPoints(lines, 3)).toEqual([2, 6]);
+  });
+
+  it('draws no more than the most for one book', () => {
+    expect(
+      illustrationPoints(
+        Array.from({ length: 30 }, () => line()),
+        2,
+        4,
+      ),
+    ).toEqual([1, 3, 5, 7]);
   });
 });

@@ -81,7 +81,7 @@ describe('Composer', () => {
     render(<Composer writing={false} onSend={onSend} onStop={vi.fn()} onCommand={onCommand} onScript={onScript} />);
     const box = screen.getByLabelText('Your next line');
     await userEvent.type(box, '/setvar key=hp 10 | /sys Ready.{Enter}');
-    expect(onScript).toHaveBeenCalledWith('/setvar key=hp 10 | /sys Ready.');
+    expect(onScript).toHaveBeenCalledWith('/setvar key=hp 10 | /sys Ready.', expect.any(Function));
     expect(box).toHaveValue('');
     await userEvent.type(box, '/sys Alone.{Enter}');
     expect(onCommand).toHaveBeenCalledWith({ name: 'sys', text: 'Alone.' });

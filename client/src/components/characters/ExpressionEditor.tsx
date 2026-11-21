@@ -59,7 +59,8 @@ export function ExpressionSprites({
     <fieldset className='grid gap-3 rounded-lg border p-3'>
       <legend className='px-1 text-sm font-medium'>Expressions</legend>
       <p className='text-xs text-muted-foreground'>
-        A picture of {name} for each feeling. In a chat, the one that fits each line is shown.
+        A picture of {name} for each feeling. In a chat, the one that fits each line is shown. Add one named “talking” and{' '}
+        {name} flips to it while a line is read aloud.
       </p>
       {shown.length > 0 && (
         <ul className='flex flex-wrap gap-3' aria-label='Sprites'>

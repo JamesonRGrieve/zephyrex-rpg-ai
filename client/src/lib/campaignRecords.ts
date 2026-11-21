@@ -7,7 +7,7 @@
 import type { Prisma } from '@prisma/client';
 import { type ResourceSpec, validationError } from '@zephyrex/lite';
 import { z } from 'zod';
-import { CAMPAIGN, LIMITS, SCENARIO } from '~/contract';
+import { CAMPAIGN, LIMITS, SCENARIO, SPEECH } from '~/contract';
 import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
@@ -140,6 +140,19 @@ const clock = z
     message: 'A clock’s filled segments are 0 to its segments',
     path: ['filled'],
   });
+/**
+ * An NPC's voice (voice acting): the same shape as a character's (features/speech/voice.ts), checked
+ * loosely here as the server checks it; voiceOf clamps rate and pitch to their ranges when read.
+ */
+const npcVoice = z
+  .object({
+    name: z.string().max(SPEECH.voice_characters).nullable(),
+    rate: z.number().min(0).max(SPEECH.speed_range[1]),
+    pitch: z.number().min(0).max(SPEECH.speed_range[1]),
+    server: z.string().max(SPEECH.voice_characters).nullable(),
+  })
+  .partial()
+  .strict();
 const scenarioFields = {
   name: z.string().trim().min(1).max(LIMITS.name_characters),
   campaign_id: z.string().min(1).nullable(),
@@ -147,7 +160,9 @@ const scenarioFields = {
   hook: long,
   stakes: long,
   situation: long,
-  cast: z.array(z.object({ name: named, agenda: long, secret: long, disposition: short }).strict()).max(limits.cast),
+  cast: z
+    .array(z.object({ name: named, agenda: long, secret: long, disposition: short, voice: npcVoice.optional() }).strict())
+    .max(limits.cast),
   places: z.array(named).max(limits.places),
   clocks: z.array(clock).max(limits.clocks),
   secrets: z

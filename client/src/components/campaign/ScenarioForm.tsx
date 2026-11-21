@@ -13,7 +13,9 @@ import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { Label } from 'zephyrex/ui/label';
 import { Textarea } from 'zephyrex/ui/textarea';
+import { VoicePicker } from '~/components/characters/VoicePicker';
 import { WriteProblem } from '~/components/common/WriteProblem';
+import { voiceFrom } from '~/features/speech/voice';
 import { LIMITS, SCENARIO } from '~/contract';
 import { type Scenario, scenarios, refreshedByRecords } from '~/features/data/records';
 
@@ -239,6 +241,19 @@ export function ScenarioForm({
                 setCast(cast.map((one, at) => (at === index ? { ...one, secret: event.target.value } : one)))
               }
             />
+            <details className='rounded-md'>
+              <summary className='flex min-h-11 cursor-pointer items-center text-sm'>
+                Voice{person.voice === undefined ? '' : ' (set)'}
+              </summary>
+              <p className='text-xs text-muted-foreground'>
+                How {person.name.trim() === '' ? 'they sound' : `${person.name} sounds`} when the GM’s lines are read aloud.
+              </p>
+              <VoicePicker
+                name={person.name.trim() === '' ? `Cast ${index + 1}` : person.name}
+                value={voiceFrom(person.voice)}
+                onChange={(voice) => setCast(cast.map((one, at) => (at === index ? { ...one, voice } : one)))}
+              />
+            </details>
           </div>
         ))}
         <Button

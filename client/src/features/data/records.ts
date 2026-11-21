@@ -374,7 +374,23 @@ export const scenarioSchema = z.object({
   hook: z.string(),
   stakes: z.string(),
   situation: z.string(),
-  cast: z.array(z.object({ name: z.string(), agenda: z.string(), secret: z.string(), disposition: z.string() })),
+  cast: z.array(
+    z.object({
+      name: z.string(),
+      agenda: z.string(),
+      secret: z.string(),
+      disposition: z.string(),
+      /** How the NPC sounds when the GM's lines are voice-acted. */
+      voice: z
+        .object({
+          name: z.string().nullable().optional(),
+          rate: z.number().optional(),
+          pitch: z.number().optional(),
+          server: z.string().nullable().optional(),
+        })
+        .optional(),
+    }),
+  ),
   places: z.array(z.string()),
   clocks: z.array(
     z.object({ name: z.string(), segments: z.number(), filled: z.number(), advances: z.string(), when_full: z.string() }),

@@ -75,8 +75,8 @@ export function Composer({
   onNarrate?: () => void;
   /** Runs a slash command (A37); without it, a slash line is sent as text. */
   onCommand?: (command: Command) => void;
-  /** Runs an STscript line (A37): pipes, variables, conditions, loops. */
-  onScript?: (script: string) => void;
+  /** Runs an STscript line (A37): pipes, variables, conditions, loops; `/setinput` fills this box. */
+  onScript?: (script: string, setInput: (text: string) => void) => void;
   /** The cast's names, so `/sendas` finds a name with spaces. */
   castNames?: readonly string[];
   /** Buttons that send or fill in a saved line (A32), their macros already filled. */
@@ -126,8 +126,8 @@ export function Composer({
     // A script (A37) runs whole: it pipes, or uses STscript's own commands.
     if (onScript !== undefined && isScript(text)) {
       setCommandProblem(null);
-      onScript(text);
       setText('');
+      onScript(text, setText);
       return;
     }
     // A slash command (A37) runs instead of being sent; one that is not a command says why.

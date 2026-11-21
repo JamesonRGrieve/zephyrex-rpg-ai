@@ -7,6 +7,7 @@
 import { type ReactElement, useId } from 'react';
 import { Label } from 'zephyrex/ui/label';
 import { Switch } from 'zephyrex/ui/switch';
+import { VoicePicker } from '~/components/characters/VoicePicker';
 import { cn } from '~/lib/utils';
 import type { DeviceTier } from '~/features/device/tier';
 import {
@@ -136,7 +137,8 @@ export function DeviceSettingsForm({
         <div>
           <Label htmlFor={`${tableTalkId}-read`}>Read replies aloud</Label>
           <p className='text-xs text-muted-foreground'>
-            Each character in their own voice, by your speech model if one is set, otherwise by this device.
+            Each character in their own voice, by your speech model if one is set, otherwise by this device. The GM’s lines
+            are voice-acted: each NPC in the voice set on the scenario’s cast, the rest in the narrator’s.
           </p>
         </div>
         <Switch
@@ -145,6 +147,13 @@ export function DeviceSettingsForm({
           onCheckedChange={(checked) => onChange({ readAloud: checked })}
         />
       </div>
+      {settings.readAloud && (
+        <VoicePicker
+          name='The narrator'
+          value={settings.narratorVoice}
+          onChange={(narratorVoice) => onChange({ narratorVoice })}
+        />
+      )}
       <div className='flex min-h-11 items-center justify-between gap-3'>
         <div>
           <Label htmlFor={tableTalkId}>Show table talk in chats</Label>

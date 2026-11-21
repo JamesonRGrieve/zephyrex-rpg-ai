@@ -44,13 +44,19 @@ export function stopServerSpeech(): void {
  * Reads a reply aloud by the model set to speak (stopping whatever was being read); false when
  * there is nothing to say. Throws with the reason when the model could not.
  */
-export async function speakOnServer(text: string, voice: CharacterVoice): Promise<boolean> {
+export async function speakOnServer(text: string, voice: CharacterVoice, onEnd?: () => void): Promise<boolean> {
   const spoken = speakableText(text);
   if (spoken === '') return false;
   const audio = await serverSpeech(spoken, voice);
   stopSpeaking();
   stopServerSpeech();
   playing = new Audio(audio);
+  if (onEnd !== undefined) {
+    // Ended, stopped (a pause) or broken: the line is over either way.
+    playing.addEventListener('ended', onEnd, { once: true });
+    playing.addEventListener('pause', onEnd, { once: true });
+    playing.addEventListener('error', onEnd, { once: true });
+  }
   await playing.play();
   return true;
 }

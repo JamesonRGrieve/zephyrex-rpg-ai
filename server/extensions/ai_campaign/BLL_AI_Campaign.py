@@ -1,6 +1,6 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
-"""Campaign frames (A57, A58) and scenarios (A59-A61), on the framework's records: the same resource, fields and rules as the
-lite edition's (client/src/lib/campaignRecords.ts).
+"""Campaign frames (A57, A58) and scenarios (A59-A61), on the framework's records: the same resource,
+fields and rules as the lite edition's (client/src/lib/campaignRecords.ts).
 
 ``/v1/campaign``: the table's agreement about what kind of game it is: premise, genre, the tone
 dials, themes, the weight of each pillar, structure, setting truths, the characters' ties and the
@@ -49,7 +49,11 @@ def _items(value: Any) -> Any:
     if value is None:
         return None
     cleaned = [item.strip() for item in value if isinstance(item, str)]
-    if len(cleaned) != len(value) or len(cleaned) > MAX_ITEMS or any(not item or len(item) > MAX_SHORT for item in cleaned):
+    if (
+        len(cleaned) != len(value)
+        or len(cleaned) > MAX_ITEMS
+        or any(not item or len(item) > MAX_SHORT for item in cleaned)
+    ):
         raise ValueError(f"At most {MAX_ITEMS} items of 1 to {MAX_SHORT} characters")
     return cleaned
 
@@ -59,7 +63,10 @@ def _scale(value: Any, keys: list[str], low: int, high: int, what: str) -> Any:
         return None
     if not isinstance(value, dict) or set(value) - set(keys):
         raise ValueError(f"{what} takes only {', '.join(keys)}")
-    if any(isinstance(number, bool) or not isinstance(number, int) or not low <= number <= high for number in value.values()):
+    if any(
+        isinstance(number, bool) or not isinstance(number, int) or not low <= number <= high
+        for number in value.values()
+    ):
         raise ValueError(f"Each of the {what} is a whole number from {low} to {high}")
     return value
 
@@ -84,12 +91,12 @@ class FrameChecks(PlainModel):
     @field_validator("dials", check_fields=False)
     @classmethod
     def _checked_dials(cls, value: Any) -> Any:
-        return _scale(value, DIAL_IDS, *CAMPAIGN["dial_range"], "dials")
+        return _scale(value, DIAL_IDS, CAMPAIGN["dial_range"][0], CAMPAIGN["dial_range"][1], "dials")
 
     @field_validator("pillars", check_fields=False)
     @classmethod
     def _checked_pillars(cls, value: Any) -> Any:
-        return _scale(value, CAMPAIGN["pillars"], *CAMPAIGN["pillar_range"], "pillars")
+        return _scale(value, CAMPAIGN["pillars"], CAMPAIGN["pillar_range"][0], CAMPAIGN["pillar_range"][1], "pillars")
 
     @field_validator("structure", check_fields=False)
     @classmethod
@@ -109,10 +116,14 @@ class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     genre: str = Field("", description="Its genre")
     dials: dict[str, int] = Field(default_factory=dict, description="Tone dials, each -2 to 2 (0: balanced)")
     themes: list[str] = Field(default_factory=list, description="What the story is about")
-    pillars: dict[str, int] = Field(default_factory=dict, description="The weight of combat, exploration, social play and mystery, each 0 to 3")
+    pillars: dict[str, int] = Field(
+        default_factory=dict, description="The weight of combat, exploration, social play and mystery, each 0 to 3"
+    )
     structure: str | None = Field(None, description="sandbox, linear, episodic or one_shot")
     truths: list[str] = Field(default_factory=list, description="Facts the table agrees on before play")
-    characters: str = Field("", description="The characters' ties to each other and the setting, and what each player wants")
+    characters: str = Field(
+        "", description="The characters' ties to each other and the setting, and what each player wants"
+    )
     resolution_mode: str | None = Field(None, description="narrative, mechanical or hybrid")
     gm_style: str = Field("", description="How the GM runs the game (A20): read by the GM's voices only")
 
@@ -148,14 +159,33 @@ class CampaignModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         name: StringSearchModel | None = None
 
 
-FRAME_FIELDS = ("premise", "genre", "dials", "themes", "pillars", "structure", "truths", "characters", "resolution_mode", "gm_style")
+FRAME_FIELDS = (
+    "premise",
+    "genre",
+    "dials",
+    "themes",
+    "pillars",
+    "structure",
+    "truths",
+    "characters",
+    "resolution_mode",
+    "gm_style",
+)
 
 
 class CampaignManager(AbstractBLLManager[CampaignModel], RouterMixin):
     _model = CampaignModel
 
     def create(self, **kwargs: Any) -> Any:
-        for key, value in (("premise", ""), ("genre", ""), ("dials", {}), ("themes", []), ("pillars", {}), ("truths", []), ("characters", "")):
+        for key, value in (
+            ("premise", ""),
+            ("genre", ""),
+            ("dials", {}),
+            ("themes", []),
+            ("pillars", {}),
+            ("truths", []),
+            ("characters", ""),
+        ):
             kwargs.setdefault(key, value)
         return super().create(**kwargs)
 
@@ -201,18 +231,47 @@ def _flag(value: Any, field: str) -> bool:
     return value
 
 
+VOICE_KEYS = {"name", "rate", "pitch", "server"}
+
+
+def _voice(value: Any) -> dict[str, Any]:
+    """An NPC's voice (voice acting): the same shape as a character's (client voice.ts), checked
+    loosely here; the client clamps rate and pitch to its own ranges when it reads one."""
+    if not isinstance(value, dict) or not set(value) <= VOICE_KEYS:
+        raise ValueError(f"A voice has only {', '.join(sorted(VOICE_KEYS))}")
+    for key in ("name", "server"):
+        text = value.get(key)
+        if text is not None and (not isinstance(text, str) or len(text) > CONTRACT["speech"]["voice_characters"]):
+            raise ValueError(
+                f"A voice's {key} is a name of at most {CONTRACT['speech']['voice_characters']} characters"
+            )
+    for key in ("rate", "pitch"):
+        number = value.get(key)
+        top = CONTRACT["speech"]["speed_range"][1]
+        if number is not None and (
+            isinstance(number, bool) or not isinstance(number, (int, float)) or not 0 <= number <= top
+        ):
+            raise ValueError(f"A voice's {key} is a number from 0 to {top}")
+    return value
+
+
 def _cast(value: Any) -> Any:
     if value is None:
         return None
     people = []
     for person in _limited(value, "cast"):
-        shaped = _shaped(person, {"name", "agenda", "secret", "disposition"}, "cast")
+        # A voice (voice acting) is optional; the four parts of a person are not.
+        keys = {"name", "agenda", "secret", "disposition"} | (
+            {"voice"} if isinstance(person, dict) and "voice" in person else set()
+        )
+        shaped = _shaped(person, keys, "cast")
         people.append(
             {
                 "name": _text(shaped["name"], "A name", required=True),
                 "agenda": _text(shaped["agenda"], "An agenda", limit=MAX_CARD),
                 "secret": _text(shaped["secret"], "A secret", limit=MAX_CARD),
                 "disposition": _text(shaped["disposition"], "A disposition"),
+                **({"voice": _voice(shaped["voice"])} if "voice" in shaped else {}),
             }
         )
     return people
@@ -324,8 +383,12 @@ class ScenarioModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     situation: str = Field("", description="The state of things when play starts")
     cast: list[dict[str, Any]] = Field(default_factory=list, description="Each person's agenda, secret and disposition")
     places: list[str] = Field(default_factory=list, description="Where things happen")
-    clocks: list[dict[str, Any]] = Field(default_factory=list, description="Progress tracks, each with what advances it and what happens when full")
-    secrets: list[dict[str, Any]] = Field(default_factory=list, description="Truths the characters can learn, each with its clues (found or not)")
+    clocks: list[dict[str, Any]] = Field(
+        default_factory=list, description="Progress tracks, each with what advances it and what happens when full"
+    )
+    secrets: list[dict[str, Any]] = Field(
+        default_factory=list, description="Truths the characters can learn, each with its clues (found or not)"
+    )
     beats: list[dict[str, Any]] = Field(default_factory=list, description="Optional moments, done or not")
     outcomes: list[str] = Field(default_factory=list, description="How it can end")
 
@@ -373,11 +436,17 @@ class ScenarioManager(AbstractBLLManager[ScenarioModel], RouterMixin):
     def _check_campaign(self, fields: dict[str, Any]) -> None:
         if fields.get("campaign_id") is not None:
             try:
-                CampaignManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(id=fields["campaign_id"])
+                CampaignManager(requester_id=str(self.requester.id), model_registry=self.model_registry).get(
+                    id=fields["campaign_id"]
+                )
             except HTTPException as error:
                 raise HTTPException(
                     status_code=422,
-                    detail={"message": "Validation error", "code": "validation_error", "errors": [{"loc": ["campaign_id"], "msg": "That campaign is not one of yours"}]},
+                    detail={
+                        "message": "Validation error",
+                        "code": "validation_error",
+                        "errors": [{"loc": ["campaign_id"], "msg": "That campaign is not one of yours"}],
+                    },
                 ) from error
 
     def create(self, **kwargs: Any) -> Any:
