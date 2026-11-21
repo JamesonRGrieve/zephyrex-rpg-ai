@@ -37,7 +37,7 @@ import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf, treeRows } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
-import { nextSpeaker, siblingsOf } from '~/features/chat/turns';
+import { nextSpeaker, siblingsOf, talkativenessOf } from '~/features/chat/turns';
 import {
   deviceLanguage,
   expressionFor,
@@ -105,6 +105,7 @@ import { NamesWithoutLore } from '~/components/lore/NamesWithoutLore';
 import { namesWithoutLore } from '~/features/lore/namesWithoutLore';
 import { useClient, writeProblem } from 'zephyrex';
 import { useEndSession } from './useEndSession';
+import { useSceneBackground } from './useSceneBackground';
 import { Recap } from './Recap';
 import { MessageItem, type MessageView } from './MessageItem';
 
@@ -261,9 +262,23 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       ? (latestLeaf(all, leafId)?.id ?? leafId)
       : (latestLeaf(all)?.id ?? null);
   const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
+  // The background follows the scene (A31): the story's lines, as the scene's location reads them.
+  const sceneLines = useMemo(
+    () =>
+      branch
+        .filter((message) => !message.x_carded)
+        .map((message) => ({
+          text: message.swipes[message.swipe_index] ?? '',
+          channel: message.channel === 'ic' || message.channel === 'roll' ? 'story' : 'table',
+        })),
+    [branch],
+  );
+  const background = useSceneBackground(chat, sceneLines);
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
   // The cast's names, for natural order (A52): a member the last story line names speaks next.
   const castNames = new Map(chat.character_ids.map((id) => [id, castById.get(id)?.name ?? '']));
+  // Each member's talkativeness (gap 7): with no one named, who speaks up next in a group.
+  const castTalk = new Map(chat.character_ids.map((id) => [id, talkativenessOf(castById.get(id)?.extensions)]));
   const persona = useMemo(() => {
     const found = personaList.data ?? [];
     return found.find((one) => one.id === chat.persona_id) ?? found.find((one) => one.is_default) ?? null;
@@ -297,7 +312,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const speakerId =
       picked !== null && chat.character_ids.includes(picked)
         ? picked
-        : nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames);
+        : nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames, castTalk);
     setPicked(null);
     if (speakerId === null) return null;
     setWritingAfter({ parentId, speakerId });
@@ -554,8 +569,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const variables = Object.fromEntries(scriptLocals.current);
     if (!sameVariables(variables, chat.variables)) {
       // The chat as saved now: a line the script added moved its version on (If-Match).
-      const current = async () =>
-        chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${chat.id}`)), 'chat'));
+      const current = async () => chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${chat.id}`)), 'chat'));
       const failed = await writeProblem(
         current().then((latest) => updateChat(latest, { variables })),
         'The script variables were not saved',
@@ -773,7 +787,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const result = await reply.write({
       chat_id: chat.id,
       leaf_id: leaf,
-      speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames),
+      speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk),
       mode: 'impersonate',
     });
     return result?.text ?? null;
@@ -785,7 +799,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const summary = await summarizeBranch({
         chat_id: chat.id,
         leaf_id: leaf,
-        speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames),
+        speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk),
       });
       if (summary.dropped > 0) notify('The oldest turns did not fit', `${summary.dropped} were left out of the summary.`);
       return summary.text;
@@ -821,7 +835,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         await inspectPrompt({
           chat_id: chat.id,
           leaf_id: leaf,
-          speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames),
+          speaker_id: nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk),
         }),
       );
     } catch (error) {
@@ -938,12 +952,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       className='flex min-h-[calc(100svh-5.5rem)] flex-col bg-cover bg-fixed bg-center'
       // The chat's picture (A31) sits behind; the header and messages keep a solid background so
       // text never depends on the picture for contrast.
-      style={chat.background === null ? undefined : { backgroundImage: `url(${JSON.stringify(chat.background)})` }}
+      style={background === null ? undefined : { backgroundImage: `url(${JSON.stringify(background)})` }}
     >
       <div
         className={cn(
           'mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 py-2',
-          chat.background !== null && 'rounded-b-xl bg-background',
+          background !== null && 'rounded-b-xl bg-background',
         )}
       >
         {campaign?.resolution_mode != null && (
@@ -1003,14 +1017,29 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             <X aria-hidden /> <span className='max-sm:sr-only'>X-card</span>
           </Button>
           {running !== undefined && (
-            <Button type='button' variant='ghost' className='h-11 max-sm:w-11 max-sm:px-0' onClick={() => setScenarioOpen(true)}>
+            <Button
+              type='button'
+              variant='ghost'
+              className='h-11 max-sm:w-11 max-sm:px-0'
+              onClick={() => setScenarioOpen(true)}
+            >
               <Clock3 aria-hidden /> <span className='max-sm:sr-only'>Scenario</span>
             </Button>
           )}
-          <Button type='button' variant='ghost' className='h-11 max-sm:w-11 max-sm:px-0' onClick={() => void openInspector()}>
+          <Button
+            type='button'
+            variant='ghost'
+            className='h-11 max-sm:w-11 max-sm:px-0'
+            onClick={() => void openInspector()}
+          >
             <ScanText aria-hidden /> <span className='max-sm:sr-only'>Context</span>
           </Button>
-          <Button type='button' variant='ghost' className='h-11 max-sm:w-11 max-sm:px-0' onClick={() => setSettingsOpen(true)}>
+          <Button
+            type='button'
+            variant='ghost'
+            className='h-11 max-sm:w-11 max-sm:px-0'
+            onClick={() => setSettingsOpen(true)}
+          >
             <Settings2 aria-hidden /> <span className='max-sm:sr-only'>Chat settings</span>
           </Button>
           <DropdownMenu>
@@ -1071,7 +1100,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
           TEXT_SIZE_CLASS[settings.textSize],
           settings.chatLayout === 'document' && 'gap-3 font-serif',
-          chat.background !== null && 'bg-background pt-3',
+          background !== null && 'bg-background pt-3',
         )}
         aria-label='Chat'
         aria-live='polite'
@@ -1209,7 +1238,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             return character === undefined ? [] : [{ id, name: character.name }];
           })}
           picked={picked}
-          upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames)}
+          upNext={nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk)}
           onPick={setPicked}
         />
       )}
@@ -1233,7 +1262,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             channel: reply.channel,
             autoRun: reply.auto_run,
             text: expandMacros(reply.message, {
-              char: castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames) ?? '')?.name ?? NARRATOR,
+              char:
+                castById.get(nextSpeaker(chat.character_ids, branch, chat.muted_ids, castNames, castTalk) ?? '')?.name ??
+                NARRATOR,
               user: persona?.name ?? DEFAULT_USER_NAME,
             }),
           }))}

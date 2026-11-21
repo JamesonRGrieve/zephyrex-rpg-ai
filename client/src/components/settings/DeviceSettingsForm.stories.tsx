@@ -20,7 +20,8 @@ export const Measured: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('This device measured as Balanced.')).toBeInTheDocument();
-    await userEvent.click(canvas.getByRole('radio', { name: /Light/ }));
+    // The Lean tier ("light"); Balanced's hint says "Lighter", so the label is matched from its start.
+    await userEvent.click(canvas.getByRole('radio', { name: /^Lean/ }));
     await expect(args.onChange).toHaveBeenCalledWith({ tier: 'light' });
   },
 };

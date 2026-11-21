@@ -54,8 +54,16 @@ def prompt_layout(given: Sequence[Mapping[str, Any]] | None) -> list[dict[str, A
     layout: list[dict[str, Any]] = []
     for section in given or []:
         if section.get("id") in known and all(kept["id"] != section["id"] for kept in layout):
-            layout.append({"id": section["id"], "enabled": bool(section.get("enabled", True)), "max_tokens": section.get("max_tokens")})
-    return layout + [{"id": id_, "enabled": True, "max_tokens": None} for id_ in known if all(kept["id"] != id_ for kept in layout)]
+            layout.append(
+                {
+                    "id": section["id"],
+                    "enabled": bool(section.get("enabled", True)),
+                    "max_tokens": section.get("max_tokens"),
+                }
+            )
+    return layout + [
+        {"id": id_, "enabled": True, "max_tokens": None} for id_ in known if all(kept["id"] != id_ for kept in layout)
+    ]
 
 
 def _capped(text: str, max_tokens: int | None) -> str:
@@ -116,7 +124,11 @@ TABLE = CONTRACT["table"]
 
 def table_notes_text(notes: Sequence[Mapping[str, Any]] | None) -> str:
     """The table's notes as the model reads them (A11): one labelled line each, under a heading."""
-    kept = [f"{TABLE['note_labels'][note['kind']]}: {note['text'].strip()}" for note in notes or [] if note["kind"] in TABLE["note_labels"] and note["text"].strip()]
+    kept = [
+        f"{TABLE['note_labels'][note['kind']]}: {note['text'].strip()}"
+        for note in notes or []
+        if note["kind"] in TABLE["note_labels"] and note["text"].strip()
+    ]
     return "\n".join([TABLE["notes_heading"], *kept]) if kept else ""
 
 
@@ -145,7 +157,11 @@ def frame_text(frame: Mapping[str, Any] | None) -> str:
     dials = frame.get("dials") or {}
     tone = [_dial(dial, int(dials.get(dial["id"], 0))) for dial in CAMPAIGN["dials"]]
     pillars = frame.get("pillars") or {}
-    weights = [f"{pillar} ({CAMPAIGN['pillar_words'][int(pillars[pillar])]})" for pillar in CAMPAIGN["pillars"] if int(pillars.get(pillar, 0)) > 0]
+    weights = [
+        f"{pillar} ({CAMPAIGN['pillar_words'][int(pillars[pillar])]})"
+        for pillar in CAMPAIGN["pillars"]
+        if int(pillars.get(pillar, 0)) > 0
+    ]
     themes = [theme.strip() for theme in frame.get("themes") or [] if theme.strip()]
     truths = [truth.strip() for truth in frame.get("truths") or [] if truth.strip()]
     structure = frame.get("structure")
@@ -158,7 +174,9 @@ def frame_text(frame: Mapping[str, Any] | None) -> str:
         f"Structure: {CAMPAIGN['structure_words'][structure]}." if structure in CAMPAIGN["structure_words"] else "",
         "Setting truths:\n" + "\n".join(f"- {truth}" for truth in truths) if truths else "",
         f"The characters: {frame['characters'].strip()}" if (frame.get("characters") or "").strip() else "",
-        f"Resolution: {frame['resolution_mode']}." if frame.get("resolution_mode") in CAMPAIGN["resolution_modes"] else "",
+        f"Resolution: {frame['resolution_mode']}."
+        if frame.get("resolution_mode") in CAMPAIGN["resolution_modes"]
+        else "",
     ]
     kept = [line for line in lines if line]
     return "\n".join([CAMPAIGN["heading"], *kept]) if kept else ""
@@ -189,7 +207,13 @@ def scenario_text(scenario: Mapping[str, Any] | None) -> str:
     clocks = []
     for clock in scenario.get("clocks") or []:
         filled, segments = int(clock["filled"]), int(clock["segments"])
-        state = "full" if filled >= segments else "close to filling" if segments - filled <= SCENARIO["close_segments"] else ""
+        state = (
+            "full"
+            if filled >= segments
+            else "close to filling"
+            if segments - filled <= SCENARIO["close_segments"]
+            else ""
+        )
         clocks.append(
             f"- {clock['name'].strip()}: {min(filled, segments)}/{segments}"
             + (f" ({state})" if state else "")
@@ -198,9 +222,16 @@ def scenario_text(scenario: Mapping[str, Any] | None) -> str:
         )
     secrets = []
     for secret in scenario.get("secrets") or []:
-        clues = [f"{clue['text'].strip()} ({'found' if clue['found'] else 'not found'})" for clue in secret.get("clues") or [] if clue["text"].strip()]
+        clues = [
+            f"{clue['text'].strip()} ({'found' if clue['found'] else 'not found'})"
+            for clue in secret.get("clues") or []
+            if clue["text"].strip()
+        ]
         found = any(clue["found"] for clue in secret.get("clues") or [])
-        secrets.append(f"- {secret['truth'].strip()} [{'learned' if found else 'not yet learned'}]" + (f". Clues: {'; '.join(clues)}" if clues else ""))
+        secrets.append(
+            f"- {secret['truth'].strip()} [{'learned' if found else 'not yet learned'}]"
+            + (f". Clues: {'; '.join(clues)}" if clues else "")
+        )
     beats = [beat["text"].strip() for beat in scenario.get("beats") or [] if not beat["done"] and beat["text"].strip()]
     outcomes = [outcome.strip() for outcome in scenario.get("outcomes") or [] if outcome.strip()]
     lines = [
@@ -219,8 +250,37 @@ def scenario_text(scenario: Mapping[str, Any] | None) -> str:
     return "\n".join([SCENARIO["heading"], *kept]) if kept else ""
 
 
+def character_note(character: Mapping[str, Any]) -> dict[str, Any] | None:
+    """The Character's Note (SillyTavern's depth prompt, V2 ``extensions.depth_prompt``).
+
+    The speaker's own line at a depth in the history, with its role. Depth 4 and the system role
+    when unset, as SillyTavern's defaults; None when the card has none. The twin of assemble.ts's
+    ``characterNote``.
+    """
+    note = (character.get("extensions") or {}).get("depth_prompt")
+    if not isinstance(note, Mapping):
+        return None
+    prompt = note.get("prompt")
+    if not isinstance(prompt, str) or not prompt.strip():
+        return None
+    depth = note.get("depth")
+    role = note.get("role")
+    return {
+        "content": prompt,
+        "depth": depth
+        if isinstance(depth, int) and not isinstance(depth, bool) and depth >= 0
+        else PROMPT["author_note_depth"],
+        "role": role if role in ("user", "assistant") else "system",
+    }
+
+
 def _history_message(
-    turn: Mapping[str, Any], speaker_id: str, names_by_id: Mapping[str, str], group: bool, user_name: str, narrating: bool = False
+    turn: Mapping[str, Any],
+    speaker_id: str,
+    names_by_id: Mapping[str, str],
+    group: bool,
+    user_name: str,
+    narrating: bool = False,
 ) -> dict[str, str]:
     if turn["role"] == "character" and any(opening in turn["content"] for opening, _closing in REASONING_PAIRS):
         # A model's reasoning is never read back to it (A45).
@@ -268,13 +328,24 @@ def assemble_prompt(
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
     speaker = (
-        {key: "" for key in ("id", "description", "personality", "scenario", "example_messages", "system_prompt", "post_history_instructions")}
+        {
+            key: ""
+            for key in (
+                "id",
+                "description",
+                "personality",
+                "scenario",
+                "example_messages",
+                "system_prompt",
+                "post_history_instructions",
+            )
+        }
         | {"name": PROMPT["narrator_name"]}
         if narrating
         else next((character for character in characters if character["id"] == speaker_id), None)
     )
     if speaker is None:
-        raise ValueError("The speaker must be one of the chat’s characters")
+        raise ValueError("The speaker must be one of the chat's characters")
     user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
     names = {"char": speaker["name"], "user": user_name}
     # Every macro in the prompt (audit gap 1), filled in order, the variables carried from one to the
@@ -290,6 +361,7 @@ def assemble_prompt(
         variables["local"], variables["global"] = filled.local, filled.global_
         text_out: str = filled.text
         return text_out
+
     names_by_id = {character["id"]: character["name"] for character in characters}
     group = len(characters) > 1 or narrating
     story = set(PROMPT["story_channels"])
@@ -312,7 +384,8 @@ def assemble_prompt(
     cast_text = "\n".join(
         [PROMPT["cast_heading"]]
         + [
-            f"- {character['name']}: {fill(character['description'].strip(), {'char': character['name'], 'user': user_name})}"
+            f"- {character['name']}: "
+            + fill(character["description"].strip(), {"char": character["name"], "user": user_name})
             for character in characters
             if character["description"].strip()
         ]
@@ -324,11 +397,17 @@ def assemble_prompt(
         "campaign": frame_text(frame),
         "running_scenario": scenario_text(scenario),
         "lore_before_char": sections.get("before_char", ""),
-        "description": cast_text if narrating and any(character["description"].strip() for character in characters) else speaker["description"],
-        "personality": f"{{{{char}}}}'s personality: {speaker['personality']}" if speaker["personality"].strip() else "",
+        "description": cast_text
+        if narrating and any(character["description"].strip() for character in characters)
+        else speaker["description"],
+        "personality": f"{{{{char}}}}'s personality: {speaker['personality']}"
+        if speaker["personality"].strip()
+        else "",
         "scenario": f"Scenario: {speaker['scenario']}" if speaker["scenario"].strip() else "",
         "lore_after_char": sections.get("after_char", ""),
-        "persona": f"{{{{user}}}}: {persona['description']}" if persona is not None and persona["description"].strip() else "",
+        "persona": f"{{{{user}}}}: {persona['description']}"
+        if persona is not None and persona["description"].strip()
+        else "",
         "lore_before_example": sections.get("before_example", ""),
         "examples": f"Example dialogue:\n{speaker['example_messages']}" if speaker["example_messages"].strip() else "",
         "lore_after_example": sections.get("after_example", ""),
@@ -345,7 +424,13 @@ def assemble_prompt(
         if part.strip()
     )
     note = fill(block)
-    inserts: list[tuple[int, dict[str, str]]] = [(PROMPT["author_note_depth"], {"role": "system", "content": note})] if note else []
+    inserts: list[tuple[int, dict[str, str]]] = (
+        [(PROMPT["author_note_depth"], {"role": "system", "content": note})] if note else []
+    )
+    # The speaker's Character's Note (gap 7); the narrator has none.
+    card_note = None if narrating else character_note(speaker)
+    if card_note is not None:
+        inserts.append((card_note["depth"], {"role": card_note["role"], "content": fill(card_note["content"])}))
     inserts += [
         (insert["depth"], {"role": insert["role"], "content": fill(insert["content"])})
         for insert in (lore or {}).get("at_depth", [])
@@ -363,12 +448,19 @@ def assemble_prompt(
     # Prompt-only regex scripts (A33) rewrite what the model reads, by each turn's depth (0 = newest).
     placements = {"user": "user_input", "character": "ai_output"}
     story_turns = [
-        {**turn, "content": apply_regex(turn["content"], regex, placements[turn["role"]], "prompt", len(story_turns) - 1 - index)}
+        {
+            **turn,
+            "content": apply_regex(
+                turn["content"], regex, placements[turn["role"]], "prompt", len(story_turns) - 1 - index
+            ),
+        }
         if turn["role"] in placements
         else turn
         for index, turn in enumerate(story_turns)
     ]
-    turns = [_history_message(turn, speaker["id"], names_by_id, group, names["user"], narrating) for turn in story_turns]
+    turns = [
+        _history_message(turn, speaker["id"], names_by_id, group, names["user"], narrating) for turn in story_turns
+    ]
 
     budget = context_tokens - max_tokens
     used = sum(estimate_tokens(message) for message in [system, *after, *(message for _depth, message in inserts)])
@@ -462,7 +554,9 @@ def table_gm_prompt(
             return names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
         return NARRATOR
 
-    story = [turn for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn.get("x_carded", False)]
+    story = [
+        turn for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn.get("x_carded", False)
+    ]
     recent = [f"{named(turn)}: {turn['content']}" for turn in story[-TABLE["recent_story_turns"] :]]
     parts = [
         TABLE["gm_prompt"],
@@ -493,7 +587,6 @@ def table_gm_prompt(
     return Assembled(messages=[system, *talk[kept:]], dropped=kept)
 
 
-
 EXPRESSION = CONTRACT["expression"]
 
 
@@ -516,14 +609,21 @@ def pick_option(answer: str, options: Sequence[str]) -> str | None:
 PICTURE = CONTRACT["picture"]
 
 
-def scene_picture_prompt(characters: Sequence[Mapping[str, Any]], persona: Mapping[str, Any] | None, history: Sequence[Mapping[str, Any]], asked: str = "") -> str:
+def scene_picture_prompt(
+    characters: Sequence[Mapping[str, Any]],
+    persona: Mapping[str, Any] | None,
+    history: Sequence[Mapping[str, Any]],
+    asked: str = "",
+) -> str:
     """What an image model is asked to draw (A30): the person's own words, or the last story turns
     (named; table talk and X-carded turns left out) as a scene, cut to the contract's length."""
     if asked.strip():
         return asked.strip()[: PICTURE["prompt_characters"]]
     user_name = persona["name"] if persona is not None else DEFAULT_USER_NAME
     names_by_id = {character["id"]: character["name"] for character in characters}
-    story = [turn for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn.get("x_carded", False)]
+    story = [
+        turn for turn in history if turn["channel"] in PROMPT["story_channels"] and not turn.get("x_carded", False)
+    ]
 
     def named(turn: Mapping[str, Any]) -> str:
         if turn["role"] == "user":
@@ -532,7 +632,9 @@ def scene_picture_prompt(characters: Sequence[Mapping[str, Any]], persona: Mappi
             return names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
         return NARRATOR
 
-    scene = " ".join(f"{named(turn)}: {split_reasoning(turn['content'])[1]}" for turn in story[-PICTURE["scene_turns"] :])
+    scene = " ".join(
+        f"{named(turn)}: {split_reasoning(turn['content'])[1]}" for turn in story[-PICTURE["scene_turns"] :]
+    )
     return (PICTURE["scene_prefix"] + scene)[: PICTURE["prompt_characters"]]
 
 
@@ -541,7 +643,9 @@ def portrait_picture_prompt(character: Mapping[str, Any], asked: str = "") -> st
     character's name and description, cut to the contract's length."""
     if asked.strip():
         return asked.strip()[: PICTURE["prompt_characters"]]
-    filled = expand_macros(str(character.get("description") or ""), {"char": character["name"], "user": DEFAULT_USER_NAME})
+    filled = expand_macros(
+        str(character.get("description") or ""), {"char": character["name"], "user": DEFAULT_USER_NAME}
+    )
     description = " ".join(filled.split())
     text = PICTURE["portrait_prefix"] + character["name"] + (f". {description}" if description else "")
     return text[: PICTURE["prompt_characters"]]
@@ -561,4 +665,3 @@ def background_picture_prompt(
     setting = " ".join(scenario.split())
     place = setting if setting else scene_picture_prompt(characters, persona, history)[len(PICTURE["scene_prefix"]) :]
     return (PICTURE["background_prefix"] + place)[: PICTURE["prompt_characters"]]
-

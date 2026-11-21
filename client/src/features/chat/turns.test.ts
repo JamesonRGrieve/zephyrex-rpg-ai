@@ -1,6 +1,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { greetingSwipes, nextSpeaker, openingTurns, siblingsOf } from './turns';
+import {
+  greetingSwipes,
+  nextSpeaker,
+  openingTurns,
+  seededDraw,
+  siblingsOf,
+  talkativenessOf,
+  type TurnMessage,
+} from './turns';
 
 const said = (id: string, speaker: string | null, role = 'character', channel = 'ic') => ({
   id,
@@ -83,5 +91,64 @@ describe('natural order and group greetings (A52)', () => {
       { speakerId: 'a', swipes: ['Hello.', 'Hi.'] },
       { speakerId: 'c', swipes: ['Yo.'] },
     ]);
+  });
+});
+
+describe('talkativeness (gap 7)', () => {
+  const ids = ['a', 'b', 'c'];
+  const line = (id: string, speaker: string | null): TurnMessage => ({
+    id,
+    parent_id: null,
+    role: speaker === null ? 'user' : 'character',
+    channel: 'ic',
+    speaker_character_id: speaker,
+  });
+
+  it('reads a card’s talkativeness, 0.5 when unset or unreadable, kept within 0 and 1', () => {
+    expect(talkativenessOf({ talkativeness: '0.8' })).toBe(0.8);
+    expect(talkativenessOf({ talkativeness: 0.1 })).toBe(0.1);
+    expect(talkativenessOf({ talkativeness: 'loud' })).toBe(0.5);
+    expect(talkativenessOf({ talkativeness: 3 })).toBe(1);
+    expect(talkativenessOf(undefined)).toBe(0.5);
+  });
+
+  it('draws the same for the same seed, within 0 and 1', () => {
+    expect(seededDraw('m1:a')).toBe(seededDraw('m1:a'));
+    for (const seed of ['', 'x', 'm1:b', 'long seed text']) {
+      expect(seededDraw(seed)).toBeGreaterThanOrEqual(0);
+      expect(seededDraw(seed)).toBeLessThan(1);
+    }
+  });
+
+  it('a silent member is passed over and an eager one always speaks; all silent falls back to the order', () => {
+    const branch = [line('m1', 'a'), line('m2', null)];
+    const talk = new Map([
+      ['a', 0],
+      ['b', 0],
+      ['c', 1],
+    ]);
+    expect(nextSpeaker(ids, branch, [], new Map(), talk)).toBe('c');
+    const quiet = new Map([
+      ['a', 0],
+      ['b', 0],
+      ['c', 0],
+    ]);
+    expect(nextSpeaker(ids, branch, [], new Map(), quiet)).toBe('b');
+  });
+
+  it('a muted member never speaks, however talkative, and naming still comes first', () => {
+    const branch = [line('m1', 'a'), line('m2', null)];
+    expect(nextSpeaker(ids, branch, ['c'], new Map(), new Map([['c', 1]]))).not.toBe('c');
+    const named = [line('m1', 'a'), { ...line('m2', null), swipes: ['Bo, what now?'], swipe_index: 0 }];
+    const cast = new Map([
+      ['a', 'Ada'],
+      ['b', 'Bo'],
+      ['c', 'Cy'],
+    ]);
+    expect(nextSpeaker(ids, named, [], cast, new Map([['c', 1]]))).toBe('b');
+  });
+
+  it('alone, the one character speaks whatever its talkativeness', () => {
+    expect(nextSpeaker(['a'], [line('m1', null)], [], new Map(), new Map([['a', 0]]))).toBe('a');
   });
 });

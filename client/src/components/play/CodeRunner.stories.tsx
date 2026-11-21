@@ -24,7 +24,10 @@ export const NoNetwork: Story = {
     const canvas = within(canvasElement);
     await userEvent.click(canvas.getByRole('button', { name: 'Run' }));
     await waitFor(() => expect(canvas.getByText(/TypeError/)).toBeInTheDocument(), { timeout: 8000 });
-    await expect(canvas.queryByText(/reached/)).toBeNull();
+    // What the run reported (the figure's caption), not the code shown above it, which spells 'reached' itself.
+    const report = canvasElement.querySelector('figcaption');
+    await expect(report).not.toBeNull();
+    await expect(report).not.toHaveTextContent('reached');
   },
 };
 

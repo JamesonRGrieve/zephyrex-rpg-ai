@@ -42,6 +42,33 @@ export interface PromptCharacter {
   example_messages: string;
   system_prompt: string;
   post_history_instructions: string;
+  /** The card's extensions; its `depth_prompt` is the Character's Note. */
+  extensions?: Readonly<Record<string, unknown>>;
+}
+
+export interface CharacterNote {
+  content: string;
+  depth: number;
+  role: 'system' | 'user' | 'assistant';
+}
+
+/**
+ * The Character's Note (SillyTavern's depth prompt, V2 `extensions.depth_prompt`): the speaker's
+ * own line at a depth in the history, with its role. Depth 4 and the system role when unset, as
+ * SillyTavern's defaults; null when the card has none.
+ */
+export function characterNote(character: Pick<PromptCharacter, 'extensions'>): CharacterNote | null {
+  const note: unknown = character.extensions?.depth_prompt;
+  if (typeof note !== 'object' || note === null) return null;
+  const prompt: unknown = Reflect.get(note, 'prompt');
+  if (typeof prompt !== 'string' || prompt.trim() === '') return null;
+  const depth: unknown = Reflect.get(note, 'depth');
+  const role: unknown = Reflect.get(note, 'role');
+  return {
+    content: prompt,
+    depth: typeof depth === 'number' && Number.isInteger(depth) && depth >= 0 ? depth : PROMPT.author_note_depth,
+    role: role === 'user' || role === 'assistant' ? role : 'system',
+  };
 }
 
 export interface PromptPersona {
@@ -495,8 +522,13 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   };
   const system: ModelMessage = { role: 'system', content: systemText(texts, layout, fill) };
   const note = fill(noteBlock(sectionText('author_note', input.author_note), loreSections));
+  // The speaker's Character's Note (gap 7); the narrator has none.
+  const cardNote = narrating ? null : characterNote(speaker);
   const inserts: Insert[] = [
     ...(note === '' ? [] : [{ depth: PROMPT.author_note_depth, message: { role: 'system' as const, content: note } }]),
+    ...(cardNote === null
+      ? []
+      : [{ depth: cardNote.depth, message: { role: cardNote.role, content: fill(cardNote.content) } }]),
     ...(input.lore?.at_depth ?? []).map((insert: DepthInsert) => ({
       depth: insert.depth,
       message: { role: insert.role, content: fill(insert.content) },
@@ -518,9 +550,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   const instructions = sectionText('post_history', speaker.post_history_instructions);
   const after: ModelMessage[] = [
     ...(instructions === '' ? [] : [{ role: 'system' as const, content: instructions }]),
-    ...(mode === 'impersonate'
-      ? [{ role: 'system' as const, content: fill(PROMPT.impersonate_prompt) }]
-      : []),
+    ...(mode === 'impersonate' ? [{ role: 'system' as const, content: fill(PROMPT.impersonate_prompt) }] : []),
   ];
   // An X-carded turn (A25) stays in the chat but out of what the model reads.
   const storyTurns = input.history.filter((turn) => story.has(turn.channel) && turn.x_carded !== true);

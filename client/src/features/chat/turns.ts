@@ -38,16 +38,39 @@ export function mentionedSpeaker(
   return found?.id ?? null;
 }
 
+/** A card's talkativeness (V2 `extensions.talkativeness`, 0 to 1); SillyTavern's 0.5 when unset or unreadable. */
+export function talkativenessOf(extensions: Readonly<Record<string, unknown>> | undefined): number {
+  const raw = extensions?.talkativeness;
+  const value = typeof raw === 'number' ? raw : typeof raw === 'string' && raw.trim() !== '' ? Number(raw) : NaN;
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.5;
+}
+
+/**
+ * A draw in [0, 1) fixed by its seed (FNV-1a): the same chat state always gives the same next
+ * speaker, so "up next" and the reply it promises agree.
+ */
+export function seededDraw(seed: string): number {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < seed.length; index += 1) {
+    hash ^= seed.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash / 0x100000000;
+}
+
 /**
  * Who replies next. Alone, the one character. In a group, the member the last story line names
- * (natural order, when `names` is given), else the character after the last one who spoke in the
- * story, in the chat's order; muted members are skipped (A52), and null when all are muted.
+ * (natural order, when `names` is given); failing that, with `talkativeness` given (gap 7, as
+ * SillyTavern's natural order), the first member after the last speaker whose talkativeness wins
+ * its draw. Otherwise the character after the last one who spoke in the story, in the chat's
+ * order. Muted members are skipped (A52), and null when all are muted.
  */
 export function nextSpeaker(
   characterIds: readonly string[],
   branch: readonly TurnMessage[],
   muted: readonly string[] = [],
   names?: ReadonlyMap<string, string>,
+  talkativeness?: ReadonlyMap<string, number>,
 ): string | null {
   if (characterIds.length === 0) return null;
   if (names !== undefined && characterIds.length > 1) {
@@ -57,8 +80,15 @@ export function nextSpeaker(
   const last = [...branch].reverse().find((message) => message.role === 'character' && message.channel === 'ic');
   const index =
     last === undefined || last.speaker_character_id === null ? -1 : characterIds.indexOf(last.speaker_character_id);
-  const order = characterIds.map((_id, step) => characterIds[(index + 1 + step) % characterIds.length] as string);
-  return order.find((id) => !muted.includes(id)) ?? null;
+  const order = characterIds
+    .map((_id, step) => characterIds[(index + 1 + step) % characterIds.length] as string)
+    .filter((id) => !muted.includes(id));
+  if (talkativeness !== undefined && characterIds.length > 1) {
+    const seed = branch.at(-1)?.id ?? '';
+    const eager = order.find((id) => seededDraw(`${seed}:${id}`) < (talkativeness.get(id) ?? 0.5));
+    if (eager !== undefined) return eager;
+  }
+  return order[0] ?? null;
 }
 
 /** The messages that share `message`'s parent (its alternatives at a fork), and its place among them. */

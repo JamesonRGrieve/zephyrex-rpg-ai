@@ -111,7 +111,8 @@ function Pager({
       >
         <ChevronLeft aria-hidden />
       </Button>
-      <span aria-live='polite'>
+      {/* Full foreground: muted text on a bubble's muted fill fails contrast (Storybook a11y). */}
+      <span className='text-foreground' aria-live='polite'>
         {index + 1}/{count}
       </span>
       <Button

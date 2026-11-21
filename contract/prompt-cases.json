@@ -20,6 +20,38 @@
       "example_messages": "",
       "system_prompt": "You are {{char}}.",
       "post_history_instructions": "Keep {{char}}'s reply under 60 words."
+    },
+    "cass": {
+      "id": "c-cass",
+      "name": "Cass",
+      "description": "{{char}} is the pilot.",
+      "system_prompt": "You are {{char}}.",
+      "personality": "",
+      "scenario": "",
+      "example_messages": "",
+      "post_history_instructions": "",
+      "extensions": {
+        "depth_prompt": {
+          "prompt": "[{{char}} hides a limp.]",
+          "depth": 1,
+          "role": "system"
+        }
+      }
+    },
+    "dara": {
+      "id": "c-dara",
+      "name": "Dara",
+      "description": "{{char}} is a spy.",
+      "system_prompt": "You are {{char}}.",
+      "personality": "",
+      "scenario": "",
+      "example_messages": "",
+      "post_history_instructions": "",
+      "extensions": {
+        "depth_prompt": {
+          "prompt": "{{char}} whispers."
+        }
+      }
     }
   },
   "cases": [
@@ -1319,6 +1351,148 @@
         {
           "role": "user",
           "content": "Where do I sleep?"
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "the speaker's Character's Note (V2 depth_prompt) sits at its depth with its role, macros filled (gap 7)",
+      "input": {
+        "characters": [
+          "cass"
+        ],
+        "speaker_id": "c-cass",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "One"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-cass",
+            "content": "Two"
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Three"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Cass.\n\nCass is the pilot."
+        },
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "assistant",
+          "content": "Two"
+        },
+        {
+          "role": "system",
+          "content": "[Cass hides a limp.]"
+        },
+        {
+          "role": "user",
+          "content": "Three"
+        }
+      ],
+      "dropped": 0
+    },
+    {
+      "name": "a Character's Note without depth or role takes SillyTavern's defaults (depth 4, system) and follows the author's note there (gap 7)",
+      "input": {
+        "characters": [
+          "dara"
+        ],
+        "speaker_id": "c-dara",
+        "persona": {
+          "name": "Sam",
+          "description": ""
+        },
+        "author_note": "[Rain.]",
+        "history": [
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "One"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-dara",
+            "content": "Two"
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Three"
+          },
+          {
+            "role": "character",
+            "channel": "ic",
+            "speaker_character_id": "c-dara",
+            "content": "Four"
+          },
+          {
+            "role": "user",
+            "channel": "ic",
+            "speaker_character_id": null,
+            "content": "Five"
+          }
+        ],
+        "context_tokens": 8192,
+        "max_tokens": 400
+      },
+      "messages": [
+        {
+          "role": "system",
+          "content": "You are Dara.\n\nDara is a spy."
+        },
+        {
+          "role": "user",
+          "content": "One"
+        },
+        {
+          "role": "system",
+          "content": "[Rain.]"
+        },
+        {
+          "role": "system",
+          "content": "Dara whispers."
+        },
+        {
+          "role": "assistant",
+          "content": "Two"
+        },
+        {
+          "role": "user",
+          "content": "Three"
+        },
+        {
+          "role": "assistant",
+          "content": "Four"
+        },
+        {
+          "role": "user",
+          "content": "Five"
         }
       ],
       "dropped": 0

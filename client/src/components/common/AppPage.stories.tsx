@@ -1,14 +1,23 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { Meta, StoryObj } from '@storybook/nextjs';
 import { expect, within } from 'storybook/test';
+import { ZephyrexProvider } from 'zephyrex';
 import { SidebarProvider } from 'zephyrex/ui/sidebar';
+import config from '~/zephyrex.config';
 import { AppPage } from './AppPage';
 
 const meta: Meta<typeof AppPage> = {
   title: 'Common/App page',
   component: AppPage,
   tags: ['autodocs'],
-  decorators: [(Story) => <SidebarProvider>{Story()}</SidebarProvider>],
+  // The app's own frame: the framework's config (its no-script menu reads it) and the sidebar.
+  decorators: [
+    (Story) => (
+      <ZephyrexProvider config={config}>
+        <SidebarProvider>{Story()}</SidebarProvider>
+      </ZephyrexProvider>
+    ),
+  ],
   args: {
     title: 'Chats',
     heading: 'Your chats',
@@ -22,7 +31,8 @@ type Story = StoryObj<typeof AppPage>;
 export const Wide: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await expect(canvas.getByRole('banner')).toHaveTextContent('Chats');
+    // The provider's frame may add a banner of its own; the page's is the one titled.
+    await expect(canvas.getAllByRole('banner').some((banner) => banner.textContent?.includes('Chats'))).toBe(true);
     // The body's PageHeader is the page's one h1; the sidebar title is chrome.
     await expect(canvas.getByRole('heading', { level: 1, name: 'Your chats' })).toBeVisible();
     await expect(canvas.getAllByRole('heading', { level: 1 })).toHaveLength(1);
@@ -46,7 +56,10 @@ export const OwnHeading: Story = {
 export const Phone: Story = {
   globals: { viewport: { value: 'mobile1', isRotated: false } },
   play: async ({ canvasElement }) => {
-    const header = within(within(canvasElement).getByRole('banner'));
-    await expect(header.getByRole('button', { name: 'Toggle Sidebar', hidden: true })).toBeInTheDocument();
+    const banners = within(canvasElement).getAllByRole('banner');
+    const toggles = banners.flatMap((banner) =>
+      within(banner).queryAllByRole('button', { name: 'Toggle Sidebar', hidden: true }),
+    );
+    await expect(toggles.length).toBeGreaterThan(0);
   },
 };

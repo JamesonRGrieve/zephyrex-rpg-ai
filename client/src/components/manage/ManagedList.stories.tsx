@@ -29,7 +29,8 @@ export const Default: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(canvas.getByText('Default')).toBeInTheDocument();
-    await userEvent.click(canvas.getByRole('button', { name: /Captain Reyes/ }));
+    // The row itself, not its Delete button (named "Delete Captain Reyes").
+    await userEvent.click(canvas.getByRole('button', { name: /^Captain Reyes/ }));
   },
 };
 
