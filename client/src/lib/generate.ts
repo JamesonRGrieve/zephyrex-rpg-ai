@@ -34,6 +34,8 @@ import {
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { aiCast, playedPersona, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
+import { personaBooks, personaFor } from '~/features/prompt/personaPick';
+import type { Persona as PersonaRecord } from '~/features/data/records';
 import { activateLore, type LoreEntry, type LoreSettings, type LoreState } from '~/features/lore/activate';
 import {
   type AssembledPrompt,
@@ -191,14 +193,27 @@ export async function generationInputs(
   const aiIds = new Set(aiCast(chatFields.character_ids, playingId));
   const aiCharacters = promptCharacters.filter((character) => aiIds.has(character.id));
 
-  const personaRow =
-    chatFields.persona_id === null
-      ? await prisma.persona.findFirst({ where: { createdById: ownerId, isDefault: true } })
-      : await personas.find(chatFields.persona_id, ownerId);
+  // Who the person speaks as (audit gap 9): the chat's choice, else a persona locked to one of its
+  // characters, else the default; a played character (the play model) stands in for any of them.
+  const personaRows = (await personas.list(ownerId, new URLSearchParams())).map((row) => ({
+    ...(personas.fields(row) as Omit<PersonaRecord, 'id' | 'created_at' | 'updated_at'>),
+    id: row.id,
+  }));
+  const picked = personaFor(chatFields.persona_id, chatFields.character_ids, personaRows);
   const persona = playedPersona(
     playedRow === null ? null : { id: playedRow.id, name: playedRow.name, description: playedRow.description },
-    personaRow === null ? null : { name: personaRow.name, description: personaRow.description },
+    picked === null
+      ? null
+      : {
+          name: picked.name,
+          description: picked.description,
+          description_position: picked.description_position,
+          description_depth: picked.description_depth,
+          description_role: picked.description_role,
+        },
   );
+  // The persona's own lorebook joins the chat's while it's the one spoken as.
+  const personaBookIds = personaBooks(playedRow === null ? picked : null, []);
 
   const messages = (await chatMessages.list(ownerId, new URLSearchParams({ chat_id: chat.id }))).map((row) => ({
     id: row.id,
@@ -248,7 +263,11 @@ export async function generationInputs(
     .filter((turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true)
     .map((turn) => turn.content);
   const bookIds = [
-    ...new Set([...chatFields.lorebook_ids, ...ordered.flatMap((row) => (row.lorebookId === null ? [] : [row.lorebookId]))]),
+    ...new Set([
+      ...chatFields.lorebook_ids,
+      ...personaBookIds,
+      ...ordered.flatMap((row) => (row.lorebookId === null ? [] : [row.lorebookId])),
+    ]),
   ];
   const entryRows =
     bookIds.length === 0

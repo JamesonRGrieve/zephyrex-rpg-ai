@@ -74,6 +74,7 @@ from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-
     native_request,
     openai_payload,
 )
+from zephyrex.extensions.ai_chat.PersonaPick import persona_books, persona_for  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
     ai_cast,
     played_persona,
@@ -1984,11 +1985,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             return ""
         try:
             chat = self._manager(ChatManager).get(id=body.chat_id)
-            persona = (
-                self._manager(PersonaManager).get(id=chat.persona_id)
-                if chat.persona_id
-                else next(iter(self._manager(PersonaManager).list(is_default=True)), None)
-            )
+            persona = persona_for(chat.persona_id, chat.character_ids or [], self._manager(PersonaManager).list())
             messages = self._manager(ChatMessageManager).list(chat_id=chat.id)
             cast = {
                 character_id: self._manager(CharacterManager).get(id=character_id)
@@ -2079,11 +2076,20 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 detail={"message": "The speaker must be a character in the chat", "code": "validation_error"},
             )
 
-        personas = self._manager(PersonaManager)
-        persona_row = (
-            personas.get(id=chat.persona_id) if chat.persona_id else next(iter(personas.list(is_default=True)), None)
+        # Who the person speaks as (audit gap 9): the chat's choice, else a persona locked to one of its
+        # characters, else the default; a played character (the play model, below) stands in for any.
+        persona_row = persona_for(chat.persona_id, chat.character_ids or [], self._manager(PersonaManager).list())
+        persona = (
+            None
+            if persona_row is None
+            else {
+                "name": persona_row.name,
+                "description": persona_row.description,
+                "description_position": persona_row.description_position,
+                "description_depth": persona_row.description_depth,
+                "description_role": persona_row.description_role,
+            }
         )
-        persona = None if persona_row is None else {"name": persona_row.name, "description": persona_row.description}
         # A campaign (docs/DESIGN.md, The play model): the character the person plays is who they are and
         # leaves the cast the AI plays; replies read the current session, earlier ones by their summaries.
         from zephyrex.extensions.ai_chat.BLL_AI_Session import play_context  # type: ignore[import-not-found]
@@ -2092,6 +2098,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         if playing_id is not None:
             played = characters.get(id=playing_id)
             persona = played_persona({"name": played.name, "description": played.description}, persona)
+            persona_row = None
             kept = set(ai_cast([character["id"] for character in cast], playing_id))
             cast = [character for character in cast if character["id"] in kept]
 
@@ -2130,7 +2137,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for turn in history
             if turn["channel"] in PROMPT["story_channels"] and not turn["x_carded"] and not turn["hidden"]
         ]
-        book_ids = list(dict.fromkeys([*(chat.lorebook_ids or []), *own_books]))
+        # The persona's own lorebook joins the chat's while it's the one spoken as (audit gap 9).
+        book_ids = list(dict.fromkeys([*persona_books(persona_row, chat.lorebook_ids or []), *own_books]))
         entries_manager = self._manager(LorebookEntryManager)
         entries = [
             {key: getattr(row, key) for key in LORE_ENTRY_FIELDS}

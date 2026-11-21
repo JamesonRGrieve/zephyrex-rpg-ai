@@ -208,6 +208,36 @@ describe('POST /v1/ai_chat/generate', () => {
 });
 
 describe('World Info in a reply', () => {
+  it('speaks as the persona locked to the character, its description at its depth and its lorebook read (audit gap 9)', async () => {
+    await prisma.lorebookEntry.deleteMany();
+    await prisma.lorebook.deleteMany();
+    await prisma.chatLoreState.deleteMany();
+    await prisma.persona.deleteMany();
+    const { ada, chat, line } = await seed();
+    const book = await prisma.lorebook.create({ data: { ...stamp(), name: 'Sam’s past' } });
+    await prisma.lorebookEntry.create({
+      data: { ...stamp(), lorebookId: book.id, keys: '["spanner"]', content: 'Sam once lost a spanner overboard.' },
+    });
+    await prisma.persona.create({
+      data: {
+        ...stamp(),
+        name: 'Sam',
+        description: '{{user}} is a new deckhand.',
+        descriptionPosition: 'depth',
+        descriptionDepth: 1,
+        descriptionRole: 'user',
+        lorebookId: book.id,
+        characterIds: JSON.stringify([ada.id]),
+      },
+    });
+    const response = await inspectPrompt(call({ generate: { chat_id: chat.id, leaf_id: line.id } }));
+    const { prompt } = (await response.json()) as { prompt: { messages: { role: string; content: string }[] } };
+    expect(prompt.messages[0]?.content).not.toContain('Sam is a new deckhand.');
+    expect(prompt.messages).toContainEqual(expect.objectContaining({ role: 'user', content: 'Sam: Sam is a new deckhand.' }));
+    expect(prompt.messages.some((message) => message.content.includes('lost a spanner overboard'))).toBe(true);
+    await prisma.persona.deleteMany();
+  });
+
   it('gives the model the entries the branch activates, and keeps a sticky entry’s timer', async () => {
     await prisma.lorebookEntry.deleteMany();
     await prisma.lorebook.deleteMany();

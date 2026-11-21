@@ -731,6 +731,23 @@ class TestGenerate:
             ping = server.post("/v1/ai_chat/ping", json={"ping": {"endpoint_id": endpoint["id"]}}, headers=_headers(user)).json()["ping"]
             assert ping["ok"] is True and ping["has_model"] is True, ping
 
+    def test_a_persona_locked_to_the_character_speaks_with_its_lorebook_and_placed_description(self, server: TestClient, model_url: str) -> None:
+        # Audit gap 9: no chosen persona and no default; the one locked to Ada is spoken as, its
+        # description at depth 1 as the user's line, its lorebook read with the chat's.
+        user = create_user(server)
+        ada = _create(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        book = _create(server, user, "lorebook", name="Sam's past").json()["lorebook"]
+        _create(server, user, "lorebook_entry", lorebook_id=book["id"], keys=["coolant"], content="Sam once flooded a reactor with coolant.")
+        _create(server, user, "persona", name="Sam", description="{{user}} is a new deckhand.", description_position="depth", description_depth=1, description_role="user", lorebook_id=book["id"], character_ids=[ada["id"]])
+        chat = _create(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Where's the coolant?"]).json()["chat_message"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+        messages = server.post("/v1/ai_chat/prompt", json=asked, headers=_headers(user)).json()["prompt"]["messages"]
+        assert "Sam: Sam is a new deckhand." not in messages[0]["content"]
+        assert {"role": "user", "content": "Sam: Sam is a new deckhand."} in [{"role": m["role"], "content": m["content"]} for m in messages[1:]]
+        assert any("flooded a reactor" in message["content"] for message in messages), messages
+
     def test_macros_read_the_chat_and_its_variables_and_a_reply_keeps_what_they_set(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada", description="A pilot.").json()["character"]
