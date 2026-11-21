@@ -31,6 +31,7 @@ import {
   PRESET_DEFAULTS,
   PROMPT,
   SAFETY,
+  CHAT_SEATS,
   SAMPLER_EXTRAS,
   SAMPLER_RANGES,
   TABLE,
@@ -248,6 +249,7 @@ const CHAT_COLUMNS: Columns = {
   background: plain('background'),
   objectives: jsonList('objectives'),
   content_rating: plain('contentRating'),
+  seat: plain('seat'),
   lines: jsonList('lines'),
   veils: jsonList('veils'),
   table_notes: jsonList('tableNotes'),
@@ -302,6 +304,7 @@ const chatFields = {
     .max(LIMITS.objectives_per_chat),
   /** The table's safety tools (A25): a content rating, lines (never) and veils (off-screen only). */
   content_rating: z.enum(SAFETY.ratings).nullable(),
+  seat: z.enum(CHAT_SEATS).nullable(),
   lines: z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.safety_items),
   veils: z.array(z.string().trim().min(1).max(LIMITS.short_text_characters)).max(LIMITS.safety_items),
   /** The table's notes (A11): house rules, pacing, tone and reminders, read every turn. */
@@ -341,6 +344,7 @@ const chatCreate = z.object({
   background: avatar.default(null),
   objectives: chatFields.objectives.default([]),
   content_rating: chatFields.content_rating.default(null),
+  seat: chatFields.seat.default(null),
   lines: chatFields.lines.default([]),
   veils: chatFields.veils.default([]),
   table_notes: chatFields.table_notes.default([]),

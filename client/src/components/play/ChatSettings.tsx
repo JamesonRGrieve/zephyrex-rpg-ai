@@ -23,6 +23,11 @@ import { type TableNoteValue, TableNotesEditor } from './TableNotesEditor';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 
 const RATING_LABELS = { general: 'General', teen: 'Teen', mature: 'Mature' } as const;
+const SEATS = [
+  { value: null, label: 'Plain chat', hint: 'The characters reply to you; no GM' },
+  { value: 'player', label: 'Player', hint: 'You play your character; the rest of the party and the GM are AI' },
+  { value: 'gm', label: 'GM', hint: 'You run the world; the whole party is AI' },
+] as const;
 
 export interface ChatSettingsValue {
   title: string;
@@ -40,6 +45,8 @@ export interface ChatSettingsValue {
   background: string | null;
   objectives: Objective[];
   content_rating: 'general' | 'teen' | 'mature' | null;
+  /** The person's seat at the table: a player in an AI party with an AI GM, or the GM of an AI party; null: a plain chat. */
+  seat: 'player' | 'gm' | null;
   lines: string[];
   veils: string[];
   table_notes: TableNoteValue[];
@@ -143,6 +150,7 @@ export function ChatSettings({
   const [pictureProblem, setPictureProblem] = useState<string | null>(null);
   const ids = {
     rating: useId(),
+    seat: useId(),
     lines: useId(),
     veils: useId(),
     background: useId(),
@@ -265,6 +273,24 @@ export function ChatSettings({
             noneLabel='None'
             onChange={(next) => set('scenario_id', next)}
           />
+          <div className='grid gap-2'>
+            <span id={ids.seat} className='text-sm font-medium'>
+              Your seat
+            </span>
+            <div ref={chipGroup} role='radiogroup' aria-labelledby={ids.seat} className='grid gap-2 sm:grid-cols-3'>
+              {SEATS.map((seat) => (
+                <ChoiceChip
+                  key={seat.value ?? 'plain'}
+                  checked={draft.seat === seat.value}
+                  className='h-auto min-h-11 flex-col items-start px-3 py-2 text-left'
+                  onClick={() => set('seat', seat.value)}
+                >
+                  <span className='font-medium'>{seat.label}</span>
+                  <span className='text-xs'>{seat.hint}</span>
+                </ChoiceChip>
+              ))}
+            </div>
+          </div>
           <Choice
             label='You play as'
             value={draft.persona_id}

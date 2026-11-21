@@ -59,6 +59,7 @@ CREATE TABLE "Chat" (
     "background" TEXT,
     "objectives" TEXT NOT NULL DEFAULT '[]',
     "contentRating" TEXT,
+    "seat" TEXT,
     "lines" TEXT NOT NULL DEFAULT '[]',
     "veils" TEXT NOT NULL DEFAULT '[]',
     "tableNotes" TEXT NOT NULL DEFAULT '[]',

@@ -23,6 +23,7 @@ import {
   QUICK_REPLY,
   REGEX,
   SAFETY,
+  CHAT_SEATS,
   TABLE,
   SELECTIVE_LOGIC,
   ENDPOINT_KINDS,
@@ -103,6 +104,8 @@ export const chatSchema = z.object({
   background: z.string().nullable(),
   objectives: z.array(z.object({ text: z.string(), done: z.boolean() })),
   content_rating: z.enum(SAFETY.ratings).nullable(),
+  /** The person's seat (null: a plain chat with no GM). */
+  seat: z.enum(CHAT_SEATS).nullable().default(null),
   lines: z.array(z.string()),
   veils: z.array(z.string()),
   table_notes: z.array(z.object({ kind: z.enum(TABLE.note_kinds), text: z.string() })),
@@ -378,7 +381,11 @@ export const campaignSchema = z.object({
   wiki_campaign_id: z.string().nullable(),
 });
 export type Campaign = z.infer<typeof campaignSchema>;
-export const campaigns = resource<Campaign, Fields<Campaign> & { name: string }>('campaign_frame', 'campaign_frames', campaignSchema);
+export const campaigns = resource<Campaign, Fields<Campaign> & { name: string }>(
+  'campaign_frame',
+  'campaign_frames',
+  campaignSchema,
+);
 
 export const scenarioSchema = z.object({
   ...versioned,

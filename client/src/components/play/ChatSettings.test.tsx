@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { LORE } from '~/contract';
@@ -21,6 +21,7 @@ const VALUE = {
   background: null,
   objectives: [],
   content_rating: null,
+  seat: null,
   lines: [],
   veils: [],
   table_notes: [],
@@ -143,5 +144,26 @@ describe('ChatSettings', () => {
     expect(onSave).toHaveBeenCalledWith(
       expect.objectContaining({ content_rating: 'teen', lines: ['spiders'], veils: ['gore'] }),
     );
+  });
+
+  it('seats the person as a player in the party or as its GM (or a plain chat)', async () => {
+    const onSave = vi.fn();
+    render(
+      <ChatSettings
+        open
+        onOpenChange={vi.fn()}
+        value={VALUE}
+        personas={[]}
+        presets={[]}
+        endpoints={[]}
+        lorebooks={[]}
+        onSave={onSave}
+      />,
+    );
+    const seat = await screen.findByRole('radiogroup', { name: 'Your seat' });
+    expect(within(seat).getByRole('radio', { name: /^Plain chat/ })).toBeChecked();
+    await userEvent.click(within(seat).getByRole('radio', { name: /^GM/ }));
+    await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+    expect(onSave).toHaveBeenCalledWith(expect.objectContaining({ seat: 'gm' }));
   });
 });

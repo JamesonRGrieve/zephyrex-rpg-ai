@@ -62,6 +62,7 @@
     "character",
     "group"
   ],
+  "chat_seats": ["player", "gm"],
   "card_specs": {
     "v2": {
       "spec": "chara_card_v2",

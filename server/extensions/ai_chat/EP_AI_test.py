@@ -490,6 +490,29 @@ class TestGenerate:
         assert "Never include, even off-screen: spiders." in contents[0] and "Only ever off-screen, never described: gore." in contents[0]
         assert "Something awful." not in "\n".join(contents)
 
+    def test_a_seat_at_the_table_and_the_characters_note(self, server: TestClient, model_url: str) -> None:
+        # The person sits as a player or as the GM (the operator, 2026-11-21); null is a plain chat.
+        user = create_user(server)
+        note = {"depth_prompt": {"prompt": "[{{char}} hides a limp.]", "depth": 0, "role": "system"}}
+        ada = _create(server, user, "character", name="Ada", extensions=note).json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        wrong = {"chat": {"title": "x", "character_ids": [ada["id"]], "seat": "dm"}}
+        bad = server.post("/v1/chat", json=wrong, headers=_headers(user))
+        assert bad.status_code == 422, bad.text
+        plain = _create(server, user, "chat", title="Plain", character_ids=[ada["id"]]).json()["chat"]
+        assert plain["seat"] is None
+        chat = _create(server, user, "chat", title="Table", character_ids=[ada["id"]], seat="gm").json()["chat"]
+        assert chat["seat"] == "gm"
+        # The GM's own story line is narration; the AI party reads it so, with Ada's Character's Note last.
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="narrator", swipes=["The bridge shakes."])
+        assert line.status_code == 201, line.text
+        leaf = line.json()["chat_message"]["id"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": leaf, "speaker_id": ada["id"]}}
+        prompt = server.post("/v1/ai_chat/prompt", json=asked, headers=_headers(user)).json()["prompt"]
+        contents = [message["content"] for message in prompt["messages"]]
+        assert any("The bridge shakes." in content for content in contents)
+        assert contents[-1] == "[Ada hides a limp.]"
+
     def test_the_table_gm_answers_and_a_pause_holds_the_story(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _create(server, user, "character", name="Ada").json()["character"]

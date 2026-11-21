@@ -17,6 +17,8 @@ export const PAID_FEATURE_IDS: Readonly<Record<string, string>> = contract.paid_
 export const MESSAGE_ROLES = contract.message_roles as unknown as readonly ['user', 'character', 'narrator', 'system'];
 export const MESSAGE_CHANNELS = contract.message_channels as unknown as readonly ['ic', 'ooc', 'gm', 'roll', 'system'];
 export const CHAT_MODES = contract.chat_modes as unknown as readonly ['character', 'group'];
+/** The person's seat at the table (null on a chat: a plain chat, with no GM): a player in the party, or the GM. */
+export const CHAT_SEATS = contract.chat_seats as unknown as readonly ['player', 'gm'];
 
 export type MessageRole = (typeof MESSAGE_ROLES)[number];
 export type MessageChannel = (typeof MESSAGE_CHANNELS)[number];

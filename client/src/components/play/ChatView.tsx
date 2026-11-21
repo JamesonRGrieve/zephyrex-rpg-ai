@@ -37,6 +37,7 @@ import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf, treeRows } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
+import { GM_TURN, roundTurns } from '~/features/chat/seat';
 import { nextSpeaker, siblingsOf, talkativenessOf } from '~/features/chat/turns';
 import {
   deviceLanguage,
@@ -307,12 +308,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [picked, setPicked] = useState<string | null>(null);
 
   /** Streams the next reply after `parentId`, then keeps it as a new message. */
-  const replyAfter = async (parentId: string | null, path: readonly ChatMessage[]) => {
-    // The person's pick for the next turn (A10), else the cast's order; a pick is used once.
+  const replyAfter = async (parentId: string | null, path: readonly ChatMessage[], chosen?: string) => {
+    // A round's own pick (the seat), else the person's pick for the next turn (A10), else the
+    // cast's order; a pick is used once.
     const speakerId =
-      picked !== null && chat.character_ids.includes(picked)
+      chosen ??
+      (picked !== null && chat.character_ids.includes(picked)
         ? picked
-        : nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames, castTalk);
+        : nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames, castTalk));
     setPicked(null);
     if (speakerId === null) return null;
     setWritingAfter({ parentId, speakerId });
@@ -672,13 +675,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       notify('The game is paused', 'Resume to go on with the story.');
       return;
     }
-    setWritingAfter({ parentId: leaf, speakerId: NARRATOR_TURN });
-    const result = await timedWrite({ chat_id: chat.id, leaf_id: leaf, speaker_id: null, mode: 'narrate' });
+    await narrateAfter(leaf);
+  };
+
+  /** The GM's narration after `parentId`, kept as a narrator turn; null when nothing was written. */
+  const narrateAfter = async (parentId: string | null): Promise<ChatMessage | null> => {
+    setWritingAfter({ parentId, speakerId: NARRATOR_TURN });
+    const result = await timedWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: null, mode: 'narrate' });
     setWritingAfter(null);
-    if (result === null || result.text.trim() === '') return;
+    if (result === null || result.text.trim() === '') return null;
     const saved = await create({
       chat_id: chat.id,
-      parent_id: leaf,
+      parent_id: parentId,
       role: 'narrator',
       channel: 'ic',
       swipes: [stored(result.text, 'ai_output')],
@@ -687,6 +695,36 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setLeafId(saved.id);
     noteCost(saved.id, result);
     autoTranslate(saved.id, saved.swipes[0] ?? '');
+    return saved;
+  };
+
+  /**
+   * What follows the person's story line. A plain chat (no seat): one reply. At a table (the seat):
+   * the round, as features/chat/seat decides it: the party members who speak up, each after the
+   * last, then the AI GM's narration when the person sits as a player.
+   */
+  const playRound = async (start: ChatMessage, path: readonly ChatMessage[]) => {
+    if (chat.seat === null) {
+      await replyAfter(start.id, path);
+      return;
+    }
+    const turns = roundTurns({
+      seat: chat.seat,
+      characterIds: chat.character_ids,
+      branch: path,
+      muted: chat.muted_ids,
+      names: castNames,
+      talkativeness: castTalk,
+    });
+    let current = [...path];
+    let parent: ChatMessage = start;
+    for (const turn of turns) {
+      const saved = turn === GM_TURN ? await narrateAfter(parent.id) : await replyAfter(parent.id, current, turn);
+      // A turn that wrote nothing (stopped, or failed) ends the round there.
+      if (saved === null) return;
+      parent = saved;
+      current = [...current, saved];
+    }
   };
 
   /** A picture of the scene so far (A30), kept in the chat as a system line: never in the story. */
@@ -732,7 +770,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const saved = await create({
       chat_id: chat.id,
       parent_id: leaf,
-      role: 'user',
+      // In the GM's seat, the person's story line is the GM's narration; the AI party reads it so.
+      role: chat.seat === 'gm' && channel === 'ic' ? 'narrator' : 'user',
       channel,
       swipes: [channel === 'ic' ? stored(text, 'user_input') : text],
       images,
@@ -740,7 +779,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setLeafId(saved.id);
     if (channel === 'gm') await askGm(saved);
     // Paused (A25): the story waits; the line is kept for when the table resumes.
-    else if (channel === 'ic' && !chat.paused) await replyAfter(saved.id, [...branch, saved]);
+    else if (channel === 'ic' && !chat.paused) await playRound(saved, [...branch, saved]);
   };
 
   /** Another alternative for a reply; with `endpointId`, from that model (AP4), to compare them side by side. */
@@ -1389,6 +1428,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           background: chat.background,
           objectives: chat.objectives,
           content_rating: chat.content_rating,
+          seat: chat.seat,
           lines: chat.lines,
           veils: chat.veils,
           table_notes: chat.table_notes,

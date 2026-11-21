@@ -325,6 +325,11 @@ class ChatChecks(PlainModel):
     def _checked_rating(cls, value: Any) -> Any:
         return _one_of(value, CONTRACT["safety"]["ratings"], "content_rating")
 
+    @field_validator("seat", check_fields=False)
+    @classmethod
+    def _checked_seat(cls, value: Any) -> Any:
+        return _one_of(value, CONTRACT["chat_seats"], "seat")
+
     @field_validator("lines", "veils", check_fields=False)
     @classmethod
     def _checked_safety_items(cls, value: Any) -> Any:
@@ -415,6 +420,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         default_factory=list, description="Its tasks in order; the first not done is put to the model"
     )
     content_rating: str | None = Field(None, description="general, teen or mature (null: none set)")
+    seat: str | None = Field(
+        None, description="The person's seat: player (an AI GM and an AI party) or gm (an AI party); null: a plain chat"
+    )
     lines: list[str] = Field(default_factory=list, description="Never in the story, even off-screen")
     veils: list[str] = Field(default_factory=list, description="Only ever off-screen")
     table_notes: list[dict[str, Any]] = Field(
@@ -447,6 +455,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         background: str | None = None
         objectives: list[dict[str, Any]] = Field(default_factory=list)
         content_rating: str | None = None
+        seat: str | None = None
         lines: list[str] = Field(default_factory=list)
         veils: list[str] = Field(default_factory=list)
         table_notes: list[dict[str, Any]] = Field(default_factory=list)
@@ -473,6 +482,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         background: str | None = None
         objectives: list[dict[str, Any]] | None = None
         content_rating: str | None = None
+        seat: str | None = None
         lines: list[str] | None = None
         veils: list[str] | None = None
         table_notes: list[dict[str, Any]] | None = None
@@ -1934,6 +1944,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         "example_messages",
                         "system_prompt",
                         "post_history_instructions",
+                        # The card's extensions: its Character's Note (gap 7).
+                        "extensions",
                     )
                 }
             )

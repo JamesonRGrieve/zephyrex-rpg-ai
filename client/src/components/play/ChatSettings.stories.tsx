@@ -26,6 +26,7 @@ const meta: Meta<typeof ChatSettings> = {
       background: null,
       objectives: [],
       content_rating: null,
+      seat: null,
       lines: [],
       veils: [],
       table_notes: [],

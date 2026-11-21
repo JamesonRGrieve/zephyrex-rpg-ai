@@ -79,6 +79,7 @@ model Chat {
   background   String?
   objectives   String   @default("[]")
   contentRating String?
+  seat          String?
   lines        String   @default("[]")
   veils        String   @default("[]")
   tableNotes   String   @default("[]")
