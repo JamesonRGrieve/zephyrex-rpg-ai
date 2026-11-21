@@ -10,6 +10,7 @@
 import {
   CampaignSeats,
   CharacterSheet,
+  CombatOrder,
   CurrentSceneTokens,
   DiceReplay,
   DiceTray,
@@ -133,6 +134,16 @@ export function ContextPanel({
                 </ul>
               </AccordionContent>
             </AccordionItem>
+            {campaignId !== null && (
+              // The fight in progress (the VTT's rpg_combat): its round, the initiative order, whose
+              // turn it is; the GM rolls, starts, advances and ends it here.
+              <AccordionItem value='combat'>
+                <AccordionTrigger>Combat order</AccordionTrigger>
+                <AccordionContent>
+                  <CombatOrder campaignId={campaignId} />
+                </AccordionContent>
+              </AccordionItem>
+            )}
             {campaignId !== null && (
               // The table (the operator, 2026-11-21: tables belong in the play area): the campaign's
               // scenes (the GM makes one current), its seats, and what's on the current map.
