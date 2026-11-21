@@ -8,7 +8,7 @@
 import { csrfHeaders } from '@zephyrex/auth/lib/session';
 
 export interface MapChange {
-  moved: string[];
+  moved: { person: string; place: string }[];
   scene: string | null;
 }
 
@@ -22,16 +22,21 @@ async function step(path: string, envelope: string, body: Record<string, unknown
   return Reflect.get(Object(await response.json().catch(() => null)), envelope) ?? null;
 }
 
-/** Moves the map after the round ending at `leafId`; what changed, or null when nothing did. */
+/** Moves the map after the round ending at `leafId`: who went where, or null when nobody moved. */
 export async function mapStep(chatId: string, leafId: string): Promise<MapChange | null> {
   const answer = Object(await step('map_step', 'map_step', { chat_id: chatId, leaf_id: leafId })) as Record<string, unknown>;
   const moves = Array.isArray(answer.moves) ? answer.moves : [];
   const moved = moves.flatMap((move) => {
-    const label = Reflect.get(Object(move), 'label');
-    return typeof label === 'string' && label !== '' ? [label] : [];
+    const person = Reflect.get(Object(move), 'person_id');
+    const place = Reflect.get(Object(move), 'to_name');
+    return typeof person === 'string' && typeof place === 'string' ? [{ person, place }] : [];
   });
-  const scene = typeof answer.scene_name === 'string' ? answer.scene_name : null;
-  return moved.length === 0 && scene === null ? null : { moved, scene };
+  return moved.length === 0 ? null : { moved, scene: null };
+}
+
+/** The campaign's one-line status, rewritten from the story so far (for the campaign list). */
+export async function refreshStatusLine(chatId: string, leafId: string): Promise<void> {
+  await step('status_line', 'status_line', { chat_id: chatId, leaf_id: leafId });
 }
 
 /** The world's clock moves on (routines, arrivals); the names of those who arrived. */

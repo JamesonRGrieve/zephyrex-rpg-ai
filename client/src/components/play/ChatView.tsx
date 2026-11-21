@@ -127,7 +127,7 @@ import { ContextPanel } from './ContextPanel';
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments, plainDashes } from '~/features/chat/voiceGuard';
-import { aimAt, clarify, mapStep, worldTick } from '~/features/chat/mapStep';
+import { aimAt, clarify, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
@@ -381,8 +381,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const writing = reply.state.status === 'writing';
 
   useWakeLock(writing);
+  // Follow the story only while the person is at its end (the operator, 2026-11-21: "It also keeps
+  // trying to auto scroll all over the place"): reading back up is never pulled down.
+  const following = useRef(true);
   useEffect(() => {
-    end.current?.scrollIntoView({ block: 'end', behavior: 'smooth' });
+    const onScroll = () => {
+      following.current = window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 160;
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    return () => window.removeEventListener('scroll', onScroll);
+  }, []);
+  useEffect(() => {
+    if (following.current) end.current?.scrollIntoView({ block: 'end' });
   }, [views.length, reply.state]);
   useEffect(() => {
     if (reply.state.status === 'failed') notify('No reply', reply.state.detail);
@@ -823,6 +833,22 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       </div>
     );
   const streamText = reply.state.status === 'writing' ? reply.state.text : '';
+  // The AI never writes the person's character (the operator, 2026-11-21: "it just did an entire
+  // novel including both acting and speaking for my character"): the moment a line opens with the
+  // seat's name, the reply stops there; what came before is kept, and the save cuts at the seat.
+  const streamSeat = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
+  useEffect(() => {
+    if (streamText === '' || streamSeat === '') return;
+    const first = streamSeat.split(/\s+/)[0] ?? '';
+    const forms = first.length >= 3 && first !== streamSeat ? [streamSeat, first] : [streamSeat];
+    const opens = (line: string) =>
+      forms.some((form) => line === form || [' ', ':', '(', ','].some((next) => line.startsWith(`${form}${next}`)));
+    const lines = streamText
+      .split('\n')
+      .slice(1)
+      .map((line) => line.trim().replace(/^\*+\s*/, ''));
+    if (lines.some(opens)) reply.stop();
+  }, [streamText, streamSeat, reply]);
   const streamParts = (() => {
     if (writingAfter?.speakerId !== NARRATOR_TURN || streamText === '')
       return [{ speaker_id: null as string | null, text: streamText }];
@@ -840,12 +866,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const change = await mapStep(chat.id, leaf);
     rounds.current += 1;
     const arrivals = rounds.current % 6 === 0 ? await worldTick(chat.id, leaf, 10, 'rounds') : [];
+    // The campaign's status line (its one-liner in the campaign list) every 10 rounds.
+    if (rounds.current % 10 === 0) void refreshStatusLine(chat.id, leaf);
     if (change === null && arrivals.length === 0) return;
     // The map and the Context panel read the scene and its tokens: read them again.
     void globalMutate((key) => typeof key === 'string' && /scene|token/.test(key));
     const said = [
       change?.scene == null ? null : `Scene: ${change.scene}`,
-      ...(change?.moved ?? []),
+      ...(change?.moved ?? []).map((move) => `${castById.get(move.person)?.name ?? 'Someone'} → ${move.place}`),
       ...arrivals.map((name) => `${name} arrives`),
     ].filter((line): line is string => line !== null);
     notify('The map moved', said.join(' · '));
@@ -1483,6 +1511,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                         void play.endSession(branch.at(-1) ?? null).then((marker) => {
                           if (marker !== null) setLeafId(marker);
                           if (endSession.available) void endSession.end();
+                          // The campaign's status line is rewritten as each session ends.
+                          if (marker !== null) void refreshStatusLine(chat.id, marker);
                         })
                       }
                     >
