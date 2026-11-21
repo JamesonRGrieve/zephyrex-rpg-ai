@@ -6,7 +6,7 @@
  * play-style tags (freeform, combat-heavy, mystery, …) to filter by. A tap starts a campaign of it;
  * the scenario itself (its places, people, plot and tags) is edited in the wiki.
  */
-import { Play } from 'lucide-react';
+import { BookOpen, Play } from 'lucide-react';
 import Link from 'next/link';
 import { type ReactElement, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
@@ -16,6 +16,20 @@ import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { NewChat } from '~/components/play/NewChat';
 import { chats } from '~/features/data/records';
 import { groupScenarios, taggedWith, useScenarios } from '~/features/data/scenarios';
+
+/** A setting's or scenario's page in the wiki (the operator, 2026-11-21: a wiki icon beside its name). */
+function WikiLink({ href, name }: { href: string; name: string }): ReactElement {
+  return (
+    <Link
+      href={href}
+      aria-label={`${name} in the wiki`}
+      title='Open in the wiki'
+      className='inline-flex size-11 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground'
+    >
+      <BookOpen aria-hidden className='size-4' />
+    </Link>
+  );
+}
 
 export function CampaignManager(): ReactElement {
   const read = useScenarios();
@@ -52,9 +66,6 @@ export function CampaignManager(): ReactElement {
         <Button asChild variant='outline' className='h-11'>
           <Link href='/campaigns/session-zero'>Run session zero</Link>
         </Button>
-        <Button asChild variant='outline' className='h-11'>
-          <Link href='/w'>Open the wiki</Link>
-        </Button>
       </p>
       {styles.length > 0 && (
         <div role='group' aria-label='Play style' className='flex flex-wrap gap-2'>
@@ -78,17 +89,21 @@ export function CampaignManager(): ReactElement {
       ) : (
         groups.data.map((setting) => (
           <section key={setting.setting} aria-label={setting.setting} className='grid gap-3'>
-            <h2 className='text-lg font-semibold'>{setting.setting}</h2>
+            <h2 className='flex items-center gap-1 text-lg font-semibold'>
+              {setting.setting}
+              {setting.settingId !== null && <WikiLink href={`/w/setting-${setting.settingId}/location`} name={setting.setting} />}
+            </h2>
             {setting.systems.map((system) => (
               <section key={system.system} aria-label={`${setting.setting}, ${system.system}`} className='grid gap-2'>
                 <h3 className='text-sm font-medium text-muted-foreground'>{system.system}</h3>
                 <ul className='grid gap-2'>
                   {system.scenarios.map((scenario) => (
                     <li key={scenario.id} className='grid gap-1 rounded-lg border'>
+                      <div className='flex items-start'>
                       <button
                         type='button'
                         onClick={() => setStarting(scenario.id)}
-                        className='flex min-h-14 w-full items-center gap-3 rounded-lg p-3 text-left hover:bg-muted'
+                        className='flex min-h-14 min-w-0 flex-1 items-center gap-3 rounded-lg p-3 text-left hover:bg-muted'
                       >
                         <span className='min-w-0 flex-1'>
                           <span className='block truncate font-medium'>{scenario.name}</span>
@@ -108,6 +123,10 @@ export function CampaignManager(): ReactElement {
                         <Play aria-hidden className='size-4 shrink-0' />
                         <span className='sr-only'>Start a campaign</span>
                       </button>
+                      <span className='p-1.5'>
+                        <WikiLink href={`/w/${scenario.id}/about`} name={scenario.name} />
+                      </span>
+                      </div>
                       {(played.get(scenario.id) ?? []).length > 0 && (
                         <ul aria-label={`Campaigns of ${scenario.name}`} className='grid gap-1 px-3 pb-3'>
                           {[...(played.get(scenario.id) ?? [])]

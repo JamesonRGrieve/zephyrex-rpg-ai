@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { authMagicLinkExtension } from '@zephyrex/auth-magic-link';
 import { wikiExtension } from '@zephyrex-rpg/wiki/extension';
+import { vttExtension } from '@zephyrex/vtt-play/extension';
 import { oauthConsumerExtension } from 'zephyrex/extensions/oauth_consumer';
 import type { ZephyrexClientExtension, ZephyrexConfig } from 'zephyrex';
 import { RpgAiLogo } from './brand/RpgAiLogo';
@@ -18,6 +19,7 @@ export const HOME_PATH = '/play';
 const APP_ROUTES = [
   HOME_PATH,
   `/${WIKI_BASE}`,
+  '/vtt',
   '/campaigns',
   '/sandbox',
   '/scenarios',
@@ -117,10 +119,11 @@ const config: ZephyrexConfig = {
     ? [
         rpgAiExtension,
         wikiExtension({ base: WIKI_BASE }),
+        vttExtension({ base: 'vtt' }),
         authMagicLinkExtension,
         ...(OAUTH_PROVIDERS.length === 0 ? [] : [oauthConsumerExtension]),
       ]
-    : [rpgAiExtension, wikiExtension({ base: WIKI_BASE })],
+    : [rpgAiExtension, wikiExtension({ base: WIKI_BASE }), vttExtension({ base: 'vtt' })],
 };
 
 export default config;

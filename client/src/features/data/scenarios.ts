@@ -54,6 +54,8 @@ export interface SystemGroup {
 }
 export interface SettingGroup {
   setting: string;
+  /** The setting's id, for its page in the wiki; null for scenarios in no setting. */
+  settingId: string | null;
   systems: SystemGroup[];
 }
 
@@ -81,6 +83,7 @@ export function groupScenarios(
     const inSetting = tree.get(setting) ?? new Map<string, Scenario[]>();
     return {
       setting,
+      settingId: settings.find((one) => one.name === setting)?.id ?? null,
       systems: [...inSetting.keys()].sort(last(NO_SYSTEM)).map((system) => ({
         system,
         scenarios: [...(inSetting.get(system) ?? [])].sort((a, b) => byName(a.name, b.name)),

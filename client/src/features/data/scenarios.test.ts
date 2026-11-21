@@ -50,7 +50,7 @@ describe('groupScenarios', () => {
 
   it('an unknown setting or system id falls into the ungrouped', () => {
     const groups = groupScenarios([scenario('A', 'gone', 'gone')], [], []);
-    expect(groups).toEqual([{ setting: NO_SETTING, systems: [{ system: NO_SYSTEM, scenarios: [scenario('A', 'gone', 'gone')] }] }]);
+    expect(groups).toEqual([{ setting: NO_SETTING, settingId: null, systems: [{ system: NO_SYSTEM, scenarios: [scenario('A', 'gone', 'gone')] }] }]);
   });
 });
 
