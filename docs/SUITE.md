@@ -48,7 +48,7 @@ is a person). The AI product reads and writes both.
 | `rpg_table`: multiplayer tables (a table per campaign, character seats, whispers, lines) | vtt (operator, 2026-11-20: "Shouldn't seats be in vtt and campaigns be in either wiki or vtt?") | Live multi-player play. Built on the framework's `conversations`: the members are characters, not users; a whisper is a two-character conversation the host also reads; the live feed is the conversation's (`announce`). rpg-ai's AI GM plays at the table through its abilities (`table_seats`, `seat_whispers`, `say`) and stays single-player when the VTT isn't loaded. |
 | `rpg_log` (exists) | wiki (operator, 2026-11-20) | The campaign's history: encounter, combat, dialogue, interaction and transaction logs, next to session reports. It sits below the VTT, so its references to VTT records (combatants, encounters, traits) are polymorphic `target_entity_type + target_entity_id` (OBJECT_PLAN §7), never foreign keys into a VTT table. The VTT and the AI GM write to it. |
 | `rpg_state` (exists) | split per OBJECT_PLAN §6 into the rows above | |
-| `ai_character`, `ai_lorebook`, `ai_campaign` (campaign frames, scenarios, rehearsals), plus the GM, table and decision extensions in [DESIGN.md](DESIGN.md) | ai | SillyTavern's surface, and how the AI GM plays. A frame links to the wiki's campaign when the wiki is loaded, and stands alone otherwise. |
+| `ai_chat` (the story tree, endpoints, presets, templates, STscript, quick replies, regex), the AI's memories, the GM agent and the decide and canon judges | ai | The AI's own surface. **Composed (the operator, 2026-11-21): rpg-ai keeps no world or table data.** Its former `ai_character`, `ai_lorebook` and `ai_campaign` stores (cards, personas, World Info, campaign frames, prep sheets, session records, the data bank) are removed; their data lives in the wiki (persons with a voice, entities with aliases and keywords, campaigns, hooks, journals) and the VTT (seats, dice, scenes). SillyTavern parity is behaviour over those records. See [DESIGN.md: The composed suite](DESIGN.md#the-composed-suite-the-operator-2026-11-21). |
 | `calendar`, `conversations`, `media`, `maps`, `genealogy`, `live_sync`, `ai*`, `entitlements`, `cloud` | **framework** | Already shipped in server-framework (`36bb425e`). OBJECT_PLAN marked some of these `[NEW]`. Each product uses the framework's, and extends it only where a field is RPG-specific. |
 
 The framework already serves the generic Tier-0 concerns, so this repo does not build
@@ -91,6 +91,8 @@ npm consumer, a package of client extensions:
   product's new revisions.
 - **Together.** One server loads all three packages' extensions, and one client lists all
   three packages' client extensions. One database, one session, one campaign.
+  **This is how rpg-ai runs** (the operator, 2026-11-21): its deployment is the suite's
+  deployment; rpg-ai alone is not a supported product.
 - **Capabilities, never editions.** As in Chronos and Zephyreader, a page shows a feature
   when `GET /v1/extension` lists the extension that serves it. The AI product's "show me the
   map" works when the VTT extension is loaded and is absent when it is not. Pages never

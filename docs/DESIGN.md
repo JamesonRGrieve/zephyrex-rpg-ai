@@ -53,6 +53,52 @@ branching, group chats, extensions. Its gaps are what this product fills:
    modeled as moving parts (clocks, clues, agendas) and rehearsed before play, and play that
    is as loose or as rules-tight as the table chooses.
 
+## The composed suite (the operator, 2026-11-21)
+
+rpg-ai runs **composed**: one server loading the wiki's and the VTT's extensions with its own,
+one client, one database ([SUITE.md](SUITE.md), _Together_). The operator, 2026-11-21: "That
+should've been the design from the start." rpg-ai keeps **no world data and no table state of
+its own**. Its duplicate stores are **removed entirely**, sandbox chats included; SillyTavern
+files import straight into the wiki.
+
+| rpg-ai had (removed)                               | Who owns it now                                                                    |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| Lorebooks / World Info (ai_lorebook)                | Wiki entities (persons, locations, factions, items, hooks, journals, lore) and setting canon (S6) |
+| Character cards for NPCs and PCs (ai_character)     | Wiki persons (genealogy + rpg_core); their AI voice is fields on the person        |
+| Personas                                            | The player's wiki person; the seat picks one                                       |
+| Scenario framings (campaign_frame, A57)             | The wiki's campaign in its setting (rpg_core, S6); the system from the VTT          |
+| Prep sheets: clocks, secrets, clues, beats (A60)    | Wiki hooks (quests, mysteries, plot threads) and GM-private journals               |
+| Session records and summaries (ChatSession)         | Wiki session journals (session_report) and rpg_log                                 |
+| Chat objectives                                     | Wiki hooks with quest status                                                       |
+| Data bank documents                                 | Wiki entries and their attachments (S2c)                                          |
+| Party and seats (chat cast, seat, CampaignPlay)     | VTT table seats (rpg_table)                                                        |
+| Dice and rolls (`/roll`, narration)                  | VTT rpg_dice and the `test` ability                                                |
+| Scene backgrounds and pictures                      | VTT scenes and wiki maps; generated images attach to them                         |
+
+**rpg-ai keeps** what is only the AI's: the story tree of a play (messages, swipes, branches,
+rewind and fork), model endpoints and roles, presets and samplers, instruct and context templates,
+prompt assembly, STscript, quick replies, regex, the AI's own memories, the GM agent, and the
+decide and canon judges.
+
+**SillyTavern parity is behaviour over wiki records**, not a second store:
+
+- World Info activation (keys, recursion, timed effects) runs over wiki entries, keyed by their
+  names and aliases; an imported World Info file becomes wiki entries.
+- A character card imports as a wiki person with its voice (description, personality, examples,
+  first message); a reply speaks as that person.
+- A persona is the player's person; Author's Note, objectives and the data bank read the wiki.
+
+**The play model, composed:** a **scenario** is a wiki campaign in a setting (Solenne, in
+Warhammer 40,000); a **campaign** (a playthrough) is rpg-ai's story tree for that wiki campaign,
+with a VTT table whose seats hold its party; a **session** is a wiki session journal, its summary
+what later sessions read; the **seat** is a VTT seat, hot-swapped between the GM and any person.
+
+**Order of work:** compose (pins, extensions, migrations; done when the composed server boots and
+passes every product's suite); move the operator's data into wiki records (the Wiki's vault
+importer, and a conversion of what rpg-ai imported); repoint rpg-ai's reads (prompt, canon,
+cast, seats, rolls) at the wiki and VTT; remove the duplicate stores and their pages; the wiki's
+pages embedded (S7) and the VTT's play UI.
+
 ## The play model (the operator, 2026-11-21)
 
 Campaign play is not chats. "The concept of chats should not exist. It should be sessions."
@@ -97,6 +143,8 @@ Whoever writes a line, a player or the GM (person or AI), it is checked against 
 - The warning says why (the canon it conflicts with, quoted from the lore or summary where one is found), so the person can correct it or decide it's intended.
 
 ### Mapping onto what exists
+
+_Superseded by [The composed suite](#the-composed-suite-the-operator-2026-11-21): the records below are rpg-ai's own, built standalone; they move to the wiki and the VTT and are then removed._
 
 - A campaign's story is one tree of messages, as a chat's is now: swipes and branches carry over. Rewind moves the campaign's head back to a message; fork copies the path to that message into a new campaign.
 - A session records where it starts and ends in that tree, its summary and report. Starting a session compacts the earlier ones into their summaries.
