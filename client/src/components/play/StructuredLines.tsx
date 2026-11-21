@@ -66,7 +66,13 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
       return { kind: 'narrate', text: narrator[1] ?? '' };
     }
     const say = SAY.exec(line);
-    if (say !== null && known.some((name) => name.toLowerCase() === (say[1] ?? '').trim().toLowerCase())) {
+    // Speech in the structured form is the speaker's whoever they are: an NPC the cast list doesn't
+    // know still gets a bubble, captioned with their name.
+    if (
+      say !== null &&
+      (known.some((name) => name.toLowerCase() === (say[1] ?? '').trim().toLowerCase()) ||
+        /\b(to|vox|voxcast|whispers|shouts)\b/i.test(say[2] ?? ''))
+    ) {
       structured += 1;
       return { kind: 'say', speaker: (say[1] ?? '').trim(), ...readTag(say[2] ?? ''), text: say[3] ?? '' };
     }
@@ -132,9 +138,9 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
           return (
             <p
               key={key}
-              className='flex items-start gap-2 border-l-2 border-primary/60 pl-2 text-[0.95em] [overflow-wrap:anywhere]'
+              className='flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 [overflow-wrap:anywhere]'
             >
-              <Footprints className='mt-1 size-3.5 shrink-0 text-primary' aria-label='Action' />
+              <Footprints className='mt-0.5 size-4 shrink-0 text-primary' aria-label='Action' />
               <span>
                 {other && <span className='font-medium'>{line.speaker} </span>}
                 <span className='italic'>{other ? line.text : capitalised(line.text)}</span>

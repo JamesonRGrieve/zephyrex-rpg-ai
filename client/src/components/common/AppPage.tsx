@@ -21,21 +21,21 @@ export function AppPage({
   heading,
   description,
   width = 'wide',
-  barTitleOnPhone = true,
+  barTitle = true,
   children,
 }: {
   title: string;
   heading: string | null;
   description?: ReactNode;
   width?: keyof typeof WIDTHS;
-  /** False where the bar's room on a phone belongs to the page's own controls (the open chat). */
-  barTitleOnPhone?: boolean;
+  /** False where the bar's room belongs to the page's own controls (the open chat: "The play title is unnecessary cruft"). */
+  barTitle?: boolean;
   children: ReactNode;
 }): ReactNode {
   return (
     <SidebarInset className='min-h-svh min-w-0'>
       <SidebarHeader>
-        <SidebarHeaderTitle className={barTitleOnPhone ? undefined : 'max-sm:hidden'}>{title}</SidebarHeaderTitle>
+        {barTitle && <SidebarHeaderTitle>{title}</SidebarHeaderTitle>}
         <div id={APP_BAR_ACTIONS} className='ml-auto flex min-w-0 items-center' />
       </SidebarHeader>
       <div className={cn('mx-auto grid w-full min-w-0 gap-6 px-4 pb-8 pt-2', WIDTHS[width])}>

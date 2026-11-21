@@ -352,6 +352,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const castById = useMemo(() => new Map((cast.data ?? []).map((character) => [character.id, character])), [cast.data]);
   // The cast's names, for natural order (A52): a member the last story line names speaks next.
   const castNames = new Map(chat.character_ids.map((id) => [id, castById.get(id)?.name ?? '']));
+  // Whom the narrator may voice (the operator, 2026-11-21: NPC speech was left in the narration):
+  // the party, then every other person of the campaign, each line credited to its speaker.
+  const voicedCast = [
+    ...chat.character_ids.flatMap((id) => castById.get(id) ?? []),
+    ...(cast.data ?? []).filter((one) => !chat.character_ids.includes(one.id)),
+  ]
+    .filter((one) => one.id !== play.playingId)
+    .map((one) => ({ id: one.id, name: one.name, line: one.folder }));
+  const everyName = (cast.data ?? []).map((one) => one.name);
   // Each member's talkativeness (gap 7): with no one named, who speaks up next in a group.
   const castTalk = new Map(chat.character_ids.map((id) => [id, talkativenessOf(castById.get(id)?.extensions)]));
   // A group's turn order and allow-self (audit gap 6).
@@ -818,10 +827,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (writingAfter?.speakerId !== NARRATOR_TURN || streamText === '')
       return [{ speaker_id: null as string | null, text: streamText }];
     const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
-    const castList = chat.character_ids.flatMap((id) => {
-      const member = castById.get(id);
-      return member === undefined || id === play.playingId ? [] : [{ id, name: member.name, line: member.folder }];
-    });
+    const castList = voicedCast;
     const parts = narrateSegments(streamText, castList, seatName).filter((part) => part.text.trim() !== '');
     return parts.length === 0 ? [{ speaker_id: null, text: streamText }] : parts;
   })();
@@ -890,10 +896,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // operator, 2026-11-21): each part is saved as its own line, credited to whoever speaks it. The
     // person's own character is never voiced; their name ends the narration there.
     const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
-    const castList = chat.character_ids.flatMap((id) => {
-      const member = castById.get(id);
-      return member === undefined || id === play.playingId ? [] : [{ id, name: member.name, line: member.folder }];
-    });
+    const castList = voicedCast;
     const parts = narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== '');
     let parent = parentId;
     let saved: ChatMessage | null = null;
@@ -1559,7 +1562,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <li key={view.id}>
                 <MessageItem
                   layout={settings.chatLayout}
-                  names={[...castNames.values()]}
+                  names={everyName}
                   message={shown}
                   cost={replyCost.get(message.id)}
                   proposal={
@@ -1657,7 +1660,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   <li key={index}>
                     <MessageItem
                       layout={settings.chatLayout}
-                      names={[...castNames.values()]}
+                      names={everyName}
                       writing={last}
                       message={{
                         id: `writing-${index}`,
