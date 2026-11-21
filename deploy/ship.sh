@@ -48,7 +48,11 @@ place "$client" /srv/zephyrex-rpg/client
 # Restart what runs: a no-op while the units are stopped (until the pipeline enables them), and
 # the new bundles take effect on every deploy after. The deploy user's sudoers allows only
 # try-restart and status for these two units.
-remote "sudo systemctl try-restart zephyrex-rpg-server zephyrex-rpg-client"
+# The deploy user's sudoers rule allows exactly one unit per command, by full path; -n fails at
+# once instead of asking for a terminal.
+for unit in zephyrex-rpg-server zephyrex-rpg-client; do
+  remote "sudo -n /usr/bin/systemctl try-restart $unit"
+done
 # An enabled unit must be running after the restart: that fails the deploy. One not yet enabled
 # (the first deploy, before the pipeline enables it) is only placed, never checked.
 for unit in zephyrex-rpg-server zephyrex-rpg-client; do
