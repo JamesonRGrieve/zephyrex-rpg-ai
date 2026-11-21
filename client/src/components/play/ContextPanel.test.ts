@@ -2,7 +2,7 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@zephyrex/vtt-play', () => ({ CharacterSheet: () => null, DiceTray: () => null }));
+vi.mock('@zephyrex/vtt-play', () => ({ CampaignSeats: () => null, CharacterSheet: () => null, CurrentSceneTokens: () => null, DiceTray: () => null, SceneList: () => null }));
 
 const { whereabouts } = await import('./ContextPanel');
 

@@ -7,7 +7,7 @@
  * else was last seen, the sheet, and the dice; combat order, inventory and loot join as the VTT ships
  * them.
  */
-import { CharacterSheet, DiceTray } from '@zephyrex/vtt-play';
+import { CampaignSeats, CharacterSheet, CurrentSceneTokens, DiceTray, SceneList } from '@zephyrex/vtt-play';
 import { type ReactElement, useMemo } from 'react';
 import useSWR from 'swr';
 import { useClient } from 'zephyrex';
@@ -122,6 +122,20 @@ export function ContextPanel({
                 </ul>
               </AccordionContent>
             </AccordionItem>
+            {campaignId !== null && (
+              // The table (the operator, 2026-11-21: tables belong in the play area): the campaign's
+              // scenes (the GM makes one current), its seats, and what's on the current map.
+              <AccordionItem value='table'>
+                <AccordionTrigger>Table</AccordionTrigger>
+                <AccordionContent>
+                  <div className='grid gap-4'>
+                    <SceneList campaignId={campaignId} />
+                    <CampaignSeats campaignId={campaignId} />
+                    <CurrentSceneTokens campaignId={campaignId} />
+                  </div>
+                </AccordionContent>
+              </AccordionItem>
+            )}
             {sheetFor !== null && (
               <AccordionItem value='sheet'>
                 <AccordionTrigger>Character sheet</AccordionTrigger>

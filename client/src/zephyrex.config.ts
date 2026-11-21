@@ -1,7 +1,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { authMagicLinkExtension } from '@zephyrex/auth-magic-link';
 import { wikiExtension } from '@zephyrex-rpg/wiki/extension';
-import { vttExtension } from '@zephyrex/vtt-play/extension';
+import { SettingSystems, vttExtension } from '@zephyrex/vtt-play/extension';
+import { createElement } from 'react';
 import { oauthConsumerExtension } from 'zephyrex/extensions/oauth_consumer';
 import type { ZephyrexClientExtension, ZephyrexConfig } from 'zephyrex';
 import { RpgAiLogo } from './brand/RpgAiLogo';
@@ -11,6 +12,20 @@ import { RpgAiLogo } from './brand/RpgAiLogo';
  * world). Its pages show when the server lists rpg_core (GET /v1/extension).
  */
 const WIKI_BASE = 'w';
+
+/**
+ * The wiki and the VTT, composed (docs/SUITE.md). The VTT's pages mount without nav items (the
+ * operator, 2026-11-21: "Tables goes under the play area in the campaign/session"; "game systems
+ * belongs under settings"): its table lives in the play screen, and each setting shows its game
+ * systems.
+ */
+const wiki = wikiExtension({
+  base: WIKI_BASE,
+  settingSections: [
+    { id: 'game-systems', title: 'Game systems', render: (id: string) => createElement(SettingSystems, { settingId: id }) },
+  ],
+});
+const vtt = vttExtension({ base: 'vtt', nav: false });
 
 /** Where a person works: their chats. `/` is the landing page for visitors. */
 export const HOME_PATH = '/play';
@@ -125,12 +140,12 @@ const config: ZephyrexConfig = {
   extensions: HOSTED
     ? [
         rpgAiExtension,
-        wikiExtension({ base: WIKI_BASE }),
-        vttExtension({ base: 'vtt' }),
+        wiki,
+        vtt,
         authMagicLinkExtension,
         ...(OAUTH_PROVIDERS.length === 0 ? [] : [oauthConsumerExtension]),
       ]
-    : [rpgAiExtension, wikiExtension({ base: WIKI_BASE }), vttExtension({ base: 'vtt' })],
+    : [rpgAiExtension, wiki, vtt],
 };
 
 export default config;
