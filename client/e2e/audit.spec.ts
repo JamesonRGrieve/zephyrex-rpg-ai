@@ -228,6 +228,7 @@ async function audit(browser: Browser, testInfo: TestInfo, phase: Phase): Promis
             `/play/${seeded.chatId}`,
             `/lorebooks/${seeded.lorebookId}`,
             `/campaigns/${seeded.campaignId}`,
+            `/play/${seeded.campaignChatId}`,
           ];
         }
         for (const target of targets) {

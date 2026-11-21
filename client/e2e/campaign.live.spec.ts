@@ -9,7 +9,8 @@
  * the session ended into its summary and Session 2, and a fork. Every line written is saved as
  * the test's transcript.json for a person to read.
  */
-import { writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 
 const LIVE = process.env.LIVE_MODEL_URL ?? '';
@@ -28,6 +29,12 @@ async function post<T>(page: Page, path: string, key: string, body: object): Pro
 }
 
 const transcript: { step: string; lines: { speaker: string; text: string }[] }[] = [];
+/** Where the transcript is written as it grows, so a failure still leaves what was played. */
+let transcriptPath = '';
+function record(step: string, lines: { speaker: string; text: string }[]): void {
+  transcript.push({ step, lines });
+  if (transcriptPath !== '') writeFileSync(transcriptPath, JSON.stringify(transcript, null, 2));
+}
 
 /** The story's lines as shown: each article's speaker and text. */
 async function lines(page: Page): Promise<{ speaker: string; text: string }[]> {
@@ -39,16 +46,35 @@ async function lines(page: Page): Promise<{ speaker: string; text: string }[]> {
   );
 }
 
+/**
+ * The round is over: nothing is being written (the Composer offers Stop while it is) and the story
+ * has held still for a few seconds, since a round's turns follow one another with gaps between.
+ */
+async function settled(page: Page): Promise<void> {
+  const deadline = Date.now() + TURN;
+  let last = -1;
+  let still = 0;
+  while (Date.now() < deadline) {
+    const writing = await page.getByRole('button', { name: 'Stop the reply' }).count();
+    const count = await page.getByRole('article').count();
+    still = writing === 0 && count === last ? still + 1 : 0;
+    if (still >= 4) return;
+    last = count;
+    await page.waitForTimeout(1500);
+  }
+  throw new Error('The round never settled');
+}
+
 /** Sends a line and waits until the AI has written at least `replies` more, all of them finished. */
 async function say(page: Page, step: string, text: string, replies = 1): Promise<void> {
   const before = await page.getByRole('article').count();
-  await page.getByRole('textbox').last().fill(text);
+  await page.getByLabel('Your next line').fill(text);
   await page.getByRole('button', { name: 'Send' }).click();
   // The party members who speak up vary with their talkativeness: at least `replies`, then quiet.
   await expect.poll(() => page.getByRole('article').count(), { timeout: TURN }).toBeGreaterThanOrEqual(before + 1 + replies);
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: TURN });
-  await expect(page.getByRole('button', { name: 'Send' })).toBeEnabled({ timeout: TURN });
-  transcript.push({ step, lines: (await lines(page)).slice(before) });
+  await settled(page);
+  record(step, (await lines(page)).slice(before));
 }
 
 /** Takes a seat: a character by name, or the GM (null). */
@@ -58,13 +84,19 @@ async function seat(page: Page, name: string | null): Promise<void> {
     await page.getByRole('button', { name: 'The GM' }).click();
   } else {
     await page.getByLabel('Find a character').fill(name);
-    await page.getByRole('list', { name: 'Seats' }).getByRole('button', { name: new RegExp(name.replace('.', '\\.')) }).first().click();
+    await page
+      .getByRole('list', { name: 'Seats' })
+      .getByRole('button', { name: new RegExp(name.replace('.', '\\.')) })
+      .first()
+      .click();
   }
   await expect(page.getByRole('button', { name: `Your seat: ${name ?? 'the GM'}` })).toBeVisible();
 }
 
 test('a full campaign session: GM, party, an NPC, a fight, the session ended, a fork', async ({ page }, testInfo) => {
   test.setTimeout(14 * 60_000);
+  transcriptPath = testInfo.outputPath('transcript.json');
+  mkdirSync(dirname(transcriptPath), { recursive: true });
   await page.goto('/');
   await post(page, 'model_endpoint', 'model_endpoint', {
     name: 'Story',
@@ -96,7 +128,8 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
   });
   const frame = await post<{ id: string }>(page, 'campaign_frame', 'campaign_frame', {
     name: 'Solenne',
-    premise: 'Acolytes of the Inquisition, posing as minor Administratum officials, arrive at Solenne Minoris to find a missing auditor.',
+    premise:
+      'Acolytes of the Inquisition, posing as minor Administratum officials, arrive at Solenne Minoris to find a missing auditor.',
     genre: 'Grimdark investigation (Warhammer 40,000)',
     truths: ['The acolytes travel under cover aboard The Errant Vector.'],
   });
@@ -116,24 +149,44 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
   await expect(page.getByText('Session 1')).toBeVisible();
 
   // As the GM: the party answers what the GM narrates.
-  await say(page, 'GM opens the scene', 'Alarms chime softly: a vox hail from Transit Hub traffic control asks the Errant Vector to state its business.', 1);
+  await say(
+    page,
+    'GM opens the scene',
+    'Alarms chime softly: a vox hail from Transit Hub traffic control asks the Errant Vector to state its business.',
+    1,
+  );
 
   // As a party member: the rest of the party and the AI GM answer.
   await seat(page, 'Gus Veridan');
-  await say(page, 'Gus speaks', 'I lean over the vox and tell traffic control we are Administratum census officers, here on routine business.', 2);
+  await say(
+    page,
+    'Gus speaks',
+    'I lean over the vox and tell traffic control we are Administratum census officers, here on routine business.',
+    2,
+  );
 
   // As an NPC from outside the party: any character at all.
   await seat(page, 'Massen');
-  await say(page, 'Massen greets them', 'Massen waves the acolytes off the boarding ramp: "Welcome to Solenne Minoris! First round at The Sump is on me."', 1);
+  await say(
+    page,
+    'Massen greets them',
+    'Massen waves the acolytes off the boarding ramp: "Welcome to Solenne Minoris! First round at The Sump is on me."',
+    1,
+  );
 
   // A fight, run by the person as the GM; then the AI GM narrates the outcome on demand.
   await seat(page, null);
-  await say(page, 'GM starts a fight', 'Three cultists burst out of a cargo container, autoguns raised. Combat begins: everyone act!', 2);
+  await say(
+    page,
+    'GM starts a fight',
+    'Three cultists burst out of a cargo container, autoguns raised. Combat begins: everyone act!',
+    2,
+  );
   const before = await page.getByRole('article').count();
   await page.getByRole('button', { name: 'Narrate what happens next' }).click();
   await expect.poll(() => page.getByRole('article').count(), { timeout: TURN }).toBeGreaterThanOrEqual(before + 1);
-  await expect(page.locator('[aria-busy="true"]')).toHaveCount(0, { timeout: TURN });
-  transcript.push({ step: 'AI GM narrates', lines: (await lines(page)).slice(before) });
+  await settled(page);
+  record('AI GM narrates', (await lines(page)).slice(before));
 
   // End the session: its summary is written and Session 2 begins.
   await page.getByRole('button', { name: 'More for this chat' }).click();
@@ -143,7 +196,7 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
   const sessions = await (await page.request.get(`/api/v1/chat_session?chat_id=${chatId}`)).json();
   const first = (sessions.chat_sessions as { number: number; summary: string }[]).find((one) => one.number === 1);
   expect(first?.summary.length ?? 0, 'Session 1 has a summary').toBeGreaterThan(20);
-  transcript.push({ step: 'Session 1 summary', lines: [{ speaker: 'summary', text: first?.summary ?? '' }] });
+  record('Session 1 summary', [{ speaker: 'summary', text: first?.summary ?? '' }]);
 
   // Session 2 goes on from the save point.
   await seat(page, 'A.Z.');

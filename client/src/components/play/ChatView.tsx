@@ -38,6 +38,7 @@ import { useWakeLock } from '~/features/browser/useWakeLock';
 import { branchTo, latestLeaf, treeRows } from '~/features/chat/branch';
 import type { ComposerChannel } from '~/features/chat/outgoing';
 import { GM_TURN, roundTurns } from '~/features/chat/seat';
+import { withoutSpeakerPrefix } from '~/features/chat/speakerPrefix';
 import { nextSpeaker, siblingsOf, talkativenessOf } from '~/features/chat/turns';
 import {
   deviceLanguage,
@@ -132,6 +133,8 @@ const MODE_HINTS = {
   hybrid: 'rules for some scenes, story for others',
 } as const;
 const NARRATOR = 'Narrator';
+/** The most faces the top bar shows before "+n". */
+const MAX_FACES = 4;
 /** The pending turn is the narrator's (A20), not a character's. */
 const NARRATOR_TURN = 'narrator';
 const YOU = 'You';
@@ -355,7 +358,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       parent_id: parentId,
       role: 'character',
       speaker_character_id: speakerId,
-      swipes: [stored(result.text, 'ai_output')],
+      // A group reply that opens with its own "Name:" loses it, as in SillyTavern.
+      swipes: [stored(withoutSpeakerPrefix(result.text, castById.get(speakerId)?.name ?? ''), 'ai_output')],
     });
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
     setLeafId(saved.id);
@@ -835,7 +839,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setWritingAfter(null);
     if (result === null || result.text.trim() === '') return;
     await update(message, {
-      swipes: [...message.swipes, stored(result.text, 'ai_output')],
+      swipes: [
+        ...message.swipes,
+        stored(withoutSpeakerPrefix(result.text, castById.get(message.speaker_character_id)?.name ?? ''), 'ai_output'),
+      ],
       swipe_index: message.swipes.length,
     });
     noteCost(message.id, result);
@@ -1035,7 +1042,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     >
       <div
         className={cn(
-          'mx-auto flex w-full max-w-3xl items-center justify-between gap-2 px-3 py-2',
+          // It wraps: when the buttons need the room, they take a second row rather than covering the title.
+          'mx-auto flex w-full max-w-3xl flex-wrap items-center justify-between gap-2 px-3 py-2',
           background !== null && 'rounded-b-xl bg-background',
         )}
       >
@@ -1047,9 +1055,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         )}
         {/* Who is in it and what it's called, so the page says which chat this is (the audit found only
             the avatars, with the title nowhere). The page's h1 stays "Chat" for the outline. */}
-        <div className='flex min-w-0 flex-1 items-center gap-2'>
+        <div className='flex min-w-0 flex-1 basis-48 items-center gap-2 overflow-hidden'>
+          {/* At most four faces, then "+n": a full party never spills over the top bar's buttons. */}
           <ul className='flex shrink-0 -space-x-2' aria-label='In this chat'>
-            {chat.character_ids.map((id) => {
+            {chat.character_ids.slice(0, MAX_FACES).map((id) => {
               const character = castById.get(id);
               return (
                 <li key={id}>
@@ -1063,6 +1072,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 </li>
               );
             })}
+            {chat.character_ids.length > MAX_FACES && (
+              <li className='flex size-9 items-center justify-center rounded-full border-2 border-background bg-muted text-xs font-medium'>
+                <span aria-hidden>+{chat.character_ids.length - MAX_FACES}</span>
+                <span className='sr-only'>
+                  {chat.character_ids
+                    .slice(MAX_FACES)
+                    .map((id) => castById.get(id)?.name ?? 'A character')
+                    .join(', ')}
+                </span>
+              </li>
+            )}
           </ul>
           <p className='min-w-0 truncate font-medium' title={chat.title}>
             {chat.title}

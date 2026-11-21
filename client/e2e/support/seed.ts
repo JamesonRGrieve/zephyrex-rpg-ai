@@ -38,6 +38,8 @@ export interface Seeded {
   chatId: string;
   lorebookId: string;
   campaignId: string;
+  /** A campaign's story chat (a play state and Session 1). */
+  campaignChatId: string;
 }
 
 export async function seedChat(page: Page): Promise<Seeded> {
@@ -104,5 +106,27 @@ export async function seedChat(page: Page): Promise<Seeded> {
     premise: 'The station wants the cargo inspected.',
     hook: 'A customs officer knocks on the airlock.',
   });
-  return { characterId: character.id, chatId: chat.id, lorebookId: lorebook.id, campaignId: campaign.id };
+  // A campaign of that scenario (docs/DESIGN.md, The play model): its story, its play state (the
+  // person in Ada's seat) and Session 1, so the session view is audited too.
+  const story = await post(page, 'chat', {
+    title: 'The Kestrel Run',
+    character_ids: [character.id],
+    campaign_id: campaign.id,
+    seat: 'player',
+    lorebook_ids: [lorebook.id],
+  });
+  const opening = await post(page, 'chat_message', {
+    chat_id: story.id,
+    role: 'narrator',
+    swipes: ['The Kestrel shudders into dock at Vell. A customs officer knocks on the airlock.'],
+  });
+  await post(page, 'campaign_play', { chat_id: story.id, playing_id: character.id });
+  await post(page, 'chat_session', { chat_id: story.id, number: 1, start_message_id: opening.id });
+  return {
+    characterId: character.id,
+    chatId: chat.id,
+    lorebookId: lorebook.id,
+    campaignId: campaign.id,
+    campaignChatId: story.id,
+  };
 }
