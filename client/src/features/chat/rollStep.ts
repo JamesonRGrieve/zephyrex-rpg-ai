@@ -36,7 +36,9 @@ export async function decideRoll(chatId: string, leafId: string, characterId: st
       difficulty: typeof answer.difficulty === 'string' ? answer.difficulty : null,
       label: label || answer.name,
     };
-  if (answer.kind === 'formula' && typeof answer.formula === 'string')
+  // Mechanics are never invented by a model (CLAUDE.md): a formula is rolled only when the game
+  // system supplied it (the operator, 2026-11-21: "Why did it roll 2d8 instead of a d20").
+  if (answer.kind === 'formula' && typeof answer.formula === 'string' && answer.source === 'system')
     return { kind: 'formula', personId, formula: answer.formula, label: label || answer.formula };
   return null;
 }
