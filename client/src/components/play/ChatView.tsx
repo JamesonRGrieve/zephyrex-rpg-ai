@@ -14,6 +14,7 @@ import {
   Clock3,
   Download,
   Ellipsis,
+  Flag,
   GitFork,
   Image as ImageIcon,
   Pause,
@@ -100,6 +101,7 @@ import { NextSpeaker } from './NextSpeaker';
 import { NamesWithoutLore } from '~/components/lore/NamesWithoutLore';
 import { namesWithoutLore } from '~/features/lore/namesWithoutLore';
 import { writeProblem } from 'zephyrex';
+import { useEndSession } from './useEndSession';
 import { Recap } from './Recap';
 import { MessageItem, type MessageView } from './MessageItem';
 
@@ -221,6 +223,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [writingAfter, setWritingAfter] = useState<{ parentId: string | null; speakerId: string } | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [treeOpen, setTreeOpen] = useState(false);
+  const endSession = useEndSession(chat);
   const [inspected, setInspected] = useState<InspectedPrompt | 'loading' | null>(null);
   const mobile = useIsMobile();
   const hidden = useHidden(list.data ?? [], idOf);
@@ -941,6 +944,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
                 <GitFork aria-hidden /> Every branch
               </DropdownMenuItem>
+              {endSession.available && (
+                // A24: the session's report into the linked wiki campaign's log.
+                <DropdownMenuItem disabled={endSession.ending} onSelect={() => void endSession.end()}>
+                  <Flag aria-hidden /> {endSession.ending ? 'Writing the session report…' : 'End session'}
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
                 <Download aria-hidden /> Export for SillyTavern
               </DropdownMenuItem>
@@ -957,6 +966,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           </DropdownMenu>
         </div>
       </div>
+      {endSession.problem !== null && (
+        <p role='alert' className='mx-auto w-full max-w-3xl px-3 pb-3 text-sm text-destructive'>
+          {endSession.problem}
+        </p>
+      )}
       {!recapHidden && (
         // "Previously…" (AP2): the rolling summary at the top when the session starts.
         <div className='mx-auto w-full max-w-3xl px-3 pb-3'>
