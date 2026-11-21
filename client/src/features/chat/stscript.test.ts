@@ -35,6 +35,12 @@ describe('isScript', () => {
     expect(isScript('/gen Describe the tavern | /sys {{pipe}}')).toBe(true);
     expect(isScript('hello | there')).toBe(false);
   });
+
+  it('runs the chat’s message commands as scripts even alone, so the host carries them out', () => {
+    for (const line of ['/send Hello', '/trigger', '/messages 0-2', '/addswipe Another', '/swipes-count', '/del 2']) {
+      expect(isScript(line)).toBe(true);
+    }
+  });
 });
 
 describe('runScript', () => {

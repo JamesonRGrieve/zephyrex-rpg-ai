@@ -20,7 +20,8 @@ async function addModel(page: Page): Promise<void> {
   await page.getByLabel('Model', { exact: true }).fill('tiny');
   await page.getByRole('switch', { name: 'Use for new chats' }).click();
   await page.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByRole('button', { name: /E2E model/ })).toBeVisible();
+  // The list row (the model's status controls name it too).
+  await expect(page.getByRole('button', { name: /E2E model/ }).first()).toBeVisible();
 }
 
 test('a first chat: a model, a character, a reply, another reply, and table talk @phone', async ({ page }) => {
@@ -65,4 +66,35 @@ test('the landing page leads to the chats, and the app installs: a manifest and 
   const manifest = await (await request.get('/manifest.webmanifest')).json();
   expect(manifest).toMatchObject({ display: 'standalone', start_url: '/play' });
   expect((await request.get('/icon-maskable.svg')).status()).toBe(200);
+});
+
+test('a script works the chat: a line sent, a reply asked for, the lines read back (A37)', async ({ page }) => {
+  await addModel(page);
+  await page.goto('/characters');
+  await page.getByRole('button', { name: 'New character' }).click();
+  await expect(page).toHaveURL(/\/characters\/[\w-]+$/);
+  await page.getByLabel('Name', { exact: true }).fill('Ada Vance');
+  await page.getByRole('button', { name: 'Save' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'All changes saved' })).toBeVisible();
+  await page.getByRole('button', { name: 'Chat', exact: true }).click();
+  await expect(page).toHaveURL(/\/play\/[\w-]+$/);
+
+  // /send adds the person's line without a reply; /trigger asks for one; /messages reads them back.
+  await page.getByLabel('Your next line').fill('/send I check the gauges. | /trigger | /messages names=off 0 | /echo {{pipe}}');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.getByRole('article', { name: 'Ada Vance' }).last()).toContainText('Mind the coolant.');
+  await expect(page.getByText('I check the gauges.').first()).toBeVisible();
+  await expect(page.getByRole('status').filter({ hasText: 'I check the gauges.' })).toBeVisible();
+
+  // /setvar is kept with the chat: back on the page, {{getvar}} still reads it.
+  const saved = page.waitForResponse(
+    (answer) => answer.request().method() === 'PUT' && /\/api\/v1\/chat\/[\w-]+$/.test(new URL(answer.url()).pathname),
+  );
+  await page.getByLabel('Your next line').fill('/setvar key=door open');
+  await page.getByRole('button', { name: 'Send' }).click();
+  expect((await saved).ok()).toBe(true);
+  await page.reload();
+  await page.getByLabel('Your next line').fill('/getvar door | /echo The door is {{pipe}}');
+  await page.getByRole('button', { name: 'Send' }).click();
+  await expect(page.getByRole('status').filter({ hasText: 'The door is open' })).toBeVisible();
 });

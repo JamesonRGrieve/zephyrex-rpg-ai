@@ -187,6 +187,15 @@ const MATH: Record<string, (values: number[]) => number> = {
 
 const SCRIPT_COMMANDS = new Set([
   ...Object.keys(MATH),
+  // The chat's message commands, carried out by the host (A37): a script even on their own.
+  'send',
+  'trigger',
+  'messages',
+  'addswipe',
+  'swipes-add',
+  'swipes-count',
+  'swipes-swipe',
+  'del',
   'rand',
   'input',
   'buttons',

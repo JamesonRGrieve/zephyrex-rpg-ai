@@ -55,6 +55,8 @@ import { ScriptPrompt } from './ScriptPrompt';
 import { TalkingSprite } from './TalkingSprite';
 import { illustrationPoints, type StoryLine, storyEpub, storyLines } from '~/features/export/epub';
 import { runScript } from '~/features/chat/stscript';
+import { deleteCount, messagesText } from '~/features/chat/scriptMessages';
+import { sameVariables } from '~/features/chat/variables';
 import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
@@ -90,6 +92,7 @@ import {
   scenarios,
   characterExpressions,
   idOf,
+  chatSchema,
 } from '~/features/data/records';
 import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
@@ -100,7 +103,7 @@ import { ContextInspector } from './ContextInspector';
 import { NextSpeaker } from './NextSpeaker';
 import { NamesWithoutLore } from '~/components/lore/NamesWithoutLore';
 import { namesWithoutLore } from '~/features/lore/namesWithoutLore';
-import { writeProblem } from 'zephyrex';
+import { useClient, writeProblem } from 'zephyrex';
 import { useEndSession } from './useEndSession';
 import { Recap } from './Recap';
 import { MessageItem, type MessageView } from './MessageItem';
@@ -126,6 +129,14 @@ const YOU = 'You';
 /** The chat commands a script may run (the rest are STscript's own). */
 const SCRIPT_ACTIONS: ReadonlySet<string> = new Set([
   'sys',
+  'send',
+  'trigger',
+  'messages',
+  'addswipe',
+  'swipes-add',
+  'swipes-count',
+  'swipes-swipe',
+  'del',
   'sendas',
   'narrate',
   'continue',
@@ -216,6 +227,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const quickList = quickReplies.useList();
   const { create, update, remove } = messages.useActions();
   const { update: updateChat } = chats.useActions();
+  const client = useClient();
   const reply = useReply();
   // A link to a message (`?at=`, from the library's search) opens the branch through it.
   const params = useSearchParams();
@@ -228,8 +240,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const mobile = useIsMobile();
   const hidden = useHidden(list.data ?? [], idOf);
   const end = useRef<HTMLDivElement>(null);
-  // This chat's script variables (A37), while it is open.
-  const scriptLocals = useRef(new Map<string, string>());
+  // This chat's script variables (A37): kept with the chat (its `variables`, which {{getvar}} and
+  // {{setvar}} in prompts read and write too), loaded when the chat opens, saved after a script.
+  const scriptLocals = useRef(new Map<string, string>(Object.entries(chat.variables)));
+  // Another chat, or this chat's variables as last saved (a reply's {{setvar}} writes them too).
+  useEffect(() => {
+    scriptLocals.current = new Map(Object.entries(chat.variables));
+  }, [chat.id, chat.variables]);
   // A script asking the person (/input, /buttons), answered through ScriptPrompt.
   const [asking, setAsking] = useState<{
     prompt: string;
@@ -282,11 +299,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         ? picked
         : nextSpeaker(chat.character_ids, path, chat.muted_ids, castNames);
     setPicked(null);
-    if (speakerId === null) return;
+    if (speakerId === null) return null;
     setWritingAfter({ parentId, speakerId });
     const result = await timedWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId });
     setWritingAfter(null);
-    if (result === null || result.text.trim() === '') return;
+    if (result === null || result.text.trim() === '') return null;
     const saved = await create({
       chat_id: chat.id,
       parent_id: parentId,
@@ -299,6 +316,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     noteCost(saved.id, result);
     void showExpression(speakerId, saved.swipes[0] ?? '');
     autoTranslate(saved.id, saved.swipes[0] ?? '');
+    return saved;
   };
 
   /** The speaker's sprite for how the line feels (A4), when they have sprites and this device shows them. */
@@ -429,11 +447,25 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * Variables last while the chat is open; global ones while the page is.
    */
   const runUserScript = async (script: string, setInput?: (text: string) => void) => {
+    // The branch as the script changes it: React's state is a step behind within one run.
     let parent = leaf;
+    let path: ChatMessage[] = [...branch];
     const addLine = async (fields: Omit<Parameters<typeof create>[0], 'chat_id' | 'parent_id'>) => {
       const saved = await create({ ...fields, chat_id: chat.id, parent_id: parent });
       parent = saved.id;
+      path = [...path, saved];
       setLeafId(saved.id);
+    };
+    const speakerName = (message: ChatMessage) =>
+      message.role === 'user'
+        ? (persona?.name ?? DEFAULT_USER_NAME)
+        : message.role === 'character'
+          ? (castById.get(message.speaker_character_id ?? '')?.name ?? NARRATOR)
+          : NARRATOR;
+    const lastReply = () => {
+      const last = path.at(-1);
+      if (last === undefined || last.role !== 'character') throw new Error('The last line is not a reply');
+      return last;
     };
     const names = {
       char: castById.get(chat.character_ids[0] ?? '')?.name ?? NARRATOR,
@@ -450,6 +482,47 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       act: async ({ name, text, args }) => {
         if (name === 'sys') {
           await addLine({ role: 'narrator', channel: 'ic', swipes: [text] });
+          return undefined;
+        }
+        // The chat's own lines and replies, as SillyTavern's message commands do them (A37).
+        if (name === 'send') {
+          await addLine({ role: 'user', channel: 'ic', swipes: [stored(text, 'user_input')] });
+          return undefined;
+        }
+        if (name === 'trigger') {
+          const saved = await replyAfter(parent, path);
+          if (saved !== null) {
+            parent = saved.id;
+            path = [...path, saved];
+          }
+          return undefined;
+        }
+        if (name === 'messages') {
+          const lines = path.map((message) => ({
+            name: speakerName(message),
+            text: message.swipes[message.swipe_index] ?? '',
+          }));
+          return messagesText(lines, text, args.names !== 'off');
+        }
+        if (name === 'addswipe' || name === 'swipes-add') {
+          const last = lastReply();
+          const saved = await update(last, { swipes: [...last.swipes, text], swipe_index: last.swipes.length });
+          path = [...path.slice(0, -1), saved];
+          return undefined;
+        }
+        if (name === 'swipes-count') return String(lastReply().swipes.length);
+        if (name === 'swipes-swipe') {
+          const last = lastReply();
+          const saved = await update(last, { swipe_index: (last.swipe_index + 1) % last.swipes.length });
+          path = [...path.slice(0, -1), saved];
+          return undefined;
+        }
+        if (name === 'del') {
+          const count = deleteCount(text, path.length);
+          for (const message of path.slice(path.length - count).reverse()) await remove(message);
+          path = path.slice(0, path.length - count);
+          parent = path.at(-1)?.id ?? null;
+          setLeafId(parent);
           return undefined;
         }
         if (name === 'sendas') {
@@ -477,6 +550,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       },
     }).catch((error: unknown) => ({ pipe: '', stopped: error instanceof Error ? error.message : 'The script failed' }));
     if (result.stopped !== null) notify('The script stopped', result.stopped);
+    // What /setvar changed is kept with the chat, so the next visit (and the prompt's {{getvar}}) sees it.
+    const variables = Object.fromEntries(scriptLocals.current);
+    if (!sameVariables(variables, chat.variables)) {
+      // The chat as saved now: a line the script added moved its version on (If-Match).
+      const current = async () =>
+        chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${chat.id}`)), 'chat'));
+      const failed = await writeProblem(
+        current().then((latest) => updateChat(latest, { variables })),
+        'The script variables were not saved',
+      );
+      if (failed !== null) notify('The script variables were not saved', failed);
+    }
   };
 
   const runCommand = async (command: Command) => {
