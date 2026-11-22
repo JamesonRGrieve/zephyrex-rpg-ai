@@ -4,7 +4,9 @@
  * The campaign's map (the operator, 2026-11-21: "Quick swap between chat and map"): the VTT's view of
  * the campaign's current scene, as the person may see it. A campaign with no scene says so.
  */
-import { SceneList, SceneView } from '@zephyrex/vtt-play';
+import { SceneCanvas, SceneList, useSceneView, type ViewToken } from '@zephyrex/vtt-play';
+import { LoadProblem } from 'zephyrex/ui/load-problem';
+import { useState } from 'react';
 import type { ReactElement } from 'react';
 import useSWR from 'swr';
 import { useClient } from 'zephyrex';
@@ -12,7 +14,6 @@ import { SkeletonRows } from 'zephyrex/ui/skeleton';
 
 export function MapView({
   campaignId,
-  personHref,
   gm = false,
 }: {
   campaignId: string | null;
@@ -57,7 +58,37 @@ export function MapView({
   return (
     <div className='mx-auto grid w-full max-w-5xl flex-1 gap-3 px-3 pb-4'>
       {scenes}
-      <SceneView sceneId={scene.data ?? ''} personHref={personHref} />
+      <PlayScene sceneId={scene.data ?? ''} />
     </div>
+  );
+}
+
+/**
+ * The scene as the play screen shows it: the map alone, touched and dragged directly (the operator,
+ * 2026-11-22, of the token list's arrow buttons: "What the fuck are those arrow keys? Just click or tap to
+ * interact"). The VTT's own pages keep their token list.
+ */
+function PlayScene({ sceneId }: { sceneId: string }): ReactElement {
+  const scene = useSceneView(sceneId);
+  const [announcement, setAnnouncement] = useState('');
+  const { data } = scene;
+  if (data.state === 'loading') return <SkeletonRows rows={4} />;
+  if (data.state === 'failed') return <LoadProblem what='the map' error={data.error} onRetry={scene.retry} />;
+  const move = (one: ViewToken, x: number, y: number): void => {
+    void scene.move(one, x, y);
+    setAnnouncement(`${one.name ?? 'Token'} moved`);
+  };
+  return (
+    <section aria-label={data.view.name ?? 'Map'} className='grid gap-2'>
+      <SceneCanvas view={data.view} onMove={move} />
+      {scene.problem !== null && (
+        <p role='alert' className='text-sm text-destructive'>
+          {scene.problem}
+        </p>
+      )}
+      <p aria-live='polite' className='sr-only'>
+        {announcement}
+      </p>
+    </section>
   );
 }
