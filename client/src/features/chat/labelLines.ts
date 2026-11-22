@@ -38,7 +38,8 @@ export function readLabels(raw: unknown): LineLabel[] | null {
       {
         kind,
         text: text.trim(),
-        actorName: str('actor_name'),
+        // The narrator is no one's action: "the narrator" as an actor reads as narration.
+        actorName: /^(?:the )?narrator$/i.test(str('actor_name') ?? '') ? null : str('actor_name'),
         targetName: str('target_name'),
         manner: manner !== null && (MANNERS as readonly string[]).includes(manner) ? (manner as Manner) : null,
         icon: icon !== null && (ACTION_KINDS as readonly string[]).includes(icon) ? (icon as ActionKind) : null,

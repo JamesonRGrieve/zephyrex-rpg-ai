@@ -24,4 +24,9 @@ describe('line labels', () => {
       { kind: 'say', speaker: 'Mags', target: 'Fennick', manner: 'shout', text: 'Out.' },
     ]);
   });
+  it('an action by "the narrator" is narration', () => {
+    expect(
+      labelledLines(readLabels([{ kind: 'do', text: 'Rain falls.', actor_name: 'the narrator' }]) ?? [], 'Mags'),
+    ).toEqual([{ kind: 'narrate', text: 'Rain falls.' }]);
+  });
 });
