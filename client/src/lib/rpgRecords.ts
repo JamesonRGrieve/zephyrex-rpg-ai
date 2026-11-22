@@ -23,6 +23,10 @@ import { ownTemplate } from '~/lib/instructTemplateRecords';
 import { z } from 'zod';
 import {
   CHAT_MODES,
+  CHAT_SEATS,
+  ENDPOINT_KINDS,
+  ENDPOINT_ROLES,
+  INSTRUCT_TEMPLATES,
   LIMITS,
   LORE,
   MESSAGE_CHANNELS,
@@ -31,15 +35,12 @@ import {
   PICTURE,
   PRESET_DEFAULTS,
   PROMPT,
+  REVISION,
   SAFETY,
-  CHAT_SEATS,
   SAMPLER_EXTRAS,
   SAMPLER_RANGES,
   TABLE,
-  ENDPOINT_KINDS,
   isSearchApi,
-  ENDPOINT_ROLES,
-  INSTRUCT_TEMPLATES,
   type InstructTemplateId,
 } from '~/contract';
 import { samplerProblem } from '~/features/prompt/samplers';
@@ -47,7 +48,7 @@ import { extraBodyProblem } from '~/features/models/extraBody';
 import { styleProblem, traitsProblem } from '~/features/models/narratorStyle';
 import { groupSettingsProblem } from '~/features/chat/groupSettings';
 import { injectionsProblem } from '~/features/chat/injections';
-import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, plain } from '~/lib/columns';
+import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, jsonOrNull, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
 const DATA_URL = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/;
@@ -510,7 +511,18 @@ const MESSAGE_COLUMNS: Columns = {
   images: jsonList('images'),
   x_carded: plain('xCarded'),
   hidden: plain('hidden'),
+  revision: jsonOrNull('revision'),
 };
+
+/** A line written again (contract revision): its first answer, why, and how. */
+const revision = z
+  .object({
+    original: z.string().max(LIMITS.message_characters),
+    reason: z.string().max(LIMITS.revision_reason_characters),
+    kind: z.enum(REVISION.kinds),
+  })
+  .strict()
+  .nullable();
 
 /** Pictures sent with a line (A44), data URLs as avatars are. */
 const images = z.array(avatar.unwrap()).max(LIMITS.images_per_message);
@@ -526,6 +538,7 @@ const messageCreate = z
     swipe_index: z.number().int().min(0).default(0),
     bookmarked: z.boolean().default(false),
     images: images.default([]),
+    revision: revision.default(null),
   })
   .refine((message) => message.swipe_index < message.swipes.length, {
     message: 'swipe_index must name one of the swipes',

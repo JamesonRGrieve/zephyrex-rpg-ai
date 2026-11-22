@@ -100,6 +100,7 @@ CREATE TABLE "ChatMessage" (
     "images" TEXT NOT NULL DEFAULT '[]',
     "xCarded" BOOLEAN NOT NULL DEFAULT false,
     "hidden" BOOLEAN NOT NULL DEFAULT false,
+    "revision" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

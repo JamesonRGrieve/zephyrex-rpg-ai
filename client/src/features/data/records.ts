@@ -145,6 +145,11 @@ export const messageSchema = z.object({
   images: z.array(z.string()),
   x_carded: z.boolean(),
   hidden: z.boolean().optional(),
+  /** A line written again: its first answer, why, and how (null: written once). */
+  revision: z
+    .object({ original: z.string(), reason: z.string(), kind: z.enum(['canon', 'voice', 'meta']) })
+    .nullable()
+    .optional(),
 });
 export type ChatMessage = z.infer<typeof messageSchema>;
 

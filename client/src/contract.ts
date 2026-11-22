@@ -133,6 +133,8 @@ export const STRUCTURED = contract.structured;
 export const NPC_AUTHOR = contract.npc_author;
 /** How a speaker may speak and to whom: the base manners and each system's, with what each needs. */
 export const SPEECH_OPTIONS = contract.speech_options;
+/** A story line written again: the kinds of rewrite kept with it. */
+export const REVISION = contract.revision;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

@@ -247,12 +247,14 @@ def frame_for(frames: Any, campaign_id: str | None) -> Any:
     id is never chosen), the frame whose wiki_campaign_id it is. None without one: callers go on."""
     if not campaign_id:
         return None
+    # The wiki campaign's first (the composed suite, nearly every chat): a by-id miss is a logged 404.
+    found = frames.list(wiki_campaign_id=campaign_id)
+    if found:
+        return found[0]
     try:
         return frames.get(id=campaign_id)
     except HTTPException:
-        pass
-    found = frames.list(wiki_campaign_id=campaign_id)
-    return found[0] if found else None
+        return None
 
 
 def copy_frame(frames: Any, scenarios: Any, source_id: str, made_id: str) -> Any:

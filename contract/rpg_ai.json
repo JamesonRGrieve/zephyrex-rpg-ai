@@ -12,6 +12,7 @@
     "persona_description_characters": 20000,
     "chat_title_characters": 200,
     "characters_per_chat": 16,
+    "revision_reason_characters": 1000,
     "author_note_characters": 10000,
     "message_characters": 100000,
     "swipes_per_message": 64,
@@ -920,6 +921,10 @@
     "none": "none",
     "author_prompt": "Write a new person for this story: {{name}} ({{role}}), met just now in the scene below. Answer with JSON only: {\"summary\": one line, who they are, \"description\": two or three sentences of how they look and carry themselves, \"personality\": a sentence, \"motive\": what they want right now, a sentence, \"voice\": how they speak, a few words}. Fit the campaign and the scene; invent no game statistics.",
     "steps": {"write": "Writing {{name}}", "person": "Making them a person of the campaign", "sheet": "Building their sheet", "picture": "Painting a portrait"}
+  },
+  "revision": {
+    "$comment": "A story line the client wrote again (the operator, 2026-11-22: \"a small icon beside the final output that will open the original response and reasoning for regeneration in the drawer\"): chat_message.revision, {original, reason, kind}, kept with the line so it survives a reload; null for a line written once.",
+    "kinds": ["canon", "voice", "meta"]
   },
   "speech_options": {
     "$comment": "How a speaker may speak and to whom (the operator, 2026-11-22: \"The additional speech modes should be setting dependent (vox / vox caster in 40k only if one is in possession and message etc in DnD only if spell is known)\"). Always speak, whisper and shout to those present; a system's further manners only when the speaker's sheet (the VTT's character_sheet: gear, abilities) holds what each needs, matched by name. Nothing on the sheet, no manner. remote: who each such manner reaches (carriers: known people carrying the item too; nearby: the same place or one beside it; known: anyone known). features/chat/speechManners.ts, ai_chat/SpeechOptions.py, contract/speech-options-cases.json.",

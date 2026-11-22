@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { columnsOf, fieldsOf, jsonList, jsonObject, plain } from './columns';
+import { columnsOf, fieldsOf, jsonList, jsonObject, jsonOrNull, plain } from './columns';
 
 const COLUMNS = {
   name: plain('name'),
@@ -29,5 +29,19 @@ describe('columns', () => {
       extensions: {},
     });
     expect(jsonList('x').read(null)).toEqual([]);
+  });
+});
+
+describe('a nullable object column (a rewritten line’s revision)', () => {
+  it('writes null as null and an object as JSON, and reads unreadable text as null', () => {
+    const column = jsonOrNull('revision');
+    expect(column.write(null)).toBeNull();
+    expect(column.read(column.write({ original: 'x', reason: 'y', kind: 'meta' }))).toEqual({
+      original: 'x',
+      reason: 'y',
+      kind: 'meta',
+    });
+    expect(column.read(null)).toBeNull();
+    expect(column.read('not json')).toBeNull();
   });
 });

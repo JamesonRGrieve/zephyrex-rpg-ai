@@ -698,6 +698,10 @@ def background_place(entities: Sequence[Mapping[str, Any]], history: Sequence[Ma
 
 #: A stream's first answer from the model, waited for before the response opens (errors keep their status).
 FIRST_ANSWER_SECONDS = 5.0
+#: A model stream that goes quiet without closing is ended with what came (Zephyrex RPG, 2026-11-22: a
+#: stream sat half a sentence in for minutes, holding the connection and the GPU slot).
+STALL_FIRST_SECONDS = 180.0
+STALL_AFTER_SECONDS = 60.0
 #: How often a waiting stream says it's alive: an SSE comment, which the client's reader passes over.
 HEARTBEAT_SECONDS = 10.0
 HEARTBEAT = ": keepalive\n\n"
@@ -716,35 +720,46 @@ async def heartbeat_wait(task: Any, interval: float) -> AsyncIterator[Any]:
 async def heartbeat_lines(upstream: Any, interval: float) -> AsyncIterator[str | None]:
     """The model's stream line by line, None for each ``interval`` that brings none (a heartbeat's turn)."""
     lines = upstream.aiter_lines().__aiter__()
-    while True:
-        task = asyncio.ensure_future(lines.__anext__())
+    task: asyncio.Future[str] | None = None
+    try:
         while True:
-            done, _pending = await asyncio.wait({task}, timeout=interval)
-            if done:
-                break
-            yield None
-        try:
-            line = task.result()
-        except StopAsyncIteration:
-            return
-        yield line
+            task = asyncio.ensure_future(lines.__anext__())
+            while True:
+                done, _pending = await asyncio.wait({task}, timeout=interval)
+                if done:
+                    break
+                yield None
+            try:
+                line = task.result()
+            except StopAsyncIteration:
+                return
+            yield line
+    finally:
+        # A stream left early (a stall, the seat's turn): its pending read goes with it.
+        if task is not None and not task.done():
+            task.cancel()
 
 
 async def heartbeat_iter(events: AsyncIterator[str], interval: float) -> AsyncIterator[str]:
     """A stream's pieces, with a heartbeat for each ``interval`` that brings none (a step's long pause)."""
     iterator = events.__aiter__()
-    while True:
-        task = asyncio.ensure_future(iterator.__anext__())
+    task: asyncio.Future[str] | None = None
+    try:
         while True:
-            done, _pending = await asyncio.wait({task}, timeout=interval)
-            if done:
-                break
-            yield HEARTBEAT
-        try:
-            piece = task.result()
-        except StopAsyncIteration:
-            return
-        yield piece
+            task = asyncio.ensure_future(iterator.__anext__())
+            while True:
+                done, _pending = await asyncio.wait({task}, timeout=interval)
+                if done:
+                    break
+                yield HEARTBEAT
+            try:
+                piece = task.result()
+            except StopAsyncIteration:
+                return
+            yield piece
+    finally:
+        if task is not None and not task.done():
+            task.cancel()
 
 
 async def store_picture(model_registry: Any, requester_id: str, name: str, image: str) -> str | None:
@@ -938,6 +953,23 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
 # ---- chat_message ----------------------------------------------------------------------
 
 
+def _revision(value: Any) -> Any:
+    """A rewritten line's revision (contract revision): {original, reason, kind}, or None."""
+    if value is None:
+        return None
+    if (
+        not isinstance(value, dict)
+        or set(value) != {"original", "reason", "kind"}
+        or not isinstance(value["original"], str)
+        or len(value["original"]) > LIMITS["message_characters"]
+        or not isinstance(value["reason"], str)
+        or len(value["reason"]) > LIMITS["revision_reason_characters"]
+        or value["kind"] not in CONTRACT["revision"]["kinds"]
+    ):
+        raise ValueError("A revision is {original, reason, kind}, kind canon, voice or meta")
+    return value
+
+
 class MessageChecks(PlainModel):
     @field_validator("role", check_fields=False)
     @classmethod
@@ -954,6 +986,11 @@ class MessageChecks(PlainModel):
     def _checked_swipes(cls, value: Any) -> Any:
         return _swipes(value)
 
+    @field_validator("revision", check_fields=False)
+    @classmethod
+    def _checked_revision(cls, value: Any) -> Any:
+        return _revision(value)
+
 
 class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     Manager: ClassVar[type["ChatMessageManager"]]
@@ -968,6 +1005,9 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     images: list[str] = Field(default_factory=list, description="Pictures sent with it (data URLs)")
     x_carded: bool = Field(False, description="X-carded by the table: kept, never read by the model")
     hidden: bool = Field(False, description="Hidden by the person (/hide): kept on screen, never read by the model")
+    revision: dict[str, Any] | None = Field(
+        None, description="A line written again: the first answer, why it was rewritten, and how (canon, voice, meta)"
+    )
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chat messages"
 
@@ -981,6 +1021,7 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         swipe_index: int = Field(0, ge=0)
         bookmarked: bool = False
         images: list[str] = Field(default_factory=list)
+        revision: dict[str, Any] | None = None
 
         @field_validator("images")
         @classmethod
@@ -4511,12 +4552,16 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             "",
         )
 
+        flags = {"stalled": False}
+
         async def answer(upstream: Any, items: ItemStream | None) -> AsyncIterator[str]:
             """One pass over the model's stream: deltas or item events, heartbeats in any pause, stopped
-            at the seat's item or a runaway."""
+            at the seat's item, a runaway, or a stall."""
             told = ""
             stopped = False
             ended = 0
+            last = time.monotonic()
+            heard = False
 
             def prose(delta: str) -> list[str]:
                 """A piece of prose as a delta, stopped at the blank line after the runaway paragraph limit
@@ -4555,8 +4600,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             joiner = ReasoningJoiner()
             async for line in heartbeat_lines(upstream, HEARTBEAT_SECONDS):
                 if line is None:
+                    if time.monotonic() - last >= (STALL_AFTER_SECONDS if heard else STALL_FIRST_SECONDS):
+                        # Gone quiet without closing: the reply ends with what came.
+                        flags["stalled"] = True
+                        break
                     yield HEARTBEAT
                     continue
+                last = time.monotonic()
                 if not line.startswith("data:"):
                     continue
                 payload = as_openai_payload(_context["endpoint"].api, line[len("data:") :])
@@ -4566,6 +4616,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     break
                 delta = joiner.take(payload)
                 if delta is not None:
+                    heard = True
                     for piece in shown(delta):
                         yield piece
                 if (items is not None and items.cut) or stopped:
@@ -4620,7 +4671,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                                     body.generate, _context, retried, people, seat_name, latest, outcome
                                 ):
                                     yield piece
-                yield frame("done", {"dropped": assembled.dropped})
+                yield frame("done", {"dropped": assembled.dropped, **({"stalled": True} if flags["stalled"] else {})})
             except httpx.HTTPError:
                 yield frame("error", {"detail": "The model stopped mid-reply"})
             finally:

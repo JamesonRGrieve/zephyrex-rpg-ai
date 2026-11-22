@@ -51,6 +51,18 @@ export function jsonObject(column: string): Column {
   };
 }
 
+/** An object or null, stored as JSON text or null; unreadable text reads as null. */
+export function jsonOrNull(column: string): Column {
+  return {
+    column,
+    write: (value) => (value === null ? null : JSON.stringify(value)),
+    read: (stored) => {
+      const value = parseJson(stored, null);
+      return typeof value === 'object' && value !== null && !Array.isArray(value) ? value : null;
+    },
+  };
+}
+
 export type Columns = Readonly<Record<string, Column>>;
 
 /** The Prisma data for the fields `input` names (an absent field is left as it is). */
