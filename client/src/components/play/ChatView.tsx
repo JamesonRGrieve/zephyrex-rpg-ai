@@ -1035,8 +1035,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const banner = play.isCampaign && last !== undefined ? await followOnMap(last.id) : null;
     return banner ?? saved;
   };
+  /**
+   * A story reply without the model's thinking (the local RC run, 2026-11-22: a thinking model's
+   * "<think>Thinking Process…", never closed, was saved and shown as the character's line): only what
+   * follows the reasoning is the story; a reply that is all reasoning counts as empty.
+   */
+  const storyPart = async (request: Parameters<typeof reply.write>[0]) => {
+    const written = await timedWrite(request);
+    if (written === null || written.saved !== undefined) return written;
+    return { ...written, text: splitReasoning(written.text).reply, raw: written.text };
+  };
   const storyWrite = async (request: Parameters<typeof reply.write>[0]) => {
-    let result = await timedWrite(request);
+    let result = await storyPart(request);
     if (result === null) return null;
     // The server split, checked and saved it: nothing to redo here.
     if (result.saved !== undefined) return result;
@@ -1044,12 +1054,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // small icon beside the final output that will open the original response and reasoning").
     let revision: Revision | null = null;
     const revise = (kind: Revision['kind'], reason: string) => {
-      if (revision === null && result !== null) revision = { original: result.text, reason, kind };
+      if (revision === null && result !== null)
+        revision = { original: (Reflect.get(result, 'raw') as string | undefined) ?? result.text, reason, kind };
     };
     // An empty answer (a soft refusal, a stream that ended with nothing) never vanishes silently
     // (the operator, 2026-11-21: "I also didn't get a response"): one more try, then a notice.
     if (completeText(result.text).trim() === '') {
-      const again = await timedWrite({ ...request, forbid: { names: [], span: '' } });
+      const again = await storyPart({ ...request, forbid: { names: [], span: '' } });
       if (again !== null) result = again;
     }
     // A replay of what was just told (the model copying its last round) is written once more with
@@ -1061,7 +1072,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const replayed = replayOf(result.text, recentStory);
     if (replayed !== null) {
       revise('meta', 'It retold what had already been told.');
-      const again = await timedWrite({
+      const again = await storyPart({
         ...request,
         forbid: { names: [], span: replayed.span, spans: replayed.spans },
       });
@@ -1070,7 +1081,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const broke = metaBreak(result.text);
     if (broke !== null) {
       revise('meta', 'It stepped out of the story.');
-      const again = await timedWrite({ ...request, forbid: { names: [], span: broke.span } });
+      const again = await storyPart({ ...request, forbid: { names: [], span: broke.span } });
       if (again !== null) result = again;
     }
     // Narration keeps what happens to the person's character and cuts at the first thing it would
@@ -1093,7 +1104,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const notice = chat.canon_checks !== false ? await checkLine(whole, speakerName).catch(() => null) : null;
     if (notice !== null && notice.level !== 'none') {
       revise('canon', notice.reason);
-      const again = await timedWrite({
+      const again = await storyPart({
         ...request,
         forbid: { names: [], span: '', reason: 'canon', note: notice.reason },
       });
