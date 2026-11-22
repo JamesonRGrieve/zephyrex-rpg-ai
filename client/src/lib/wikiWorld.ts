@@ -6,6 +6,7 @@
  * (no such route), there is no world lore.
  */
 import { WORLD_LORE } from '~/contract';
+import type { CampaignFraming } from '~/features/prompt/campaignFraming';
 import type { CastEntity } from '~/features/prompt/worldCast';
 
 /**
@@ -22,6 +23,8 @@ export interface WorldReader {
   advanceClock: (campaignId: string, minutes: number, reason: string) => Promise<WikiClock | null>;
   /** A person moved (GM only; POST /api/v1/person_move); false when refused. */
   movePerson: (personId: string, locationId: string, reason: string) => Promise<boolean>;
+  /** A campaign's own framing (GET /api/v1/campaign/{id}/framing); null without one. */
+  framing: (campaignId: string) => Promise<CampaignFraming | null>;
   /** Someone the narrator voiced, made a GM-only npc (POST /api/v1/campaign/{id}/person); null when refused. */
   ensurePerson: (
     campaignId: string,
@@ -48,6 +51,7 @@ export const NO_WORLD: WorldReader = {
   campaign: async () => [],
   byIds: async () => [],
   documents: async () => [],
+  framing: async () => null,
   advanceClock: async () => null,
   movePerson: async () => false,
   ensurePerson: async () => null,
@@ -98,6 +102,15 @@ export function wikiReader(request: Request): WorldReader {
     const rows: unknown = Reflect.get(Object(await answer.json().catch(() => null)), 'campaign_documents');
     return Array.isArray(rows) ? (rows as WikiDocument[]) : [];
   };
+  const framing = async (campaignId: string): Promise<CampaignFraming | null> => {
+    const answer = await fetch(`${origin}/api/v1/campaign/${encodeURIComponent(campaignId)}/framing`, {
+      headers: cookie === null ? {} : { cookie },
+      signal: request.signal,
+    }).catch(() => null);
+    if (answer === null || !answer.ok) return null;
+    const found: unknown = Reflect.get(Object(await answer.json().catch(() => null)), 'campaign_framing');
+    return found !== null && typeof found === 'object' ? (found as CampaignFraming) : null;
+  };
   const post = async (path: string, body: unknown): Promise<unknown> => {
     const answer = await fetch(`${origin}${path}`, {
       method: 'POST',
@@ -137,5 +150,5 @@ export function wikiReader(request: Request): WorldReader {
     const named: unknown = Reflect.get(Object(person), 'name');
     return { id, name: typeof named === 'string' ? named : name, created: Reflect.get(Object(person), 'created') === true };
   };
-  return { campaign, byIds, documents, advanceClock, movePerson, ensurePerson };
+  return { campaign, byIds, documents, framing, advanceClock, movePerson, ensurePerson };
 }

@@ -155,3 +155,17 @@ async def ensure_person(
         return None
     person = await _call(ensure, model_registry, requester_id, campaign_id, name, summary=summary)
     return dict(person) if isinstance(person, dict) and person.get("id") else None
+
+
+def campaign_framing(model_registry: Any, requester_id: str, campaign_id: str | None) -> dict[str, Any] | None:
+    """A wiki campaign's own framing (description, Framing, GM notes as the requester may see them,
+    setting, play styles; the scenario's when the playthrough's is empty), or None without the wiki's
+    campaign_framing ability or a campaign."""
+    if not campaign_id:
+        return None
+    read = loaded_ability(model_registry, "rpg_core", "campaign_framing")
+    if read is None:
+        return None
+    answer = _sync(read(model_registry, requester_id, campaign_id))
+    framing = answer.get("campaign_framing") if isinstance(answer, dict) else None
+    return framing if isinstance(framing, dict) else None

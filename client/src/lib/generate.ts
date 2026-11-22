@@ -44,6 +44,8 @@ import { mapQuestions, movers, seatPlace } from '~/features/world/mapStep';
 import { statusMessages } from '~/features/chat/statusLine';
 import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
 import { paragraphCut } from '~/features/chat/voiceGuard';
+import { frameFromFraming } from '~/features/prompt/campaignFraming';
+import { frameFor } from '~/lib/frameCopy';
 import { parsePlayerLines, stripMarkup } from '~/features/chat/playerLines';
 import { isAttempt, rollPick, rollQuestions } from '~/features/chat/rollDecision';
 import { oneLine, partyBriefing, partyOf, partyText } from '~/features/prompt/party';
@@ -446,7 +448,7 @@ export async function generationInputs(
       objective: chatFields.objectives.find((one) => !one.done)?.text ?? '',
       safety: { content_rating: chatFields.content_rating, lines: chatFields.lines, veils: chatFields.veils },
       table_notes: chatFields.table_notes,
-      frame: chatFields.campaign_id === null ? null : await campaignFrame(ownerId, chatFields.campaign_id),
+      frame: chatFields.campaign_id === null ? null : await campaignFrame(ownerId, chatFields.campaign_id, world),
       // A group's joined cards and own scenario (audit gap 6).
       group: chatFields.group_settings,
       // The chat's /inject injections (audit gap 5).
@@ -602,10 +604,15 @@ function macroContext(
   };
 }
 
-/** A chat's campaign frame (A57), as frameText reads it; none when the campaign is gone. */
-async function campaignFrame(ownerId: string, campaignId: string): Promise<CampaignFrame | null> {
-  const row = await campaigns.find(campaignId, ownerId);
-  return row === null ? null : (campaigns.fields(row) as unknown as CampaignFrame);
+/**
+ * A chat's campaign frame (A57), as frameText reads it: the frame row (by id, or the wiki campaign it
+ * names), else the wiki campaign's own framing (a vault scenario has no row; Zephyrex RPG,
+ * 2026-11-22); none without either.
+ */
+async function campaignFrame(ownerId: string, campaignId: string, world: WorldReader): Promise<CampaignFrame | null> {
+  const row = await frameFor(ownerId, campaignId);
+  if (row !== null) return campaigns.fields(row) as unknown as CampaignFrame;
+  return frameFromFraming(await world.framing(campaignId)) as CampaignFrame | null;
 }
 
 /** A background's place: the wiki location the story names last, else the chat's own scenario. */

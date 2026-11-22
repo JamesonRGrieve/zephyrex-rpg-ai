@@ -64,6 +64,12 @@ beforeAll(async () => {
           .end(JSON.stringify({ campaign_documents: documents }));
         return;
       }
+      if (/^\/api\/v1\/campaign\/[^/]+\/framing/u.test(request.url ?? '')) {
+        // The wiki campaign's own framing (lib/wikiWorld.ts framing): none here.
+        worldAsked.push(request.url ?? '');
+        response.writeHead(404).end('{}');
+        return;
+      }
       if ((request.url ?? '').startsWith('/api/v1/world_entity')) {
         worldAsked.push(request.url ?? '');
         if (world === null) response.writeHead(404).end('{}');

@@ -774,6 +774,28 @@ class TestGenerate:
             ("character", ada["id"], 'Ada sets down her wrench.\nAda (to everyone): "Trouble."'),
         ]
 
+    def test_a_wiki_campaigns_own_framing_frames_the_narrator(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        campaign = server.post(
+            "/v1/campaign",
+            json={"campaign": {"name": "The Tavern", "description": "A rain-soaked river town."}},
+            headers=_headers(user),
+        )
+        assert campaign.status_code == 201, campaign.text
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(
+            server, user, "chat", title="Chat", character_ids=[ada["id"]], campaign_id=campaign.json()["campaign"]["id"]
+        ).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I step inside."]).json()["chat_message"]
+        prompt = server.post(
+            "/v1/ai_chat/prompt",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "narrate"}},
+            headers=_headers(user),
+        ).json()["prompt"]
+        # No campaign frame row (a vault scenario): the wiki campaign's own framing is the frame.
+        assert "Premise: A rain-soaked river town." in prompt["messages"][0]["content"]
+
     def test_each_role_goes_to_the_model_serving_it(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _cast(server, user, "character", name="Ada").json()["character"]

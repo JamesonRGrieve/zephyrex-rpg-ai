@@ -63,6 +63,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     PROMPT,
     SAMPLER_RANGES,
 )
+from zephyrex.extensions.ai_chat.CampaignFraming import frame_from_framing  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Clarify import (  # type: ignore[import-not-found]
     clarify_need,
     clarify_questions,
@@ -175,6 +176,7 @@ from zephyrex.extensions.ai_chat.VoiceGuard import (  # type: ignore[import-not-
 from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
     advance_clock,
     campaign_documents,
+    campaign_framing,
     ensure_person,
     move_person,
     persons_for,
@@ -2510,7 +2512,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         """The campaign frame a chat names, as the prompt reads it; none for a wiki campaign (the
         composed suite) or a frame that's gone."""
         frame = frame_for(self._manager(CampaignFrameManager), campaign_id)
-        return None if frame is None else frame_of(frame)
+        if frame is not None:
+            return frame_of(frame)
+        # A vault scenario is framed in the wiki campaign itself (Zephyrex RPG, 2026-11-22): its framing.
+        return frame_from_framing(campaign_framing(self.model_registry, str(self.requester.id), campaign_id))
 
     def _inputs(
         self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply", memories: str = ""

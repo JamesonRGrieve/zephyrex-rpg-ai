@@ -1,0 +1,91 @@
+{
+  "$comment": "A wiki campaign's own framing as the prompt's frame: cases both twins run (client/src/features/prompt/campaignFraming.test.ts, server/extensions/ai_chat/CampaignFraming_test.py).",
+  "cases": [
+    {
+      "name": "the operator's vault scenario: description, Framing, setting and play styles; GM notes for the GM's voices",
+      "framing": {
+        "name": "The Tavern",
+        "description": "A rain-soaked river town.",
+        "framing": "The party arrives at the River's Rest at dusk.",
+        "gm_notes": "The barkeep is an informant.",
+        "setting": {
+          "id": "s1",
+          "name": "The Calixis Sector",
+          "tone": "grim, paranoid"
+        },
+        "play_styles": [
+          "Investigation",
+          "Social"
+        ]
+      },
+      "frame": {
+        "premise": "A rain-soaked river town.\n\nThe party arrives at the River's Rest at dusk.",
+        "genre": "The Calixis Sector: grim, paranoid",
+        "themes": [
+          "Investigation",
+          "Social"
+        ],
+        "gm_style": "The barkeep is an informant."
+      }
+    },
+    {
+      "name": "a setting with no tone: its name alone",
+      "framing": {
+        "name": "The Tavern",
+        "description": "",
+        "framing": "",
+        "gm_notes": "",
+        "setting": {
+          "id": "s1",
+          "name": "Faerûn",
+          "tone": ""
+        },
+        "play_styles": []
+      },
+      "frame": {
+        "premise": "",
+        "genre": "Faerûn",
+        "themes": [],
+        "gm_style": ""
+      }
+    },
+    {
+      "name": "a setting's long entry: its first paragraph is the tone",
+      "framing": {
+        "name": "Run",
+        "description": "",
+        "framing": "",
+        "gm_notes": "",
+        "setting": {
+          "id": "s1",
+          "name": "The Calixis Sector",
+          "tone": "Grim and paranoid.\n\nThe Inquisition watches. Heresy hides in every hive."
+        },
+        "play_styles": []
+      },
+      "frame": {
+        "premise": "",
+        "genre": "The Calixis Sector: Grim and paranoid.",
+        "themes": [],
+        "gm_style": ""
+      }
+    },
+    {
+      "name": "nothing said: no frame",
+      "framing": {
+        "name": "The Tavern",
+        "description": "",
+        "framing": "",
+        "gm_notes": "",
+        "setting": null,
+        "play_styles": []
+      },
+      "frame": null
+    },
+    {
+      "name": "no framing at all: no frame",
+      "framing": null,
+      "frame": null
+    }
+  ]
+}
