@@ -25,6 +25,7 @@ import {
   ScanText,
   Settings2,
   X,
+  RotateCw,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -1594,6 +1595,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   {/* The app bar keeps only what play needs at hand; the rest is here (the operator, 2026-11-21). */}
                   <DropdownMenuItem className='sm:hidden' onSelect={() => void xCardLatest()}>
                     <X aria-hidden /> X-card the latest reply
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => window.location.reload()}>
+                    <RotateCw aria-hidden /> Reload the app
                   </DropdownMenuItem>
                   <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
                     <Settings2 aria-hidden /> Chat settings
