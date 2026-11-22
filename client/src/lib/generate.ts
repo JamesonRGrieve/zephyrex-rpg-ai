@@ -239,7 +239,10 @@ export async function generationInputs(
   const frameRow =
     chatFields.campaign_id === null
       ? null
-      : await prisma.campaignFrame.findFirst({ where: { id: chatFields.campaign_id, createdById: ownerId } });
+      : await prisma.campaignFrame.findFirst({
+          // A wiki campaign's frame is the one naming it (a frame's id is never chosen).
+          where: { OR: [{ id: chatFields.campaign_id }, { wikiCampaignId: chatFields.campaign_id }], createdById: ownerId },
+        });
   const wikiCampaign = wikiCampaignOf(
     chatFields.campaign_id,
     new Map(frameRow === null ? [] : [[frameRow.id, frameRow.wikiCampaignId]]),
@@ -1020,7 +1023,9 @@ export async function ensurePerson(nextRequest: NextRequest): Promise<Response> 
     const frameRow =
       fields.campaign_id === null
         ? null
-        : await prisma.campaignFrame.findFirst({ where: { id: fields.campaign_id, createdById: owner.id } });
+        : await prisma.campaignFrame.findFirst({
+            where: { OR: [{ id: fields.campaign_id }, { wikiCampaignId: fields.campaign_id }], createdById: owner.id },
+          });
     const wikiCampaign = wikiCampaignOf(
       fields.campaign_id,
       new Map(frameRow === null ? [] : [[frameRow.id, frameRow.wikiCampaignId]]),
@@ -1263,7 +1268,9 @@ export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
     const frame =
       fields.campaign_id === null
         ? null
-        : await prisma.campaignFrame.findFirst({ where: { id: fields.campaign_id, createdById: owner.id } });
+        : await prisma.campaignFrame.findFirst({
+            where: { OR: [{ id: fields.campaign_id }, { wikiCampaignId: fields.campaign_id }], createdById: owner.id },
+          });
     const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
     const playingId = play?.playingId ?? null;
     const { prompt } = await generationInputs(
@@ -1355,7 +1362,9 @@ export async function worldTick(nextRequest: NextRequest): Promise<Response> {
     const frameRow =
       fields.campaign_id === null
         ? null
-        : await prisma.campaignFrame.findFirst({ where: { id: fields.campaign_id, createdById: owner.id } });
+        : await prisma.campaignFrame.findFirst({
+            where: { OR: [{ id: fields.campaign_id }, { wikiCampaignId: fields.campaign_id }], createdById: owner.id },
+          });
     const wikiCampaign = wikiCampaignOf(
       fields.campaign_id,
       new Map(frameRow === null ? [] : [[frameRow.id, frameRow.wikiCampaignId]]),

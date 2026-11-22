@@ -75,7 +75,13 @@ export async function canonCheck(nextRequest: NextRequest): Promise<Response> {
         : await prisma.lorebookEntry.findMany({
             where: { createdById: owner.id, lorebookId: { in: bookIds }, enabled: true },
           });
-    const frame = chat.campaignId === null ? null : await prisma.campaignFrame.findFirst({ where: { id: chat.campaignId } });
+    const frame =
+      chat.campaignId === null
+        ? null
+        : await prisma.campaignFrame.findFirst({
+            // A wiki campaign's frame is the one naming it (a frame's id is never chosen).
+            where: { OR: [{ id: chat.campaignId }, { wikiCampaignId: chat.campaignId }] },
+          });
     const sessions = await prisma.chatSession.findMany({ where: { chatId: chat.id, createdById: owner.id } });
     const facts = factsInReach(
       asked.text,
