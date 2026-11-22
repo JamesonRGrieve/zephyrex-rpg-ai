@@ -340,8 +340,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const play = useCampaign(chat, branch);
   // Saved model-and-preset pairs (gap 8), offered in chat settings.
   const profileList = connectionProfiles.useList();
-  // Canon notices (docs/DESIGN.md, Canon warnings): the person's line as they write it, never the AI's own
-  // lines (the operator, 2026-11-22: "Why did it canon warn itself?").
+  // Canon notices (docs/DESIGN.md, Canon warnings): the person's line as they write it, and each AI line,
+  // which a warning corrects (the operator, 2026-11-22: "Canon warnings should still fire on AI lines,
+  // and should be used to correct the AI"): written once more with the problem named; only a line still
+  // off canon after that shows its notice.
+  const [canonNotices, setCanonNotices] = useState<ReadonlyMap<string, CanonNoticeValue>>(new Map());
   const checkLine = useCallback(
     (text: string, speaker: string, signal?: AbortSignal) =>
       checkCanon({ chat_id: chat.id, text, speaker }, signal).then((verdict) =>
@@ -445,6 +448,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       swipes: [stored(withoutSpeakerPrefix(result.text, castById.get(speakerId)?.name ?? ''), 'ai_output')],
     });
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
+    const replyCanon = Reflect.get(result, 'canon') as CanonNoticeValue | null | undefined;
+    if (replyCanon) setCanonNotices((current) => new Map(current).set(saved.id, replyCanon));
     setLeafId(saved.id);
     noteCost(saved.id, result);
     void showExpression(speakerId, saved.swipes[0] ?? '');
@@ -1018,7 +1023,27 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       );
       return null;
     }
-    return { ...result, text: whole };
+    // Canon: a line that breaks it is written once more with the problem named.
+    const speakerName =
+      request.speaker_id === null || request.speaker_id === undefined
+        ? 'The GM'
+        : (castById.get(request.speaker_id)?.name ?? 'A character');
+    const notice = chat.canon_checks !== false ? await checkLine(whole, speakerName).catch(() => null) : null;
+    if (notice !== null && notice.level !== 'none') {
+      const again = await timedWrite({
+        ...request,
+        forbid: { names: [], span: `Canon: ${notice.reason}`, spans: [`Canon: ${notice.reason}`] },
+      });
+      if (again !== null) {
+        const fixed = plainDashes(completeText(again.text));
+        if (fixed.trim() !== '') {
+          const still = await checkLine(fixed, speakerName).catch(() => null);
+          return { ...again, text: fixed, canon: still !== null && still.level !== 'none' ? still : null };
+        }
+      }
+      return { ...result, text: whole, canon: notice };
+    }
+    return { ...result, text: whole, canon: null as CanonNoticeValue | null };
   };
   const noteCost = (id: string, written: { text: string; seconds: number }) =>
     setReplyCost((current) => new Map(current).set(id, replyStats(written.text, written.seconds)));
@@ -1100,6 +1125,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
     if (saved !== null) {
       setLeafId(saved.id);
+      const narrationCanon = Reflect.get(result, 'canon') as CanonNoticeValue | null | undefined;
+      if (narrationCanon) {
+        const noted = saved.id;
+        setCanonNotices((current) => new Map(current).set(noted, narrationCanon));
+      }
       const banner = play.isCampaign ? await followOnMap(saved.id) : null;
       if (banner !== null) saved = banner;
     }
@@ -1847,6 +1877,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       : undefined
                   }
                   translation={translationOf(message.id)}
+                  canon={canonNotices.get(message.id)}
                 />
               </li>
             );
