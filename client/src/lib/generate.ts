@@ -43,6 +43,7 @@ import { clarifyNeed, clarifyQuestions, shouldAsk } from '~/features/chat/clarif
 import { mapQuestions, movers, seatPlace } from '~/features/world/mapStep';
 import { statusMessages } from '~/features/chat/statusLine';
 import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
+import { paragraphCut } from '~/features/chat/voiceGuard';
 import { parsePlayerLines, stripMarkup } from '~/features/chat/playerLines';
 import { isAttempt, rollPick, rollQuestions } from '~/features/chat/rollDecision';
 import { oneLine, partyBriefing, partyOf, partyText } from '~/features/prompt/party';
@@ -1881,6 +1882,9 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
       nextRequest.signal,
     );
     const deltas = completionDeltas(upstream);
+    // A runaway stops at the blank line after the paragraph limit (voiceGuard.ts paragraphCut): a
+    // structural stop, never mid-sentence (the operator, 2026-11-22).
+    let told = '';
     const stream = new ReadableStream<Uint8Array>({
       // The reply begins with its prefill, so what's kept is the whole reply.
       start(controller) {
@@ -1889,10 +1893,15 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
       async pull(controller) {
         try {
           const next = await deltas.next();
-          if (next.done) {
+          const cut = next.done ? -1 : paragraphCut(told + next.value);
+          if (next.done || cut >= 0) {
+            const rest = cut >= 0 ? (told + next.value).slice(told.length, Math.max(cut, told.length)) : '';
+            if (rest !== '') controller.enqueue(event('delta', { text: rest }));
+            if (cut >= 0) await deltas.return(undefined);
             controller.enqueue(event('done', { dropped: assembled.dropped }));
             controller.close();
           } else {
+            told += next.value;
             controller.enqueue(event('delta', { text: next.value }));
           }
         } catch {

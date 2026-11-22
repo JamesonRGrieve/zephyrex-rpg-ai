@@ -344,3 +344,18 @@ export function replayOf(text: string, earlier: readonly string[]): { at: number
   const first = found[0];
   return first === undefined ? null : { at: first.at, span: first.span, spans: found.map((one) => one.span) };
 }
+
+/**
+ * Where a runaway story stream stops (the operator, 2026-11-22: with no token cap a narration ran on):
+ * the blank line that ends the runaway.paragraphs-th paragraph, once anything follows it, so the stop is
+ * never mid-sentence. -1 while it is within the limit.
+ */
+export function paragraphCut(text: string): number {
+  let count = 0;
+  for (const gap of text.matchAll(/\n[ \t]*\n\s*/gu)) {
+    if (text.slice(0, gap.index).trim() === '') continue;
+    count += 1;
+    if (count >= VOICE_GUARD.runaway.paragraphs && gap.index + gap[0].length < text.length) return gap.index;
+  }
+  return -1;
+}

@@ -325,3 +325,16 @@ def replay_of(text: str, earlier: Sequence[str]) -> dict[str, Any] | None:
     if not found:
         return None
     return {"at": found[0][0], "span": found[0][1], "spans": [span for _at, span in found]}
+
+
+def paragraph_cut(text: str) -> int:
+    """Where a runaway story stream stops: the blank line ending the runaway paragraphs-th paragraph, once
+    anything follows it, never mid-sentence; -1 while within the limit."""
+    count = 0
+    for gap in re.finditer(r"\n[ \t]*\n\s*", text):
+        if not text[: gap.start()].strip():
+            continue
+        count += 1
+        if count >= int(VOICE_GUARD["runaway"]["paragraphs"]) and gap.end() < len(text):
+            return gap.start()
+    return -1

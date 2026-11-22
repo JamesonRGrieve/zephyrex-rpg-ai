@@ -691,5 +691,27 @@
       },
       "text": "Your last attempt retold what the story already said: «The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.» «By the ancestors, man!». Write what happens next instead; never repeat those."
     }
+  ],
+  "runaway_cases": [
+    {
+      "name": "five paragraphs: within the limit",
+      "text": "Rain hammers the shutters.\n\nThe barkeep glares.\n\nBrakka laughs.\n\nMaelis frowns.\n\nThe fire pops.",
+      "cut": -1
+    },
+    {
+      "name": "five paragraphs and the gap after: still within, nothing follows",
+      "text": "Rain hammers the shutters.\n\nThe barkeep glares.\n\nBrakka laughs.\n\nMaelis frowns.\n\nThe fire pops.\n\n",
+      "cut": -1
+    },
+    {
+      "name": "a sixth begins: cut at the blank line after the fifth",
+      "text": "Rain hammers the shutters.\n\nThe barkeep glares.\n\nBrakka laughs.\n\nMaelis frowns.\n\nThe fire pops.\n\nA dog",
+      "cut": 95
+    },
+    {
+      "name": "single line breaks are not paragraphs",
+      "text": "Rain hammers the shutters.\nThe barkeep glares.\nBrakka laughs.\nMaelis frowns.\nThe fire pops.\nA dog barks.\nThe door bangs.",
+      "cut": -1
+    }
   ]
 }

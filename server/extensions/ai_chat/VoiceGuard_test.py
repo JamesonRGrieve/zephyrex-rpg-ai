@@ -13,6 +13,7 @@ from zephyrex.extensions.ai_chat.VoiceGuard import (  # type: ignore[import-not-
     complete_text,
     meta_break,
     narrate_segments,
+    paragraph_cut,
     plain_dashes,
     replay_of,
     seat_cut,
@@ -66,3 +67,8 @@ def test_a_replay(case: dict[str, Any]) -> None:
 @pytest.mark.parametrize("case", CASES["forbid_cases"], ids=[case["name"] for case in CASES["forbid_cases"]])
 def test_a_replays_spans_are_forbidden_together(case: dict[str, Any]) -> None:
     assert forbid_text(case["forbid"]) == case["text"]
+
+
+@pytest.mark.parametrize("case", CASES["runaway_cases"], ids=[case["name"] for case in CASES["runaway_cases"]])
+def test_a_runaway_stops_at_a_paragraph(case: dict[str, Any]) -> None:
+    assert paragraph_cut(case["text"]) == case["cut"]

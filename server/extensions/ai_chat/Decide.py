@@ -9,11 +9,15 @@ The twin of client/src/features/decide/decide.ts, held to contract/decide-cases.
 """
 
 import json
+import logging
 import math
+import time
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from zephyrex.extensions.ai_chat.ExtraBody import with_extra_body  # type: ignore[import-not-found]
+
+logger = logging.getLogger(__name__)
 
 
 def _choice_options(criteria: Sequence[str] | Mapping[str, str]) -> dict[str, str]:
@@ -147,6 +151,8 @@ async def ask_decider(
     import httpx
 
     headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
+    # Where a turn's seconds go (the operator, 2026-11-22: about two minutes before the first token).
+    started = time.monotonic()
     try:
         async with httpx.AsyncClient(timeout=DECIDE_TIMEOUT_SECONDS) as client:
             answer = await client.post(
@@ -156,7 +162,15 @@ async def ask_decider(
                 json=with_extra_body(decide_request(model, state, questions), extra),
             )
     except httpx.HTTPError:
+        logger.info("decide %s: unreachable after %.1fs", model, time.monotonic() - started)
         return None
+    logger.info(
+        "decide %s: %s questions, HTTP %s in %.1fs",
+        model,
+        len(questions),
+        answer.status_code,
+        time.monotonic() - started,
+    )
     if answer.status_code >= 400:
         return None
     try:

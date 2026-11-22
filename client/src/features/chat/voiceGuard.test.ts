@@ -7,6 +7,7 @@ import {
   completeText,
   metaBreak,
   narrateSegments,
+  paragraphCut,
   plainDashes,
   replayOf,
   seatCut,
@@ -29,6 +30,9 @@ describe('the voice guard cases both twins run', () => {
   });
   it.each(cases.replay_cases)('$name', ({ text, earlier, hit }) => {
     expect(replayOf(text, earlier)).toEqual(hit);
+  });
+  it.each(cases.runaway_cases)('$name', ({ text, cut }) => {
+    expect(paragraphCut(text)).toBe(cut);
   });
   it.each(cases.forbid_cases)('$name', ({ forbid, text }) => {
     expect(forbidText(forbid)).toBe(text);

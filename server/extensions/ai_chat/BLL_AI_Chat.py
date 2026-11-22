@@ -21,6 +21,7 @@ Actions on ``/v1/ai_chat``:
 import asyncio
 import inspect
 import json
+import logging
 import random
 import re
 import time
@@ -165,7 +166,11 @@ from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-no
     turn_seat,
     turn_state,
 )
-from zephyrex.extensions.ai_chat.VoiceGuard import plain_dashes  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.VoiceGuard import (  # type: ignore[import-not-found]
+    VOICE_GUARD,
+    paragraph_cut,
+    plain_dashes,
+)
 from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
     advance_clock,
     campaign_documents,
@@ -209,6 +214,8 @@ from zephyrex.pydantic2.fastapi.types import RouteType
 
 # The framework's registry BaseModel, which it re-exports without declaring it.
 from zephyrex.pydantic2.registry import BaseModel  # type: ignore[attr-defined]
+
+logger = logging.getLogger(__name__)
 
 MAX_NAME: int = LIMITS["name_characters"]
 MAX_TITLE: int = LIMITS["chat_title_characters"]
@@ -2509,6 +2516,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply", memories: str = ""
     ) -> tuple[Any, dict[str, Any], dict[str, Any], list[str], dict[str, Any]]:
         """Everything a reply needs, read as the requester sees it (lib/generate.ts, step for step)."""
+        started = time.monotonic()
         try:
             chat = self._manager(ChatManager).get(id=body.chat_id)
         except HTTPException as error:
@@ -2836,6 +2844,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             # The wiki's world as this voice may know it, for decided turns' presence.
             "world": entities,
         }
+        # Where a turn's seconds go (the operator, 2026-11-22: about two minutes before the first token).
+        logger.info("inputs %s (%s): %.1fs", body.mode, purpose, time.monotonic() - started)
         return assembled, request, sampler, lore.active, context
 
     @custom_route(
@@ -3440,7 +3450,6 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             except HTTPException:
                 frame = None
             mode = getattr(frame, "resolution_mode", None) or "narrative"
-        options = await test_options(self.model_registry, str(self.requester.id), asked.character_id)
         story = set(PROMPT["story_channels"])
         # The actor's latest story line: an attempt at something uncertain always gets a test.
         acted = next(
@@ -3459,6 +3468,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # The play-test: a laugh about a fireplace got a roll. No attempt, no roll, and no model call.
         if acted is None or not is_attempt(acted["content"]):
             return NeedsRollEnvelope(needs_roll=NeedsRoll(decided=True, kind="none"))
+        # The VTT's tests only once there is an attempt to test (a read per turn otherwise).
+        options = await test_options(self.model_registry, str(self.requester.id), asked.character_id)
         questions, picks = roll_questions(options, mode, actor, True)
         # No system, no roll (the operator: mechanics are never a model's).
         if not questions:
@@ -3909,7 +3920,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for turn in context["history"]
             if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
         ]
-        result = structured_runs(fresh_items(partial_items(items.text), earlier), people, seat_name)
+        within = partial_items(items.text)[: int(VOICE_GUARD["runaway"]["max_items"])]
+        result = structured_runs(fresh_items(within, earlier), people, seat_name)
         if not result["runs"]:
             return
         chat = context["chat"]
@@ -4036,16 +4048,33 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         )
         people = [{"id": str(one["id"]), "name": str(one["name"])} for one in _context["cast"]]
         items = ItemStream(people, seat_name) if structured else None
+        told = ""
+        stopped = False
+        ended = 0
+
+        def prose(delta: str) -> list[str]:
+            """A piece of prose as a delta, stopped at the blank line after the runaway paragraph limit
+            (VoiceGuard.py paragraph_cut): a structural stop, never mid-sentence."""
+            nonlocal told, stopped
+            combined = told + delta
+            cut = paragraph_cut(combined)
+            piece = delta if cut < 0 else combined[len(told) : max(cut, len(told))]
+            stopped = cut >= 0
+            told += piece
+            return [frame("delta", {"text": piece})] if piece else []
 
         def shown(delta: str) -> list[str]:
             """The frames for one piece of the answer: item events, or a delta where it isn't structured."""
+            nonlocal stopped, ended
             if items is None:
-                return [frame("delta", {"text": delta})]
+                return prose(delta)
             was = items.mode
             events = items.feed(delta)
             if items.mode == "text":
                 # Prose after all: everything so far goes as deltas, the client's text path.
-                return [frame("delta", {"text": items.text if was == "unknown" else delta})]
+                return prose(items.text if was == "unknown" else delta)
+            ended += sum(1 for event in events if event["type"] == "item_end")
+            stopped = ended >= int(VOICE_GUARD["runaway"]["max_items"])
             # An item's start is flat, as the client reads it (replyStream.ts): {index, kind, speaker, …}.
             return [
                 frame(
@@ -4075,11 +4104,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     if delta is not None:
                         for piece in shown(delta):
                             yield piece
-                    if items is not None and items.cut:
-                        # The seat's turn: nothing of it or after it is kept.
+                    if (items is not None and items.cut) or stopped:
+                        # The seat's turn, or a runaway: nothing after it is kept.
                         break
                 closing = joiner.end()
-                if closing is not None:
+                if closing is not None and not stopped:
                     for piece in shown(closing):
                         yield piece
                 if items is not None and items.mode == "json":
