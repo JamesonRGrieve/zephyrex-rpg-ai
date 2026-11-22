@@ -61,14 +61,36 @@ async function refusal(response: Response): Promise<string> {
   return typeof message === 'string' ? message : `The reply could not start (${response.status})`;
 }
 
+/** Resolves once the tab is visible again (and the network has had a moment to come back). */
+function backInView(): Promise<void> {
+  return new Promise((resolve) => {
+    const settle = () => window.setTimeout(resolve, 1500);
+    if (document.visibilityState === 'visible') return settle();
+    const onShow = () => {
+      if (document.visibilityState !== 'visible') return;
+      document.removeEventListener('visibilitychange', onShow);
+      settle();
+    };
+    document.addEventListener('visibilitychange', onShow);
+  });
+}
+
 export function useReply(): { state: ReplyState; write(request: ReplyRequest): Promise<ReplyResult | null>; stop(): void } {
   const [state, setState] = useState<ReplyState>({ status: 'idle' });
   const controller = useRef<AbortController | null>(null);
 
   const stop = useCallback(() => controller.current?.abort(), []);
 
-  const write = useCallback(async (request: ReplyRequest): Promise<ReplyResult | null> => {
+  async function attempt(request: ReplyRequest, again: boolean): Promise<ReplyResult | null> {
     controller.current?.abort();
+    // A phone that leaves the tab suspends it and the stream dies with it (the operator, 2026-11-22: "When
+    // I switch tabs and come back to chat in progress I get a NetworkError"): noted, so the reply is asked
+    // for once more when the tab is back, and the round goes on.
+    let left = typeof document !== 'undefined' && document.visibilityState === 'hidden';
+    const onHide = () => {
+      if (document.visibilityState === 'hidden') left = true;
+    };
+    if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onHide);
     const abort = new AbortController();
     controller.current = abort;
     let text = '';
@@ -114,9 +136,16 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
       });
     } catch {
       if (!abort.signal.aborted) {
+        document.removeEventListener('visibilitychange', onHide);
+        if (left && again) {
+          await backInView();
+          if (!abort.signal.aborted) return attempt(request, false);
+        }
         setState({ status: 'failed', detail: 'The reply was cut off' });
         return null;
       }
+    } finally {
+      if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onHide);
     }
     if (failure !== null && text === '' && saved === undefined) {
       setState({ status: 'failed', detail: failure });
@@ -124,7 +153,10 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
     }
     setState({ status: 'idle' });
     return { text, dropped, stopped: abort.signal.aborted, ...(saved === undefined ? {} : { saved }) };
-  }, []);
+  }
 
+  // attempt reads only setState and the controller ref, both stable: write keeps one identity.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const write = useCallback((request: ReplyRequest) => attempt(request, true), []);
   return { state, write, stop };
 }

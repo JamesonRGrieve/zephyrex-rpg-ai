@@ -19,6 +19,7 @@ import {
   Ellipsis,
   Flag,
   GitFork,
+  LoaderCircle,
   Image as ImageIcon,
   Pause,
   Play,
@@ -853,6 +854,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * made a sibling of the person's line and moved the view to it).
    */
   const roundRef = useRef(0);
+  /**
+   * The step the round is on (the operator, 2026-11-22: "my last message didn't seem to trigger a
+   * response. Can we get a progress indicator for the decision model calls etc?"): shown under the
+   * story while the table thinks, so a quiet round says where it is.
+   */
+  const [roundStep, setRoundStep] = useState<string | null>(null);
+  const during = async <T,>(label: string, work: Promise<T>): Promise<T> => {
+    setRoundStep(label);
+    try {
+      return await work;
+    } finally {
+      setRoundStep((now) => (now === label ? null : now));
+    }
+  };
   const timedWrite = async (request: Parameters<typeof reply.write>[0]) => {
     const mine = roundRef.current;
     const { value, seconds } = await timed(() => reply.write(request));
@@ -967,7 +982,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    */
   const followOnMap = async (leaf: string): Promise<ChatMessage | null> => {
     const mine = roundRef.current;
-    const change = await mapStep(chat.id, leaf);
+    const change = await during('Following the story on the map', mapStep(chat.id, leaf));
     let banner: ChatMessage | null = null;
     if (roundRef.current === mine && change?.seatMoved === true && change.seatPlace !== null) {
       banner = await create({
@@ -980,7 +995,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       setLeafId(banner.id);
     }
     rounds.current += 1;
-    const arrivals = rounds.current % 6 === 0 ? await worldTick(chat.id, leaf, 10, 'rounds') : [];
+    const arrivals =
+      rounds.current % 6 === 0 ? await during('The world moves on', worldTick(chat.id, leaf, 10, 'rounds')) : [];
     // The campaign's status line (its one-liner in the campaign list) every 10 rounds.
     if (rounds.current % 10 === 0) void refreshStatusLine(chat.id, leaf);
     if (change !== null || arrivals.length > 0)
@@ -1193,7 +1209,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       ): Promise<boolean> => {
         const actor = line.speaker_character_id;
         if (line.role !== 'character' || actor === null) return true;
-        const roll = await (prefetched ?? decideRoll(chat.id, line.id, actor));
+        const roll = await during('Deciding whether this needs a roll', prefetched ?? decideRoll(chat.id, line.id, actor));
         if (roll === null) {
           if (!narrateAnyway) return true;
           const told = await narrateAfter(line.id);
@@ -1238,7 +1254,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           : undefined;
       // A figure the line approaches who isn't a person yet (the barkeeper) is authored first.
       const npcAsked = play.isCampaign ? npcNeeded(chat.id, start.id) : Promise.resolve(null);
-      const question = play.isCampaign ? await clarify(chat.id, start.id) : null;
+      const question = play.isCampaign ? await during('Reading your line', clarify(chat.id, start.id)) : null;
       if (question !== null) {
         const picked = await new Promise<string | null>((resolve) =>
           setAsking({ prompt: question.question, options: question.options.map((one) => one.label), resolve }),
@@ -1254,7 +1270,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           current = current.map((one) => (one.id === start.id ? { ...one, swipes } : one));
         }
       }
-      const npc = await npcAsked;
+      const npc = await during('Checking who you meet', npcAsked);
       if (npc !== null) {
         setAuthoring({ name: npc.name, step: { label: `Authoring new NPC (${npc.name})`, done: 0, total: 1 } });
         const made = await authorNpc(chat.id, start.id, npc, (step) => setAuthoring({ name: npc.name, step }));
@@ -1267,7 +1283,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       if (!(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
         if (superseded()) return;
-        const next = await decideNextTurn(chat.id, parent.id);
+        const next = await during('Deciding who acts next', decideNextTurn(chat.id, parent.id));
         if (superseded()) return;
         if (!next.decided) break;
         const usable = next.kind === 'character' && next.character_id !== null && aiIds.has(next.character_id);
@@ -1586,7 +1602,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     onTurn: () => void replyAfter(leaf, branch),
   });
 
-  if (list.error !== undefined) return <LoadProblem what='this chat' error={list.error} onRetry={() => list.mutate()} />;
+  // Only a chat that never loaded shows the problem (the operator, 2026-11-22: "When I switch tabs and come
+  // back to chat in progress I get a NetworkError"): coming back re-reads the chat before a phone's network
+  // is up, and that failed re-read replaced the chat, round and all. The chat stays; SWR tries again.
+  if (list.error !== undefined && list.data === undefined)
+    return <LoadProblem what='this chat' error={list.error} onRetry={() => list.mutate()} />;
 
   const pending = writingAfter === null ? undefined : castById.get(writingAfter.speakerId);
   const options = <T extends { id: string; name: string }>(rows: readonly T[] | undefined) =>
@@ -1990,6 +2010,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               })}
             </>
           )}
+          {roundStep !== null && authoring === null && !writing && (
+            <li>
+              <p role='status' className='flex items-center gap-2 px-1 text-sm text-muted-foreground'>
+                <LoaderCircle aria-hidden className='size-4 animate-spin' /> {roundStep}…
+              </p>
+            </li>
+          )}
           {authoring !== null && (
             // The GM authoring an NPC the story needs, before the round goes on.
             <li>
@@ -2312,7 +2339,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
 export function ChatView({ id }: { id: string }): ReactElement {
   const chat = chats.useOne(id);
-  if (chat.error !== undefined) return <LoadProblem what='this chat' error={chat.error} onRetry={() => chat.mutate()} />;
+  if (chat.error !== undefined && chat.data === undefined)
+    return <LoadProblem what='this chat' error={chat.error} onRetry={() => chat.mutate()} />;
   if (chat.data === undefined) return <SkeletonRows rows={4} avatar />;
   return <ChatSurface chat={chat.data} />;
 }
