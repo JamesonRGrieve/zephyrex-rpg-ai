@@ -9,6 +9,7 @@
  * button in reach of a thumb, and the menu holds the rest.
  */
 import { type ReplyStats, statsLabel } from '~/features/chat/replyStats';
+import { type Revision, RevisionButton } from './RevisionButton';
 import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
 import {
   ArrowDown,
@@ -301,6 +302,7 @@ export function MessageItem({
   proposal,
   cost,
   canon,
+  revision = null,
   names = [],
   ...actions
 }: {
@@ -318,6 +320,8 @@ export function MessageItem({
   cost?: ReplyStats;
   /** Its canon notice (docs/DESIGN.md, Canon warnings), once checked: yellow or red, with why. */
   canon?: CanonNoticeValue;
+  /** A line the AI wrote again: its first answer and why, behind a small icon. */
+  revision?: Revision | null;
 } & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   const editId = useId();
@@ -434,6 +438,11 @@ export function MessageItem({
               </div>
             )}
             {canon !== undefined && <CanonNotice notice={canon} className='mt-2' />}
+            {revision !== null && (
+              <div className='mt-1 flex justify-end'>
+                <RevisionButton revision={revision} />
+              </div>
+            )}
             {translation !== undefined && (
               <div className='mt-2 rounded-md border-l-2 border-primary bg-muted px-3 py-2 text-sm' aria-live='polite'>
                 {translation.status === 'writing' && <p className='text-muted-foreground'>Translating…</p>}

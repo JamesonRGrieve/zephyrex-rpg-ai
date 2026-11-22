@@ -23,7 +23,7 @@ export interface CanonNoticeValue {
 export const CanonOff = createContext<(() => void) | null>(null);
 
 /** The drawer, when the app wrapper provides one (outside it, as in a story, details show in place). */
-function useDrawer(): AppDrawerApi | null {
+export function useDrawer(): AppDrawerApi | null {
   try {
     // eslint-disable-next-line react-hooks/rules-of-hooks -- called on every render; only the throw is caught.
     return useAppDrawer();

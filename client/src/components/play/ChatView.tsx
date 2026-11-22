@@ -146,6 +146,7 @@ import { completeText, metaBreak, narrateSegments, plainDashes, replayOf, seatCu
 import { aimAt, clarify, ensurePerson, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
 import { type AuthoringStep, authorNpc, npcNeeded } from '~/features/chat/authorNpc';
 import { fetchSpeechOptions } from '~/features/chat/speechOptions';
+import type { Revision } from './RevisionButton';
 import useSWR from 'swr';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
@@ -463,6 +464,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       speaker_character_id: speakerId,
       // A group reply that opens with its own "Name:" loses it, as in SillyTavern.
       swipes: [stored(withoutSpeakerPrefix(result.text, castById.get(speakerId)?.name ?? ''), 'ai_output')],
+      revision: (Reflect.get(result, 'revision') as Revision | null | undefined) ?? null,
     });
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
     const replyCanon = Reflect.get(result, 'canon') as CanonNoticeValue | null | undefined;
@@ -1028,6 +1030,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (result === null) return null;
     // The server split, checked and saved it: nothing to redo here.
     if (result.saved !== undefined) return result;
+    // The first answer and why it was written again, kept on the saved line (the operator, 2026-11-22: "a
+    // small icon beside the final output that will open the original response and reasoning").
+    let revision: Revision | null = null;
+    const revise = (kind: Revision['kind'], reason: string) => {
+      if (revision === null && result !== null) revision = { original: result.text, reason, kind };
+    };
     // An empty answer (a soft refusal, a stream that ended with nothing) never vanishes silently
     // (the operator, 2026-11-21: "I also didn't get a response"): one more try, then a notice.
     if (completeText(result.text).trim() === '') {
@@ -1042,6 +1050,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       .map((message) => message.swipes[message.swipe_index ?? 0] ?? '');
     const replayed = replayOf(result.text, recentStory);
     if (replayed !== null) {
+      revise('meta', 'It retold what had already been told.');
       const again = await timedWrite({
         ...request,
         forbid: { names: [], span: replayed.span, spans: replayed.spans },
@@ -1050,6 +1059,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
     const broke = metaBreak(result.text);
     if (broke !== null) {
+      revise('meta', 'It stepped out of the story.');
       const again = await timedWrite({ ...request, forbid: { names: [], span: broke.span } });
       if (again !== null) result = again;
     }
@@ -1072,6 +1082,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         : (castById.get(request.speaker_id)?.name ?? 'A character');
     const notice = chat.canon_checks !== false ? await checkLine(whole, speakerName).catch(() => null) : null;
     if (notice !== null && notice.level !== 'none') {
+      revise('canon', notice.reason);
       const again = await timedWrite({
         ...request,
         forbid: { names: [], span: '', reason: 'canon', note: notice.reason },
@@ -1080,12 +1091,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         const fixed = plainDashes(completeText(again.text));
         if (fixed.trim() !== '') {
           const still = await checkLine(fixed, speakerName).catch(() => null);
-          return { ...again, text: fixed, canon: still !== null && still.level !== 'none' ? still : null };
+          return { ...again, text: fixed, canon: still !== null && still.level !== 'none' ? still : null, revision };
         }
       }
-      return { ...result, text: whole, canon: notice };
+      return { ...result, text: whole, canon: notice, revision };
     }
-    return { ...result, text: whole, canon: null as CanonNoticeValue | null };
+    return { ...result, text: whole, canon: null as CanonNoticeValue | null, revision };
   };
   const noteCost = (id: string, written: { text: string; seconds: number }) =>
     setReplyCost((current) => new Map(current).set(id, replyStats(written.text, written.seconds)));
@@ -1158,6 +1169,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           : { role: 'character' as const, speaker_character_id: part.speaker_id }),
         channel: 'ic',
         swipes: [stored(part.text, 'ai_output')],
+        // The first line of a rewritten narration carries what it replaced.
+        revision: index === 0 ? ((Reflect.get(result, 'revision') as Revision | null | undefined) ?? null) : null,
       });
       if (settings.readAloud) readAloud(part.speaker_id, line.swipes[0] ?? '');
       if (index === 0) noteCost(line.id, result);
@@ -1395,7 +1408,39 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   /** Another alternative for a reply; with `endpointId`, from that model (AP4), to compare them side by side. */
   const regenerate = async (message: ChatMessage, endpointId?: string) => {
-    if (message.speaker_character_id === null) return;
+    // The person's own line is never rewritten by the model (the operator, 2026-11-22: "The regenerate
+    // button is also not working... I can't get a response"; the server refused to voice the seat's
+    // character): regenerating it answers it, the round running again from it.
+    const own =
+      message.role === 'user' ||
+      (play.isCampaign && message.speaker_character_id !== null && message.speaker_character_id === play.playingId);
+    if (own) {
+      const at = branch.findIndex((one) => one.id === message.id);
+      roundRef.current += 1;
+      if (writing) reply.stop();
+      setLeafId(message.id);
+      await playRound(message, at === -1 ? [...branch, message] : branch.slice(0, at + 1));
+      return;
+    }
+    // A narration gets another telling, as a further swipe.
+    if (message.speaker_character_id === null) {
+      setWritingAfter({ parentId: message.parent_id, speakerId: NARRATOR_TURN });
+      const told = await storyWrite({
+        chat_id: chat.id,
+        leaf_id: message.parent_id,
+        speaker_id: null,
+        mode: 'narrate',
+        ...(endpointId === undefined ? {} : { endpoint_id: endpointId }),
+      });
+      setWritingAfter(null);
+      if (told === null || told.text.trim() === '') return;
+      await update(message, {
+        swipes: [...message.swipes, stored(told.text, 'ai_output')],
+        swipe_index: message.swipes.length,
+      });
+      noteCost(message.id, told);
+      return;
+    }
     setWritingAfter({ parentId: message.parent_id, speakerId: message.speaker_character_id });
     const result = await timedWrite({
       chat_id: chat.id,
@@ -1963,6 +2008,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   }
                   translation={translationOf(message.id)}
                   canon={canonNotices.get(message.id)}
+                  revision={message.revision ?? null}
                 />
               </li>
             );
