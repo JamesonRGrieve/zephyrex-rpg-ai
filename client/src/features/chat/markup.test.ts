@@ -37,4 +37,9 @@ describe('the narrator markup', () => {
     expect(locationBlocks('## The Cellar\nDark.')).toEqual([{ kind: 'text', text: 'Dark.' }]);
     expect(locationBlocks('She says **no** to him.')).toEqual([{ kind: 'text', text: 'She says **no** to him.' }]);
   });
+  it('a place with where it is: the banner title and subtitle', () => {
+    expect(locationBlocks('[location: The Leaning Lantern | Harrowgate, the Saltmarsh Reach]')).toEqual([
+      { kind: 'location', name: 'The Leaning Lantern', within: 'Harrowgate, the Saltmarsh Reach' },
+    ]);
+  });
 });

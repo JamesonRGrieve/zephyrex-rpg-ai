@@ -10,7 +10,9 @@ export const PALETTE = ['red', 'amber', 'green', 'blue', 'gold', 'grey'] as cons
 export type Colour = (typeof PALETTE)[number];
 
 export type Block =
-  { kind: 'text'; text: string } | { kind: 'screen'; title: string; text: string } | { kind: 'location'; name: string };
+  | { kind: 'text'; text: string }
+  | { kind: 'screen'; title: string; text: string }
+  | { kind: 'location'; name: string; within?: string };
 export type Span = { colour: Colour | null; text: string };
 
 const SCREEN = /\[screen(?::\s*([^\]\n]*))?\]\n?([\s\S]*?)(?:\n?\[\/screen\]|$)/gi;
@@ -40,7 +42,9 @@ export function locationBlocks(text: string): Block[] {
       continue;
     }
     flush();
-    blocks.push({ kind: 'location', name: (found[1] ?? '').trim() });
+    // `[location: The Leaning Lantern | Harrowgate, the Saltmarsh Reach]`: the place, then where it is.
+    const [place = '', within = ''] = (found[1] ?? '').split('|').map((part) => part.trim());
+    blocks.push(within === '' ? { kind: 'location', name: place } : { kind: 'location', name: place, within });
   }
   flush();
   return blocks;

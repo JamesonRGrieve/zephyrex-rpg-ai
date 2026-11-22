@@ -14,6 +14,8 @@ export interface OpeningEntity {
   name: string;
   summary?: string;
   location_id?: string | null;
+  /** A location's parent place (town, region…). */
+  parent_id?: string | null;
   gm_only?: boolean;
   deleted?: boolean;
 }
@@ -40,20 +42,24 @@ export function openingFor(
   }
   const at = seatedId === null ? null : (starts[seatedId] ?? null);
   const location = live.find((entity) => entity.kind === 'location' && entity.id === at);
-  const parts = [situation.trim()];
+  let parts = [situation.trim()];
   if (location !== undefined) {
     const others = persons
       .filter((person) => person.id !== seatedId && person.gm_only !== true && starts[person.id] === location.id)
       .map((person) => person.name);
-    parts.push(
-      [
-        OPENING.told.replaceAll('{{location}}', location.name),
-        (location.summary ?? '').trim(),
-        others.length === 0 ? '' : OPENING.with.replaceAll('{{names}}', others.join(', ')),
-      ]
-        .filter((part) => part !== '')
-        .join(' '),
-    );
+    // The banner: the place, then its parents (town, then region) as the subtitle (the operator,
+    // 2026-11-22); never the place's raw wiki entry.
+    const byId = new Map(live.filter((entity) => entity.kind === 'location').map((entity) => [entity.id, entity]));
+    const places: string[] = [];
+    let parent = byId.get(location.parent_id ?? '');
+    while (parent !== undefined && places.length < 3) {
+      places.push(parent.name);
+      parent = byId.get(parent.parent_id ?? '');
+    }
+    const within = places.length === 0 ? '' : OPENING.within.replaceAll('{{places}}', places.join(', '));
+    const banner = OPENING.told.replaceAll('{{location}}', location.name).replaceAll('{{within}}', within);
+    parts = [banner, situation.trim()];
+    if (others.length > 0) parts.push(OPENING.with.replaceAll('{{names}}', others.join(', ')));
   }
   return { text: parts.filter((part) => part !== '').join('\n\n'), location_id: location?.id ?? null, starts };
 }

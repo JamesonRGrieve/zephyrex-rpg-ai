@@ -40,12 +40,18 @@ def opening_for(
             for person in persons
             if person["id"] != seated_id and not person.get("gm_only") and starts[person["id"]] == location["id"]
         ]
-        told = [
-            OPENING["told"].replace("{{location}}", str(location["name"])),
-            str(location.get("summary") or "").strip(),
-            OPENING["with"].replace("{{names}}", ", ".join(others)) if others else "",
-        ]
-        parts.append(" ".join(part for part in told if part))
+        # The banner: the place, then its parents (town, then region) as the subtitle.
+        places: list[str] = []
+        by_id = {entity["id"]: entity for entity in live if entity.get("kind") == "location"}
+        parent = by_id.get(location.get("parent_id") or "")
+        while parent is not None and len(places) < 3:
+            places.append(str(parent["name"]))
+            parent = by_id.get(parent.get("parent_id") or "")
+        within = OPENING["within"].replace("{{places}}", ", ".join(places)) if places else ""
+        banner = OPENING["told"].replace("{{location}}", str(location["name"])).replace("{{within}}", within)
+        parts = [banner, situation.strip()]
+        if others:
+            parts.append(OPENING["with"].replace("{{names}}", ", ".join(others)))
     return {
         "text": "\n\n".join(part for part in parts if part),
         "location_id": location["id"] if location is not None else None,

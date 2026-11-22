@@ -52,7 +52,7 @@
       ],
       "scene": null,
       "default": "bridge",
-      "text": "The ship drifts, its engines cold.\n\nYou are at Bay Two. Coolant pipes hiss in the dark.",
+      "text": "[location: Bay Two]\n\nThe ship drifts, its engines cold.",
       "location_id": "bay",
       "starts": {
         "cal": null,
@@ -119,7 +119,7 @@
         ]
       },
       "default": "bridge",
-      "text": "The ship drifts, its engines cold.\n\nYou are at Bay Two. Coolant pipes hiss in the dark. With you: Kord, Ilsa Marrow.",
+      "text": "[location: Bay Two]\n\nThe ship drifts, its engines cold.\n\nWith you: Kord, Ilsa Marrow.",
       "location_id": "bay",
       "starts": {
         "cal": "bay",
@@ -180,7 +180,7 @@
       ],
       "scene": null,
       "default": "bridge",
-      "text": "The ship drifts, its engines cold.\n\nYou are at the Bridge. Cogitators hum. With you: Vardane.",
+      "text": "[location: the Bridge]\n\nThe ship drifts, its engines cold.\n\nWith you: Vardane.",
       "location_id": "bridge",
       "starts": {
         "cal": "bridge",
@@ -249,6 +249,51 @@
         "ilsa": null,
         "spy": "bay",
         "var": "bridge"
+      }
+    },
+    {
+      "name": "a place inside a town inside a region: the banner's subtitle names them, nearest first",
+      "seated": "fen",
+      "situation": "Rain hammers the shutters.",
+      "entities": [
+        {
+          "id": "reach",
+          "kind": "location",
+          "name": "the Saltmarsh Reach"
+        },
+        {
+          "id": "town",
+          "kind": "location",
+          "name": "Harrowgate",
+          "parent_id": "reach"
+        },
+        {
+          "id": "inn",
+          "kind": "location",
+          "name": "The Leaning Lantern",
+          "summary": "Description A two-storey tavern.",
+          "parent_id": "town"
+        },
+        {
+          "id": "fen",
+          "kind": "person",
+          "name": "Fennick Quill",
+          "location_id": "inn"
+        },
+        {
+          "id": "bra",
+          "kind": "person",
+          "name": "Brakka Ironmantle",
+          "location_id": "inn"
+        }
+      ],
+      "scene": null,
+      "default": null,
+      "text": "[location: The Leaning Lantern | Harrowgate, the Saltmarsh Reach]\n\nRain hammers the shutters.\n\nWith you: Brakka Ironmantle.",
+      "location_id": "inn",
+      "starts": {
+        "fen": "inn",
+        "bra": "inn"
       }
     }
   ]

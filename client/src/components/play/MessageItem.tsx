@@ -216,11 +216,11 @@ export function Coloured({ text }: { text: string }): ReactElement {
 }
 
 /** A change of place (the operator, 2026-11-21: "a grand banner with a map icon"). */
-export function LocationBanner({ name }: { name: string }): ReactElement {
+export function LocationBanner({ name, within }: { name: string; within?: string }): ReactElement {
   return (
     <div
       role='note'
-      aria-label={`Now at ${name}`}
+      aria-label={`Now at ${name}${within ? `, ${within}` : ''}`}
       className='relative my-3 overflow-hidden rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-950/60 via-amber-900/30 to-amber-950/60 px-4 py-3 shadow-md'
     >
       <div className='flex items-center justify-center gap-3'>
@@ -232,6 +232,10 @@ export function LocationBanner({ name }: { name: string }): ReactElement {
         <MapIcon className='size-5 shrink-0 text-amber-300' aria-hidden />
         <span className='h-px flex-1 bg-gradient-to-l from-transparent to-amber-400/60' aria-hidden />
       </div>
+      {within !== undefined && within !== '' && (
+        // Where the place is (town, region), under its name.
+        <p className='mt-1 text-center font-serif text-xs uppercase tracking-[0.15em] text-amber-200/80'>{within}</p>
+      )}
     </div>
   );
 }
@@ -246,7 +250,7 @@ function StoryPieces({ text }: { text: string }): ReactElement {
         {places.map((block, index) =>
           // Blocks have no identity beyond their place in this message.
           block.kind === 'location' ? (
-            <LocationBanner key={index} name={block.name} />
+            <LocationBanner key={index} name={block.name} within={block.within} />
           ) : (
             <StoryPieces key={index} text={block.kind === 'text' ? block.text.replace(/^\n+|\n+$/g, '') : ''} />
           ),

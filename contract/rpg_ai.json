@@ -821,8 +821,9 @@
     }
   },
   "opening": {
-    "$comment": "A campaign's opening tells the person where they are, never asks (the operator, 2026-11-21: \"It should also not ask where I am. It should tell me.\"): the framing's Opening Situation, then the seat's told position. Where each person starts: their wiki location_id, else the location of the VTT scene holding their token, else (the seat only) the framing's default. Others told as with you are those starting there, never a GM-only one. features/campaign/opening.ts, ai_campaign/Opening.py, contract/opening-cases.json.",
-    "told": "You are at {{location}}.",
+    "$comment": "A campaign's opening tells the person where they are, never asks (the operator, 2026-11-21: \"It should also not ask where I am. It should tell me.\"): the seat's place as a location banner (its parents, town then region, as the subtitle: the operator, 2026-11-22), then the framing's Opening Situation, then who is with them; never the place's raw wiki entry. Where each person starts: their wiki location_id, else the location of the VTT scene holding their token, else (the seat only) the framing's default. Others told as with you are those starting there, never a GM-only one. features/campaign/opening.ts, ai_campaign/Opening.py, contract/opening-cases.json.",
+    "told": "[location: {{location}}{{within}}]",
+    "within": " | {{places}}",
     "with": "With you: {{names}}."
   },
   "world_tick": {
@@ -908,6 +909,16 @@
     "prompt": "Answer with JSON only: {\"status_line\": one sentence of at most 100 characters for a list of campaigns (what the party has done and where things stand, only what the players have seen), \"dispositions\": [{\"who\": a name, \"toward\": a name, \"stance\": one of furious, hostile, wary, neutral, friendly, devoted, \"reason\": a few words}] for any stance the latest lines changed}.",
     "summary_heading": "The story so far:",
     "lines_heading": "Latest:"
+  },
+  "npc_author": {
+    "$comment": "The GM authors an NPC the story needs (the operator, 2026-11-22: \"when I walk up to the barkeeper, since an npc for that doesn't exist, it should author one as a pre-step\"). npc_needed finds the figures the person's latest line addresses or approaches (a say line's target that isn't a person, or the phrase after an approach cue), free; none, no model call. With some, one decide call picks the one who needs authoring, or none. author_npc writes them (the summary model), makes them a GM-only person of the campaign, builds their sheet from the VTT's compendium (never a model's numbers), and paints a portrait when a model draws. features/chat/npcAuthor.ts, ai_chat/NpcAuthor.py, contract/npc-author-cases.json.",
+    "cues": ["walk up to", "walks up to", "walked up to", "go up to", "goes up to", "approach", "approaches", "talk to", "talks to", "speak to", "speaks to", "ask", "asks", "greet", "greets", "call to", "calls to", "call out to", "calls out to", "wave at", "waves at", "nod to", "nods to", "hail", "hails", "turn to", "turns to", "sit with", "sits with", "order from", "orders from", "buy from", "buys from", "signal", "signals", "pay", "pays", "tell", "tells"],
+    "stop_words": ["and", "but", "with", "for", "to", "then", "who", "while", "as", "if", "again", "about"],
+    "places": ["at", "by", "behind", "near", "from", "of", "in"],
+    "question": "Does {{actor}}'s latest line address or approach someone who is not yet a person in the story? Present: {{present}}. Pick the figure who must be written as a new person, or none (someone present already, or no one).",
+    "none": "none",
+    "author_prompt": "Write a new person for this story: {{name}} ({{role}}), met just now in the scene below. Answer with JSON only: {\"summary\": one line, who they are, \"description\": two or three sentences of how they look and carry themselves, \"personality\": a sentence, \"motive\": what they want right now, a sentence, \"voice\": how they speak, a few words}. Fit the campaign and the scene; invent no game statistics.",
+    "steps": {"write": "Writing {{name}}", "person": "Making them a person of the campaign", "sheet": "Building their sheet", "picture": "Painting a portrait"}
   },
   "structured": {
     "$comment": "Schema-constrained turns (the operator, 2026-11-21: \"Still fucking up dialogue with the narrator and character sections\"): generate with structured:true asks a chat API for JSON matching this schema (response_format json_schema), streams each item as item_start/item_text/item_end, and saves each speaker's run as its own message (person, saved, done). A model that answers prose instead falls back to plain deltas. features/chat/structured.ts, ai_chat/Structured.py, contract/structured-cases.json.",
