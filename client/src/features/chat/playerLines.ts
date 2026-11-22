@@ -61,9 +61,14 @@ function opening(line: string, people: readonly Person[]): { id: string; rest: s
   return null;
 }
 
+/**
+ * A say line's words without their quotes: only a single quoted span is unquoted. Speech with an action
+ * after it ("…tonight." She plants her hammer. "Sit.") keeps its quotes (build37: the first lost its
+ * opening quote, the last its closing one).
+ */
 const unquote = (text: string): string => {
   const trimmed = text.trim();
-  return /^["“].*["”]$/su.test(trimmed) && trimmed.length >= 2 ? trimmed.slice(1, -1) : trimmed;
+  return /^["“][^"“”]*["”]$/u.test(trimmed) ? trimmed.slice(1, -1) : trimmed;
 };
 
 /** How a say's parenthesis reads: its manner and its target (null: everyone). */

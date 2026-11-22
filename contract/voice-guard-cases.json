@@ -358,6 +358,50 @@
           "text": "Aye."
         }
       ]
+    },
+    {
+      "name": "a stranger's stage business is their action, not their name (build37: a person called \"Broom Man\")",
+      "seat": "Fennick Quill",
+      "cast": [
+        {
+          "id": "mae",
+          "name": "Maelis"
+        },
+        {
+          "id": "bra",
+          "name": "Brakka Ironmantle"
+        }
+      ],
+      "text": "The Barkeep (emerging from behind the bar with a broom): \"That's enough!\"",
+      "segments": [
+        {
+          "speaker_id": null,
+          "speaker_name": "The Barkeep",
+          "text": "The Barkeep emerging from behind the bar with a broom.\n\"That's enough!\""
+        }
+      ]
+    },
+    {
+      "name": "a cast member's stage business is theirs too",
+      "seat": "Fennick Quill",
+      "cast": [
+        {
+          "id": "mae",
+          "name": "Maelis"
+        },
+        {
+          "id": "bra",
+          "name": "Brakka Ironmantle"
+        }
+      ],
+      "text": "Maelis (sighing): \"Fine.\"",
+      "segments": [
+        {
+          "speaker_id": "mae",
+          "speaker_name": null,
+          "text": "Maelis sighing.\n\"Fine.\""
+        }
+      ]
     }
   ],
   "speaks_cases": [

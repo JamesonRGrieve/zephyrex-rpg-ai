@@ -4056,9 +4056,41 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 raise HTTPException(
                     status_code=409, detail={"message": "The table has paused the game", "code": "paused"}
                 )
-        assembled, request, _sampler, _active, _context = self._inputs(
-            body.generate, memories=await self._memories(body.generate)
-        )
+
+        # The prompt's build (memories, then the world and the lore) runs as a task: one done within
+        # FIRST_ANSWER_SECONDS is answered as before; a slower one opens the stream at once with heartbeats,
+        # so no proxy times out on it (build37's 504 on a character's reply).
+        async def prepare() -> Any:
+            memories = await self._memories(body.generate)
+            return await asyncio.to_thread(self._inputs, body.generate, True, "reply", memories)
+
+        preparing = asyncio.ensure_future(prepare())
+        await asyncio.wait({preparing}, timeout=FIRST_ANSWER_SECONDS)
+        if preparing.done():
+            return await self._reply(body, preparing.result())
+
+        async def late() -> AsyncIterator[str]:
+            yield HEARTBEAT
+            prepared: Any = None
+            try:
+                async for got in heartbeat_wait(preparing, HEARTBEAT_SECONDS):
+                    if got is None:
+                        yield HEARTBEAT
+                    else:
+                        prepared = got
+                response = await self._reply(body, prepared)
+            except HTTPException as error:
+                detail = error.detail.get("message") if isinstance(error.detail, dict) else str(error.detail)
+                yield frame("error", {"detail": detail or "The reply failed"})
+                return
+            async for chunk in response.body_iterator:
+                yield chunk if isinstance(chunk, str) else bytes(chunk).decode()
+
+        return event_stream(late())
+
+    async def _reply(self, body: GenerateEnvelope, prepared: Any) -> StreamingResponse:
+        """The reply's stream from its prepared inputs (generate_route)."""
+        assembled, request, _sampler, _active, _context = prepared
         self._save_variables(body.generate.chat_id, assembled.variables)
         if _context["endpoint"].api == "horde":
             # AI Horde (A48): asked as a job, then answered as one text completion would be.

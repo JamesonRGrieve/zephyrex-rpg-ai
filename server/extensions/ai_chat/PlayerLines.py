@@ -55,8 +55,10 @@ def _opening(line: str, people: Sequence[Mapping[str, Any]]) -> tuple[str, str] 
 
 
 def _unquote(text: str) -> str:
+    """A say line's words without their quotes: only a single quoted span is unquoted; speech with an
+    action after it keeps its quotes."""
     trimmed = text.strip()
-    return trimmed[1:-1] if len(trimmed) >= 2 and re.fullmatch(r"[\"“].*[\"”]", trimmed, re.DOTALL) else trimmed
+    return trimmed[1:-1] if re.fullmatch(r"[\"“][^\"“”]*[\"”]", trimmed) else trimmed
 
 
 def _target(name: str, people: Sequence[Mapping[str, Any]]) -> str | None:

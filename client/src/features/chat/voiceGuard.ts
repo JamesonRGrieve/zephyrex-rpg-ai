@@ -26,6 +26,11 @@ export interface Segment {
 const NAMEISH = /^(?:(?:The|A|An)\s+)?[A-Z][A-Za-z'-]*(?:\s+(?:of\s+|the\s+)?[A-Z][A-Za-z'-]*){0,3}$/u;
 /** A say line's speaker and its parenthesis: `X (to Y): …`, `X (vox to Y): …`, `X (voxcast): …`. */
 const SAY_FORM = /^([^:(\n"“*]{1,40}?)\s*\((?:to\b|vox\b|voxcast)[^)]*\)\s*:/iu;
+/**
+ * A speaker with stage business: `The Barkeep (emerging from behind the bar with a broom): …` (Zephyrex
+ * RPG's build37 run made a person "Broom Man" of it). Any parenthesis but to, vox, voxcast or at.
+ */
+const STAGED = /^([^:(\n"“*]{1,40}?)\s*\(((?!\s*(?:to|vox|voxcast|at)\b)[^)]*)\)\s*:\s*(.*)$/iu;
 
 const escaped = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const word = (text: string, needle: string): boolean =>
@@ -132,13 +137,21 @@ export function narrateSegments(
     }
     // The play-test: a line in a cast member's name ("The Acolyte: …" or "*The Acolyte …") is theirs too,
     // for that line; the seat's name cuts the narration there.
-    const tagged = /^([^:\n]{1,60}):\s*(.*)$/u.exec(trimmed);
+    // Stage business in the parenthesis is that speaker's action, on its own line before their words.
+    const staged = STAGED.exec(trimmed);
+    const tagged: readonly (string | undefined)[] | null =
+      staged !== null ? [trimmed, (staged[1] ?? '').trim(), staged[3]] : /^([^:\n]{1,60}):\s*(.*)$/u.exec(trimmed);
+    const business =
+      staged === null ? '' : `${(staged[1] ?? '').trim()} ${(staged[2] ?? '').trim().replace(/[.!?]?$/u, '.')}`;
     if (tagged !== null && (isSeat(tagged[1] ?? '') || cast.some((member) => isNamed(tagged[1] ?? '', member.name)))) {
       if (isSeat(tagged[1] ?? '')) break;
-      push(cast.find((member) => isNamed(tagged[1] ?? '', member.name))?.id ?? null, tagged[2] ?? '');
+      const who = cast.find((member) => isNamed(tagged[1] ?? '', member.name))?.id ?? null;
+      if (business !== '') push(who, business);
+      push(who, tagged[2] ?? '');
       continue;
     }
     if (tagged !== null && stranger(tagged[1] ?? '') !== null) {
+      if (business !== '') push(null, business, stranger(tagged[1] ?? ''));
       push(null, tagged[2] ?? '', stranger(tagged[1] ?? ''));
       continue;
     }

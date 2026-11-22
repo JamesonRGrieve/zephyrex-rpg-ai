@@ -847,6 +847,35 @@ class TestGenerate:
         assert answer.text.startswith(": keepalive\n\n")
         assert "event: saved" in answer.text and "event: done" in answer.text
 
+    def test_a_slow_prompt_build_streams_heartbeats_then_the_reply(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # build37's 504 on a character's reply: the prompt's build (the world, the lore) ran before a byte
+        # was sent. Past FIRST_ANSWER_SECONDS the stream opens with heartbeats and the build goes on.
+        from zephyrex.extensions.ai_chat import BLL_AI_Chat  # type: ignore[import-not-found]
+
+        monkeypatch.setattr(BLL_AI_Chat, "FIRST_ANSWER_SECONDS", 0.0)
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ada?"]).json()["chat_message"]
+        answer = server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": ada["id"]}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        assert answer.text.startswith(": keepalive\n\n")
+        assert "Mind " in answer.text and "event: done" in answer.text
+        # A chat that isn't there, past the first answer's wait, is an error frame rather than a status.
+        missing = server.post(
+            "/v1/ai_chat/generate", json={"generate": {"chat_id": "nobody", "leaf_id": None}}, headers=_headers(user)
+        )
+        assert missing.status_code in (200, 404), missing.text
+        if missing.status_code == 200:
+            assert "event: error" in missing.text
+
     def test_each_role_goes_to_the_model_serving_it(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _cast(server, user, "character", name="Ada").json()["character"]

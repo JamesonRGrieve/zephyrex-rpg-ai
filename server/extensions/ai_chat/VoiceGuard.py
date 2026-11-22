@@ -24,6 +24,8 @@ _SEAT = "\u0000seat"
 _NAMEISH = re.compile(r"(?:(?:The|A|An)\s+)?[A-Z][A-Za-z'-]*(?:\s+(?:of\s+|the\s+)?[A-Z][A-Za-z'-]*){0,3}")
 # A say line's speaker and its parenthesis: `X (to Y): ...`, `X (vox to Y): ...`, `X (voxcast): ...`.
 _SAY_FORM = re.compile(r"([^:(\n\"“*]{1,40}?)\s*\((?:to\b|vox\b|voxcast)[^)]*\)\s*:", re.IGNORECASE)
+# A speaker with stage business: `The Barkeep (emerging from behind the bar with a broom): …`.
+_STAGED = re.compile(r"([^:(\n\"“*]{1,40}?)\s*\(((?!\s*(?:to|vox|voxcast|at)\b)[^)]*)\)\s*:\s*(.*)$", re.IGNORECASE)
 _SENTENCE = re.compile(r"[^.!?]*(?:[.!?]+[\"”’']?(?=\s|$))?")  # noqa: RUF001
 
 
@@ -128,14 +130,32 @@ def narrate_segments(text: str, cast: Sequence[Mapping[str, Any]], seat: str) ->
             continue
         # The play-test: a line in a cast member's name ("The Acolyte: ..." or "*The Acolyte ...") is theirs
         # too, for that line; the seat's name cuts the narration there.
-        tagged = re.match(r"([^:\n]{1,60}):\s*(.*)$", trimmed)
-        if tagged is not None and (is_seat(tagged.group(1)) or member_of(tagged.group(1)) is not None):
-            if is_seat(tagged.group(1)):
+        # Stage business in the parenthesis is that speaker's action, on its own line before their words.
+        staged = _STAGED.match(trimmed)
+        plain = re.match(r"([^:\n]{1,60}):\s*(.*)$", trimmed)
+        tag: tuple[str, str] | None = (
+            (staged.group(1).strip(), staged.group(3))
+            if staged is not None
+            else (plain.group(1), plain.group(2))
+            if plain is not None
+            else None
+        )
+        business = (
+            f"{staged.group(1).strip()} {re.sub(r'[.!?]?$', '.', staged.group(2).strip(), count=1)}"
+            if staged is not None
+            else ""
+        )
+        if tag is not None and (is_seat(tag[0]) or member_of(tag[0]) is not None):
+            if is_seat(tag[0]):
                 break
-            push(member_of(tagged.group(1)), tagged.group(2))
+            if business:
+                push(member_of(tag[0]), business)
+            push(member_of(tag[0]), tag[1])
             continue
-        if tagged is not None and stranger(tagged.group(1)) is not None:
-            push(None, tagged.group(2), stranger(tagged.group(1)))
+        if tag is not None and stranger(tag[0]) is not None:
+            if business:
+                push(None, business, stranger(tag[0]))
+            push(None, tag[1], stranger(tag[0]))
             continue
         if trimmed.startswith("*"):
             if seat.strip() and leads(trimmed, seat):
