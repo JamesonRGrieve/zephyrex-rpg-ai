@@ -32,3 +32,27 @@ def test_the_world_is_read_whole_once_then_only_its_changes(monkeypatch: pytest.
     # The second read asks only for changes since the first, and a tombstone replaces its record.
     assert asked[0] is None and isinstance(asked[1], datetime)
     assert [(one["id"], one["deleted"]) for one in again] == [("bar", True), ("rest", False)]
+
+
+def test_two_builds_in_one_turn_read_the_world_once(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The operator, 2026-11-22: "Context injection should be the same for every prompt in a turn".
+    calls: list[Any] = []
+
+    def world_entities(_registry: Any, _requester: str, _campaign: str, **page: Any) -> dict[str, Any]:
+        calls.append(page["since"])
+        barkeep = {"id": "bar", "kind": "person", "name": "The Barkeep", "deleted": False}
+        return {"world_entities": [barkeep], "next": None}
+
+    monkeypatch.setattr(WikiReads, "loaded_ability", lambda _registry, _ext, _name: world_entities)
+    monkeypatch.setattr(WikiReads, "_WORLD", {})
+    monkeypatch.setattr(WikiReads, "_TURNS", {})
+    first = WikiReads.persons_for_turn(None, "u1", "chat1", "line1", "c1", ["bar"])
+    again = WikiReads.persons_for_turn(None, "u1", "chat1", "line1", "c1", ["bar"])
+    assert first == again and len(calls) == 1
+    # A new line of the person's is a new turn: read again (only what changed since).
+    WikiReads.persons_for_turn(None, "u1", "chat1", "line2", "c1", ["bar"])
+    assert len(calls) == 2
+    # A change rpg-ai makes to the wiki starts the turn's world over.
+    WikiReads.forget_turns()
+    WikiReads.persons_for_turn(None, "u1", "chat1", "line2", "c1", ["bar"])
+    assert len(calls) == 3

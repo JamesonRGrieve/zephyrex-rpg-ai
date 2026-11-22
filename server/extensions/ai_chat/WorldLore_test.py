@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.WorldLore import (  # type: ignore[import-not-found]
+    canon_in_reach,
     wiki_campaign_of,
     world_lore_entries,
     world_lore_entry,
@@ -30,3 +31,8 @@ def test_a_chats_wiki_campaign(case: dict[str, Any]) -> None:
 def test_keeps_the_wikis_order() -> None:
     entries = world_lore_entries([case["entity"] for case in CASES["entry_cases"]])
     assert [entry["id"] for entry in entries] == ["p1", "l1", "x", "d"]
+
+
+@pytest.mark.parametrize("case", CASES["reach_cases"], ids=[case["name"] for case in CASES["reach_cases"]])
+def test_canon_in_reach(case: dict[str, Any]) -> None:
+    assert [one["id"] for one in canon_in_reach(case["entities"], case["text"])] == case["kept"]

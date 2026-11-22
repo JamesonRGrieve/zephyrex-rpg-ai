@@ -105,3 +105,22 @@ export function wikiCampaignOf(campaignId: string | null, frames: ReadonlyMap<st
   if (campaignId === null) return null;
   return frames.has(campaignId) ? (frames.get(campaignId) ?? null) : campaignId;
 }
+
+/**
+ * The campaign's own entities, and of a setting's canon only those whose name or an alias the text says
+ * word for word (the operator, 2026-11-22: "Why is it reading the whole world instead of tag/relevance
+ * based injection?"; the 5e SRD's 2,287 records were scanned every prompt).
+ */
+export function canonInReach<T extends { name: string; aliases?: readonly string[]; canon?: boolean }>(
+  entities: readonly T[],
+  text: string,
+): T[] {
+  const words = (value: string): string => (value.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).join(' ');
+  const said = ` ${words(text)} `;
+  const named = (entity: T): boolean =>
+    [entity.name, ...(entity.aliases ?? [])].some((name) => {
+      const form = words(name);
+      return form !== '' && said.includes(` ${form} `);
+    });
+  return entities.filter((entity) => entity.canon !== true || named(entity));
+}

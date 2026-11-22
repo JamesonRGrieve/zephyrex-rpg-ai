@@ -11,6 +11,7 @@ left out.
 from __future__ import annotations
 
 import math
+import re
 from collections.abc import Iterable, Mapping, Sequence
 from typing import Any
 
@@ -97,3 +98,17 @@ def wiki_campaign_of(campaign_id: str | None, frames: Mapping[str, str | None]) 
     if campaign_id is None:
         return None
     return frames.get(campaign_id) if campaign_id in frames else campaign_id
+
+
+def canon_in_reach(entities: Sequence[Mapping[str, Any]], text: str) -> list[Mapping[str, Any]]:
+    """The campaign's own entities, and of a setting's canon only those whose name or an alias the text
+    says word for word (the operator, 2026-11-22: "Why is it reading the whole world instead of
+    tag/relevance based injection?"; the 5e SRD's 2,287 records were scanned every prompt)."""
+    said = " " + " ".join(re.findall(r"[^\W_]+", text.lower())) + " "
+
+    def named(entity: Mapping[str, Any]) -> bool:
+        names = [str(entity.get("name") or ""), *(str(alias) for alias in entity.get("aliases") or [])]
+        words = (" ".join(re.findall(r"[^\W_]+", name.lower())) for name in names)
+        return any(word and f" {word} " in said for word in words)
+
+    return [entity for entity in entities if not entity.get("canon") or named(entity)]

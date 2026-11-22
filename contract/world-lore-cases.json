@@ -251,5 +251,74 @@
       "frames": {},
       "wiki_campaign": null
     }
+  ],
+  "reach_cases": [
+    {
+      "name": "the campaign's own always, a canon record only when the story names it",
+      "entities": [
+        {
+          "id": "bar",
+          "name": "The Barkeep",
+          "canon": false
+        },
+        {
+          "id": "giant",
+          "name": "Cloud Giant",
+          "canon": true
+        },
+        {
+          "id": "owl",
+          "name": "Owlbear",
+          "aliases": [
+            "owl bear"
+          ],
+          "canon": true
+        },
+        {
+          "id": "inn",
+          "name": "The River's Rest",
+          "canon": false
+        }
+      ],
+      "text": "A shadow like an owl bear moves past The Barkeep.",
+      "kept": [
+        "bar",
+        "owl",
+        "inn"
+      ]
+    },
+    {
+      "name": "nothing named: no canon at all",
+      "entities": [
+        {
+          "id": "bar",
+          "name": "The Barkeep",
+          "canon": false
+        },
+        {
+          "id": "giant",
+          "name": "Cloud Giant",
+          "canon": true
+        },
+        {
+          "id": "owl",
+          "name": "Owlbear",
+          "aliases": [
+            "owl bear"
+          ],
+          "canon": true
+        },
+        {
+          "id": "inn",
+          "name": "The River's Rest",
+          "canon": false
+        }
+      ],
+      "text": "Rain on the shutters.",
+      "kept": [
+        "bar",
+        "inn"
+      ]
+    }
   ]
 }

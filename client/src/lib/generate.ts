@@ -34,6 +34,7 @@ import {
   PROMPT,
   SAMPLER_RANGES,
   TABLE,
+  WORLD_LORE,
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
 import { aiCast, sessionStartIndex, sessionsSummary } from '~/features/chat/play';
@@ -70,7 +71,7 @@ import {
   traitsOf,
 } from '~/features/models/narratorStyle';
 import { presentCast, turnPick, turnQuestion, turnSeat, turnState } from '~/features/chat/turnDecision';
-import { wikiCampaignOf, worldLoreEntries } from '~/features/lore/worldLore';
+import { canonInReach, wikiCampaignOf, worldLoreEntries } from '~/features/lore/worldLore';
 import { type CastEntity, seatPerson, worldCast, worldKnownTo } from '~/features/prompt/worldCast';
 import { sceneLocation } from '~/features/campaign/sceneLocation';
 import { NO_WORLD, type WorldReader, wikiReader } from '~/lib/wikiWorld';
@@ -331,7 +332,9 @@ export async function generationInputs(
     .map((turn) => turn.content);
   // World Info runs over the wiki (the composed suite): the chat's wiki campaign's entities and its
   // setting's canon, read through the wiki's API; no wiki campaign, no world lore.
-  const entries = worldLoreEntries(entities);
+  // A setting's canon only where the recent story names it, never in bulk (the operator, 2026-11-22).
+  const reached = canonInReach(entities, storyTexts.slice(-WORLD_LORE.canon_reach_turns).join('\n'));
+  const entries = worldLoreEntries(reached);
   const stateRow = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
   const priorState: LoreState = stateRow === null ? {} : (JSON.parse(stateRow.state) as LoreState);
   const settings: LoreSettings = {

@@ -189,6 +189,7 @@ from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-f
     move_person,
     npc_sheet,
     persons_for,
+    persons_for_turn,
     test_options,
     update_person,
 )
@@ -198,6 +199,7 @@ from zephyrex.extensions.ai_chat.WorldCast import (  # type: ignore[import-not-f
     world_known_to,
 )
 from zephyrex.extensions.ai_chat.WorldLore import (  # type: ignore[import-not-found]
+    canon_in_reach,
     wiki_campaign_of,
     world_lore_entries,
 )
@@ -2637,6 +2639,17 @@ def present_people(
     return [person for person in persons if person["id"] in reach["present"]]
 
 
+def turn_start(messages: Sequence[Any], leaf_id: str | None, playing_id: str | None) -> str | None:
+    """The id of the person's latest line on the branch to ``leaf_id`` (the turn it belongs to), or None."""
+    if leaf_id is None:
+        return None
+    for message in reversed(branch_to(messages, leaf_id)):
+        line = {"role": message.role, "speaker_character_id": message.speaker_character_id}
+        if by_person(line, playing_id):
+            return str(message.id)
+    return None
+
+
 def by_person(turn: Mapping[str, Any], playing_id: str | None) -> bool:
     """Whether a line is the person's own: a user line, or, in a campaign, their seat's character line
     (the client saves a seated person's lines as the seat's; Zephyrex RPG's build37 run: no roll ever)."""
@@ -2785,7 +2798,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         playing_id, session_marks = play_context(str(self.requester.id), self.model_registry, chat.id)
         wiki_campaign = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
         wanted = [*(chat.character_ids or []), *([playing_id] if playing_id is not None else [])]
-        entities = persons_for(self.model_registry, str(self.requester.id), wiki_campaign, wanted)
+        # One read of the world per turn: the turn is the person's latest line on this branch.
+        turn = turn_start(self._manager(ChatMessageManager).list(chat_id=chat.id), body.leaf_id, playing_id)
+        entities = persons_for_turn(self.model_registry, str(self.requester.id), chat.id, turn, wiki_campaign, wanted)
         cast = world_cast(entities, chat.character_ids or [])
         # Narrating (A20), the GM speaks, so no character is named as the speaker.
         # Translating reads no cast, so it needs no speaker.
@@ -2844,6 +2859,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         ]
         # World Info runs over the wiki (the composed suite): the chat's wiki campaign's entities and
         # its setting's canon, through the wiki's world_entities ability; no wiki campaign, no lore.
+        # A setting's canon only where the recent story names it, never in bulk (the operator, 2026-11-22).
+        recent = [
+            str(turn["content"])
+            for turn in history
+            if turn["channel"] in set(PROMPT["story_channels"]) and not turn["x_carded"] and not turn["hidden"]
+        ][-int(CONTRACT["world_lore"]["canon_reach_turns"]) :]
+        entities = canon_in_reach(entities, "\n".join(recent))
         entries = world_lore_entries(entities)
         timers = self._manager(ChatLoreStateManager)
         settings = {

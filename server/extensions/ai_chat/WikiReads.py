@@ -101,6 +101,31 @@ def persons_for(
     return [*entities, *world_entities_by_id(model_registry, requester_id, missing)]
 
 
+#: One turn's world (the operator, 2026-11-22: "Context injection should be the same for every prompt in a
+#: turn"): the first build of a turn reads it, later builds of that turn reuse it; any change rpg-ai makes
+#: to the wiki (a person made, filled, moved; the clock; a sheet) starts it over.
+_TURNS: dict[tuple[str, str], tuple[str, tuple[str, ...], list[dict[str, Any]]]] = {}
+
+
+def forget_turns() -> None:
+    """Every turn's world read again on its next build: rpg-ai just changed the wiki."""
+    _TURNS.clear()
+
+
+def persons_for_turn(
+    model_registry: Any, requester_id: str, chat_id: str, turn: str | None, campaign_id: str | None, ids: list[str]
+) -> list[dict[str, Any]]:
+    """persons_for, read once per turn (``turn``: the id of the person's line that started it)."""
+    key = (requester_id, chat_id)
+    cached = _TURNS.get(key)
+    if turn is not None and cached is not None and cached[0] == turn and cached[1] == tuple(ids):
+        return list(cached[2])
+    entities = persons_for(model_registry, requester_id, campaign_id, ids)
+    if turn is not None:
+        _TURNS[key] = (turn, tuple(ids), entities)
+    return entities
+
+
 def campaign_documents(model_registry: Any, requester_id: str, campaign_id: str | None) -> list[dict[str, Any]]:
     """A campaign's documents for the data bank (mapping item 4: journals, lore and each entry's whole
     text), through the wiki's campaign_documents ability; none without it or a campaign."""
@@ -148,6 +173,7 @@ async def advance_clock(
     advance = loaded_ability(model_registry, "rpg_core", "advance_clock")
     if advance is None:
         return None
+    forget_turns()
     clock = await _call(advance, model_registry, requester_id, campaign_id, minutes, reason=reason)
     return dict(clock) if isinstance(clock, dict) and "day" in clock and "time" in clock else None
 
@@ -155,6 +181,7 @@ async def advance_clock(
 async def move_person(model_registry: Any, requester_id: str, person_id: str, location_id: str, reason: str) -> bool:
     """A person moved to a real place: by the VTT's pilot_token when it's loaded (its token follows, and it
     sets the wiki location), else by the wiki's move_person (the GM's alone). False when refused."""
+    forget_turns()
     pilot = loaded_ability(model_registry, "rpg_scene", "pilot_token")
     if pilot is not None and await _call(pilot, requester_id, person_id, location_id=location_id) is not None:
         return True
@@ -172,6 +199,7 @@ async def ensure_person(
     ensure = loaded_ability(model_registry, "rpg_core", "ensure_person")
     if ensure is None:
         return None
+    forget_turns()
     person = await _call(ensure, model_registry, requester_id, campaign_id, name, summary=summary)
     return dict(person) if isinstance(person, dict) and person.get("id") else None
 
@@ -198,6 +226,7 @@ async def update_person(
     update = loaded_ability(model_registry, "rpg_core", "update_person")
     if update is None:
         return None
+    forget_turns()
     done = await _call(update, model_registry, requester_id, person_id, fields)
     return dict(done) if isinstance(done, dict) else None
 
@@ -210,6 +239,7 @@ async def npc_sheet(
     build = loaded_ability(model_registry, "rpg_builder", "npc_sheet")
     if build is None:
         return None
+    forget_turns()
     built = await _call(build, requester_id, person_id, role, hint=hint)
     return dict(built) if isinstance(built, dict) else None
 
