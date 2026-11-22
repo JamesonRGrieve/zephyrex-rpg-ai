@@ -20,7 +20,7 @@ export interface ReplyRequest {
   /** AP4: this turn asked of another of the person's models, to compare. */
   endpoint_id?: string;
   /** A second try after the voice guard caught a span (features/chat/voiceGuard.ts): it's forbidden. */
-  forbid?: { names: string[]; span: string };
+  forbid?: { names: string[]; span: string; spans?: string[] };
   /** Schema-constrained lines (docs/DESIGN.md, Structured lines): the server splits and saves them. */
   structured?: boolean;
 }

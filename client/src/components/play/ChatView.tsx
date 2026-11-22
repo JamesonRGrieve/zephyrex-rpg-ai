@@ -979,13 +979,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
     // A replay of what was just told (the model copying its last round) is written once more with
     // that span forbidden (the operator's 23:19 transcript).
+    // The whole story so far: replayOf keeps its own window (the last 6000 characters).
     const recentStory = branch
       .filter((message) => message.channel === 'ic')
-      .slice(-6)
       .map((message) => message.swipes[message.swipe_index ?? 0] ?? '');
     const replayed = replayOf(result.text, recentStory);
     if (replayed !== null) {
-      const again = await timedWrite({ ...request, forbid: { names: [], span: replayed.span } });
+      const again = await timedWrite({
+        ...request,
+        forbid: { names: [], span: replayed.span, spans: replayed.spans },
+      });
       if (again !== null) result = again;
     }
     const broke = metaBreak(result.text);
@@ -1102,10 +1105,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       // rolls it, the result is a roll line, and the narrator narrates it (never changing it).
       // The person's own turn always gets the narrator's account of what happens (the operator,
       // 2026-11-21: "no required narrator description"), rolled for or not.
-      const rollAfter = async (line: ChatMessage, narrateAnyway = false): Promise<boolean> => {
+      const rollAfter = async (
+        line: ChatMessage,
+        narrateAnyway = false,
+        // The roll already asked for, alongside the GM's question (one wait, not two).
+        prefetched?: Promise<Awaited<ReturnType<typeof decideRoll>>>,
+      ): Promise<boolean> => {
         const actor = line.speaker_character_id;
         if (line.role !== 'character' || actor === null) return true;
-        const roll = await decideRoll(chat.id, line.id, actor);
+        const roll = await (prefetched ?? decideRoll(chat.id, line.id, actor));
         if (roll === null) {
           if (!narrateAnyway) return true;
           const told = await narrateAfter(line.id);
@@ -1141,6 +1149,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       };
       // The GM asks when the person's line is truly ambiguous (which one they punch); the pick
       // rewrites their line before anything reads it.
+      // The GM's question and the roll are asked at once (each makes no model call when nothing
+      // applies); a question's answer changes the line, so its roll is asked again after.
+      const rollAsked =
+        start.role === 'character' && start.speaker_character_id !== null
+          ? decideRoll(chat.id, start.id, start.speaker_character_id)
+          : undefined;
       const question = play.isCampaign ? await clarify(chat.id, start.id) : null;
       if (question !== null) {
         const picked = await new Promise<string | null>((resolve) =>
@@ -1157,7 +1171,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           current = current.map((one) => (one.id === start.id ? { ...one, swipes } : one));
         }
       }
-      if (!(await rollAfter(start, true))) return;
+      if (!(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
         const next = await decideNextTurn(chat.id, parent.id);
         if (!next.decided) break;
