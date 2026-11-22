@@ -54,8 +54,9 @@ def world_entities_page(model_registry: Any, requester_id: str, campaign_id: str
     for _ in range(WORLD_LORE["max_pages"]):
         limit = WORLD_LORE["page_limit"]
         try:
+            # The campaign's own records only: a setting's canon comes by relevance (world_matching), never in bulk.
             answer = read(
-                model_registry, requester_id, campaign_id, since=since, after=after, limit=limit, include_setting=True
+                model_registry, requester_id, campaign_id, since=since, after=after, limit=limit, include_setting=False
             )
             page = _sync(answer)
         except HTTPException:
@@ -73,6 +74,25 @@ def world_entities_page(model_registry: Any, requester_id: str, campaign_id: str
         merged[str(entity.get("id"))] = entity
     _WORLD[key] = (asked_at, merged)
     return list(merged.values())
+
+
+def world_matching(
+    model_registry: Any, requester_id: str, campaign_id: str | None, text: str
+) -> list[dict[str, Any]] | None:
+    """The records the text names (name, alias or keyword) plus the always-active, from the campaign and its
+    setting's canon, through the wiki's key index (world_entities_matching): the narrator's relevance read.
+    None without the ability, so the caller goes on without canon."""
+    if not campaign_id:
+        return []
+    read = loaded_ability(model_registry, "rpg_core", "world_entities_matching")
+    if read is None:
+        return None
+    try:
+        page = _sync(read(model_registry, requester_id, campaign_id, text, limit=int(WORLD_LORE["matching_limit"])))
+    except HTTPException:
+        return []
+    rows = page.get("world_entities") if isinstance(page, dict) else None
+    return list(rows) if isinstance(rows, list) else []
 
 
 def world_entities_by_id(model_registry: Any, requester_id: str, ids: list[str]) -> list[dict[str, Any]]:

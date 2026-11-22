@@ -333,7 +333,16 @@ export async function generationInputs(
   // World Info runs over the wiki (the composed suite): the chat's wiki campaign's entities and its
   // setting's canon, read through the wiki's API; no wiki campaign, no world lore.
   // A setting's canon only where the recent story names it, never in bulk (the operator, 2026-11-22).
-  const reached = canonInReach(entities, storyTexts.slice(-WORLD_LORE.canon_reach_turns).join('\n'));
+  const recentStory = storyTexts.slice(-WORLD_LORE.canon_reach_turns).join('\n');
+  // The setting's canon the turn names, through the wiki's key index (matching); never in bulk.
+  const held = new Set(entities.map((entity) => entity.id));
+  const namedCanon =
+    wikiCampaign === null
+      ? []
+      : (await world.matching(wikiCampaign, recentStory)).filter(
+          (entity) => Reflect.get(entity, 'canon') === true && !held.has(entity.id),
+        );
+  const reached = [...canonInReach(entities, recentStory), ...namedCanon];
   const entries = worldLoreEntries(reached);
   const stateRow = await prisma.chatLoreState.findUnique({ where: { chatId: chat.id } });
   const priorState: LoreState = stateRow === null ? {} : (JSON.parse(stateRow.state) as LoreState);

@@ -64,6 +64,14 @@ beforeAll(async () => {
           .end(JSON.stringify({ campaign_documents: documents }));
         return;
       }
+      if (/^\/api\/v1\/campaign\/[^/]+\/matching/u.test(request.url ?? '')) {
+        // The wiki's relevance read (lib/wikiWorld.ts matching): nothing named here.
+        worldAsked.push(request.url ?? '');
+        response
+          .writeHead(200, { 'Content-Type': 'application/json' })
+          .end(JSON.stringify({ world_entities: [], matched: {} }));
+        return;
+      }
       if (/^\/api\/v1\/campaign\/[^/]+\/framing/u.test(request.url ?? '')) {
         // The wiki campaign's own framing (lib/wikiWorld.ts framing): none here.
         worldAsked.push(request.url ?? '');
@@ -308,7 +316,7 @@ describe('World Info in a reply', () => {
     await events(response);
     world = null;
     expect(
-      worldAsked.some((path) => path.startsWith('/api/v1/world_entity?campaign_id=wiki-world&include_setting=true')),
+      worldAsked.some((path) => path.startsWith('/api/v1/world_entity?campaign_id=wiki-world&include_setting=false')),
     ).toBe(true);
     const system = received[0]?.body.messages[0]?.content ?? '';
     expect(system).toContain('The Kestrel’s spanners are cursed.');

@@ -23,6 +23,8 @@ export interface WorldReader {
   advanceClock: (campaignId: string, minutes: number, reason: string) => Promise<WikiClock | null>;
   /** A person moved (GM only; POST /api/v1/person_move); false when refused. */
   movePerson: (personId: string, locationId: string, reason: string) => Promise<boolean>;
+  /** The records a text names, campaign and setting canon, through the wiki's key index; [] without. */
+  matching: (campaignId: string, text: string) => Promise<CastEntity[]>;
   /** A campaign's own framing (GET /api/v1/campaign/{id}/framing); null without one. */
   framing: (campaignId: string) => Promise<CampaignFraming | null>;
   /** Someone the narrator voiced, made a GM-only npc (POST /api/v1/campaign/{id}/person); null when refused. */
@@ -51,6 +53,7 @@ export const NO_WORLD: WorldReader = {
   campaign: async () => [],
   byIds: async () => [],
   documents: async () => [],
+  matching: async () => [],
   framing: async () => null,
   advanceClock: async () => null,
   movePerson: async () => false,
@@ -77,9 +80,10 @@ export function wikiReader(request: Request): WorldReader {
     const found: CastEntity[] = [];
     let after: string | null = null;
     for (let page = 0; page < WORLD_LORE.max_pages; page += 1) {
+      // The campaign's own records only: a setting's canon comes by relevance (matching), never in bulk.
       const query = new URLSearchParams({
         campaign_id: campaignId,
-        include_setting: 'true',
+        include_setting: 'false',
         limit: String(WORLD_LORE.page_limit),
         ...(after === null ? {} : { after }),
       });
@@ -101,6 +105,17 @@ export function wikiReader(request: Request): WorldReader {
     if (answer === null || !answer.ok) return [];
     const rows: unknown = Reflect.get(Object(await answer.json().catch(() => null)), 'campaign_documents');
     return Array.isArray(rows) ? (rows as WikiDocument[]) : [];
+  };
+  const matching = async (campaignId: string, text: string): Promise<CastEntity[]> => {
+    const rows: unknown = Reflect.get(
+      Object(
+        await post(`/api/v1/campaign/${encodeURIComponent(campaignId)}/matching`, {
+          matching: { text, limit: WORLD_LORE.matching_limit },
+        }),
+      ),
+      'world_entities',
+    );
+    return Array.isArray(rows) ? (rows as CastEntity[]) : [];
   };
   const framing = async (campaignId: string): Promise<CampaignFraming | null> => {
     const answer = await fetch(`${origin}/api/v1/campaign/${encodeURIComponent(campaignId)}/framing`, {
@@ -150,5 +165,5 @@ export function wikiReader(request: Request): WorldReader {
     const named: unknown = Reflect.get(Object(person), 'name');
     return { id, name: typeof named === 'string' ? named : name, created: Reflect.get(Object(person), 'created') === true };
   };
-  return { campaign, byIds, documents, framing, advanceClock, movePerson, ensurePerson };
+  return { campaign, byIds, documents, matching, framing, advanceClock, movePerson, ensurePerson };
 }

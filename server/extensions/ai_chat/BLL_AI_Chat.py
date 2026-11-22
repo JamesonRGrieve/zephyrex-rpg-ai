@@ -192,6 +192,7 @@ from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-f
     persons_for_turn,
     test_options,
     update_person,
+    world_matching,
 )
 from zephyrex.extensions.ai_chat.WorldCast import (  # type: ignore[import-not-found]
     seat_person,
@@ -2865,7 +2866,12 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for turn in history
             if turn["channel"] in set(PROMPT["story_channels"]) and not turn["x_carded"] and not turn["hidden"]
         ][-int(CONTRACT["world_lore"]["canon_reach_turns"]) :]
-        entities = canon_in_reach(entities, "\n".join(recent))
+        # The setting's canon the turn names, through the wiki's key index (world_entities_matching); without
+        # it, none (canon_in_reach keeps only the campaign's own records).
+        matched = world_matching(self.model_registry, str(self.requester.id), wiki_campaign, "\n".join(recent))
+        held = {str(entity.get("id")) for entity in entities}
+        named_canon = [entity for entity in matched or [] if entity.get("canon") and str(entity.get("id")) not in held]
+        entities = canon_in_reach(entities, "\n".join(recent)) + named_canon
         entries = world_lore_entries(entities)
         timers = self._manager(ChatLoreStateManager)
         settings = {

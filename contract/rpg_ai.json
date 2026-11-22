@@ -770,6 +770,7 @@
     "positions": {"before_character": "before_char", "after_character": "after_char", "author_note_top": "before_an", "author_note_bottom": "after_an", "example_top": "before_example", "example_bottom": "after_example", "at_depth": "at_depth"},
     "page_limit": 100,
     "canon_reach_turns": 10,
+    "matching_limit": 50,
     "max_pages": 50
   },
   "injections": {
