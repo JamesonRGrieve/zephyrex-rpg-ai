@@ -3,14 +3,26 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/canon-cases.json';
 import type { DecideAnswer } from '~/features/decide/decide';
-import { canonQuestions, canonState, canonVerdict } from './canon';
+import { type CanonVerdict, canonNotice, canonQuestions, canonState, canonVerdict, readWhy, whyMessages } from './canon';
 
 describe('canonVerdict (contract/canon-cases.json)', () => {
   for (const one of cases.cases) {
     it(one.name, () => {
-      expect(canonVerdict(one.answers as Record<string, DecideAnswer | null>, one.facts)).toEqual(one.verdict);
+      expect(canonVerdict(one.answers as Record<string, DecideAnswer | null>, one.facts, one.line)).toEqual(one.verdict);
     });
   }
+});
+
+describe('readWhy and canonNotice (the operator, 2026-11-22: "I need WHY!")', () => {
+  for (const one of cases.why_cases) it(one.name, () => expect(readWhy(one.answer)).toBe(one.why));
+  for (const one of cases.notice_cases)
+    it(one.name, () => expect(canonNotice(one.verdict as CanonVerdict, one.why)).toEqual(one.notice));
+  it('asks against the fact, or the setting', () => {
+    expect(whyMessages('Mags', 'Hi.', 'Mags: Mags keeps the Lantern.')[0]?.content).toContain(
+      'The canon: Mags: Mags keeps the Lantern.',
+    );
+    expect(whyMessages('Mags', 'Hi.', null)[0]?.content).toContain(cases.why_setting);
+  });
 });
 
 describe('canonQuestions', () => {

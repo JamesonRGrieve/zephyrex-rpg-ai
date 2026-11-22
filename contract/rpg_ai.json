@@ -942,8 +942,14 @@
     "kinds": ["canon", "voice", "meta"]
   },
   "thinking_off": {
-    "$comment": "A thinking model's story turn asks for no thinking (the operator, 2026-11-22: every story reply on qwen3.5-9b was \"<think>…\"): sent only when the model's traits name a reasoning_effort (model-traits.json), never to other endpoints, so a hosted API never sees fields it refuses. The fields each server reads: vLLM/llama.cpp chat_template_kwargs, Ollama think; reasoning_effort is the traits' own value.",
+    "$comment": "A thinking model that chokes on its thinking (its traits say thinking: false) writes the story without it, and any thinking model past thinking.max_chars is asked again without it: the fields each server reads (vLLM/llama.cpp chat_template_kwargs, Ollama think), with reasoning_effort the traits' own value (\"none\"). Sent only to a model whose traits name a reasoning_effort (model-traits.json), so a hosted API never sees fields it refuses.",
     "fields": {"chat_template_kwargs": {"enable_thinking": false}, "think": false}
+  },
+  "thinking": {
+    "$comment": "A thinking model thinks before a story turn (the operator, 2026-11-22: \"Why don't we want thinking? Doesn't it improve narration quality? Just put thinking in a collapsible under narrator.\"): asked to think briefly (story_effort; vLLM/llama.cpp chat_template_kwargs), its thinking streamed as <think>…</think> before the reply whether the API sends it apart (reasoning_content) or inline, kept on the saved line and shown folded. Past max_chars of thinking it is closed and the turn asked again with thinking_off, so it always answers. Thinking never counts against the runaway paragraph limit, is never read back to a model, and is never labelled (line_labels).",
+    "story_effort": "low",
+    "fields": {"chat_template_kwargs": {"enable_thinking": true}},
+    "max_chars": 6000
   },
   "action_kinds": ["relieve", "drink", "eat", "sleep", "fire", "heal", "pray", "spell", "psychic", "shoot", "attack", "defend", "throw", "hack", "repair", "unlock", "open", "steal", "pay", "give", "write", "read", "music", "laugh", "cry", "love", "threaten", "social", "listen", "look", "search", "stealth", "swim", "climb", "ride", "sit", "dress", "move", "use", "other"],
   "line_labels": {

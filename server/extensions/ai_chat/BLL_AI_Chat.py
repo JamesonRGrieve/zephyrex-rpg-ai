@@ -138,6 +138,7 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
     portrait_picture_prompt,
     scene_picture_prompt,
     split_reasoning,
+    story_text,
     summary_prompt,
     table_gm_prompt,
     translate_prompt,
@@ -173,6 +174,12 @@ from zephyrex.extensions.ai_chat.Structured import (  # type: ignore[import-not-
     turn_schema,
 )
 from zephyrex.extensions.ai_chat.SystemOrder import systems_before_last_user  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Thinking import (  # type: ignore[import-not-found]
+    THINKING,
+    ThinkSplitter,
+    thinking_fields,
+    thinking_mode,
+)
 from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-not-found]
     present_cast,
     turn_pick,
@@ -2533,12 +2540,8 @@ def upstream_body(
         "repetition_penalty": sampler["repetition_penalty"],
         # A story turn sends none (uncapped); an API that requires one gets its top (NativeApis, horde).
         **({} if sampler.get("uncapped") else {"max_tokens": sampler["max_tokens"]}),
-        # A thinking model's story turn asks for no thinking, in each server's own words (contract thinking_off).
-        **(
-            {**CONTRACT["thinking_off"]["fields"], "reasoning_effort": sampler["thinking_off"]}
-            if sampler.get("thinking_off") and not text
-            else {}
-        ),
+        # A thinking model thinks briefly before a story turn, or not at all where it chokes (Thinking.py).
+        **(thinking_fields(sampler.get("thinking"), sampler.get("thinking_effort")) if not text else {}),
         **({"stop": stop} if stop else {}),
         # Sent only when set (A47): servers that do not take them never see them.
         **({"logit_bias": sampler["logit_bias"]} if sampler.get("logit_bias") else {}),
@@ -2826,7 +2829,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     "role": message.role,
                     "channel": message.channel,
                     "speaker_character_id": message.speaker_character_id,
-                    "content": message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else "",
+                    "content": story_text(
+                        message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else ""
+                    ),
                     "x_carded": bool(getattr(message, "x_carded", False)),
                     "hidden": bool(getattr(message, "hidden", False)),
                 }
@@ -2931,12 +2936,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # The newest line's pictures go to a vision model (A44); older ones stay in the chat only.
         leaf = path[-1] if path else None
         images = list(leaf.images or []) if leaf is not None and leaf.role == "user" and leaf.channel == "ic" else []
+        # A line's thinking (folded under it in the chat) is never story: not read back, scanned or compared.
         history = [
             {
                 "role": message.role,
                 "channel": message.channel,
                 "speaker_character_id": message.speaker_character_id,
-                "content": message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else "",
+                "content": story_text(
+                    message.swipes[message.swipe_index] if message.swipe_index < len(message.swipes) else ""
+                ),
                 "x_carded": bool(getattr(message, "x_carded", False)),
                 "hidden": bool(getattr(message, "hidden", False)),
             }
@@ -3190,14 +3198,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             # limits, it cuts shit off more than it helps"): length is the prompt's and the verbosity
             # slider's wording; complete_text guards a stream that truly ends mid-sentence. The narrator
             # sliders' humour warms the temperature (NarratorStyle.py).
+            traits = traits_of({"model": endpoint.model, "traits": dict(getattr(endpoint, "traits", None) or {})})
             sampler = {
                 **sampler,
                 "uncapped": True,
-                # A thinking model writes the story without its thinking (the operator, 2026-11-22: replies were
-                # all "<think>…"): its traits name the reasoning it takes (reasoning_effort "none").
-                "thinking_off": traits_of(
-                    {"model": endpoint.model, "traits": dict(getattr(endpoint, "traits", None) or {})}
-                ).get("reasoning_effort"),
+                # A thinking model thinks before the story, shown folded under the line (the operator,
+                # 2026-11-22); one whose traits say it chokes (thinking: false) writes without it (Thinking.py).
+                "thinking": thinking_mode(traits),
+                "thinking_effort": traits.get("reasoning_effort"),
                 "temperature": float(sampler["temperature"]) + float(tuning["temperature_delta"]),
                 # Against replays (the play-test: a round retold almost word for word): the preset's own win.
                 "samplers": {**PROMPT["story_penalties"], **(sampler.get("samplers") or {})},
@@ -4866,9 +4874,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             "",
         )
 
-        flags = {"stalled": False}
+        flags = {"stalled": False, "overthought": False}
 
-        async def answer(upstream: Any, items: ItemStream | None) -> AsyncIterator[str]:
+        async def answer(upstream: Any, items: ItemStream | None, budget: bool = True) -> AsyncIterator[str]:
             """One pass over the model's stream: deltas or item events, heartbeats in any pause, stopped
             at the seat's item, a runaway, or a stall."""
             told = ""
@@ -4912,6 +4920,16 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 ]
 
             joiner = ReasoningJoiner()
+            # Thinking goes to the client as it is (kept on the line, shown folded); only the answer meets
+            # the guards. Past the budget the block is closed and the turn asked again without (Thinking.py).
+            splitter = ThinkSplitter()
+
+            def parts(pieces: list[tuple[str, str]]) -> list[str]:
+                out: list[str] = []
+                for kind, text in pieces:
+                    out += [frame("delta", {"text": text})] if kind == "think" else shown(text)
+                return out
+
             async for line in heartbeat_lines(upstream, HEARTBEAT_SECONDS):
                 if line is None:
                     if time.monotonic() - last >= (STALL_AFTER_SECONDS if heard else STALL_FIRST_SECONDS):
@@ -4931,14 +4949,17 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 delta = joiner.take(payload)
                 if delta is not None:
                     heard = True
-                    for piece in shown(delta):
+                    for piece in parts(splitter.take(delta)):
                         yield piece
+                if budget and splitter.inside and splitter.over_budget():
+                    flags["overthought"] = True
+                    break
                 if (items is not None and items.cut) or stopped:
                     # The seat's turn, or a runaway: nothing after it is kept.
                     break
             closing = joiner.end()
-            if closing is not None and not stopped:
-                for piece in shown(closing):
+            if not stopped:
+                for piece in parts(splitter.take(closing or "") + splitter.end()):
                     yield piece
 
         async def events() -> AsyncIterator[str]:
@@ -4960,6 +4981,24 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 items = ItemStream(people, seat_name) if structured else None
                 async for piece in answer(upstream, items):
                     yield piece
+                if flags["overthought"]:
+                    # Thought past the budget: the turn asked again without thinking, so it answers.
+                    logger.info(f"thinking past {THINKING['max_chars']} chars: asked again without it")
+                    await upstream.aclose()
+                    upstream = None
+                    without = {**request["json"], **thinking_fields("off", _sampler.get("thinking_effort"))}
+                    again = asyncio.ensure_future(asked(without))
+                    async for got in heartbeat_wait(again, HEARTBEAT_SECONDS):
+                        if got is None:
+                            yield HEARTBEAT
+                        else:
+                            upstream = got
+                    if upstream.status_code >= 400:
+                        yield frame("error", {"detail": f"The model endpoint answered {upstream.status_code}"})
+                        return
+                    items = ItemStream(people, seat_name) if structured else None
+                    async for piece in answer(upstream, items, budget=False):
+                        yield piece
                 if items is not None and items.mode == "json":
                     outcome = {"saved": False}
                     async for piece in self._save_structured(

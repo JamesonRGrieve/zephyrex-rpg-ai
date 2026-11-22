@@ -42,8 +42,23 @@ def canon_questions(facts: Sequence[Mapping[str, str]]) -> dict[str, dict[str, A
     }
 
 
-def canon_verdict(answers: Mapping[str, Any], facts: Sequence[Mapping[str, str]]) -> dict[str, Any]:
-    """The notice from the answers: red for a flagrant break, yellow for a likely contradiction, else none."""
+def _words(text: str) -> set[str]:
+    return set(re.findall(r"\w{3,}", text.lower()))
+
+
+def fact_words(fact: Mapping[str, str], line: str) -> str:
+    """The fact in its record's own words: its name and the sentence nearest the line (most words shared;
+    the first on a tie)."""
+    sentences = [one for one in re.split(r"(?<=[.!?])\s+", fact["text"].strip()) if one.strip()] or [""]
+    wanted = _words(line)
+    best = max(enumerate(sentences), key=lambda pair: (len(_words(pair[1]) & wanted), -pair[0]))[1]
+    return f"{fact['title']}: {best[: _CASES['quote_characters']]}"
+
+
+def canon_verdict(answers: Mapping[str, Any], facts: Sequence[Mapping[str, str]], line: str = "") -> dict[str, Any]:
+    """The flag from the decision model's answers: red for a flagrant break, yellow for a likely
+    contradiction, else none; with the fact it picked in its record's own words. Why goes with it after
+    (canon_notice)."""
 
     def level(key: str) -> int:
         answer = answers.get(key)
@@ -57,10 +72,37 @@ def canon_verdict(answers: Mapping[str, Any], facts: Sequence[Mapping[str, str]]
     elif level("established") >= _CASES["yellow_at_established"] or level("universe") >= _CASES["yellow_at_universe"]:
         verdict = "yellow"
     else:
-        return {"level": "none", "fact": None, "reason": ""}
-    quoted = ""
-    if fact is not None:
-        first = re.split(r"(?<=[.!?])\s", fact["text"].strip())[0][: _CASES["quote_characters"]]
-        quoted = f" {fact['title']}: “{first}”"
-    reason = _CASES["red_reason"] if verdict == "red" else _CASES["yellow_reason"]
-    return {"level": verdict, "fact": fact["title"] if fact is not None else None, "reason": reason + quoted}
+        return {"level": "none", "fact": None, "record_name": None, "record_id": None}
+    record = fact is not None and bool(fact.get("id"))
+    return {
+        "level": verdict,
+        "fact": fact_words(fact, line) if fact is not None else None,
+        "record_name": fact["title"] if record and fact is not None else None,
+        "record_id": fact["id"] if record and fact is not None else None,
+    }
+
+
+def why_messages(speaker: str, line: str, fact: str | None) -> list[dict[str, str]]:
+    """What the summary model is asked: what specifically the line gets wrong against the fact."""
+    canon = fact or str(_CASES["why_setting"])
+    return [
+        {"role": "system", "content": str(_CASES["why_prompt"]).replace("{{fact}}", canon)},
+        {"role": "user", "content": f"{speaker}: {line.strip()}"},
+    ]
+
+
+def read_why(answer: str) -> str | None:
+    """The summary model's sentence, its thinking and quotes taken off; None for NONE or nothing."""
+    from zephyrex.extensions.ai_chat.Prompt import story_text  # type: ignore[import-not-found]
+
+    text = str(story_text(answer)).strip().strip("\"“”'").strip()
+    if not text or text.upper().startswith(str(_CASES["why_none"])):
+        return None
+    return text[: int(_CASES["why_characters"])]
+
+
+def canon_notice(verdict: Mapping[str, Any], why: str | None) -> dict[str, Any]:
+    """The notice: the flag with what specifically differs, or none (never a vague warning)."""
+    if verdict["level"] == "none" or why is None:
+        return {"level": "none", "fact": None, "record_name": None, "record_id": None, "reason": ""}
+    return {**verdict, "reason": why}

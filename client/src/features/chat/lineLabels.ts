@@ -6,7 +6,8 @@
  * and its icon (one of the contract's action kinds, or none). One decide call per message, one set of
  * questions per line. Pure, and held to contract/line-labels-cases.json with ai_chat/LineLabels.py.
  */
-import { ACTION_KINDS, LINE_LABELS, PLAYER_LINES } from '~/contract';
+import { ACTION_KINDS, LINE_LABELS, PLAYER_LINES, REASONING } from '~/contract';
+import { splitReasoning } from '~/features/prompt/assemble';
 
 export interface LineLabel {
   index: number;
@@ -33,7 +34,9 @@ function mannerOf(line: string): string {
 
 /** A message's lines: each non-blank line, trimmed, at most max_lines. */
 export function messageLines(text: string): string[] {
-  return text
+  // Its thinking (shown folded, never story) is left out.
+  const thinks = REASONING.pairs.some(([opening]) => text.includes(opening as string));
+  return (thinks ? splitReasoning(text).reply : text)
     .split('\n')
     .map((line) => line.trim())
     .filter((line) => line !== '')

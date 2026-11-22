@@ -135,6 +135,14 @@ class FakeModel(BaseHTTPRequestHandler):
         text_api = not self.path.endswith("/chat/completions")
         # A line marked STALL: gets half a reply, then a model that goes quiet without closing.
         stall = "STALL:" in json.dumps(RECEIVED[-1]["body"].get("messages") or [])
+        # A line marked OVERTHINK: gets a thinking model that thinks on and on while it may think.
+        thinking = (RECEIVED[-1]["body"].get("chat_template_kwargs") or {}).get("enable_thinking") is True
+        if thinking and "OVERTHINK:" in json.dumps(RECEIVED[-1]["body"].get("messages") or []):
+            for _ in range(40):
+                choice = {"delta": {"reasoning_content": "Perhaps the coolant, perhaps the valve. " * 5}}
+                self.wfile.write(f"data: {json.dumps({'choices': [choice]})}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
+            return
         for index, piece in enumerate(("“Mind ", "the coolant.”")):
             if stall and index == 1:
                 self.wfile.flush()
@@ -1222,8 +1230,9 @@ class TestGenerate:
         assert answer.status_code == 200, answer.text
         assert "Mind " in answer.text and "event: done" in answer.text
 
-    def test_a_thinking_models_story_turn_asks_for_no_thinking(self, server: TestClient, model_url: str) -> None:
-        # The operator, 2026-11-22: every story reply on qwen3.5-9b was "<think>…" and nothing else.
+    def test_a_thinking_model_thinks_briefly_unless_it_chokes(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-22: "Why don't we want thinking? … Just put thinking in a collapsible under
+        # narrator." A model whose traits say it chokes (thinking: false) still writes without it.
         user = create_user(server)
         ada = _cast(server, user, "character", name="Ada").json()["character"]
         _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="24gb/qwen3.5-9b:q8", is_default=True)
@@ -1236,8 +1245,45 @@ class TestGenerate:
             headers=_headers(user),
         )
         sent = RECEIVED[0]["body"]
+        assert sent["chat_template_kwargs"] == {"enable_thinking": True} and sent["reasoning_effort"] == "low"
+        assert "think" not in sent
+        other = create_user(server)
+        bea = _cast(server, other, "character", name="Bea").json()["character"]
+        _create(server, other, "model_endpoint", name="Local", base_url=model_url, model="24gb/qwen3.5-9b:q8", is_default=True, traits={"thinking": False})
+        chat = _chat(server, other, "chat", title="Chat", character_ids=[bea["id"]]).json()["chat"]
+        line = _create(server, other, "chat_message", chat_id=chat["id"], role="user", swipes=["Bea?"]).json()["chat_message"]
+        RECEIVED.clear()
+        server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": bea["id"]}},
+            headers=_headers(other),
+        )
+        sent = RECEIVED[0]["body"]
         assert sent["think"] is False and sent["chat_template_kwargs"] == {"enable_thinking": False}
         assert sent["reasoning_effort"] == "none"
+
+    def test_thinking_past_its_budget_is_closed_and_the_turn_asked_again_without(
+        self, server: TestClient, model_url: str
+    ) -> None:
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="24gb/qwen3.5-9b:q8", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["OVERTHINK: Ada?"]).json()["chat_message"]
+        RECEIVED.clear()
+        answer = server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": ada["id"]}},
+            headers=_headers(user),
+        )
+        text = "".join(
+            json.loads(row[len("data:") :])["text"]
+            for row in answer.text.splitlines()
+            if row.startswith("data:") and '"text"' in row
+        )
+        assert text.startswith("<think>Perhaps the coolant") and "</think>“Mind the coolant.”" in text
+        assert [sent["body"]["chat_template_kwargs"]["enable_thinking"] for sent in RECEIVED] == [True, False]
+        assert "event: done" in answer.text
 
     def test_a_wide_narration_carries_the_moment(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
@@ -1283,7 +1329,37 @@ class TestGenerate:
         asked = {"canon_check": {"chat_id": made.json()["chat"]["id"], "text": "The Emperor tap-dances.", "speaker": "Ada"}}
         verdict = server.post("/v1/canon_check", json=asked, headers=_headers(user))
         assert verdict.status_code == 200, verdict.text
-        assert verdict.json()["canon_check"] == {"level": "none", "fact": None, "reason": "", "checked": False}
+        assert verdict.json()["canon_check"] == {
+            "level": "none", "fact": None, "reason": "", "checked": False, "record_name": None, "record_id": None
+        }
+
+    def test_a_canon_notice_says_why_or_isnt_given(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The operator, 2026-11-22: "Canon check has no detail. Just 'may differ from the scenario'. I need WHY!"
+        from zephyrex.extensions.ai_chat import BLL_AI_Canon, Decide
+
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        chat = _chat(server, user, "chat", title="Inn", character_ids=[ada["id"]]).json()["chat"]
+
+        async def flags(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
+            return {"established": {"level": "contradicts", "index": 2}, "universe": {"level": "consistent", "index": 0}, "fact": {"choice": "none of them"}}
+
+        whys: list[str | None] = ["Ada is an engineer in the scenario; this line has her as a priest.", None]
+
+        async def why(_self: Any, _speaker: str, _line: str, _fact: str | None) -> str | None:
+            return whys.pop(0)
+
+        monkeypatch.setattr(Decide, "ask_decider", flags)
+        monkeypatch.setattr(BLL_AI_Canon.CanonCheckManager, "_why", why)
+        asked = {"canon_check": {"chat_id": chat["id"], "text": "Ada blesses the altar.", "speaker": "The GM"}}
+        said = server.post("/v1/canon_check", json=asked, headers=_headers(user)).json()["canon_check"]
+        assert said["level"] == "yellow" and said["reason"].startswith("Ada is an engineer in the scenario")
+        vague = server.post("/v1/canon_check", json=asked, headers=_headers(user)).json()["canon_check"]
+        assert vague["level"] == "none" and vague["reason"] == "" and vague["checked"] is True
 
     def test_the_narrator_sliders_choose_the_model_by_reputation(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "sliders that determine the model based on the models reputation".

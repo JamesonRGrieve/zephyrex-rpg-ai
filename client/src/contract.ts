@@ -136,6 +136,7 @@ export const SPEECH_OPTIONS = contract.speech_options;
 /** The action kinds a line's icon names (shared with features/chat/actionKind.ts). */
 /** A thinking model's story turn asks for no thinking: the fields each server reads. */
 export const THINKING_OFF = contract.thinking_off;
+export const THINKING = contract.thinking;
 export const ACTION_KINDS = contract.action_kinds;
 /** Each story line labelled by the decision model: kinds and the questions' words. */
 export const LINE_LABELS = contract.line_labels;

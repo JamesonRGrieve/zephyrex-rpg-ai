@@ -34,8 +34,11 @@ def _manner(line: str) -> str:
 
 
 def message_lines(text: str) -> list[str]:
-    """A message's lines: each non-blank line, trimmed, at most max_lines."""
-    return [line.strip() for line in text.split("\n") if line.strip()][: int(LINE_LABELS["max_lines"])]
+    """A message's lines: each non-blank line, trimmed, at most max_lines, its thinking (shown folded,
+    never story) left out."""
+    from zephyrex.extensions.ai_chat.Prompt import story_text  # type: ignore[import-not-found]
+
+    return [line.strip() for line in story_text(text).split("\n") if line.strip()][: int(LINE_LABELS["max_lines"])]
 
 
 def label_questions(

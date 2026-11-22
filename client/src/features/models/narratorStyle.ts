@@ -14,8 +14,10 @@ export type Traits = Partial<Record<(typeof NARRATOR_STYLE.traits)[number], numb
   params_b?: number | null;
   narrator?: boolean;
   warm?: boolean;
-  /** A thinking model's reasoning effort for story turns ("none": thinking off); null for others. */
+  /** A thinking model's reasoning effort when its thinking is off ("none"); null for a model that doesn't think. */
   reasoning_effort?: string | null;
+  /** false: the model chokes on its thinking, so story turns go without it (lib/thinking.ts). */
+  thinking?: boolean;
 };
 export type NarratorStyle = Partial<Record<(typeof NARRATOR_STYLE.sliders)[number], number | null>>;
 
@@ -128,7 +130,7 @@ export function traitsProblem(value: Readonly<Record<string, unknown>>): string 
     } else if (key === 'params_b') {
       if (one !== null && !(typeof one === 'number' && Number.isFinite(one) && one > 0))
         return 'params_b is a size in billions';
-    } else if (key === 'narrator' || key === 'warm') {
+    } else if (key === 'narrator' || key === 'warm' || key === 'thinking') {
       if (typeof one !== 'boolean') return `${key} is true or false`;
     } else return `${key} is not a trait`;
   }

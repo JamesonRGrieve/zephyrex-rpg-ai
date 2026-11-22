@@ -1,5 +1,5 @@
 {
-  "$comment": "Canon warnings (docs/DESIGN.md, Canon warnings): the decision model's questions over a line and the canon in reach, and the notice its answers give (red: flagrantly breaks in-universe canon; yellow: likely contravenes established canon). client/src/features/chat/canon.ts and server/extensions/ai_chat/Canon.py run these cases. A chat's canon_checks (true by default; the operator, 2026-11-21: \"permanently dismiss for this campaign\") turns the warnings off: canon_check answers none, unchecked.",
+  "$comment": "Canon warnings (docs/DESIGN.md, Canon warnings): the decision model's questions over a line and the canon in reach, and the notice its answers give (red: flagrantly breaks in-universe canon; yellow: likely contravenes established canon). client/src/features/chat/canon.ts and server/extensions/ai_chat/Canon.py run these cases. A chat's canon_checks (true by default; the operator, 2026-11-21: \"permanently dismiss for this campaign\") turns the warnings off: canon_check answers none, unchecked. The notice says WHY (the operator, 2026-11-22: \"Canon check has no detail. Just 'may differ from the scenario'. I need WHY!\"): the decision model flags a line and picks the fact; the chat's summary model then says in one sentence what specifically differs (why_prompt), and a flag it can't make specific (NONE, or no model to ask) is no notice. fact is the record's own words (its name and the sentence nearest the line); record_name and record_id name a wiki record when the fact is one. Wiki records the line names (world_entities_matching) are in reach first.",
   "none_option": "none of them",
   "max_facts": 12,
   "fact_characters": 400,
@@ -12,13 +12,19 @@
     "universe": "Does the line show the speaker ignorant of, or flatly contradicting, something any character in this setting would know (its gods, its great institutions, basic facts of its universe)?",
     "fact": "Which listed fact does the line conflict with most?"
   },
-  "established_levels": ["consistent", "uncertain", "contradicts"],
-  "universe_levels": ["consistent", "odd", "flagrant"],
+  "established_levels": [
+    "consistent",
+    "uncertain",
+    "contradicts"
+  ],
+  "universe_levels": [
+    "consistent",
+    "odd",
+    "flagrant"
+  ],
   "yellow_at_established": 2,
   "yellow_at_universe": 1,
   "red_at_universe": 2,
-  "yellow_reason": "This may contravene established canon.",
-  "red_reason": "This flagrantly breaks in-universe canon.",
   "cases": [
     {
       "name": "consistent: no notice",
@@ -29,11 +35,25 @@
         }
       ],
       "answers": {
-        "established": { "level": "consistent", "index": 0 },
-        "universe": { "level": "consistent", "index": 0 },
-        "fact": { "choice": "none of them" }
+        "established": {
+          "level": "consistent",
+          "index": 0
+        },
+        "universe": {
+          "level": "consistent",
+          "index": 0
+        },
+        "fact": {
+          "choice": "none of them"
+        }
       },
-      "verdict": { "level": "none", "fact": null, "reason": "" }
+      "verdict": {
+        "level": "none",
+        "fact": null,
+        "record_name": null,
+        "record_id": null
+      },
+      "line": ""
     },
     {
       "name": "a tech-priest not knowing the Omnissiah: red, quoting the fact",
@@ -44,15 +64,25 @@
         }
       ],
       "answers": {
-        "established": { "level": "contradicts", "index": 2 },
-        "universe": { "level": "flagrant", "index": 2 },
-        "fact": { "choice": "The Omnissiah" }
+        "established": {
+          "level": "contradicts",
+          "index": 2
+        },
+        "universe": {
+          "level": "flagrant",
+          "index": 2
+        },
+        "fact": {
+          "choice": "The Omnissiah"
+        }
       },
       "verdict": {
         "level": "red",
-        "fact": "The Omnissiah",
-        "reason": "This flagrantly breaks in-universe canon. The Omnissiah: “The Machine God, worshipped by the Adeptus Mechanicus.”"
-      }
+        "fact": "The Omnissiah: Every tech-priest serves it.",
+        "record_name": null,
+        "record_id": null
+      },
+      "line": "Magos Venn shrugs: what tech-priest serves the Omnissiah anyway?"
     },
     {
       "name": "a dead NPC spoken of as alive: yellow",
@@ -63,35 +93,158 @@
         }
       ],
       "answers": {
-        "established": { "level": "contradicts", "index": 2 },
-        "universe": { "level": "consistent", "index": 0 },
-        "fact": { "choice": "Osric" }
+        "established": {
+          "level": "contradicts",
+          "index": 2
+        },
+        "universe": {
+          "level": "consistent",
+          "index": 0
+        },
+        "fact": {
+          "choice": "Osric"
+        }
       },
       "verdict": {
         "level": "yellow",
-        "fact": "Osric",
-        "reason": "This may contravene established canon. Osric: “Osric died when the Vigil Ledger was destroyed in Session 6.”"
-      }
+        "fact": "Osric: Osric died when the Vigil Ledger was destroyed in Session 6.",
+        "record_name": null,
+        "record_id": null
+      },
+      "line": "Osric waves from the bar."
     },
     {
       "name": "odd for the setting, no fact named: yellow without a quote",
       "facts": [],
       "answers": {
-        "established": { "level": "consistent", "index": 0 },
-        "universe": { "level": "odd", "index": 1 },
-        "fact": { "choice": "none of them" }
+        "established": {
+          "level": "consistent",
+          "index": 0
+        },
+        "universe": {
+          "level": "odd",
+          "index": 1
+        },
+        "fact": {
+          "choice": "none of them"
+        }
       },
       "verdict": {
         "level": "yellow",
         "fact": null,
-        "reason": "This may contravene established canon."
-      }
+        "record_name": null,
+        "record_id": null
+      },
+      "line": ""
     },
     {
       "name": "the decision model didn't answer: no notice",
       "facts": [],
-      "answers": { "established": null, "universe": null, "fact": null },
-      "verdict": { "level": "none", "fact": null, "reason": "" }
+      "answers": {
+        "established": null,
+        "universe": null,
+        "fact": null
+      },
+      "verdict": {
+        "level": "none",
+        "fact": null,
+        "record_name": null,
+        "record_id": null
+      },
+      "line": ""
+    },
+    {
+      "name": "a wiki record: its own sentence nearest the line, its name and id",
+      "line": "Mags pours another round behind the bar of the Split Antler.",
+      "facts": [
+        {
+          "title": "Mags",
+          "id": "p-mags",
+          "text": "A broad, cheerful woman. Mags is the barkeep of the Leaning Lantern, and pours a heavy round."
+        }
+      ],
+      "answers": {
+        "established": {
+          "level": "contradicts",
+          "index": 2
+        },
+        "universe": {
+          "level": "consistent",
+          "index": 0
+        },
+        "fact": {
+          "choice": "Mags"
+        }
+      },
+      "verdict": {
+        "level": "yellow",
+        "fact": "Mags: Mags is the barkeep of the Leaning Lantern, and pours a heavy round.",
+        "record_name": "Mags",
+        "record_id": "p-mags"
+      }
+    }
+  ],
+  "why_prompt": "You check one line of a roleplay against its campaign's canon.\nThe canon: {{fact}}\nIn one sentence, say exactly what the line gets wrong: name who or what, and give both versions, the canon's and the line's. For example: \"Mags is the barkeep of the Leaning Lantern in the scenario; this line has her running the Split Antler.\" If the line doesn't contradict it, answer only NONE.",
+  "why_setting": "what anyone in this setting would know (its gods, its great institutions, the basic facts of its universe)",
+  "why_none": "NONE",
+  "why_max_tokens": 120,
+  "why_characters": 300,
+  "why_cases": [
+    {
+      "name": "a specific difference is the reason",
+      "answer": "Mags is the barkeep of the Leaning Lantern in the scenario; this line has her running the Split Antler.",
+      "why": "Mags is the barkeep of the Leaning Lantern in the scenario; this line has her running the Split Antler."
+    },
+    {
+      "name": "its thinking and quotes are taken off",
+      "answer": "<think>Compare the inns.</think>\n\"Osric died in Session 6; this line has him waving from the bar.\"",
+      "why": "Osric died in Session 6; this line has him waving from the bar."
+    },
+    {
+      "name": "NONE: no specific conflict, so no notice",
+      "answer": "NONE.",
+      "why": null
+    },
+    {
+      "name": "nothing said: no notice",
+      "answer": "  ",
+      "why": null
+    }
+  ],
+  "notice_cases": [
+    {
+      "name": "a flag with its why",
+      "verdict": {
+        "level": "yellow",
+        "fact": "Mags: Mags is the barkeep of the Leaning Lantern.",
+        "record_name": "Mags",
+        "record_id": "p-mags"
+      },
+      "why": "Mags is the barkeep of the Leaning Lantern in the scenario; this line has her running the Split Antler.",
+      "notice": {
+        "level": "yellow",
+        "fact": "Mags: Mags is the barkeep of the Leaning Lantern.",
+        "record_name": "Mags",
+        "record_id": "p-mags",
+        "reason": "Mags is the barkeep of the Leaning Lantern in the scenario; this line has her running the Split Antler."
+      }
+    },
+    {
+      "name": "a flag the summary model can't make specific: none, never a vague yellow",
+      "verdict": {
+        "level": "yellow",
+        "fact": null,
+        "record_name": null,
+        "record_id": null
+      },
+      "why": null,
+      "notice": {
+        "level": "none",
+        "fact": null,
+        "record_name": null,
+        "record_id": null,
+        "reason": ""
+      }
     }
   ]
 }

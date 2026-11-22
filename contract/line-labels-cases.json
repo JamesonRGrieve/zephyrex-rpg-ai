@@ -18,6 +18,13 @@
         "(There is no security.)",
         "A second tankard follows the first."
       ]
+    },
+    {
+      "name": "a line's thinking is never labelled (the operator, 2026-11-22: thinking shown folded under the narrator)",
+      "text": "<think>Should the barkeep throw?\nYes.</think>A second tankard follows the first.",
+      "lines": [
+        "A second tankard follows the first."
+      ]
     }
   ],
   "question_case": {

@@ -210,6 +210,13 @@ def split_reasoning(text: str) -> tuple[str, str]:
     return "\n\n".join(reasoning), reply.strip()
 
 
+def story_text(text: str) -> str:
+    """A line as story: its thinking (kept on the line, shown folded) taken out, else the line as it is."""
+    if not any(opening in text for opening, _closing in REASONING_PAIRS):
+        return text
+    return split_reasoning(text)[1]
+
+
 SAFETY = CONTRACT["safety"]
 
 
@@ -400,8 +407,9 @@ def _history_message(
     narrating: bool = False,
     include_names: bool = False,
 ) -> dict[str, str]:
-    if turn["role"] == "character" and any(opening in turn["content"] for opening, _closing in REASONING_PAIRS):
-        # A model's reasoning is never read back to it (A45).
+    if any(opening in turn["content"] for opening, _closing in REASONING_PAIRS):
+        # A model's reasoning is never read back to it (A45), from any role: the narrator's lines keep
+        # their thinking too (folded under them in the chat).
         turn = {**turn, "content": split_reasoning(turn["content"])[1]}
     if turn["role"] == "character" and turn["speaker_character_id"] == speaker_id:
         # A template that names every turn (audit gap 4) names the speaker's own too.

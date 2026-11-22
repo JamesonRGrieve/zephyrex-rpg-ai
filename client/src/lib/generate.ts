@@ -34,7 +34,6 @@ import {
   PROMPT,
   SAMPLER_RANGES,
   TABLE,
-  THINKING_OFF,
   WORLD_LORE,
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
@@ -48,6 +47,7 @@ import { labelQuestions, messageLines, readLabels } from '~/features/chat/lineLa
 import { statusMessages } from '~/features/chat/statusLine';
 import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
 import { paragraphCut } from '~/features/chat/voiceGuard';
+import { thinkSplitter, thinkingFields, thinkingMode, type ThinkingMode } from '~/lib/thinking';
 import { frameFromFraming } from '~/features/prompt/campaignFraming';
 import { frameFor } from '~/lib/frameCopy';
 import { parsePlayerLines, stripMarkup } from '~/features/chat/playerLines';
@@ -168,8 +168,10 @@ export interface Sampler {
   samplers?: SamplerValues;
   /** A story turn: no max_tokens on the wire (max_tokens still reserves room in the context budget). */
   uncapped?: boolean;
-  /** A thinking model's story turn: its traits' reasoning_effort, sent with the contract's thinking_off. */
-  thinking_off?: string | null;
+  /** A thinking model's story turn (lib/thinking.ts): on (briefly), off where it chokes, null if it can't. */
+  thinking?: ThinkingMode;
+  /** Its traits' reasoning_effort, sent when thinking is off. */
+  thinking_effort?: string | null;
 }
 
 export interface Endpoint {
@@ -431,6 +433,7 @@ export async function generationInputs(
     (await activatedTemplate(ownerId, endpointRow.model)) ??
     (endpointRow.instructTemplate as InstructTemplateId);
   // Group stop strings (features/chat/group.ts): a reply ends where it starts another speaker's line.
+  const storyTraits = traitsOf(styleRows.find((one) => one.id === endpointRow.id) ?? { model: endpointRow.model });
   const guarded: Sampler =
     purpose === 'reply'
       ? {
@@ -439,11 +442,10 @@ export async function generationInputs(
           // limits, it cuts shit off more than it helps"): length is the prompt's and the verbosity
           // slider's wording; completeText guards a stream that truly ends mid-sentence.
           uncapped: true,
-          // A thinking model writes the story without its thinking (the operator, 2026-11-22): its traits
-          // name the reasoning it takes (reasoning_effort "none").
-          thinking_off:
-            traitsOf(styleRows.find((one) => one.id === endpointRow.id) ?? { model: endpointRow.model }).reasoning_effort ??
-            null,
+          // A thinking model thinks before the story, shown folded under the line (the operator,
+          // 2026-11-22); one whose traits say it chokes (thinking: false) writes without it (lib/thinking.ts).
+          thinking: thinkingMode(storyTraits),
+          thinking_effort: storyTraits.reasoning_effort ?? null,
           // The narrator sliders' humour warms the temperature.
           temperature: sampler.temperature + tuning.temperature_delta,
           // Against replays (the play-test: a round retold almost word for word): the preset's own win.
@@ -756,10 +758,8 @@ export function upstreamBody(
     repetition_penalty: sampler.repetition_penalty,
     // A story turn sends none (uncapped); an API that requires one gets its top (nativeApis, hordeBody).
     ...(sampler.uncapped === true ? {} : { max_tokens: sampler.max_tokens }),
-    // A thinking model's story turn asks for no thinking, in each server's own words (contract thinking_off).
-    ...(typeof sampler.thinking_off === 'string' && !text
-      ? { ...THINKING_OFF.fields, reasoning_effort: sampler.thinking_off }
-      : {}),
+    // A thinking model thinks briefly before a story turn, or not at all where it chokes (lib/thinking.ts).
+    ...(text ? {} : thinkingFields(sampler.thinking, sampler.thinking_effort)),
     ...(stop.length === 0 ? {} : { stop }),
     // Sent only when set (A47): servers that do not take them never see them.
     ...(Object.keys(sampler.logit_bias ?? {}).length === 0 ? {} : { logit_bias: sampler.logit_bias }),
@@ -2093,36 +2093,76 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
       upstreamBody(endpoint, sampler, assembled.messages, mode, images),
       nextRequest.signal,
     );
-    const deltas = completionDeltas(upstream);
     // A runaway stops at the blank line after the paragraph limit (voiceGuard.ts paragraphCut): a
-    // structural stop, never mid-sentence (the operator, 2026-11-22).
+    // structural stop, never mid-sentence (the operator, 2026-11-22). Thinking goes to the client as it
+    // is (kept on the line, shown folded) and never counts; past its budget the block is closed and the
+    // turn asked again without thinking, so it answers (lib/thinking.ts).
     let told = '';
-    const stream = new ReadableStream<Uint8Array>({
+    let current: AsyncGenerator<string, void, undefined> | null = null;
+    async function* pass(
+      deltas: AsyncGenerator<string, void, undefined>,
+      budget: boolean,
+    ): AsyncGenerator<Uint8Array, boolean> {
+      current = deltas;
+      const splitter = thinkSplitter();
+      const answer = function* (text: string): Generator<Uint8Array, boolean> {
+        const cut = paragraphCut(told + text);
+        const piece = cut < 0 ? text : (told + text).slice(told.length, Math.max(cut, told.length));
+        told += piece;
+        if (piece !== '') yield event('delta', { text: piece });
+        return cut >= 0;
+      };
+      const show = function* (pieces: [string, string][]): Generator<Uint8Array, boolean> {
+        for (const [kind, text] of pieces) {
+          if (kind === 'think') yield event('delta', { text });
+          else if (yield* answer(text)) return true;
+        }
+        return false;
+      };
+      for await (const delta of deltas) {
+        if (yield* show(splitter.take(delta))) {
+          await deltas.return(undefined);
+          return false;
+        }
+        if (budget && splitter.inside() && splitter.overBudget()) {
+          await deltas.return(undefined);
+          yield* show(splitter.end());
+          return true;
+        }
+      }
+      yield* show(splitter.end());
+      return false;
+    }
+    async function* frames(): AsyncGenerator<Uint8Array> {
       // The reply begins with its prefill, so what's kept is the whole reply.
-      start(controller) {
-        if (prefill !== '') controller.enqueue(event('delta', { text: prefill }));
-      },
+      if (prefill !== '') yield event('delta', { text: prefill });
+      const overthought = yield* pass(completionDeltas(upstream), true);
+      if (overthought) {
+        const body = upstreamBody(endpoint, sampler, assembled.messages, mode, images);
+        const without = await askModel(
+          endpoint,
+          { ...body, ...thinkingFields('off', sampler.thinking_effort) },
+          nextRequest.signal,
+        );
+        yield* pass(completionDeltas(without), false);
+      }
+      yield event('done', { dropped: assembled.dropped });
+    }
+    const source = frames();
+    const stream = new ReadableStream<Uint8Array>({
       async pull(controller) {
         try {
-          const next = await deltas.next();
-          const cut = next.done ? -1 : paragraphCut(told + next.value);
-          if (next.done || cut >= 0) {
-            const rest = cut >= 0 ? (told + next.value).slice(told.length, Math.max(cut, told.length)) : '';
-            if (rest !== '') controller.enqueue(event('delta', { text: rest }));
-            if (cut >= 0) await deltas.return(undefined);
-            controller.enqueue(event('done', { dropped: assembled.dropped }));
-            controller.close();
-          } else {
-            told += next.value;
-            controller.enqueue(event('delta', { text: next.value }));
-          }
+          const next = await source.next();
+          if (next.done) controller.close();
+          else controller.enqueue(next.value);
         } catch {
           controller.enqueue(event('error', { detail: 'The model stopped mid-reply' }));
           controller.close();
         }
       },
       async cancel() {
-        await deltas.return(undefined);
+        await (current as AsyncGenerator<string, void, undefined> | null)?.return(undefined);
+        await source.return(undefined);
       },
     });
     return new Response(stream, { headers: SSE_HEADERS });

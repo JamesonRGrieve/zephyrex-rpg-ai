@@ -128,7 +128,7 @@ def traits_problem(value: Mapping[str, Any]) -> str | None:
         elif key == "params_b":
             if one is not None and not (isinstance(one, (int, float)) and not isinstance(one, bool) and one > 0):
                 return "params_b is a size in billions"
-        elif key in ("narrator", "warm"):
+        elif key in ("narrator", "warm", "thinking"):
             if not isinstance(one, bool):
                 return f"{key} is true or false"
         else:
