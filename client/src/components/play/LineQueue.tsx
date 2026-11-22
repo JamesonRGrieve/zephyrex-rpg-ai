@@ -224,7 +224,7 @@ export function LineQueue({
                     aria-label='At whom'
                     list={`${targetList}-present`}
                     placeholder='at no one'
-                    className='h-9 w-36 rounded-md border bg-background px-2'
+                    className='h-9 min-w-36 flex-1 rounded-md border bg-background px-2'
                     value={line.targetId != null ? (names.get(line.targetId) ?? '') : (line.targetName ?? '')}
                     onChange={(event) => aim(index, event.target.value)}
                   />
@@ -237,7 +237,7 @@ export function LineQueue({
                       // Those present for a voice that carries in the room; those it reaches for one that doesn't.
                       list={`${targetList}-${manners.find((one) => one.id === (line.manner ?? 'speak'))?.reaches === 'remote' ? 'remote' : 'present'}`}
                       placeholder='to everyone'
-                      className='h-9 w-36 rounded-md border bg-background px-2'
+                      className='h-9 min-w-36 flex-1 rounded-md border bg-background px-2'
                       value={line.targetId !== null ? (names.get(line.targetId) ?? '') : (line.targetName ?? '')}
                       onChange={(event) => aim(index, event.target.value)}
                     />
