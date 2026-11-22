@@ -4,6 +4,9 @@ import userEvent from '@testing-library/user-event';
 import { describe, expect, it, vi } from 'vitest';
 import { Composer } from './Composer';
 
+// The target picker's list scrolls its active option into view; jsdom has no scrolling.
+Element.prototype.scrollIntoView = vi.fn();
+
 describe('Composer', () => {
   it('sends a story line with Enter and clears the box', async () => {
     const onSend = vi.fn();
@@ -30,7 +33,8 @@ describe('Composer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Say' }));
     await userEvent.type(screen.getByLabelText('What is said'), 'Quiet.');
     await userEvent.selectOptions(screen.getByLabelText('How'), 'whisper');
-    await userEvent.type(screen.getByLabelText('To whom'), 'Wren');
+    await userEvent.click(screen.getByRole('combobox', { name: 'To whom' }));
+    await userEvent.click(await screen.findByRole('option', { name: /Wren/ }));
     await userEvent.click(screen.getByRole('button', { name: 'Do' }));
     expect(screen.getByLabelText('What is done')).toHaveAttribute('autocapitalize', 'off');
     await userEvent.type(screen.getByLabelText('What is done'), 'listens at the wall.');

@@ -7,7 +7,8 @@
  * any character, or the narrator.
  */
 import { ArrowDown, ArrowUp, MessageSquareQuote, MessagesSquare, Send, Sparkles, X } from 'lucide-react';
-import { type ReactElement, type ReactNode, useEffect, useId, useState } from 'react';
+import { type ReactElement, type ReactNode, useEffect, useState } from 'react';
+import { TargetPicker } from './TargetPicker';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { cn } from '~/lib/utils';
@@ -130,12 +131,7 @@ export function LineQueue({
   const remote = options?.remote ?? [];
   const manners = options?.manners.length ? options.manners : BASE_MANNERS;
   const names = new Map([...speakers, ...present, ...remote, ...(me === null ? [] : [me])].map((one) => [one.id, one.name]));
-  const targetList = useId();
-  /** A typed target: someone known by that name, else the name as written (custom entry). */
-  const aim = (index: number, typed: string) => {
-    const known = [...present, ...remote].find((one) => one.name.toLowerCase() === typed.trim().toLowerCase());
-    change(index, known === undefined ? { targetId: null, targetName: typed } : { targetId: known.id, targetName: '' });
-  };
+
   const add = (kind: 'say' | 'do' | 'ooc') =>
     setQueue((now) => [
       ...now,
@@ -168,18 +164,6 @@ export function LineQueue({
 
   return (
     <div className='grid gap-2'>
-      <datalist id={`${targetList}-present`}>
-        {present.map((one) => (
-          <option key={one.id} value={one.name} />
-        ))}
-      </datalist>
-      <datalist id={`${targetList}-remote`}>
-        {remote.map((one) => (
-          <option key={one.id} value={one.name}>
-            {one.via}
-          </option>
-        ))}
-      </datalist>
       {queue.length > 0 && (
         <ol aria-label='Queued lines' className='grid gap-2'>
           {queue.map((line, index) => (
@@ -220,26 +204,30 @@ export function LineQueue({
                   </select>
                 )}
                 {line.kind === 'do' && line.speakerId !== null && (
-                  <input
-                    aria-label='At whom'
-                    list={`${targetList}-present`}
-                    placeholder='at no one'
-                    className='h-9 min-w-36 flex-1 rounded-md border bg-background px-2'
-                    value={line.targetId != null ? (names.get(line.targetId) ?? '') : (line.targetName ?? '')}
-                    onChange={(event) => aim(index, event.target.value)}
+                  <TargetPicker
+                    label='At whom'
+                    prefix='at'
+                    none='no one'
+                    options={present.filter((one) => one.id !== line.speakerId)}
+                    value={{ id: line.targetId ?? null, name: line.targetName ?? '' }}
+                    onChange={(next) => change(index, { targetId: next.id, targetName: next.name })}
                   />
                 )}
                 {line.kind === 'say' &&
                   line.speakerId !== null &&
                   manners.find((one) => one.id === (line.manner ?? 'speak'))?.reaches !== 'broadcast' && (
-                    <input
-                      aria-label='To whom'
+                    <TargetPicker
+                      label='To whom'
+                      prefix='to'
+                      none='everyone'
                       // Those present for a voice that carries in the room; those it reaches for one that doesn't.
-                      list={`${targetList}-${manners.find((one) => one.id === (line.manner ?? 'speak'))?.reaches === 'remote' ? 'remote' : 'present'}`}
-                      placeholder='to everyone'
-                      className='h-9 min-w-36 flex-1 rounded-md border bg-background px-2'
-                      value={line.targetId !== null ? (names.get(line.targetId) ?? '') : (line.targetName ?? '')}
-                      onChange={(event) => aim(index, event.target.value)}
+                      options={
+                        manners.find((one) => one.id === (line.manner ?? 'speak'))?.reaches === 'remote'
+                          ? remote
+                          : present.filter((one) => one.id !== line.speakerId)
+                      }
+                      value={{ id: line.targetId, name: line.targetName ?? '' }}
+                      onChange={(next) => change(index, { targetId: next.id, targetName: next.name })}
                     />
                   )}
                 <span className='ml-auto flex gap-1'>
