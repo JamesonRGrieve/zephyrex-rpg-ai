@@ -164,6 +164,13 @@ const NARRATOR = 'Narrator';
 const MAX_FACES = 4;
 /** The pending turn is the narrator's (A20), not a character's. */
 const NARRATOR_TURN = 'narrator';
+/**
+ * Schema-constrained turns (docs/DESIGN.md, Structured lines). Off for now (the hand-piloted run,
+ * 2026-11-22): on prod the narrator echoed the person's line and a turn hit the proxy's 504 before its
+ * first byte. The text path and its splitter run meanwhile; on again once the server streams items
+ * as they decode.
+ */
+const STRUCTURED_TURNS = false;
 /** The app bar's slot is there from the first render: nothing to listen for. */
 const noSubscription = () => () => undefined;
 const YOU = 'You';
@@ -421,7 +428,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setPicked(null);
     if (speakerId === null) return null;
     setWritingAfter({ parentId, speakerId });
-    const result = await storyWrite({ chat_id: chat.id, leaf_id: parentId, speaker_id: speakerId, structured: true });
+    const result = await storyWrite({
+      chat_id: chat.id,
+      leaf_id: parentId,
+      speaker_id: speakerId,
+      structured: STRUCTURED_TURNS,
+    });
     setWritingAfter(null);
     if (result?.saved !== undefined) return takeSaved(result);
     if (result === null || result.text.trim() === '') return null;
@@ -1030,7 +1042,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       leaf_id: parentId,
       speaker_id: null,
       mode: 'narrate',
-      structured: true,
+      structured: STRUCTURED_TURNS,
     });
     setWritingAfter(null);
     if (result?.saved !== undefined) return takeSaved(result);
@@ -1961,7 +1973,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             )
           }
           writing={writing}
-          disabled={list.data === undefined}
+          // Not before the seat's character is known: a line would be saved as "You" (the run's first line).
+          disabled={list.data === undefined || (play.isCampaign && play.playingId !== null && !castById.has(play.playingId))}
           onSend={(text, channel, images) => void send(text, channel, images)}
           onStop={reply.stop}
           onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
