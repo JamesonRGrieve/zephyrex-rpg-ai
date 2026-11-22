@@ -687,6 +687,50 @@ def background_place(entities: Sequence[Mapping[str, Any]], history: Sequence[Ma
     return str((location or {}).get("summary") or "").strip() or scenario.strip()
 
 
+#: A stream's first answer from the model, waited for before the response opens (errors keep their status).
+FIRST_ANSWER_SECONDS = 5.0
+#: How often a waiting stream says it's alive: an SSE comment, which the client's reader passes over.
+HEARTBEAT_SECONDS = 10.0
+HEARTBEAT = ": keepalive\n\n"
+
+
+async def heartbeat_wait(task: Any, interval: float) -> AsyncIterator[Any]:
+    """None every ``interval`` until ``task`` is done, then its result (its error raised)."""
+    while True:
+        done, _pending = await asyncio.wait({task}, timeout=interval)
+        if done:
+            yield task.result()
+            return
+        yield None
+
+
+async def heartbeat_lines(upstream: Any, interval: float) -> AsyncIterator[str | None]:
+    """The model's stream line by line, None for each ``interval`` that brings none (a heartbeat's turn)."""
+    lines = upstream.aiter_lines().__aiter__()
+    while True:
+        task = asyncio.ensure_future(lines.__anext__())
+        while True:
+            done, _pending = await asyncio.wait({task}, timeout=interval)
+            if done:
+                break
+            yield None
+        try:
+            line = task.result()
+        except StopAsyncIteration:
+            return
+        yield line
+
+
+def structured_retry(body: Mapping[str, Any], seat_name: str) -> dict[str, Any]:
+    """A structured request asked once more after an answer with nothing to keep: its retry note just
+    before the person's last line."""
+    note = {"role": "system", "content": str(STRUCTURED["retry"]).replace("{{seat_name}}", seat_name or "the player")}
+    messages = list(body.get("messages") or [])
+    last = max((index for index, message in enumerate(messages) if message.get("role") == "user"), default=-1)
+    messages = [*messages, note] if last == -1 else [*messages[:last], note, *messages[last:]]
+    return {**body, "messages": messages}
+
+
 #: The modes asked as structured turns (Structured.py): the narrator's, and a character's own turn.
 STRUCTURED_MODES = ("narrate", "reply")
 
@@ -3913,6 +3957,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         items: ItemStream,
         people: list[dict[str, str]],
         seat_name: str,
+        latest: str = "",
+        outcome: dict[str, bool] | None = None,
     ) -> AsyncIterator[str]:
         """A structured turn saved, one message per speaker run: someone unnamed becomes a person of the
         campaign first (ensure_person; the operator, 2026-11-21), then the person and saved frames."""
@@ -3924,7 +3970,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
         ]
         within = partial_items(items.text)[: int(VOICE_GUARD["runaway"]["max_items"])]
-        result = structured_runs(fresh_items(within, earlier), people, seat_name)
+        result = structured_runs(fresh_items(within, earlier), people, seat_name, latest)
         if asked.mode != "narrate":
             # A voice writes for itself alone (the operator: no character writes for the others).
             result = {**result, "runs": [run for run in result["runs"] if run["speaker_id"] == context["speaker_id"]]}
@@ -3978,6 +4024,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     "text": text,
                 }
             )
+        if outcome is not None:
+            outcome["saved"] = True
         yield frame("saved", {"messages": saved})
 
     @custom_route(
@@ -4032,24 +4080,32 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         if structured:
             request = {**request, "json": structured_request(request["json"], _context)}
         client = httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS)
-        try:
-            upstream = await client.send(
-                client.build_request("POST", request["url"], headers=request["headers"], json=request["json"]),
-                stream=True,
+
+        def asked(body_json: dict[str, Any]) -> Any:
+            return client.send(
+                client.build_request("POST", request["url"], headers=request["headers"], json=body_json), stream=True
             )
-        except httpx.HTTPError as error:
-            await client.aclose()
-            raise HTTPException(
-                status_code=502,
-                detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"},
-            ) from error
-        if upstream.status_code >= 400:
-            await upstream.aclose()
-            await client.aclose()
-            raise HTTPException(
-                status_code=502,
-                detail={"message": f"The model endpoint answered {upstream.status_code}", "code": "model_refused"},
-            )
+
+        # A model that answers (or refuses) at once is read as before; one still loading gets a stream of
+        # heartbeats until it answers, so no proxy times out on a silent wait (build33's 504).
+        pending = asyncio.ensure_future(asked(request["json"]))
+        await asyncio.wait({pending}, timeout=FIRST_ANSWER_SECONDS)
+        if pending.done():
+            try:
+                first = pending.result()
+            except httpx.HTTPError as error:
+                await client.aclose()
+                raise HTTPException(
+                    status_code=502,
+                    detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"},
+                ) from error
+            if first.status_code >= 400:
+                await first.aclose()
+                await client.aclose()
+                raise HTTPException(
+                    status_code=502,
+                    detail={"message": f"The model endpoint answered {first.status_code}", "code": "model_refused"},
+                )
 
         seat_name = (
             str(_context["persona"]["name"])
@@ -4057,78 +4113,134 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             else ""
         )
         people = [{"id": str(one["id"]), "name": str(one["name"])} for one in _context["cast"]]
-        items = ItemStream(people, seat_name) if structured else None
-        told = ""
-        stopped = False
-        ended = 0
+        story_channels = set(PROMPT["story_channels"])
+        # The person's latest line: a structured beat that only echoes it is no answer (Structured.py).
+        latest = next(
+            (
+                str(turn["content"])
+                for turn in reversed(_context["history"])
+                if turn["role"] == "user" and turn["channel"] in story_channels
+            ),
+            "",
+        )
 
-        def prose(delta: str) -> list[str]:
-            """A piece of prose as a delta, stopped at the blank line after the runaway paragraph limit
-            (VoiceGuard.py paragraph_cut): a structural stop, never mid-sentence."""
-            nonlocal told, stopped
-            combined = told + delta
-            cut = paragraph_cut(combined)
-            piece = delta if cut < 0 else combined[len(told) : max(cut, len(told))]
-            stopped = cut >= 0
-            told += piece
-            return [frame("delta", {"text": piece})] if piece else []
+        async def answer(upstream: Any, items: ItemStream | None) -> AsyncIterator[str]:
+            """One pass over the model's stream: deltas or item events, heartbeats in any pause, stopped
+            at the seat's item or a runaway."""
+            told = ""
+            stopped = False
+            ended = 0
 
-        def shown(delta: str) -> list[str]:
-            """The frames for one piece of the answer: item events, or a delta where it isn't structured."""
-            nonlocal stopped, ended
-            if items is None:
-                return prose(delta)
-            was = items.mode
-            events = items.feed(delta)
-            if items.mode == "text":
-                # Prose after all: everything so far goes as deltas, the client's text path.
-                return prose(items.text if was == "unknown" else delta)
-            ended += sum(1 for event in events if event["type"] == "item_end")
-            stopped = ended >= int(VOICE_GUARD["runaway"]["max_items"])
-            # An item's start is flat, as the client reads it (replyStream.ts): {index, kind, speaker, …}.
-            return [
-                frame(
-                    event["type"],
-                    event["item"]
-                    if event["type"] == "item_start"
-                    else {key: value for key, value in event.items() if key != "type"},
-                )
-                for event in events
-            ]
+            def prose(delta: str) -> list[str]:
+                """A piece of prose as a delta, stopped at the blank line after the runaway paragraph limit
+                (VoiceGuard.py paragraph_cut): a structural stop, never mid-sentence."""
+                nonlocal told, stopped
+                combined = told + delta
+                cut = paragraph_cut(combined)
+                piece = delta if cut < 0 else combined[len(told) : max(cut, len(told))]
+                stopped = cut >= 0
+                told += piece
+                return [frame("delta", {"text": piece})] if piece else []
+
+            def shown(delta: str) -> list[str]:
+                """The frames for one piece of the answer: item events, or a delta where it isn't structured."""
+                nonlocal stopped, ended
+                if items is None:
+                    return prose(delta)
+                was = items.mode
+                events = items.feed(delta)
+                if items.mode == "text":
+                    # Prose after all: everything so far goes as deltas, the client's text path.
+                    return prose(items.text if was == "unknown" else delta)
+                ended += sum(1 for event in events if event["type"] == "item_end")
+                stopped = ended >= int(VOICE_GUARD["runaway"]["max_items"])
+                # An item's start is flat, as the client reads it (replyStream.ts): {index, kind, speaker, …}.
+                return [
+                    frame(
+                        event["type"],
+                        event["item"]
+                        if event["type"] == "item_start"
+                        else {key: value for key, value in event.items() if key != "type"},
+                    )
+                    for event in events
+                ]
+
+            joiner = ReasoningJoiner()
+            async for line in heartbeat_lines(upstream, HEARTBEAT_SECONDS):
+                if line is None:
+                    yield HEARTBEAT
+                    continue
+                if not line.startswith("data:"):
+                    continue
+                payload = as_openai_payload(_context["endpoint"].api, line[len("data:") :])
+                if payload is None:
+                    continue
+                if payload.strip() == "[DONE]":
+                    break
+                delta = joiner.take(payload)
+                if delta is not None:
+                    for piece in shown(delta):
+                        yield piece
+                if (items is not None and items.cut) or stopped:
+                    # The seat's turn, or a runaway: nothing after it is kept.
+                    break
+            closing = joiner.end()
+            if closing is not None and not stopped:
+                for piece in shown(closing):
+                    yield piece
 
         async def events() -> AsyncIterator[str]:
             # The reply begins with its prefill, so what's kept is the whole reply.
             if assembled.prefill:
                 yield frame("delta", {"text": assembled.prefill})
-            joiner = ReasoningJoiner()
+            upstream: Any = None
             try:
-                async for line in upstream.aiter_lines():
-                    if not line.startswith("data:"):
-                        continue
-                    payload = as_openai_payload(_context["endpoint"].api, line[len("data:") :])
-                    if payload is None:
-                        continue
-                    if payload.strip() == "[DONE]":
-                        break
-                    delta = joiner.take(payload)
-                    if delta is not None:
-                        for piece in shown(delta):
-                            yield piece
-                    if (items is not None and items.cut) or stopped:
-                        # The seat's turn, or a runaway: nothing after it is kept.
-                        break
-                closing = joiner.end()
-                if closing is not None and not stopped:
-                    for piece in shown(closing):
-                        yield piece
+                if not pending.done():
+                    yield HEARTBEAT
+                async for got in heartbeat_wait(pending, HEARTBEAT_SECONDS):
+                    if got is None:
+                        yield HEARTBEAT
+                    else:
+                        upstream = got
+                if upstream.status_code >= 400:
+                    yield frame("error", {"detail": f"The model endpoint answered {upstream.status_code}"})
+                    return
+                items = ItemStream(people, seat_name) if structured else None
+                async for piece in answer(upstream, items):
+                    yield piece
                 if items is not None and items.mode == "json":
-                    async for piece in self._save_structured(body.generate, _context, items, people, seat_name):
+                    outcome = {"saved": False}
+                    async for piece in self._save_structured(
+                        body.generate, _context, items, people, seat_name, latest, outcome
+                    ):
                         yield piece
+                    if not outcome["saved"]:
+                        # Nothing kept (an echo of the person's line, or the seat acted): asked once more.
+                        await upstream.aclose()
+                        upstream = None
+                        again = asyncio.ensure_future(asked(structured_retry(request["json"], seat_name)))
+                        async for got in heartbeat_wait(again, HEARTBEAT_SECONDS):
+                            if got is None:
+                                yield HEARTBEAT
+                            else:
+                                upstream = got
+                        if upstream.status_code < 400:
+                            retried = ItemStream(people, seat_name)
+                            async for piece in answer(upstream, retried):
+                                yield piece
+                            if retried.mode == "json":
+                                async for piece in self._save_structured(
+                                    body.generate, _context, retried, people, seat_name, latest, outcome
+                                ):
+                                    yield piece
                 yield frame("done", {"dropped": assembled.dropped})
             except httpx.HTTPError:
                 yield frame("error", {"detail": "The model stopped mid-reply"})
             finally:
-                await upstream.aclose()
+                if not pending.done():
+                    pending.cancel()
+                if upstream is not None:
+                    await upstream.aclose()
                 await client.aclose()
 
         return event_stream(events())

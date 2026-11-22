@@ -50,3 +50,9 @@ def test_the_runs() -> None:
 def test_a_retold_item_is_dropped() -> None:
     whole = CASES["partial_cases"][1]["items"]
     assert fresh_items(whole, CASES["fresh_case"]["earlier"]) == [whole[index] for index in CASES["fresh_case"]["kept"]]
+
+
+@pytest.mark.parametrize("case", CASES["guard_cases"], ids=[case["name"] for case in CASES["guard_cases"]])
+def test_echoes_and_the_seat_are_kept_out(case: dict[str, Any]) -> None:
+    result = structured_runs(case["items"], CASES["people"], CASES["seat"], case["latest"])
+    assert result == {"runs": case["runs"], "cut": case["cut"]}

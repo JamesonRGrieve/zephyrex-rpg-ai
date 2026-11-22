@@ -8,7 +8,7 @@
  * as a stranger, so the caller regenerates once with the span forbidden. Pure, and held to
  * contract/voice-guard-cases.json with ai_chat/VoiceGuard.py.
  */
-import { PLAYER_LINES, PROMPT, VOICE_GUARD } from '~/contract';
+import { PLAYER_LINES, PROMPT, STRUCTURED, VOICE_GUARD } from '~/contract';
 import { lineSpeaker } from './playerLines';
 
 /** The seat, among the people a line may open with. */
@@ -358,4 +358,15 @@ export function paragraphCut(text: string): number {
     if (count >= VOICE_GUARD.runaway.paragraphs && gap.index + gap[0].length < text.length) return gap.index;
   }
   return -1;
+}
+
+/**
+ * Whether a reply's text only echoes the person's latest line (the operator's play-test: "You squats over
+ * the hearth and shits on it" for their own Do): echo_overlap or more of its word trigrams are the line's.
+ */
+export function echoOf(text: string, line: string): boolean {
+  const said = trigrams(text);
+  if (said.size === 0) return false;
+  const theirs = trigrams(line);
+  return [...said].filter((one) => theirs.has(one)).length / said.size >= STRUCTURED.echo_overlap;
 }

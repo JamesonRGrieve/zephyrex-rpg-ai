@@ -334,5 +334,97 @@
       2,
       3
     ]
-  }
+  },
+  "guard_cases": [
+    {
+      "name": "a narration that only echoes the person's own line is dropped (build33's play-test)",
+      "latest": "Fennick Quill squats over the hearth and shits on it.",
+      "items": [
+        {
+          "fields": {
+            "kind": "narrate",
+            "speaker": null,
+            "target": null,
+            "manner": null
+          },
+          "has_text": true,
+          "text": "You squats over the hearth and shits on it.",
+          "closed": true
+        },
+        {
+          "fields": {
+            "kind": "narrate",
+            "speaker": null,
+            "target": null,
+            "manner": null
+          },
+          "has_text": true,
+          "text": "The tavern falls dead silent.",
+          "closed": true
+        }
+      ],
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "speaker_id": null,
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "The tavern falls dead silent."
+            }
+          ]
+        }
+      ],
+      "cut": false
+    },
+    {
+      "name": "narration that would act for the seat ends there, and the turn with it",
+      "latest": "",
+      "items": [
+        {
+          "fields": {
+            "kind": "narrate",
+            "speaker": null,
+            "target": null,
+            "manner": null
+          },
+          "has_text": true,
+          "text": "The hatch hisses. You step forward, knife drawn.",
+          "closed": true
+        },
+        {
+          "fields": {
+            "kind": "say",
+            "speaker": "Maelis",
+            "target": null,
+            "manner": "speak"
+          },
+          "has_text": true,
+          "text": "Stop!",
+          "closed": true
+        }
+      ],
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "speaker_id": null,
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "The hatch hisses."
+            }
+          ]
+        }
+      ],
+      "cut": true
+    }
+  ]
 }

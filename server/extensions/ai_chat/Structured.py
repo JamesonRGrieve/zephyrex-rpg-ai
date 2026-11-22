@@ -13,7 +13,7 @@ from typing import Any
 
 from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.PlayerLines import format_player_lines  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.VoiceGuard import replay_of  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.VoiceGuard import echo_of, replay_of, seat_cut  # type: ignore[import-not-found]
 
 STRUCTURED: dict[str, Any] = CONTRACT["structured"]
 _MANNERS: list[str] = list(CONTRACT["player_lines"]["manners"])
@@ -209,7 +209,7 @@ class ItemStream:
 
 
 def structured_runs(
-    items: Sequence[Mapping[str, Any]], people: Sequence[Mapping[str, Any]], seat_name: str
+    items: Sequence[Mapping[str, Any]], people: Sequence[Mapping[str, Any]], seat_name: str, latest: str = ""
 ) -> dict[str, Any]:
     """The finished items as messages, one per run of the same speaker, cut at the seat's first item."""
     runs: list[dict[str, Any]] = []
@@ -217,11 +217,16 @@ def structured_runs(
         kind = item["fields"].get("kind")
         if not item["closed"] or kind not in STRUCTURED["kinds"]:
             continue
-        text = str(item["text"]).strip()
-        if not text:
+        whole = str(item["text"]).strip()
+        # A beat that only echoes the person's own latest line is no answer to it.
+        if not whole or (kind != "say" and latest and echo_of(whole, latest)):
             continue
         said = None if kind == "narrate" else (str(item["fields"].get("speaker") or "").strip() or None)
         if said is not None and seat_name and _same(said, seat_name):
+            return {"runs": runs, "cut": True}
+        # Narration keeps what happens to the seat and ends at what it would have them do (seat_cut).
+        text = seat_cut(whole, seat_name).strip() if said is None and seat_name else whole
+        if not text:
             return {"runs": runs, "cut": True}
         person = next((one for one in people if _same(str(one["name"]), said)), None) if said is not None else None
         speaker_id = str(person["id"]) if person is not None else None
@@ -241,6 +246,8 @@ def structured_runs(
             runs[-1]["lines"].append(line)
         else:
             runs.append({"speaker_id": speaker_id, "speaker_name": speaker_name, "lines": [line]})
+        if text != whole:
+            return {"runs": runs, "cut": True}
     return {"runs": runs, "cut": False}
 
 

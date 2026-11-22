@@ -10,7 +10,7 @@
  */
 import { PLAYER_LINES, STRUCTURED } from '~/contract';
 import { type Manner, type PlayerLine, formatPlayerLines } from './playerLines';
-import { replayOf } from './voiceGuard';
+import { echoOf, replayOf, seatCut } from './voiceGuard';
 
 export type ItemKind = (typeof STRUCTURED.kinds)[number];
 
@@ -232,15 +232,21 @@ export function structuredRuns(
   items: readonly PartialItem[],
   people: readonly { id: string; name: string }[],
   seatName: string,
+  latest = '',
 ): { runs: Run[]; cut: boolean } {
   const runs: Run[] = [];
   for (const item of items) {
     const kind = item.fields.kind;
     if (!item.closed || !(STRUCTURED.kinds as readonly string[]).includes(kind ?? '')) continue;
-    const text = item.text.trim();
-    if (text === '') continue;
+    const whole = item.text.trim();
+    // A beat that only echoes the person's own latest line is no answer to it (the operator's play-test).
+    if (whole === '' || (kind !== 'say' && latest !== '' && echoOf(whole, latest))) continue;
     const said = kind === 'narrate' ? null : (item.fields.speaker ?? '').trim() || null;
     if (said !== null && seatName !== '' && same(said, seatName)) return { runs, cut: true };
+    // Narration keeps what happens to the seat and ends at what it would have them do (seatCut).
+    const text = said === null && seatName !== '' ? seatCut(whole, seatName).trim() : whole;
+    const seatCutHere = text !== whole;
+    if (text === '') return { runs, cut: true };
     const person = said === null ? undefined : people.find((one) => same(one.name, said));
     const speakerId = person?.id ?? null;
     const speakerName = said !== null && person === undefined ? said : null;
@@ -263,6 +269,7 @@ export function structuredRuns(
     const last = runs.at(-1);
     if (last !== undefined && last.speaker_id === speakerId && last.speaker_name === speakerName) last.lines.push(line);
     else runs.push({ speaker_id: speakerId, speaker_name: speakerName, lines: [line] });
+    if (seatCutHere) return { runs, cut: true };
   }
   return { runs, cut: false };
 }

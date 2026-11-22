@@ -31,4 +31,7 @@ describe('the structured cases both twins run', () => {
     const whole = cases.partial_cases[1]?.items as PartialItem[];
     expect(freshItems(whole, cases.fresh_case.earlier)).toEqual(cases.fresh_case.kept.map((index) => whole[index]));
   });
+  it.each(cases.guard_cases)('$name', ({ latest, items, runs, cut }) => {
+    expect(structuredRuns(items as PartialItem[], cases.people, cases.seat, latest)).toEqual({ runs, cut });
+  });
 });

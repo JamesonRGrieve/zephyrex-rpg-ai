@@ -8,6 +8,7 @@ OpenAI-compatible endpoint that never sees the table talk."""
 
 import json
 import threading
+import time
 from collections.abc import Iterator
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
@@ -112,8 +113,15 @@ class FakeModel(BaseHTTPRequestHandler):
             self.wfile.write(body)
             return
         if RECEIVED[-1]["body"].get("response_format"):
-            # A schema-constrained turn (Structured.py): JSON items, streamed in pieces.
-            answer = json.dumps(STRUCTURED_ANSWER)
+            # A schema-constrained turn (Structured.py): JSON items, streamed in pieces. A line marked
+            # ECHO: is first echoed back (no answer to it), SLOW: makes the model wait before answering.
+            sent = RECEIVED[-1]["body"]["messages"]
+            last = next((message["content"] for message in reversed(sent) if message["role"] == "user"), "")
+            retried = any(str(message["content"]).startswith("Your last answer only repeated") for message in sent)
+            if "SLOW:" in last:
+                time.sleep(0.4)
+            echoed = {"items": [{"kind": "narrate", "speaker": None, "target": None, "manner": None, "text": last.split("ECHO: ", 1)[-1]}]}
+            answer = json.dumps(echoed if "ECHO:" in last and not retried else STRUCTURED_ANSWER)
             self.send_response(200)
             self.send_header("Content-Type", "text/event-stream")
             self.end_headers()
@@ -795,6 +803,49 @@ class TestGenerate:
         ).json()["prompt"]
         # No campaign frame row (a vault scenario): the wiki campaign's own framing is the frame.
         assert "Premise: A rain-soaked river town." in prompt["messages"][0]["content"]
+
+    def test_a_structured_echo_of_the_persons_line_is_asked_again(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        said = "ECHO: I squat over the hearth and spit on it."
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=[said]).json()["chat_message"]
+        RECEIVED.clear()
+        answer = server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "narrate", "structured": True}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        # The echo is no answer (build33's play-test): nothing of it is saved, and the turn is asked once more.
+        assert len(RECEIVED) == 2
+        assert any(str(message["content"]).startswith("Your last answer only repeated") for message in RECEIVED[1]["body"]["messages"])
+        frames = [block for block in answer.text.split("\n\n") if block.strip()]
+        saved = [json.loads(block.split("data: ", 1)[1])["messages"] for block in frames if block.startswith("event: saved")]
+        assert len(saved) == 1 and saved[0][0]["text"] == "The bar goes quiet."
+
+    def test_a_model_still_loading_gets_heartbeats_not_silence(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        from zephyrex.extensions.ai_chat import BLL_AI_Chat  # type: ignore[import-not-found]
+
+        monkeypatch.setattr(BLL_AI_Chat, "FIRST_ANSWER_SECONDS", 0.05)
+        monkeypatch.setattr(BLL_AI_Chat, "HEARTBEAT_SECONDS", 0.1)
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["SLOW: Hello?"]).json()["chat_message"]
+        answer = server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "narrate", "structured": True}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        # build33's 504: a proxy saw no byte while the model loaded. The stream opens with heartbeats.
+        assert answer.text.startswith(": keepalive\n\n")
+        assert "event: saved" in answer.text and "event: done" in answer.text
 
     def test_each_role_goes_to_the_model_serving_it(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

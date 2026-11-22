@@ -338,3 +338,12 @@ def paragraph_cut(text: str) -> int:
         if count >= int(VOICE_GUARD["runaway"]["paragraphs"]) and gap.end() < len(text):
             return gap.start()
     return -1
+
+
+def echo_of(text: str, line: str) -> bool:
+    """Whether a reply's text only echoes the person's latest line: echo_overlap or more of its word
+    trigrams are the line's."""
+    said = _trigrams(text)
+    if not said:
+        return False
+    return len(said & _trigrams(line)) / len(said) >= float(CONTRACT["structured"]["echo_overlap"])
