@@ -134,6 +134,8 @@ model ChatMessage {
   hidden             Boolean  @default(false)
   /// A line written again: {original, reason, kind} as JSON text, null for a line written once.
   revision           String?
+  /// Each line labelled by the decision model (label_lines): JSON text, null until labelled.
+  lineLabels         String?
   createdAt          DateTime @default(now())
   updatedAt          DateTime
   updatedById        String?

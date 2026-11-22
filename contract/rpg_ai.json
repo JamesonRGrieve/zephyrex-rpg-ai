@@ -930,6 +930,19 @@
     "$comment": "A story line the client wrote again (the operator, 2026-11-22: \"a small icon beside the final output that will open the original response and reasoning for regeneration in the drawer\"): chat_message.revision, {original, reason, kind}, kept with the line so it survives a reload; null for a line written once.",
     "kinds": ["canon", "voice", "meta"]
   },
+  "action_kinds": ["relieve", "drink", "eat", "sleep", "fire", "heal", "pray", "spell", "psychic", "shoot", "attack", "defend", "throw", "hack", "repair", "unlock", "open", "steal", "pay", "give", "write", "read", "music", "laugh", "cry", "love", "threaten", "social", "listen", "look", "search", "stealth", "swim", "climb", "ride", "sit", "dress", "move", "use", "other"],
+  "line_labels": {
+    "$comment": "Each line of a saved story message labelled by the decision model (the operator, 2026-11-22: \"Actions still not always marked properly... A second tankard follows the first should be a throw action\"): one decide call per message, per line its kind (say, do, narrate, or drop for a stray aside), its actor (someone present, or the narrator), whom it is aimed at, and its icon (one of action_kinds). chat_message.line_labels. features/chat/lineLabels.ts, ai_chat/LineLabels.py, contract/line-labels-cases.json.",
+    "kinds": ["say", "do", "narrate", "drop"],
+    "narrator": "the narrator",
+    "no_one": "no one",
+    "none": "none",
+    "max_lines": 12,
+    "kind_question": "Line {{n}} (\"{{line}}\"): is it someone's words (say), someone's deliberate action (do), the narrator's description (narrate), or an aside outside the story to drop (drop)?",
+    "actor_question": "Line {{n}} (\"{{line}}\"): who says or does it? Read the lines before: an action that continues one (\"a second tankard follows the first\") is the same person's.",
+    "target_question": "Line {{n}} (\"{{line}}\"): at whom is it said or done, if anyone present?",
+    "icon_question": "Line {{n}} (\"{{line}}\"): which kind of action is it, if it is one?"
+  },
   "speech_options": {
     "$comment": "How a speaker may speak and to whom (the operator, 2026-11-22: \"The additional speech modes should be setting dependent (vox / vox caster in 40k only if one is in possession and message etc in DnD only if spell is known)\"). Always speak, whisper and shout to those present; a system's further manners only when the speaker's sheet (the VTT's character_sheet: gear, abilities) holds what each needs, matched by name. Nothing on the sheet, no manner. remote: who each such manner reaches (carriers: known people carrying the item too; nearby: the same place or one beside it; known: anyone known). features/chat/speechManners.ts, ai_chat/SpeechOptions.py, contract/speech-options-cases.json.",
     "base": [{"id": "speak", "label": "says"}, {"id": "whisper", "label": "whispers"}, {"id": "shout", "label": "shouts"}],

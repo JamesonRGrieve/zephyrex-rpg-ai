@@ -1182,6 +1182,29 @@ class TestGenerate:
         )
         assert refused.status_code == 422, refused.text
 
+    def test_a_saved_lines_labels_come_back_one_per_line(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-22: "A second tankard follows the first should be a throw action".
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Tavern", character_ids=[ada["id"]]).json()["chat"]
+        said = "(There is no security.)\n\nA second tankard follows the first."
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="narrator", swipes=[said]).json()["chat_message"]
+        answer = server.post(
+            "/v1/ai_chat/label_lines",
+            json={"label_lines": {"chat_id": chat["id"], "message_id": line["id"]}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        labels = answer.json()["label_lines"]["labels"]
+        # No decision model here: one label a line, the narrator's, and nothing kept on the message.
+        assert [(one["index"], one["kind"], one["text"]) for one in labels] == [
+            (0, "narrate", "(There is no security.)"),
+            (1, "narrate", "A second tankard follows the first."),
+        ]
+        stored = server.get(f"/v1/chat_message/{line['id']}", headers=_headers(user)).json()["chat_message"]
+        assert stored["line_labels"] is None
+
     def test_canon_warnings_can_be_turned_off_for_a_chat(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "a 'permanently dismiss for this campaign' button for radical looney
         # toon campaigns". canon_checks is on by default; off, the canon check answers unchecked.

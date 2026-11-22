@@ -101,6 +101,7 @@ CREATE TABLE "ChatMessage" (
     "xCarded" BOOLEAN NOT NULL DEFAULT false,
     "hidden" BOOLEAN NOT NULL DEFAULT false,
     "revision" TEXT,
+    "lineLabels" TEXT,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" DATETIME NOT NULL,
     "updatedById" TEXT

@@ -133,6 +133,10 @@ export const STRUCTURED = contract.structured;
 export const NPC_AUTHOR = contract.npc_author;
 /** How a speaker may speak and to whom: the base manners and each system's, with what each needs. */
 export const SPEECH_OPTIONS = contract.speech_options;
+/** The action kinds a line's icon names (shared with features/chat/actionKind.ts). */
+export const ACTION_KINDS = contract.action_kinds;
+/** Each story line labelled by the decision model: kinds and the questions' words. */
+export const LINE_LABELS = contract.line_labels;
 /** A story line written again: the kinds of rewrite kept with it. */
 export const REVISION = contract.revision;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */

@@ -43,6 +43,7 @@ import { genMessages } from '~/features/prompt/gen';
 import { clarifyNeed, clarifyQuestions, shouldAsk } from '~/features/chat/clarify';
 import { mapQuestions, movers, seatPlace } from '~/features/world/mapStep';
 import { speechManners } from '~/features/chat/speechManners';
+import { labelQuestions, messageLines, readLabels } from '~/features/chat/lineLabels';
 import { statusMessages } from '~/features/chat/statusLine';
 import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
 import { paragraphCut } from '~/features/chat/voiceGuard';
@@ -1667,6 +1668,71 @@ export function presentPeople(
  * may speak and to whom (features/chat/speechManners.ts). Lite reads no VTT sheet, so it offers the voice
  * alone: speak, whisper and shout to those present.
  */
+/**
+ * `POST /v1/ai_chat/label_lines` (the operator, 2026-11-22: "Actions still not always marked
+ * properly"): each line of a saved story message labelled by the decision model (features/chat/
+ * lineLabels.ts), one call, kept on the message as line_labels. Answer `{ "label_lines": { "labels" } }`.
+ */
+export async function labelLines(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = z
+      .object({ chat_id: z.string().min(1), message_id: z.string().min(1) })
+      .safeParse(Reflect.get(envelope, 'label_lines'));
+    if (!parsed.success)
+      throw validationError('A label_lines object with a chat_id and message_id is required', 'label_lines');
+    const asked = parsed.data;
+    const chat = await chats.find(asked.chat_id, owner.id);
+    if (chat === null) throw notFound(chats.modelName);
+    const message = await prisma.chatMessage.findFirst({
+      where: { id: asked.message_id, chatId: chat.id, createdById: owner.id },
+    });
+    if (message === null) throw notFound('ChatMessageModel');
+    const swipes = JSON.parse(message.swipes) as string[];
+    const lines = messageLines(swipes[message.swipeIndex] ?? '');
+    if (lines.length === 0) return Response.json({ label_lines: { labels: [] } });
+    const fields = chats.fields(chat) as { vox_ids: string[] };
+    const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+    const playingId = play?.playingId ?? null;
+    const { prompt, world } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: message.id, speaker_id: null, mode: 'narrate', endpoint_id: null, forbid: null },
+      Math.random,
+      'reply',
+      wikiReader(nextRequest),
+    );
+    const story = new Set<string>(PROMPT.story_channels);
+    const storyTurns = prompt.history.filter(
+      (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
+    );
+    const previous = storyTurns
+      .slice(0, -1)
+      .slice(-2)
+      .map((turn) => turn.content);
+    const seat = prompt.persona !== null && playingId !== null ? [{ id: playingId, name: prompt.persona.name }] : [];
+    const people: { id: string; name: string }[] = [];
+    for (const one of [...prompt.characters, ...seat, ...presentPeople(world, playingId, storyTurns, fields.vox_ids)])
+      if (!people.some((other) => other.id === one.id)) people.push({ id: one.id, name: one.name });
+    const deciding = await decider(owner.id);
+    let answers: Record<string, { choice?: unknown } | null> | null = null;
+    if (deciding !== null) {
+      const { state, questions } = labelQuestions(lines, previous, people);
+      answers = (await askDecider(deciding, state, questions, nextRequest.signal)) as Record<
+        string,
+        { choice?: unknown } | null
+      > | null;
+    }
+    const labels = readLabels(lines, answers, people);
+    if (answers !== null)
+      // Kept with the line, so a reload shows them without another call.
+      await prisma.chatMessage.update({ where: { id: message.id }, data: { lineLabels: JSON.stringify(labels) } });
+    return Response.json({ label_lines: { labels } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
 export async function speechOptions(nextRequest: NextRequest): Promise<Response> {
   try {
     const owner = localOwner(nextRequest);

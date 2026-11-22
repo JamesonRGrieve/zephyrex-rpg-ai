@@ -48,7 +48,7 @@ import { extraBodyProblem } from '~/features/models/extraBody';
 import { styleProblem, traitsProblem } from '~/features/models/narratorStyle';
 import { groupSettingsProblem } from '~/features/chat/groupSettings';
 import { injectionsProblem } from '~/features/chat/injections';
-import { type Columns, columnsOf, fieldsOf, jsonList, jsonObject, jsonOrNull, plain } from '~/lib/columns';
+import { type Columns, columnsOf, fieldsOf, jsonList, jsonListOrNull, jsonObject, jsonOrNull, plain } from '~/lib/columns';
 import { prisma } from '~/lib/prisma';
 
 const DATA_URL = /^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/]+=*$/;
@@ -512,6 +512,7 @@ const MESSAGE_COLUMNS: Columns = {
   x_carded: plain('xCarded'),
   hidden: plain('hidden'),
   revision: jsonOrNull('revision'),
+  line_labels: jsonListOrNull('lineLabels'),
 };
 
 /** A line written again (contract revision): its first answer, why, and how. */

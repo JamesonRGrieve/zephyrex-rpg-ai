@@ -1,0 +1,163 @@
+{
+  "$comment": "Each story line labelled by the decision model: cases both twins run (client/src/features/chat/lineLabels.test.ts, server/extensions/ai_chat/LineLabels_test.py). The operator's tankard message, 06:33Z.",
+  "people": [
+    {
+      "id": "bra",
+      "name": "Brakka Ironmantle"
+    },
+    {
+      "id": "fen",
+      "name": "Fennick Quill"
+    }
+  ],
+  "split_cases": [
+    {
+      "name": "each non-blank line, the whole message",
+      "text": "(There is no security.)\n\nA second tankard follows the first.",
+      "lines": [
+        "(There is no security.)",
+        "A second tankard follows the first."
+      ]
+    }
+  ],
+  "question_case": {
+    "name": "four questions a line (kind, actor, target, icon), and the two lines before as state",
+    "lines": [
+      "(There is no security.)",
+      "A second tankard follows the first."
+    ],
+    "previous": [
+      "Brakka hurls her tankard at the half-orc."
+    ],
+    "keys": [
+      "kind_0",
+      "actor_0",
+      "target_0",
+      "icon_0",
+      "kind_1",
+      "actor_1",
+      "target_1",
+      "icon_1"
+    ],
+    "state": "Before: Brakka hurls her tankard at the half-orc.\nLine 1: (There is no security.)\nLine 2: A second tankard follows the first."
+  },
+  "read_cases": [
+    {
+      "name": "the second tankard is Brakka's throw; the aside is dropped",
+      "lines": [
+        "(There is no security.)",
+        "A second tankard follows the first."
+      ],
+      "answers": {
+        "kind_0": {
+          "choice": "drop"
+        },
+        "actor_0": {
+          "choice": "the narrator"
+        },
+        "target_0": {
+          "choice": "no one"
+        },
+        "icon_0": {
+          "choice": "none"
+        },
+        "kind_1": {
+          "choice": "do"
+        },
+        "actor_1": {
+          "choice": "Brakka Ironmantle"
+        },
+        "target_1": {
+          "choice": "Fennick Quill"
+        },
+        "icon_1": {
+          "choice": "throw"
+        }
+      },
+      "labels": [
+        {
+          "index": 0,
+          "text": "(There is no security.)",
+          "kind": "drop",
+          "actor_id": null,
+          "actor_name": null,
+          "target_name": null,
+          "manner": null,
+          "icon": null
+        },
+        {
+          "index": 1,
+          "text": "A second tankard follows the first.",
+          "kind": "do",
+          "actor_id": "bra",
+          "actor_name": "Brakka Ironmantle",
+          "target_name": "Fennick Quill",
+          "manner": null,
+          "icon": "throw"
+        }
+      ]
+    },
+    {
+      "name": "a shouted line: its manner from its own form",
+      "lines": [
+        "Brakka Ironmantle (to Fennick Quill, shouts): \"Enough!\""
+      ],
+      "answers": {
+        "kind_0": {
+          "choice": "say"
+        },
+        "actor_0": {
+          "choice": "Brakka Ironmantle"
+        },
+        "target_0": {
+          "choice": "Fennick Quill"
+        },
+        "icon_0": {
+          "choice": "none"
+        }
+      },
+      "labels": [
+        {
+          "index": 0,
+          "text": "Brakka Ironmantle (to Fennick Quill, shouts): \"Enough!\"",
+          "kind": "say",
+          "actor_id": "bra",
+          "actor_name": "Brakka Ironmantle",
+          "target_name": "Fennick Quill",
+          "manner": "shout",
+          "icon": null
+        }
+      ]
+    },
+    {
+      "name": "no answer: the narrator's narration, nothing invented",
+      "lines": [
+        "(There is no security.)",
+        "A second tankard follows the first."
+      ],
+      "answers": null,
+      "labels": [
+        {
+          "index": 0,
+          "text": "(There is no security.)",
+          "kind": "narrate",
+          "actor_id": null,
+          "actor_name": null,
+          "target_name": null,
+          "manner": null,
+          "icon": null
+        },
+        {
+          "index": 1,
+          "text": "A second tankard follows the first.",
+          "kind": "narrate",
+          "actor_id": null,
+          "actor_name": null,
+          "target_name": null,
+          "manner": null,
+          "icon": null
+        }
+      ]
+    }
+  ]
+}

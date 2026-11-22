@@ -85,6 +85,11 @@ from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-fo
     instruct_stops,
     render_instruct,
 )
+from zephyrex.extensions.ai_chat.LineLabels import (  # type: ignore[import-not-found]
+    label_questions,
+    message_lines,
+    read_labels,
+)
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.MapStep import map_questions, movers, seat_place  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
@@ -1010,6 +1015,9 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     hidden: bool = Field(False, description="Hidden by the person (/hide): kept on screen, never read by the model")
     revision: dict[str, Any] | None = Field(
         None, description="A line written again: the first answer, why it was rewritten, and how (canon, voice, meta)"
+    )
+    line_labels: list[dict[str, Any]] | None = Field(
+        None, description="Each line labelled by the decision model: kind, actor, target, manner, icon (label_lines)"
     )
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chat messages"
@@ -2051,6 +2059,22 @@ class NpcNeeded(PlainModel):
 
 class NpcNeededEnvelope(PlainModel):
     npc_needed: NpcNeeded
+
+
+class LabelLinesRequest(PlainModel):
+    """Each line of a saved story message labelled by the decision model (the operator, 2026-11-22)."""
+
+    chat_id: str = Field(..., min_length=1)
+    message_id: str = Field(..., min_length=1)
+
+
+class LabelLinesRequestEnvelope(PlainModel):
+    label_lines: LabelLinesRequest
+
+
+class LabelLinesEnvelope(PlainModel):
+    #: {labels: [{index, kind, text, actor_id, actor_name, target_name, manner, icon}]}
+    label_lines: dict[str, Any]
 
 
 class SpeechOptionsRequest(PlainModel):
@@ -4034,6 +4058,70 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if await move_person(self.model_registry, requester, str(move["person_id"]), str(move["to"]), "the story")
         ]
         return answer(moves, None)
+
+    @custom_route(
+        method="POST",
+        path="/label_lines",
+        input_model=LabelLinesRequestEnvelope,
+        output_model=LabelLinesEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Each line of a saved story message labelled by the decision model: kind, actor, target, icon",
+    )
+    async def label_lines_route(self, body: LabelLinesRequestEnvelope) -> LabelLinesEnvelope:
+        asked = body.label_lines
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        messages = self._manager(ChatMessageManager)
+        message = messages.get(id=asked.message_id)
+        if message.chat_id != chat.id:
+            raise HTTPException(
+                status_code=422,
+                detail={"message": "The message must be in the chat", "code": "validation_error"},
+            )
+        swipes = list(message.swipes or [])
+        text = swipes[message.swipe_index] if 0 <= message.swipe_index < len(swipes) else ""
+        lines = message_lines(str(text))
+        if not lines:
+            return LabelLinesEnvelope(label_lines={"labels": []})
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=message.id, mode="narrate"), save_timers=False
+        )
+        story = set(PROMPT["story_channels"])
+        story_turns = [
+            turn
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        previous = [str(turn["content"]) for turn in story_turns[:-1]][-2:]
+        persona = context["persona"]
+        seat = [{"id": playing_id, "name": persona["name"]}] if persona is not None and playing_id is not None else []
+        people: list[dict[str, str]] = []
+        for one in [*context["cast"], *seat, *present_people(chat, playing_id, context["world"], story_turns)]:
+            if all(other["id"] != str(one["id"]) for other in people):
+                people.append({"id": str(one["id"]), "name": str(one["name"])})
+        deciding = self._decider()
+        answers = None
+        if deciding is not None:
+            state, questions = label_questions(lines, previous, people)
+            answers = await ask_decider(
+                deciding.base_url,
+                deciding.model,
+                decrypt_secret(deciding.api_key) if deciding.api_key else "",
+                state,
+                questions,
+                getattr(deciding, "extra_body", None),
+            )
+        labels = read_labels(lines, answers, people)
+        if answers is not None:
+            # Kept with the line, so a reload shows them without another call.
+            messages.update_trusted(message.id, line_labels=labels)
+        return LabelLinesEnvelope(label_lines={"labels": labels})
 
     @custom_route(
         method="POST",

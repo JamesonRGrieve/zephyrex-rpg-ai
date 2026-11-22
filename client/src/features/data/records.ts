@@ -150,6 +150,22 @@ export const messageSchema = z.object({
     .object({ original: z.string(), reason: z.string(), kind: z.enum(['canon', 'voice', 'meta']) })
     .nullable()
     .optional(),
+  /** Each line labelled by the decision model (label_lines); null until labelled. */
+  line_labels: z
+    .array(
+      z.object({
+        index: z.number(),
+        kind: z.enum(['say', 'do', 'narrate', 'drop']),
+        text: z.string(),
+        actor_id: z.string().nullable(),
+        actor_name: z.string().nullable(),
+        target_name: z.string().nullable(),
+        manner: z.string().nullable(),
+        icon: z.string().nullable(),
+      }),
+    )
+    .nullable()
+    .optional(),
 });
 export type ChatMessage = z.infer<typeof messageSchema>;
 
