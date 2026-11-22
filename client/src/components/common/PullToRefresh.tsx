@@ -8,6 +8,7 @@
  */
 import { RotateCw } from 'lucide-react';
 import { type ReactElement, useEffect, useState } from 'react';
+import { APP_BAR_ACTIONS } from './AppPage';
 
 const BAR = 64;
 const PULL = 96;
@@ -17,9 +18,18 @@ export function PullToRefresh(): ReactElement | null {
   useEffect(() => {
     let startY: number | null = null;
     let distance = 0;
+    // A pull that starts on the app bar, wherever the page is scrolled (the operator, 2026-11-22: "STILL
+    // can't pull down on the app bar to refresh": a chat sits scrolled to its newest line, and an
+    // installed app's bar sits below the status bar, so "the top 64 px with the page at its top" never held).
+    const onBar = (touch: Touch, target: EventTarget | null) => {
+      const bar = document.getElementById(APP_BAR_ACTIONS)?.parentElement ?? null;
+      if (bar !== null && target instanceof Node && bar.contains(target)) return true;
+      const box = bar?.getBoundingClientRect();
+      return box !== undefined ? touch.clientY >= box.top && touch.clientY <= box.bottom : touch.clientY <= BAR;
+    };
     const start = (event: TouchEvent) => {
       const touch = event.touches[0];
-      startY = touch !== undefined && touch.clientY <= BAR && window.scrollY <= 0 ? touch.clientY : null;
+      startY = touch !== undefined && onBar(touch, event.target) ? touch.clientY : null;
       distance = 0;
     };
     const move = (event: TouchEvent) => {
