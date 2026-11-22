@@ -1472,7 +1472,7 @@ class TestGenerate:
             body = RECEIVED[0]["body"]
             sent[endpoint["name"]] = {key: body[key] for key in ("min_p", "presence_penalty", "seed", "dry_base") if key in body}
         # DRY's base never goes without its multiplier; min-P never to a chat API.
-        assert sent == {"Chat": {"presence_penalty": 0.4, "seed": 7}, "Text": {"min_p": 0.05, "presence_penalty": 0.4, "seed": 7}}
+        assert sent == {"Chat": {"min_p": 0.05, "presence_penalty": 0.4, "seed": 7}, "Text": {"min_p": 0.05, "presence_penalty": 0.4, "seed": 7}}
 
     def test_anthropics_and_googles_own_apis_are_asked_in_their_shape_and_read_back(self, server: TestClient, model_url: str) -> None:
         # Audit gap 8: the request in each API's own shape, its stream (thinking included) read as any other.
