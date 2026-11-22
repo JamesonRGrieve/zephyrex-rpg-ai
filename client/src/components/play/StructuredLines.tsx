@@ -74,7 +74,8 @@ const MANNER_WORD: Record<string, Manner> = {
   voxcast: 'voxcast',
 };
 // `Name (to X)`, `Name (to X, whispers)`, `Name (vox to X)`, `Name (voxcast)`, then `: "words"`.
-const SAY = /^(.+?) \(([^)]*)\):\s*["“](.*)["”]\s*$/;
+// The words, then anything the speaker does after them on the same line ("She shakes her head.").
+const SAY = /^(.+?) \(([^)]*)\):\s*["“]([^"”]*)["”]\s*(.*)$/;
 
 function readTag(tag: string): { target: string | null; manner: Manner } {
   let manner: Manner = 'speak';
@@ -103,7 +104,7 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
   const known = [...names].filter((name) => name.trim() !== '').sort((a, b) => b.length - a.length);
   const lines = text.split('\n').filter((line) => line.trim() !== '');
   let structured = 0;
-  const shown = lines.map((raw): ShownLine => {
+  const shown = lines.flatMap((raw): ShownLine | ShownLine[] => {
     const line = raw.trim();
     const narrator = /^Narrator:\s*(.*)$/i.exec(line);
     if (narrator !== null) {
@@ -119,7 +120,10 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
         /\b(to|vox|voxcast|whispers|shouts)\b/i.test(say[2] ?? ''))
     ) {
       structured += 1;
-      return { kind: 'say', speaker: (say[1] ?? '').trim(), ...readTag(say[2] ?? ''), text: say[3] ?? '' };
+      const speaker = (say[1] ?? '').trim();
+      const spoken: ShownLine = { kind: 'say', speaker, ...readTag(say[2] ?? ''), text: say[3] ?? '' };
+      const after = (say[4] ?? '').trim();
+      return after === '' ? spoken : [spoken, { kind: 'do', speaker, target: null, text: after }];
     }
     const actor = known.find((name) => line.toLowerCase().startsWith(`${name.toLowerCase()} `));
     if (actor !== undefined) {

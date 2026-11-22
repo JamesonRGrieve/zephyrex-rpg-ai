@@ -20,4 +20,20 @@ describe('readLines', () => {
       { kind: 'say', speaker: 'The Barkeep', target: 'Fennick', manner: 'speak', text: 'Keep it out of the hearth.' },
     ]);
   });
+  it('words, then what the speaker does after them on the same line', () => {
+    expect(
+      readLines('Sister Maelis Varn (to no one in particular): "The dignity of a house…" She shakes her head.', [
+        'Sister Maelis Varn',
+      ]),
+    ).toEqual([
+      {
+        kind: 'say',
+        speaker: 'Sister Maelis Varn',
+        target: 'no one in particular',
+        manner: 'speak',
+        text: 'The dignity of a house…',
+      },
+      { kind: 'do', speaker: 'Sister Maelis Varn', target: null, text: 'She shakes her head.' },
+    ]);
+  });
 });
