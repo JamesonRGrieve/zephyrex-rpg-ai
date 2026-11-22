@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import type { Meta, StoryObj } from '@storybook/nextjs';
-import { expect, within } from 'storybook/test';
+import { expect, userEvent, within } from 'storybook/test';
 import { CanonNotice } from './CanonNotice';
 
 const meta: Meta<typeof CanonNotice> = { title: 'Play/Canon notice', component: CanonNotice };
@@ -17,7 +17,11 @@ export const Red: Story = {
     },
   },
   play: async ({ canvasElement }) => {
-    await expect(within(canvasElement).getByRole('status')).toHaveTextContent('Breaks canon:');
+    const canvas = within(canvasElement);
+    await expect(canvas.getByRole('status')).toHaveTextContent('Breaks canon:');
+    // Outside the app wrapper the details open in place.
+    await userEvent.click(canvas.getByRole('button', { name: 'Details' }));
+    await expect(canvas.getByText(/table information only/)).toBeInTheDocument();
   },
 };
 
