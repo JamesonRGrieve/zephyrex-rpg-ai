@@ -15,7 +15,7 @@ import { notify } from 'zephyrex/hooks/useToast';
 import { useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { type ReactElement, useMemo, useState } from 'react';
+import { type ReactElement, useMemo, useRef, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
@@ -25,7 +25,7 @@ import { PARTY_TAG, personAsCast, useCast } from '~/features/data/cast';
 import useSWR from 'swr';
 import { type OpeningEntity, openingFor } from '~/features/campaign/opening';
 import { openingLine } from '~/features/data/framing';
-import { type Character, chats, messages } from '~/features/data/records';
+import { type Character, type Chat, type ChatMessage, chats, messages } from '~/features/data/records';
 import { cn } from '~/lib/utils';
 import { seatGroups } from './SeatPicker';
 import { initials } from '../characters/CharacterTile';
@@ -395,6 +395,16 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
     }
   };
 
+  /**
+   * What a start already made, so a start that stalls (the operator, 2026-11-22: "When I switch tabs
+   * during campaign generation it seems to freeze on the next step") goes on from there when tried
+   * again, never copying the scenario twice or making a second chat.
+   */
+  const made = useRef<{
+    copy?: { campaign: { id: string }; id_map: Record<string, string> };
+    chat?: Chat;
+    opening?: ChatMessage;
+  }>({});
   const start = async (choice: StartChoice) => {
     const scenario = campaign.data;
     if (scenario === undefined) return;
@@ -404,39 +414,53 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
     try {
       // The playthrough: the scenario's own copy, its cast remapped to the copies.
       const picked = new Set([...(choice.playing === null ? [] : [choice.playing]), ...choice.party]);
-      const copy = await copyScenario(
-        scenario.id,
-        scenario.name,
-        pregenList.filter((one) => picked.has(one.id)).map((one) => one.id),
-      );
+      const copy =
+        made.current.copy ??
+        (await copyScenario(
+          scenario.id,
+          scenario.name,
+          pregenList.filter((one) => picked.has(one.id)).map((one) => one.id),
+        ));
+      made.current.copy = copy;
       const world = { ...scenario, id: copy.campaign.id };
       const { seat, playing, party } = remapChoice(choice, copy.id_map);
       // The campaign's story is one chat: the party (and whoever the person starts as) are its cast.
       const members = playing === null || party.includes(playing) ? party : [...party, playing];
       setStep(1);
       setCreep(0);
-      const chat = await createChat({
-        title: world.name.slice(0, LIMITS.chat_title_characters),
-        character_ids: members.slice(0, LIMITS.characters_per_chat),
-        mode: members.length > 1 ? 'group' : 'character',
-        seat,
-        campaign_id: world.id,
-        folder: world.name.slice(0, LIMITS.name_characters),
-        // The decision model runs the table by default (the operator, 2026-11-21): who speaks next,
-        // the GM interjecting, or a pause for the person.
-        group_settings: { order: 'decide' },
-      });
+      const chat =
+        made.current.chat ??
+        (await stalls(
+          createChat({
+            title: world.name.slice(0, LIMITS.chat_title_characters),
+            character_ids: members.slice(0, LIMITS.characters_per_chat),
+            mode: members.length > 1 ? 'group' : 'character',
+            seat,
+            campaign_id: world.id,
+            folder: world.name.slice(0, LIMITS.name_characters),
+            // The decision model runs the table by default (the operator, 2026-11-21): who speaks next,
+            // the GM interjecting, or a pause for the person.
+            group_settings: { order: 'decide' },
+          }),
+        ));
+      made.current.chat = chat;
       setStep(2);
-      const opening = await createMessage({
-        chat_id: chat.id,
-        parent_id: null,
-        role: 'narrator',
-        channel: 'ic',
-        swipes: [await toldOpening(world.id, playing, openingLine(scenario, notes.data ?? []))],
-      });
+      const opening =
+        made.current.opening ??
+        (await stalls(
+          createMessage({
+            chat_id: chat.id,
+            parent_id: null,
+            role: 'narrator',
+            channel: 'ic',
+            swipes: [await stalls(toldOpening(world.id, playing, openingLine(scenario, notes.data ?? [])))],
+          }),
+        ));
+      made.current.opening = opening;
       setStep(3);
-      await createPlay({ chat_id: chat.id, playing_id: playing });
-      await createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id });
+      await stalls(createPlay({ chat_id: chat.id, playing_id: playing }));
+      await stalls(createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id }));
+      made.current = {};
       // Open the session first, then close the sheet: never a closed sheet onto nothing (the
       // operator, 2026-11-21); the scenarios list reads chats afresh.
       router.push(`/play/${chat.id}`);
@@ -444,7 +468,10 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       onStarted();
     } catch (error) {
       // Never a silent hang (the operator, 2026-11-21: "Start the campaign now hangs"): say why.
-      notify('The campaign was not started', error instanceof Error ? error.message : undefined);
+      notify(
+        'The campaign was not started',
+        `${error instanceof Error ? error.message : ''} Start again to carry on from where it stopped.`.trim(),
+      );
     } finally {
       setStarting(false);
     }
@@ -460,4 +487,20 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       onStart={(choice) => void start(choice)}
     />
   );
+}
+
+/**
+ * A step that hangs (a phone suspends a page in the background and its request may never answer)
+ * fails after a while instead, so Start can be pressed again and carry on.
+ */
+function stalls<T>(work: Promise<T>, seconds = 60): Promise<T> {
+  return Promise.race([
+    work,
+    new Promise<T>((_, reject) =>
+      setTimeout(
+        () => reject(new Error('A step took too long (the page may have been in the background).')),
+        seconds * 1000,
+      ),
+    ),
+  ]);
 }

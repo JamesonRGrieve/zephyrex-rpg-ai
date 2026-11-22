@@ -134,6 +134,7 @@ import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments, plainDashes, replayOf, seatCut } from '~/features/chat/voiceGuard';
 import { aimAt, clarify, ensurePerson, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
+import { type AuthoringStep, authorNpc, npcNeeded } from '~/features/chat/authorNpc';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
@@ -320,6 +321,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   }, [chat.id, chat.variables]);
   // A script asking the person (/input, /buttons), answered through ScriptPrompt.
   const [lastRoll, setLastRoll] = useState<unknown>(null);
+  // An NPC being authored for the story (features/chat/authorNpc.ts), shown as a card in the chat.
+  const [authoring, setAuthoring] = useState<{ name: string; step: AuthoringStep } | null>(null);
   const [asking, setAsking] = useState<{
     prompt: string;
     options: readonly string[] | null;
@@ -1184,6 +1187,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         start.role === 'character' && start.speaker_character_id !== null
           ? decideRoll(chat.id, start.id, start.speaker_character_id)
           : undefined;
+      // A figure the line approaches who isn't a person yet (the barkeeper) is authored first.
+      const npcAsked = play.isCampaign ? npcNeeded(chat.id, start.id) : Promise.resolve(null);
       const question = play.isCampaign ? await clarify(chat.id, start.id) : null;
       if (question !== null) {
         const picked = await new Promise<string | null>((resolve) =>
@@ -1199,6 +1204,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           await update(start, { swipes });
           current = current.map((one) => (one.id === start.id ? { ...one, swipes } : one));
         }
+      }
+      const npc = await npcAsked;
+      if (npc !== null) {
+        setAuthoring({ name: npc.name, step: { label: `Authoring new NPC (${npc.name})`, done: 0, total: 1 } });
+        const made = await authorNpc(chat.id, start.id, npc, (step) => setAuthoring({ name: npc.name, step }));
+        setAuthoring(null);
+        if (made === null) notify(`${npc.name} was not authored`, 'The story goes on without them.');
+        // They join the cast (the server adds them to the chat): read the cast and the chat again.
+        else await globalMutate((key) => JSON.stringify(key ?? '').match(/person|cast|world_entity|chat/) !== null);
       }
       if (!(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
@@ -1890,6 +1904,30 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 );
               })}
             </>
+          )}
+          {authoring !== null && (
+            // The GM authoring an NPC the story needs, before the round goes on.
+            <li>
+              <div role='status' className='grid gap-2 rounded-lg border border-dashed px-3 py-3 text-sm'>
+                <span className='font-medium'>Authoring new NPC ({authoring.name})</span>
+                <div
+                  role='progressbar'
+                  aria-label={`Authoring ${authoring.name}`}
+                  aria-valuemin={0}
+                  aria-valuemax={Math.max(1, authoring.step.total)}
+                  aria-valuenow={authoring.step.done}
+                  className='h-2 overflow-hidden rounded-full bg-muted'
+                >
+                  <div
+                    className='h-full rounded-full bg-primary transition-[width] duration-500'
+                    style={{
+                      width: `${Math.max(8, Math.round((authoring.step.done / Math.max(1, authoring.step.total)) * 100))}%`,
+                    }}
+                  />
+                </div>
+                <span className='text-xs text-muted-foreground'>{authoring.step.label}…</span>
+              </div>
+            </li>
           )}
         </ol>
         <div ref={end} />

@@ -142,7 +142,8 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   await page.getByRole('button', { name: 'Start the campaign' }).click();
   await expect(page).toHaveURL(/\/play\/[\w-]+$/, { timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'Your seat: the GM' })).toBeVisible();
-  await expect(page.getByText('Session 1')).toBeVisible();
+  // The session's name left the header with the app bar (6bc56a4); the composer says the chat is open.
+  await expect(page.getByRole('button', { name: 'Say' })).toBeVisible();
 
   await say(
     page,
