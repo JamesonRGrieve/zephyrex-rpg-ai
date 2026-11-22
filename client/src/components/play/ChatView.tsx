@@ -342,6 +342,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     prompt: string;
     options: readonly string[] | null;
     asker?: string;
+    other?: boolean;
     resolve: (answer: string | null) => void;
   } | null>(null);
 
@@ -1282,10 +1283,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   prompt: question.question,
                   options: question.options.map((one) => one.label),
                   asker: 'The GM',
+                  other: true,
                   resolve,
                 }),
               );
-        const chosen = question.options.find((one) => one.label === picked);
+        // A typed answer (something else: the hearth) is aimed at as written.
+        const chosen =
+          question.options.find((one) => one.label === picked) ??
+          (picked !== null && picked !== '' ? { label: picked } : undefined);
         if (chosen !== undefined) {
           // The pick names the target: each of the person's actions that named none is aimed at it.
           const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
@@ -2107,6 +2112,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             prompt={asking.prompt}
             options={asking.options}
             asker={asking.asker}
+            other={asking.other}
             onAnswer={(answer) => {
               asking.resolve(answer);
               setAsking(null);

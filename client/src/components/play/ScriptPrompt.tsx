@@ -14,6 +14,7 @@ export function ScriptPrompt({
   options,
   onAnswer,
   asker = 'A script',
+  other = false,
 }: {
   prompt: string;
   /** Who asks: a script's /buttons and /input, or the GM's question about a line. */
@@ -21,6 +22,11 @@ export function ScriptPrompt({
   /** The choices for /buttons; null for /input's text box. */
   options: readonly string[] | null;
   onAnswer: (answer: string | null) => void;
+  /**
+   * With the choices, a box for any other answer (the operator, 2026-11-22: asked what they acted on,
+   * the choices were people when they meant the hearth: "This is why we need a text entry for target").
+   */
+  other?: boolean;
 }): ReactElement {
   const [text, setText] = useState('');
   const id = useId();
@@ -53,12 +59,34 @@ export function ScriptPrompt({
             </DialogFooter>
           </form>
         ) : (
-          <div className='flex flex-wrap gap-2'>
-            {options.map((option) => (
-              <Button key={option} type='button' variant='outline' className='h-11' onClick={() => onAnswer(option)}>
-                {option}
-              </Button>
-            ))}
+          <div className='grid gap-3'>
+            <div className='flex flex-wrap gap-2'>
+              {options.map((option) => (
+                <Button key={option} type='button' variant='outline' className='h-11' onClick={() => onAnswer(option)}>
+                  {option}
+                </Button>
+              ))}
+            </div>
+            {other && (
+              <form
+                className='flex gap-2'
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  if (text.trim() !== '') onAnswer(text.trim());
+                }}
+              >
+                <Input
+                  aria-label='Something else'
+                  placeholder='Something else (the hearth, the door…)'
+                  className='h-11 min-w-0 flex-1'
+                  value={text}
+                  onChange={(event) => setText(event.target.value)}
+                />
+                <Button type='submit' className='h-11 shrink-0' disabled={text.trim() === ''}>
+                  Use this
+                </Button>
+              </form>
+            )}
           </div>
         )}
       </DialogContent>
