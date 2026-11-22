@@ -33,7 +33,8 @@ describe('the narrator markup', () => {
       { kind: 'location', name: 'The Rusty Tankard' },
       { kind: 'text', text: 'Smoke hangs low.' },
     ]);
-    expect(locationBlocks('## The Cellar\nDark.')[0]).toEqual({ kind: 'location', name: 'The Cellar' });
+    // A model's own heading is no change of place: the map step decides that.
+    expect(locationBlocks('## The Cellar\nDark.')).toEqual([{ kind: 'text', text: 'Dark.' }]);
     expect(locationBlocks('She says **no** to him.')).toEqual([{ kind: 'text', text: 'She says **no** to him.' }]);
   });
 });

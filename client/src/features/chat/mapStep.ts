@@ -10,6 +10,9 @@ import { csrfHeaders } from '@zephyrex/auth/lib/session';
 export interface MapChange {
   moved: { person: string; place: string }[];
   scene: string | null;
+  /** Where the person's character is after the round, and whether that's a change of place. */
+  seatPlace: string | null;
+  seatMoved: boolean;
 }
 
 async function step(path: string, envelope: string, body: Record<string, unknown>): Promise<unknown> {
@@ -35,7 +38,11 @@ export async function mapStep(chatId: string, leafId: string): Promise<MapChange
     if (from !== undefined && from === to) return [];
     return typeof person === 'string' && typeof place === 'string' ? [{ person, place }] : [];
   });
-  return moved.length === 0 ? null : { moved, scene: null };
+  const seat = Reflect.get(answer, 'seat_location');
+  const seatPlace =
+    typeof Reflect.get(Object(seat), 'name') === 'string' ? (Reflect.get(Object(seat), 'name') as string) : null;
+  const seatMoved = answer.seat_moved === true;
+  return moved.length === 0 && !seatMoved ? null : { moved, scene: null, seatPlace, seatMoved };
 }
 
 /** The campaign's one-line status, rewritten from the story so far (for the campaign list). */

@@ -918,15 +918,33 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * (docs/DESIGN.md, The world moves): both through the server, both quiet when nothing changed.
    */
   const rounds = useRef(0);
-  const followOnMap = async (leaf: string) => {
+  /**
+   * The map follows the story, then a change of place is a banner (the operator, 2026-11-21: "It got
+   * the location change wrong again, it cited the old location"): the banner names where the map step
+   * put the person's character, never the narrator's wording. Saved after the line as the new leaf,
+   * so the round goes on from it. Returns the banner, or null.
+   */
+  const followOnMap = async (leaf: string): Promise<ChatMessage | null> => {
     const change = await mapStep(chat.id, leaf);
+    let banner: ChatMessage | null = null;
+    if (change?.seatMoved === true && change.seatPlace !== null) {
+      banner = await create({
+        chat_id: chat.id,
+        parent_id: leaf,
+        role: 'narrator',
+        channel: 'ic',
+        swipes: [stored(`[location: ${change.seatPlace}]`, 'ai_output')],
+      });
+      setLeafId(banner.id);
+    }
     rounds.current += 1;
     const arrivals = rounds.current % 6 === 0 ? await worldTick(chat.id, leaf, 10, 'rounds') : [];
     // The campaign's status line (its one-liner in the campaign list) every 10 rounds.
     if (rounds.current % 10 === 0) void refreshStatusLine(chat.id, leaf);
-    if (change === null && arrivals.length === 0) return;
-    // The map and the Context panel read the scene and its tokens: read them again.
-    void globalMutate((key) => typeof key === 'string' && /scene|token/.test(key));
+    if (change !== null || arrivals.length > 0)
+      // The map and the Context panel read the scene and its tokens: read them again.
+      void globalMutate((key) => typeof key === 'string' && /scene|token/.test(key));
+    return banner;
     // Quiet (the operator, 2026-11-21: "Why is it putting a title with the location on every
     // response"): the map and the Context panel show where everyone is; the story says who arrives.
   };
@@ -944,8 +962,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const saved = (fresh ?? []).find((one) => one.id === last?.id) ?? null;
     if (last !== undefined) setLeafId(last.id);
     for (const line of lines) if (settings.readAloud) readAloud(line.speaker_character_id, line.text);
-    if (play.isCampaign && last !== undefined) void followOnMap(last.id);
-    return saved;
+    const banner = play.isCampaign && last !== undefined ? await followOnMap(last.id) : null;
+    return banner ?? saved;
   };
   const storyWrite = async (request: Parameters<typeof reply.write>[0]) => {
     let result = await timedWrite(request);
@@ -1056,7 +1074,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
     if (saved !== null) {
       setLeafId(saved.id);
-      if (play.isCampaign) void followOnMap(saved.id);
+      const banner = play.isCampaign ? await followOnMap(saved.id) : null;
+      if (banner !== null) saved = banner;
     }
     return saved;
   };

@@ -21,7 +21,9 @@ const COLOUR = new RegExp(`\\[(${PALETTE.join('|')})\\]([\\s\\S]*?)\\[\\/\\1\\]`
  * line of its own (`## The Rusty Tankard`, `**The Rusty Tankard**`): shown as a banner, never as a
  * plain title (the operator, 2026-11-21).
  */
-const LOCATION = /^\s*(?:\[location:\s*([^\]\n]+)\]|#{1,6}\s+([^\n]+?)|\*\*([^*\n]{2,80})\*\*)\s*$/i;
+const LOCATION = /^\s*\[location:\s*([^\]\n]+)\]\s*$/i;
+// A lone heading the model writes is no change of place (the map step decides that): it's dropped.
+const HEADING = /^\s*(?:#{1,6}\s+[^\n]+?|\*\*[^*\n]{2,80}\*\*)\s*$/;
 
 export function locationBlocks(text: string): Block[] {
   const blocks: Block[] = [];
@@ -31,13 +33,14 @@ export function locationBlocks(text: string): Block[] {
     buffer = [];
   };
   for (const line of text.split('\n')) {
+    if (HEADING.test(line)) continue;
     const found = LOCATION.exec(line);
     if (found === null) {
       buffer.push(line);
       continue;
     }
     flush();
-    blocks.push({ kind: 'location', name: (found[1] ?? found[2] ?? found[3] ?? '').trim().replace(/[*_#]+/g, '') });
+    blocks.push({ kind: 'location', name: (found[1] ?? '').trim() });
   }
   flush();
   return blocks;

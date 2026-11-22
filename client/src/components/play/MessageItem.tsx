@@ -238,7 +238,9 @@ export function LocationBanner({ name }: { name: string }): ReactElement {
 
 function StoryPieces({ text }: { text: string }): ReactElement {
   const places = locationBlocks(text);
-  if (places.some((block) => block.kind === 'location'))
+  // A banner, or a heading the model wrote and that was dropped: render the blocks.
+  const first = places[0];
+  if (places.length !== 1 || first === undefined || first.kind !== 'text' || first.text !== text)
     return (
       <>
         {places.map((block, index) =>
