@@ -12,6 +12,7 @@ import {
   CampaignSeats,
   CharacterSheet,
   CombatOrder,
+  CreationChoices,
   CurrentSceneTokens,
   DiceReplay,
   DiceTray,
@@ -71,13 +72,25 @@ export function whereabouts(
  */
 function BuilderStep({ personId }: { personId: string }): ReactElement | null {
   const client = useClient();
-  const options = useSWR(['rpg-ai', 'builder-options', personId], () =>
-    client.post('/v1/builder/options', { options: { person_id: personId } }).then(
+  const answers = (path: string, body: object) =>
+    client.post(path, body).then(
       () => true,
       () => false,
-    ),
+    );
+  // Each step shows only where the game system has it (5e today; DH2 answers 422).
+  const choices = useSWR(['rpg-ai', 'builder-choices', personId], () =>
+    answers('/v1/builder/choices', { choices: { person_id: personId } }),
   );
-  return options.data === true ? <AbilityScores personId={personId} /> : null;
+  const options = useSWR(['rpg-ai', 'builder-options', personId], () =>
+    answers('/v1/builder/options', { options: { person_id: personId } }),
+  );
+  if (choices.data !== true && options.data !== true) return null;
+  return (
+    <div className='grid gap-4'>
+      {choices.data === true && <CreationChoices personId={personId} />}
+      {options.data === true && <AbilityScores personId={personId} />}
+    </div>
+  );
 }
 
 function Member({ member, note }: { member: PanelMember; note?: string | null }): ReactElement {
