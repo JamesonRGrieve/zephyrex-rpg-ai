@@ -273,6 +273,8 @@ export function messageViews(
 
 /** At most this many decided turns follow one line before the table waits for the person. */
 const DECIDE_ROUND_LIMIT = 4;
+/** How many times the decision model is asked before the round falls back to the narrator. */
+const DECIDE_TRIES = 3;
 
 function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const list = messages.useList({ chat_id: chat.id });
@@ -1150,7 +1152,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   };
 
   /** The GM's narration after `parentId`, kept as a narrator turn; null when nothing was written. */
-  const narrateAfter = async (parentId: string | null): Promise<ChatMessage | null> => {
+  const narrateAfter = async (parentId: string | null, wide = false): Promise<ChatMessage | null> => {
     setWritingAfter({ parentId, speakerId: NARRATOR_TURN });
     const result = await storyWrite({
       chat_id: chat.id,
@@ -1158,6 +1160,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       speaker_id: null,
       mode: 'narrate',
       structured: STRUCTURED_TURNS,
+      // Wide: the narrator may give the party and the people present their moments (no decision came).
+      ...(wide ? { narrate_wide: true } : {}),
     });
     setWritingAfter(null);
     if (result?.saved !== undefined) return takeSaved(result);
@@ -1360,11 +1364,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       }
       if (superseded()) return;
       if (!(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
+      let undecided = false;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
         if (superseded()) return;
-        const next = await during('Deciding who acts next', decideNextTurn(chat.id, parent.id));
+        // The decision model gets three tries when it chokes (the operator, 2026-11-22).
+        let next = await during('Deciding who acts next', decideNextTurn(chat.id, parent.id));
+        for (let attempt = 1; attempt < DECIDE_TRIES && !next.decided && !superseded(); attempt += 1)
+          next = await during('Deciding who acts next', decideNextTurn(chat.id, parent.id));
         if (superseded()) return;
-        if (!next.decided) break;
+        if (!next.decided) {
+          undecided = true;
+          break;
+        }
         const usable = next.kind === 'character' && next.character_id !== null && aiIds.has(next.character_id);
         // The person's own line always gets an answer: a pause (or a pick outside the AI party)
         // straight after it becomes the AI GM's narration. Later in the round, it ends the round.
@@ -1380,7 +1391,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         current = [...current, saved];
         if (!(await rollAfter(saved))) return;
       }
-      if (parent !== start) return;
+      if (!undecided) return;
+      // Still no pick after three tries: the narrator carries the moment, prompted wide enough to give the
+      // party and the people present their reactions (the operator, 2026-11-22: "then fall back to the
+      // narrator being prompted wider to allow it to fill in"), never the person's own character.
+      if (superseded()) return;
+      await narrateAfter(parent.id, true);
+      return;
     }
     const turns = roundTurns({
       seat: chat.seat,

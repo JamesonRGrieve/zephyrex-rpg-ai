@@ -21,6 +21,8 @@ export interface ReplyRequest {
   endpoint_id?: string;
   /** A second try after the voice guard caught a span (features/chat/voiceGuard.ts): it's forbidden. */
   forbid?: { names: string[]; span: string; spans?: string[]; reason?: 'canon'; note?: string };
+  /** A narration that may give the party and the people present their moments (no decision came). */
+  narrate_wide?: boolean;
   /** Schema-constrained lines (docs/DESIGN.md, Structured lines): the server splits and saves them. */
   structured?: boolean;
 }
