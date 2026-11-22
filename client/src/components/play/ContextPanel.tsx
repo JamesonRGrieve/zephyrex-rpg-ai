@@ -72,7 +72,7 @@ export function whereabouts(
  */
 function BuilderStep({ personId }: { personId: string }): ReactElement | null {
   const client = useClient();
-  const answers = (path: string, body: object) =>
+  const answers = (path: string, body: Parameters<typeof client.post>[1]) =>
     client.post(path, body).then(
       () => true,
       () => false,
