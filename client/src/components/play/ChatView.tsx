@@ -340,8 +340,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const play = useCampaign(chat, branch);
   // Saved model-and-preset pairs (gap 8), offered in chat settings.
   const profileList = connectionProfiles.useList();
-  // Canon notices (docs/DESIGN.md, Canon warnings): the person's line as they write it, and each AI line once written.
-  const [canonNotices, setCanonNotices] = useState<ReadonlyMap<string, CanonNoticeValue>>(new Map());
+  // Canon notices (docs/DESIGN.md, Canon warnings): the person's line as they write it, never the AI's own
+  // lines (the operator, 2026-11-22: "Why did it canon warn itself?").
   const checkLine = useCallback(
     (text: string, speaker: string, signal?: AbortSignal) =>
       checkCanon({ chat_id: chat.id, text, speaker }, signal).then((verdict) =>
@@ -349,10 +349,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       ),
     [chat.id],
   );
-  const noteCanon = (id: string, text: string, speaker: string) =>
-    void checkLine(text, speaker).then((notice) => {
-      if (notice !== null && notice.level !== 'none') setCanonNotices((current) => new Map(current).set(id, notice));
-    });
   // The background follows the scene (A31): the story's lines, as the scene's location reads them.
   const sceneLines = useMemo(
     () =>
@@ -452,7 +448,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setLeafId(saved.id);
     noteCost(saved.id, result);
     void showExpression(speakerId, saved.swipes[0] ?? '');
-    noteCanon(saved.id, splitReasoning(saved.swipes[0] ?? '').reply, castById.get(speakerId)?.name ?? 'A character');
     autoTranslate(saved.id, saved.swipes[0] ?? '');
     return saved;
   };
@@ -1100,11 +1095,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       if (settings.readAloud) readAloud(part.speaker_id, line.swipes[0] ?? '');
       if (index === 0) noteCost(line.id, result);
       autoTranslate(line.id, line.swipes[0] ?? '');
-      noteCanon(
-        line.id,
-        splitReasoning(line.swipes[0] ?? '').reply,
-        part.speaker_id === null ? 'The GM' : (castById.get(part.speaker_id)?.name ?? 'A character'),
-      );
       parent = line.id;
       saved = line;
     }
@@ -1857,7 +1847,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       : undefined
                   }
                   translation={translationOf(message.id)}
-                  canon={canonNotices.get(message.id)}
                 />
               </li>
             );
