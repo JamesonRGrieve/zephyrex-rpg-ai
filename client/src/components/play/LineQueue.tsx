@@ -312,26 +312,30 @@ export function LineQueue({
           ))}
         </ol>
       )}
-      <div className='flex flex-wrap gap-2'>
-        <Button type='button' variant='outline' className='h-11' onClick={() => add('say')}>
+      {/* One row, Send at its right end, never a second row (the operator, 2026-11-22: "the send/stop
+          button is to the lower right of the text field instead of to the right"). */}
+      <div className='flex items-center gap-1.5'>
+        <Button type='button' variant='outline' className='h-11 px-2.5' onClick={() => add('say')}>
           <MessageSquareQuote className='size-4' aria-hidden /> Say
         </Button>
-        <Button type='button' variant='outline' className='h-11' onClick={() => add('do')}>
+        <Button type='button' variant='outline' className='h-11 px-2.5' onClick={() => add('do')}>
           <Sparkles className='size-4' aria-hidden /> Do
         </Button>
         {onOutOfGame !== undefined && (
-          <Button type='button' variant='outline' className='h-11' onClick={() => add('ooc')}>
+          <Button type='button' variant='outline' className='h-11 min-w-0 px-2.5' onClick={() => add('ooc')}>
             <MessagesSquare className='size-4' aria-hidden /> Out of game
           </Button>
         )}
         {tools}
         <Button
           type='button'
-          className='ml-auto h-11'
+          className='ml-auto h-11 shrink-0 px-3'
+          aria-label={`Send${queue.length > 1 ? ` (${queue.length})` : ''}`}
           disabled={disabled || (message === '' && outOfGame.length === 0)}
           onClick={send}
         >
-          <Send className='size-4' aria-hidden /> Send{queue.length > 1 ? ` (${queue.length})` : ''}
+          <Send className='size-4' aria-hidden />
+          <span className='max-sm:sr-only'>Send{queue.length > 1 ? ` (${queue.length})` : ''}</span>
         </Button>
       </div>
     </div>

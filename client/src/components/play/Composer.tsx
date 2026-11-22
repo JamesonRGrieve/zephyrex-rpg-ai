@@ -338,7 +338,7 @@ export function Composer({
                 <label
                   htmlFor={attachId}
                   className={cn(
-                    'flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring',
+                    'order-3 flex size-11 shrink-0 cursor-pointer items-center justify-center rounded-md hover:bg-accent peer-focus-visible:ring-2 peer-focus-visible:ring-ring sm:order-none',
                     images.length >= LIMITS.images_per_message && 'pointer-events-none text-muted-foreground',
                   )}
                 >
@@ -356,7 +356,9 @@ export function Composer({
               maxLength={LIMITS.message_characters}
               placeholder={PLACEHOLDERS[channel]}
               className={cn(
-                'order-first max-h-40 min-h-11 min-w-0 basis-full resize-none [field-sizing:content] sm:order-none sm:basis-0 sm:flex-1',
+                // On a phone the box and Send (or Stop) share the first row; the other tools wrap below
+                // (the operator, 2026-11-22: Send sat under the box, 2-2.5x the height it needs).
+                'order-1 max-h-40 min-h-11 min-w-0 grow basis-[calc(100%-3.25rem)] resize-none [field-sizing:content] sm:order-none sm:basis-0 sm:flex-1',
                 channel !== 'ic' && 'bg-muted',
               )}
               onChange={(event) => setText(event.target.value)}
@@ -367,7 +369,7 @@ export function Composer({
                 type='button'
                 size='icon'
                 variant={dictation.listening ? 'secondary' : 'ghost'}
-                className='size-11 shrink-0'
+                className='order-3 size-11 shrink-0 sm:order-none'
                 aria-label={dictation.listening ? 'Stop dictating' : 'Dictate'}
                 aria-pressed={dictation.listening}
                 disabled={disabled}
@@ -381,7 +383,7 @@ export function Composer({
                 type='button'
                 size='icon'
                 variant='ghost'
-                className='size-11 shrink-0'
+                className='order-3 size-11 shrink-0 sm:order-none'
                 aria-label='Narrate what happens next'
                 disabled={disabled}
                 onClick={onNarrate}
@@ -394,7 +396,7 @@ export function Composer({
                 type='button'
                 size='icon'
                 variant='ghost'
-                className='size-11 shrink-0'
+                className='order-3 size-11 shrink-0 sm:order-none'
                 aria-label='Write my line for me'
                 disabled={disabled}
                 onClick={() =>
@@ -411,7 +413,7 @@ export function Composer({
                 type='button'
                 size='icon'
                 variant='outline'
-                className='ms-auto size-11 shrink-0 sm:ms-0'
+                className='order-2 size-11 shrink-0 sm:order-none'
                 aria-label='Stop the reply'
                 onClick={onStop}
               >
@@ -421,7 +423,7 @@ export function Composer({
               <Button
                 type='submit'
                 size='icon'
-                className='ms-auto size-11 shrink-0 sm:ms-0'
+                className='order-2 size-11 shrink-0 sm:order-none'
                 aria-label='Send'
                 disabled={disabled || text.trim() === ''}
               >
