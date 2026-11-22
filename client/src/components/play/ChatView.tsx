@@ -1211,7 +1211,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       if (banner !== null) saved = banner;
     }
     return saved;
-  };
+  }; // A campaign whose records say nothing of how it starts opens with the narrator's own opening (the
+  // operator, 2026-11-22, of a cross-reference shown as the opening: "Completely unacceptable"): the
+  // start screen asks for it once (?open=1), after the location banner.
+  const opened = useRef(false);
+  const openWanted = params.get('open') === '1';
+  useEffect(() => {
+    if (!openWanted || opened.current || list.data === undefined || branch.length !== 1 || writing) return;
+    opened.current = true;
+    router.replace(`/play/${chat.id}`);
+    void narrateAfter(branch[0]?.id ?? null);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openWanted, list.data, branch.length, writing]);
 
   /**
    * What follows the person's story line. A plain chat (no seat): one reply. At a table (the seat):
@@ -1401,7 +1412,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     setWritingAfter({ parentId: question.id, speakerId: '' });
     const result = await timedWrite({ chat_id: chat.id, leaf_id: question.id, speaker_id: null, mode: 'table' });
     setWritingAfter(null);
-    if (result === null || result.text.trim() === '') return;
+    // Never nothing back (the operator, 2026-11-22: "Do out of game messages not trigger an out of game GM
+    // response? Wtf? I got nothing back"): a refused or empty answer says so.
+    if (result === null || result.text.trim() === '') {
+      notify('The GM didn’t answer', 'The question is kept; ask again in a moment.');
+      return;
+    }
     const saved = await create({
       chat_id: chat.id,
       parent_id: question.id,

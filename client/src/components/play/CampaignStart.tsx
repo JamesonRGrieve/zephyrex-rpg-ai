@@ -34,6 +34,8 @@ import { initials } from '../characters/CharacterTile';
 export { PARTY_TAG };
 /** The wiki's tag on a setting's pregenerated characters. */
 export const PREGEN_TAG = 'Pregen';
+/** The first line while the narrator writes the opening (nothing in the records tells it). */
+const OPENING_PLACEHOLDER = 'The story begins.';
 
 /** The default party: the player characters, less the one the person plays. */
 export function defaultParty(cast: readonly Pick<Character, 'id' | 'tags'>[], playing: string | null): string[] {
@@ -423,9 +425,9 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       const page = await client.get('/v1/world_entity', { campaign_id: campaignId, limit: '200' });
       const rows = Reflect.get(Object(page), 'world_entities');
       const entities = Array.isArray(rows) ? (rows as OpeningEntity[]) : [];
-      return openingFor(seated, situation, entities, null, null).text || situation;
+      return openingFor(seated, situation, entities, null, null).text || situation || OPENING_PLACEHOLDER;
     } catch {
-      return situation;
+      return situation || OPENING_PLACEHOLDER;
     }
   };
 
@@ -537,6 +539,8 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
         ));
       made.current.chat = chat;
       setStep(2);
+      // What the records say of the start; nothing (or only pointers to other notes): the narrator writes it.
+      const situation = openingLine(scenario, notes.data ?? []);
       const opening =
         made.current.opening ??
         (await stalls(
@@ -545,7 +549,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
             parent_id: null,
             role: 'narrator',
             channel: 'ic',
-            swipes: [await stalls(toldOpening(world.id, playing, openingLine(scenario, notes.data ?? [])))],
+            swipes: [await stalls(toldOpening(world.id, playing, situation))],
           }),
         ));
       made.current.opening = opening;
@@ -555,7 +559,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       made.current = {};
       // Open the session first, then close the sheet: never a closed sheet onto nothing (the
       // operator, 2026-11-21); the scenarios list reads chats afresh.
-      router.push(`/play/${chat.id}`);
+      router.push(`/play/${chat.id}${situation.trim() === '' ? '?open=1' : ''}`);
       void mutate((key) => Array.isArray(key) || (typeof key === 'string' && key.startsWith('/v1/chat')));
       onStarted();
     } catch (error) {
