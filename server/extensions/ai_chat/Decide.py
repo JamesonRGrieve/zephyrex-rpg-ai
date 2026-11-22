@@ -9,15 +9,13 @@ The twin of client/src/features/decide/decide.ts, held to contract/decide-cases.
 """
 
 import json
-import logging
 import math
 import time
 from collections.abc import Mapping, Sequence
 from typing import Any
 
 from zephyrex.extensions.ai_chat.ExtraBody import with_extra_body  # type: ignore[import-not-found]
-
-logger = logging.getLogger(__name__)
+from zephyrex.lib.Logging import logger  # loguru: reaches the journal (stdlib logging isn't wired on prod)
 
 
 def _choice_options(criteria: Sequence[str] | Mapping[str, str]) -> dict[str, str]:

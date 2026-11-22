@@ -1205,7 +1205,8 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
       vox: fields.vox_ids,
     });
     // After the person's own line someone answers: no pause.
-    const afterPerson = storyTurns.at(-1)?.role === 'user';
+    const lastTurn = storyTurns.at(-1);
+    const afterPerson = lastTurn !== undefined && byPerson(lastTurn, playingId);
     const { question, picks } = turnQuestion(
       prompt.characters,
       fields.muted_ids,
@@ -1299,7 +1300,7 @@ export async function needsRoll(nextRequest: NextRequest): Promise<Response> {
       .find(
         (turn) =>
           story.has(turn.channel) &&
-          (asked.character_id === playingId ? turn.role === 'user' : turn.speaker_character_id === asked.character_id),
+          (asked.character_id === playingId ? byPerson(turn, playingId) : turn.speaker_character_id === asked.character_id),
       );
     // The play-test: a laugh about a fireplace got a roll. No attempt, no roll, and no model call.
     if (acted === undefined || !isAttempt(acted.content))
@@ -1492,7 +1493,7 @@ export async function clarify(nextRequest: NextRequest): Promise<Response> {
       (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
     );
     const last = storyTurns.at(-1);
-    if (last === undefined || last.role !== 'user') return none;
+    if (last === undefined || !byPerson(last, playingId)) return none;
     const actor = prompt.persona?.name ?? DEFAULT_USER_NAME;
     const people = [...prompt.characters, { id: playingId, name: actor }];
     const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
@@ -1581,7 +1582,7 @@ export async function mapStep(nextRequest: NextRequest): Promise<Response> {
       (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
     );
     // The latest round: from the person's last line on.
-    const from = storyTurns.map((turn) => turn.role).lastIndexOf('user');
+    const from = storyTurns.findLastIndex((turn) => byPerson(turn, playingId));
     const round = from === -1 ? storyTurns : storyTurns.slice(from);
     const actor = prompt.persona?.name ?? DEFAULT_USER_NAME;
     const people = [...prompt.characters, ...(playingId === null ? [] : [{ id: playingId, name: actor }])];
@@ -1626,6 +1627,14 @@ export async function mapStep(nextRequest: NextRequest): Promise<Response> {
   } catch (error) {
     return apiErrorResponse(error);
   }
+}
+
+/**
+ * Whether a line is the person's own: a user line, or, in a campaign, their seat's character line (the
+ * client saves a seated person's lines as the seat's; Zephyrex RPG's build37 run: no roll ever).
+ */
+export function byPerson(turn: { role: string; speaker_character_id?: string | null }, playingId: string | null): boolean {
+  return turn.role === 'user' || (playingId !== null && turn.role === 'character' && turn.speaker_character_id === playingId);
 }
 
 /** The address a server lists its models at (OpenAI-compatible `GET /models`). */

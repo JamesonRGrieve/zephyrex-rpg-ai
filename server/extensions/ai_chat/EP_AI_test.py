@@ -1003,6 +1003,39 @@ class TestGenerate:
         stranger = {"needs_roll": {**asked["needs_roll"], "character_id": "nobody"}}
         assert server.post("/v1/ai_chat/needs_roll", json=stranger, headers=_headers(user)).status_code == 422
 
+    def test_a_campaign_seats_attempt_is_asked_for_a_roll(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Zephyrex RPG's build37 run: a seated person's lines are saved as the seat's character lines,
+        # so "tries to stab" was never seen as their attempt and no roll was ever asked.
+        from zephyrex.extensions.ai_chat import BLL_AI_Chat  # type: ignore[import-not-found]
+
+        async def options(_registry: Any, _requester: str, person_id: str) -> dict[str, Any]:
+            return {
+                "person_id": person_id,
+                "system": "dnd-5e",
+                "characteristics": [{"slug": "dex", "name": "Dexterity", "short": "DEX"}],
+                "skills": [],
+                "difficulties": [{"slug": "medium", "modifier": 0, "dc": 15}],
+            }
+
+        monkeypatch.setattr(BLL_AI_Chat, "test_options", options)
+        user = create_user(server)
+        kord = _cast(server, user, "character", name="Fennick Quill").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        chat = _chat(server, user, "chat", title="Tavern", character_ids=[kord["id"]]).json()["chat"]
+        _create(server, user, "campaign_play", chat_id=chat["id"], playing_id=kord["id"])
+        said = "Fennick Quill tries to stab the half-orc in the back with his knife."
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="character", speaker_character_id=kord["id"], swipes=[said]).json()["chat_message"]
+        RECEIVED.clear()
+        asked = {"needs_roll": {"chat_id": chat["id"], "leaf_id": line["id"], "character_id": kord["id"]}}
+        answer = server.post("/v1/ai_chat/needs_roll", json=asked, headers=_headers(user))
+        assert answer.status_code == 200, answer.text
+        # The attempt reached the decision model with the system's test to choose.
+        decided = [sent for sent in RECEIVED if sent["path"].endswith("/chat/completions")]
+        assert decided and "Dexterity" in json.dumps(decided[0]["body"])
+
     def test_canon_warnings_can_be_turned_off_for_a_chat(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "a 'permanently dismiss for this campaign' button for radical looney
         # toon campaigns". canon_checks is on by default; off, the canon check answers unchecked.

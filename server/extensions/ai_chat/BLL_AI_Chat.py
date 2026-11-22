@@ -21,7 +21,6 @@ Actions on ``/v1/ai_chat``:
 import asyncio
 import inspect
 import json
-import logging
 import random
 import re
 import time
@@ -204,6 +203,7 @@ from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import (  # type: ignore[im
 from zephyrex.extensions.ai_memories.BLL_AI_Memories import MemoryManager
 from zephyrex.lib.CustomRoute import ExposeIn, custom_route
 from zephyrex.lib.EventStream import event_stream
+from zephyrex.lib.Logging import logger  # loguru: reaches the journal (stdlib logging isn't wired on prod)
 from zephyrex.lib.SecretEncryption import decrypt_secret, encrypt_secret
 from zephyrex.logic.AbstractLogicManager import (
     AbstractBLLManager,
@@ -217,8 +217,6 @@ from zephyrex.pydantic2.fastapi.types import RouteType
 
 # The framework's registry BaseModel, which it re-exports without declaring it.
 from zephyrex.pydantic2.registry import BaseModel  # type: ignore[attr-defined]
-
-logger = logging.getLogger(__name__)
 
 MAX_NAME: int = LIMITS["name_characters"]
 MAX_TITLE: int = LIMITS["chat_title_characters"]
@@ -2444,6 +2442,14 @@ async def horde_text(endpoint: Any, key: str, body: Mapping[str, Any]) -> str:
     raise HTTPException(status_code=504, detail={"message": "The Horde took too long", "code": "model_timeout"})
 
 
+def by_person(turn: Mapping[str, Any], playing_id: str | None) -> bool:
+    """Whether a line is the person's own: a user line, or, in a campaign, their seat's character line
+    (the client saves a seated person's lines as the seat's; Zephyrex RPG's build37 run: no roll ever)."""
+    return turn["role"] == "user" or (
+        playing_id is not None and turn["role"] == "character" and turn.get("speaker_character_id") == playing_id
+    )
+
+
 def frame(name: str, data: dict[str, Any]) -> str:
     return f"event: {name}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -3416,7 +3422,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         }
         reach = present_cast(context["cast"], presence)
         # After the person's own line someone answers: no pause.
-        after_person = bool(story_turns) and story_turns[-1]["role"] == "user"
+        after_person = bool(story_turns) and by_person(story_turns[-1], playing_id)
         question, picks = turn_question(
             context["cast"],
             chat.muted_ids or [],
@@ -3505,7 +3511,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 for turn in reversed(context["history"])
                 if turn["channel"] in story
                 and (
-                    turn["role"] == "user"
+                    by_person(turn, playing_id)
                     if asked.character_id == playing_id
                     else turn["speaker_character_id"] == asked.character_id
                 )
@@ -3698,7 +3704,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for turn in context["history"]
             if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
         ]
-        if not story_turns or story_turns[-1]["role"] != "user":
+        if not story_turns or not by_person(story_turns[-1], playing_id):
             return none
         persona = context["persona"]
         actor = persona["name"] if persona is not None else DEFAULT_USER_NAME
@@ -3783,7 +3789,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
         ]
         # The latest round: from the person's last line on.
-        users = [index for index, turn in enumerate(story_turns) if turn["role"] == "user"]
+        users = [index for index, turn in enumerate(story_turns) if by_person(turn, playing_id)]
         round_turns = story_turns[users[-1] :] if users else story_turns
         persona = context["persona"]
         actor = persona["name"] if persona is not None else DEFAULT_USER_NAME
@@ -4119,7 +4125,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             (
                 str(turn["content"])
                 for turn in reversed(_context["history"])
-                if turn["role"] == "user" and turn["channel"] in story_channels
+                if by_person(turn, _context["playing_id"]) and turn["channel"] in story_channels
             ),
             "",
         )
