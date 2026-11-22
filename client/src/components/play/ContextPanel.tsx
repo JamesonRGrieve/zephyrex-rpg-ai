@@ -8,6 +8,7 @@
  * them.
  */
 import {
+  AbilityScores,
   CampaignSeats,
   CharacterSheet,
   CombatOrder,
@@ -62,6 +63,21 @@ export function whereabouts(
     .filter((member) => !here.includes(member))
     .map((member) => ({ member, place: places.get(located.get(member.id) ?? '')?.name ?? null }));
   return { here, away };
+}
+
+/**
+ * The RAW builder's ability scores (the VTT's rpg_builder), where the game system has methods for
+ * them: 5e today. A system without them (DH2) shows nothing rather than an error.
+ */
+function BuilderStep({ personId }: { personId: string }): ReactElement | null {
+  const client = useClient();
+  const options = useSWR(['rpg-ai', 'builder-options', personId], () =>
+    client.post('/v1/builder/options', { options: { person_id: personId } }).then(
+      () => true,
+      () => false,
+    ),
+  );
+  return options.data === true ? <AbilityScores personId={personId} /> : null;
 }
 
 function Member({ member, note }: { member: PanelMember; note?: string | null }): ReactElement {
@@ -176,7 +192,10 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
             <AccordionItem value='sheet'>
               <AccordionTrigger>Character sheet</AccordionTrigger>
               <AccordionContent>
-                <CharacterSheet personId={sheetFor} />
+                <div className='grid gap-4'>
+                  <BuilderStep personId={sheetFor} />
+                  <CharacterSheet personId={sheetFor} />
+                </div>
               </AccordionContent>
             </AccordionItem>
           )}
