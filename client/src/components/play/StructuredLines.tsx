@@ -139,13 +139,26 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
   return structured === 0 ? null : shown.flatMap(withSpeechApart);
 }
 
+// Opaque fills, so the tail can sit over the bubble's edge without a seam.
 const BUBBLE: Record<Manner, string> = {
   speak: 'rounded-2xl border bg-card px-3 py-2',
-  whisper: 'rounded-2xl border border-dashed bg-muted/40 px-3 py-1.5 text-sm italic text-muted-foreground',
+  whisper: 'rounded-2xl border border-dashed bg-muted px-3 py-1.5 text-sm italic text-muted-foreground',
   shout: 'rounded-lg border-2 border-destructive/70 bg-card px-3 py-2 text-lg font-bold uppercase tracking-wide',
-  vox: 'rounded-md border border-emerald-500/50 bg-emerald-950/10 px-3 py-2 font-mono text-sm dark:bg-emerald-950/40',
+  vox: 'rounded-md border border-emerald-500/50 bg-emerald-50 px-3 py-2 font-mono text-sm dark:bg-emerald-950',
   voxcast:
-    'rounded-md border-y-2 border-emerald-500/70 bg-emerald-950/10 px-3 py-2 font-mono text-sm uppercase dark:bg-emerald-950/40',
+    'rounded-md border-2 border-emerald-500/70 bg-emerald-50 px-3 py-2 font-mono text-sm uppercase dark:bg-emerald-950',
+};
+/**
+ * The speech bubble's tail at its bottom left (the operator, 2026-11-21: "Those aren't speech bubbles
+ * there's no tick to the bottom left"): a square turned 45°, bordered on its outer sides, in the
+ * bubble's own fill and border.
+ */
+const TAIL: Record<Manner, string> = {
+  speak: 'border-b border-r bg-card',
+  whisper: 'border-b border-r border-dashed bg-muted',
+  shout: 'border-b-2 border-r-2 border-destructive/70 bg-card',
+  vox: 'border-b border-r border-emerald-500/50 bg-emerald-50 dark:bg-emerald-950',
+  voxcast: 'border-b-2 border-r-2 border-emerald-500/70 bg-emerald-50 dark:bg-emerald-950',
 };
 const MANNER_LABEL: Record<Manner, string | null> = {
   speak: null,
@@ -175,7 +188,10 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
                   {[other ? line.speaker : null, tag === '' ? null : tag].filter(Boolean).join(' · ')}
                 </figcaption>
               )}
-              <blockquote className={cn('[overflow-wrap:anywhere]', BUBBLE[line.manner])}>{line.text}</blockquote>
+              <blockquote className={cn('relative mb-1.5 [overflow-wrap:anywhere]', BUBBLE[line.manner])}>
+                {line.text}
+                <span aria-hidden className={cn('absolute -bottom-[7px] left-4 size-3 rotate-45', TAIL[line.manner])} />
+              </blockquote>
             </figure>
           );
         }
