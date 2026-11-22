@@ -122,6 +122,8 @@ def batch_questions(state_characters: int, question_characters: Sequence[int], b
 
 # A decision model answers in about a second; past this, the caller falls back.
 DECIDE_TIMEOUT_SECONDS = 8.0
+#: The pauses before a second and a third try (the operator, 2026-11-22: "Give the decision model 3 tries").
+DECIDE_RETRY_SECONDS = (0.3, 0.6)
 
 
 def completion_content(body: Any) -> str | None:
@@ -144,8 +146,33 @@ async def ask_decider(
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, dict[str, Any] | None] | None:
-    """The questions' answers from the decision model at ``base_url``, or None when it couldn't be
-    asked (unreachable, refused, or not a completion), so the caller does what it did before."""
+    """The questions' answers from the decision model at ``base_url``, asked up to three times (the operator,
+    2026-11-22: "Give the decision model 3 tries if it chokes"); None when every try failed (unreachable,
+    refused, not a completion, or nothing usable), so the caller does what it did before."""
+    import asyncio
+
+    tries = list(DECIDE_RETRY_SECONDS)
+    answers: dict[str, dict[str, Any] | None] | None = None
+    for attempt in range(len(tries) + 1):
+        answers = await _ask_once(base_url, model, api_key, state, questions, extra)
+        if answers is not None and any(value is not None for value in answers.values()):
+            return answers
+        if attempt < len(tries):
+            logger.info("decide %s: try %s gave nothing usable; again in %.1fs", model, attempt + 1, tries[attempt])
+            await asyncio.sleep(tries[attempt])
+    # The last try's answer: nothing usable in it (each question None), or None when it couldn't be asked.
+    return answers
+
+
+async def _ask_once(
+    base_url: str,
+    model: str,
+    api_key: str,
+    state: str,
+    questions: Mapping[str, Mapping[str, Any]],
+    extra: Mapping[str, Any] | None,
+) -> dict[str, dict[str, Any] | None] | None:
+    """One ask of the decision model: its answers, or None when it couldn't be asked or read."""
     import httpx
 
     headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}

@@ -14,6 +14,8 @@ export type Traits = Partial<Record<(typeof NARRATOR_STYLE.traits)[number], numb
   params_b?: number | null;
   narrator?: boolean;
   warm?: boolean;
+  /** A thinking model's reasoning effort for story turns ("none": thinking off); null for others. */
+  reasoning_effort?: string | null;
 };
 export type NarratorStyle = Partial<Record<(typeof NARRATOR_STYLE.sliders)[number], number | null>>;
 

@@ -34,6 +34,7 @@ import {
   PROMPT,
   SAMPLER_RANGES,
   TABLE,
+  THINKING_OFF,
   WORLD_LORE,
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
@@ -130,6 +131,8 @@ const request = z.object({
   leaf_id: z.string().min(1).nullable().default(null),
   speaker_id: z.string().min(1).nullable().default(null),
   mode: z.enum(['reply', 'continue', 'impersonate', 'table', 'narrate']).default('reply'),
+  /** Three turns undecided (the client): the narrator carries the moment, prompted wide. */
+  narrate_wide: z.boolean().optional(),
   /** AP4: this turn asked of another of the person's models, to compare (kept as another swipe). */
   endpoint_id: z.string().min(1).nullable().default(null),
   /** A regeneration after the voice guard (features/chat/voiceGuard.ts) caught a span: it's forbidden. */
@@ -165,6 +168,8 @@ export interface Sampler {
   samplers?: SamplerValues;
   /** A story turn: no max_tokens on the wire (max_tokens still reserves room in the context budget). */
   uncapped?: boolean;
+  /** A thinking model's story turn: its traits' reasoning_effort, sent with the contract's thinking_off. */
+  thinking_off?: string | null;
 }
 
 export interface Endpoint {
@@ -423,6 +428,11 @@ export async function generationInputs(
           // limits, it cuts shit off more than it helps"): length is the prompt's and the verbosity
           // slider's wording; completeText guards a stream that truly ends mid-sentence.
           uncapped: true,
+          // A thinking model writes the story without its thinking (the operator, 2026-11-22): its traits
+          // name the reasoning it takes (reasoning_effort "none").
+          thinking_off:
+            traitsOf(styleRows.find((one) => one.id === endpointRow.id) ?? { model: endpointRow.model }).reasoning_effort ??
+            null,
           // The narrator sliders' humour warms the temperature.
           temperature: sampler.temperature + tuning.temperature_delta,
           // Against replays (the play-test: a round retold almost word for word): the preset's own win.
@@ -473,6 +483,7 @@ export async function generationInputs(
       // The chat's /inject injections (audit gap 5).
       injections: chatFields.injections,
       forbid: body.forbid,
+      narrate_wide: body.narrate_wide === true,
       // Grounded state (features/chat/dispositions.ts): who is here and the stances this voice reads.
       scene: sceneState(
         [
@@ -734,6 +745,10 @@ export function upstreamBody(
     repetition_penalty: sampler.repetition_penalty,
     // A story turn sends none (uncapped); an API that requires one gets its top (nativeApis, hordeBody).
     ...(sampler.uncapped === true ? {} : { max_tokens: sampler.max_tokens }),
+    // A thinking model's story turn asks for no thinking, in each server's own words (contract thinking_off).
+    ...(typeof sampler.thinking_off === 'string' && !text
+      ? { ...THINKING_OFF.fields, reasoning_effort: sampler.thinking_off }
+      : {}),
     ...(stop.length === 0 ? {} : { stop }),
     // Sent only when set (A47): servers that do not take them never see them.
     ...(Object.keys(sampler.logit_bias ?? {}).length === 0 ? {} : { logit_bias: sampler.logit_bias }),
@@ -1730,6 +1745,22 @@ export async function labelLines(nextRequest: NextRequest): Promise<Response> {
       // Kept with the line, so a reload shows them without another call.
       await prisma.chatMessage.update({ where: { id: message.id }, data: { lineLabels: JSON.stringify(labels) } });
     return Response.json({ label_lines: { labels } });
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+/**
+ * `GET /v1/ai_chat/campaign_mode?campaign_id=`: a campaign's resolution mode (narrative, mechanical or
+ * hybrid) from its frame, or null: the start screen offers a freeform character unless it's mechanical.
+ */
+export async function campaignMode(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const campaignId = nextRequest.nextUrl.searchParams.get('campaign_id') ?? '';
+    if (campaignId === '') throw validationError('A campaign_id is required', 'campaign_id');
+    const frame = await frameFor(owner.id, campaignId);
+    return Response.json({ campaign_mode: { campaign_id: campaignId, resolution_mode: frame?.resolutionMode ?? null } });
   } catch (error) {
     return apiErrorResponse(error);
   }

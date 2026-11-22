@@ -13,6 +13,8 @@ const NO_QUERY = new URLSearchParams();
 
 /** A decision model answers in about a second; past this, the caller falls back. */
 const DECIDE_TIMEOUT_MS = 8000;
+/** The pauses before a second and a third try (the operator, 2026-11-22: "Give the decision model 3 tries"). */
+const DECIDE_RETRY_MS = [300, 600] as const;
 
 interface DeciderRow {
   baseUrl: string;
@@ -46,6 +48,25 @@ export function completionContent(body: unknown): string | null {
 
 /** The questions' answers from the decision model, or null when it couldn't be asked. */
 export async function askDecider(
+  row: DeciderRow,
+  state: string,
+  questions: Readonly<Record<string, DecideQuestion>>,
+  signal?: AbortSignal,
+): Promise<Record<string, DecideAnswer | null> | null> {
+  let answers: Record<string, DecideAnswer | null> | null = null;
+  for (let attempt = 0; attempt <= DECIDE_RETRY_MS.length; attempt += 1) {
+    answers = await askOnce(row, state, questions, signal);
+    if (answers !== null && Object.values(answers).some((value) => value !== null)) return answers;
+    if (signal?.aborted === true) return answers;
+    const pause = DECIDE_RETRY_MS[attempt];
+    if (pause !== undefined) await new Promise((resolve) => setTimeout(resolve, pause));
+  }
+  // The last try's answer: nothing usable in it (each question null), or null when it couldn't be asked.
+  return answers;
+}
+
+/** One ask of the decision model: its answers, or null when it couldn't be asked or read. */
+async function askOnce(
   row: DeciderRow,
   state: string,
   questions: Readonly<Record<string, DecideQuestion>>,

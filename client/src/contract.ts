@@ -134,6 +134,8 @@ export const NPC_AUTHOR = contract.npc_author;
 /** How a speaker may speak and to whom: the base manners and each system's, with what each needs. */
 export const SPEECH_OPTIONS = contract.speech_options;
 /** The action kinds a line's icon names (shared with features/chat/actionKind.ts). */
+/** A thinking model's story turn asks for no thinking: the fields each server reads. */
+export const THINKING_OFF = contract.thinking_off;
 export const ACTION_KINDS = contract.action_kinds;
 /** Each story line labelled by the decision model: kinds and the questions' words. */
 export const LINE_LABELS = contract.line_labels;

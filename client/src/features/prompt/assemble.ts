@@ -160,6 +160,8 @@ export interface PromptInput {
   style?: string;
   /** Who is here and the stances this voice reads (features/chat/dispositions.ts sceneState). */
   scene?: string;
+  /** Three turns undecided: the narrator carries the moment, prompted wide (prompt.narrate_wide). */
+  narrate_wide?: boolean;
   group?: {
     card_mode?: (typeof GROUP_SETTINGS.card_modes)[number];
     join_prefix?: string;
@@ -801,7 +803,11 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
         : narrating
           ? [
               // The play-test: an in-character line was answered with an apology for being cut off.
-              [PROMPT.narrate_prompt, PROMPT.in_character, narrateRule(persona, input.characters)]
+              [
+                PROMPT.narrate_prompt,
+                PROMPT.in_character,
+                narrateRule(persona, input.characters) + (input.narrate_wide === true ? ` ${PROMPT.narrate_wide}` : ''),
+              ]
                 .filter((part) => part !== '')
                 .join(' '),
               gmStyleText(input.frame),

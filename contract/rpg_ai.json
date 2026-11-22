@@ -120,7 +120,7 @@
     "cast_heading": "The characters:",
     "in_character": "Every line of the story is in character: never address the player, apologise, or mention the text, the story, prompts or being cut off. Never use em dashes: use commas, full stops or ellipses, and end a line that breaks off with an ellipsis.",
     "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. Write one item per line: your narration as `Narrator: ...`; another character, when you give them a moment, on a line of their own, in the third person: `Name (to Someone): \"what they say\"` (or to everyone; to X, whispers; to everyone, shouts; vox to X; voxcast) or `Name does something`. Anyone else in the scene who speaks or acts (a barkeep, a guard) gets their own lines the same way, named by what they are: `The Barkeep pauses mid-wipe.`, `The Barkeep (to Someone): \"...\"`. Narrator lines are only for the world: scenery, crowds, events and what comes of things; speech never goes in one. Never put what they say, think or decide in a Narrator line. The characters you may voice: {{names}}.",
-    "narrate_seat": "Things may happen to {{seat_name}}: what hits, grabs or throws them, and what they perceive. Never write what {{seat_name}} does by choice, says, thinks, feels, decides or knows (no \"you know her as\", no \"you never quite\").",
+    "narrate_seat": "Things may happen to {{seat_name}}: what hits, grabs or throws them, and what they perceive. Never write what {{seat_name}} does by choice, says, thinks, feels, decides or knows (no \"you know her as\", no \"you never quite\"). Begin with what happens or what {{seat_name}} perceives, never with what {{seat_name}} does; {{seat_name}}'s choices are the player's.",
     "narrate_example": "For example:\nNarrator: Rain hammers the hull plates. Somewhere ahead, boots ring on steel.\n{{example}} (to everyone, whispers): \"Hold.\"\n{{example}} raises a fist and listens.\nThe Watchman steps out of the dark, lamp raised.\nThe Watchman (to {{example}}): \"Who goes there?\"\nNarrator: The footsteps stop. A cogitator flickers awake.\n[screen: Cogitator]\nSEAL BREACH - DECK C\n[/screen]",
     "narrate_length": "Narrate at most three short paragraphs, and end the moment {{seat_name}} would act, speak, think or decide; then stop, without asking what they do.",
     "voice_grounding": "Act only on what {{char}} knows and feels: their home, their stance toward each person present, and what just happened. Never ask what {{char}} would know; never be friendly to someone {{char}} would resent without a reason.",
@@ -136,6 +136,7 @@
     "voice_cast": "Never write dialogue, thoughts, decisions or actions for: {{names}}.",
     "player_label": "the player",
     "canon_prompt": "Your last answer broke this campaign's canon: {{note}}. Write it again so it doesn't.",
+    "narrate_wide": "No one has been chosen to act next. Carry the moment: give the party and the people present their reactions, in their own words and deeds, in the structured line form; never the seat's character's choices.",
     "replay_prompt": "Your last attempt retold what the story already said: {{spans}}. Write what happens next instead; never repeat those.",
     "forbid_prompt": "Your last attempt wrote this for {{names}}, which you must never do: \u00ab{{span}}\u00bb. Write it again without that.",
     "narrator_name": "Narrator"
@@ -929,6 +930,10 @@
   "revision": {
     "$comment": "A story line the client wrote again (the operator, 2026-11-22: \"a small icon beside the final output that will open the original response and reasoning for regeneration in the drawer\"): chat_message.revision, {original, reason, kind}, kept with the line so it survives a reload; null for a line written once.",
     "kinds": ["canon", "voice", "meta"]
+  },
+  "thinking_off": {
+    "$comment": "A thinking model's story turn asks for no thinking (the operator, 2026-11-22: every story reply on qwen3.5-9b was \"<think>…\"): sent only when the model's traits name a reasoning_effort (model-traits.json), never to other endpoints, so a hosted API never sees fields it refuses. The fields each server reads: vLLM/llama.cpp chat_template_kwargs, Ollama think; reasoning_effort is the traits' own value.",
+    "fields": {"chat_template_kwargs": {"enable_thinking": false}, "think": false}
   },
   "action_kinds": ["relieve", "drink", "eat", "sleep", "fire", "heal", "pray", "spell", "psychic", "shoot", "attack", "defend", "throw", "hack", "repair", "unlock", "open", "steal", "pay", "give", "write", "read", "music", "laugh", "cry", "love", "threaten", "social", "listen", "look", "search", "stealth", "swim", "climb", "ride", "sit", "dress", "move", "use", "other"],
   "line_labels": {

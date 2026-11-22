@@ -1222,6 +1222,39 @@ class TestGenerate:
         assert answer.status_code == 200, answer.text
         assert "Mind " in answer.text and "event: done" in answer.text
 
+    def test_a_thinking_models_story_turn_asks_for_no_thinking(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-22: every story reply on qwen3.5-9b was "<think>…" and nothing else.
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="24gb/qwen3.5-9b:q8", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ada?"]).json()["chat_message"]
+        RECEIVED.clear()
+        server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": ada["id"]}},
+            headers=_headers(user),
+        )
+        sent = RECEIVED[0]["body"]
+        assert sent["think"] is False and sent["chat_template_kwargs"] == {"enable_thinking": False}
+        assert sent["reasoning_effort"] == "none"
+
+    def test_a_wide_narration_carries_the_moment(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I wait."]).json()["chat_message"]
+        prompt = server.post(
+            "/v1/ai_chat/prompt",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "narrate", "narrate_wide": True}},
+            headers=_headers(user),
+        ).json()["prompt"]
+        assert "No one has been chosen to act next." in prompt["messages"][0]["content"]
+        mode = server.get("/v1/ai_chat/campaign_mode?campaign_id=nowhere", headers=_headers(user))
+        assert mode.status_code == 200, mode.text
+        assert mode.json()["campaign_mode"]["resolution_mode"] is None
+
     def test_canon_warnings_can_be_turned_off_for_a_chat(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "a 'permanently dismiss for this campaign' button for radical looney
         # toon campaigns". canon_checks is on by default; off, the canon check answers unchecked.

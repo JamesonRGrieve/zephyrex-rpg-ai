@@ -97,3 +97,23 @@ def test_ask_decider_gives_none_when_refused_and_refuses_unknown_choices(monkeyp
     smug = '{"answers": {"expression": {"type": "choice", "choice": "smug"}}}'
     _client_answering(monkeypatch, lambda request: _completion(smug))
     assert asyncio.run(ask_decider("http://gateway.test/v1", "m", "", "x", QUESTIONS)) == {"expression": None}
+
+
+def test_the_decision_model_gets_three_tries(monkeypatch: Any) -> None:
+    # The operator, 2026-11-22: "Give the decision model 3 tries if it chokes".
+    import asyncio
+
+    from zephyrex.extensions.ai_chat import Decide  # type: ignore[import-not-found]
+
+    answers: list[Any] = [None, {"next": None}, {"next": {"choice": "Ada"}}]
+    asked: list[int] = []
+
+    async def once(*_args: Any) -> Any:
+        asked.append(1)
+        return answers[len(asked) - 1]
+
+    monkeypatch.setattr(Decide, "_ask_once", once)
+    monkeypatch.setattr(Decide, "DECIDE_RETRY_SECONDS", (0.0, 0.0))
+    question = {"next": {"type": "choice", "criteria": ["Ada"]}}
+    got = asyncio.run(Decide.ask_decider("http://x", "m", "", "state", question))
+    assert got == {"next": {"choice": "Ada"}} and len(asked) == 3

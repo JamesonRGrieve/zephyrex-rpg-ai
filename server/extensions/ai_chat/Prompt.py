@@ -528,6 +528,7 @@ def assemble_prompt(
     party: str = "",
     style: str = "",
     scene: str = "",
+    narrate_wide: bool = False,
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -582,6 +583,9 @@ def assemble_prompt(
         main = system_prompt
     elif narrating:
         ruled = narrate_rule(persona, characters)
+        if narrate_wide:
+            # No one was chosen to act next (three undecided turns): the narrator carries the moment.
+            ruled = f"{ruled} {PROMPT['narrate_wide']}"
         # The play-test: an in-character line was answered with an apology for being cut off.
         narrate = " ".join(part for part in (PROMPT["narrate_prompt"], PROMPT["in_character"], ruled) if part)
         main = "\n\n".join(part for part in (narrate, gm_style_text(frame)) if part)

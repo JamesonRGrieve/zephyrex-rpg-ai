@@ -1832,6 +1832,8 @@ class GenerateRequest(PlainModel):
     # Schema-constrained (Structured.py): the model answers JSON items, streamed as item events and saved
     # by the server, one message per speaker run. Prose from a model that ignores the schema streams as deltas.
     structured: bool = False
+    # Three turns undecided (the client): the narrator carries the moment, prompted wide (prompt.narrate_wide).
+    narrate_wide: bool = False
 
     @field_validator("mode")
     @classmethod
@@ -2059,6 +2061,16 @@ class NpcNeeded(PlainModel):
 
 class NpcNeededEnvelope(PlainModel):
     npc_needed: NpcNeeded
+
+
+class CampaignMode(PlainModel):
+    campaign_id: str
+    #: narrative, mechanical or hybrid; None when the campaign has no frame that says.
+    resolution_mode: str | None = None
+
+
+class CampaignModeEnvelope(PlainModel):
+    campaign_mode: CampaignMode
 
 
 class LabelLinesRequest(PlainModel):
@@ -2482,6 +2494,12 @@ def upstream_body(
         "repetition_penalty": sampler["repetition_penalty"],
         # A story turn sends none (uncapped); an API that requires one gets its top (NativeApis, horde).
         **({} if sampler.get("uncapped") else {"max_tokens": sampler["max_tokens"]}),
+        # A thinking model's story turn asks for no thinking, in each server's own words (contract thinking_off).
+        **(
+            {**CONTRACT["thinking_off"]["fields"], "reasoning_effort": sampler["thinking_off"]}
+            if sampler.get("thinking_off") and not text
+            else {}
+        ),
         **({"stop": stop} if stop else {}),
         # Sent only when set (A47): servers that do not take them never see them.
         **({"logit_bias": sampler["logit_bias"]} if sampler.get("logit_bias") else {}),
@@ -2662,6 +2680,16 @@ def present_people(
         },
     )
     return [person for person in persons if person["id"] in reach["present"]]
+
+
+def shown_text(message: Any) -> str:
+    """The alternative a message shows (its swipe at swipe_index), or "" without one."""
+    swipes = list(message.swipes or [])
+    return str(swipes[message.swipe_index]) if 0 <= message.swipe_index < len(swipes) else ""
+
+
+#: speech_options kept for a turn per requester, chat and speaker: (the turn's start, the answer).
+_SPEECH: dict[tuple[str, str, str], tuple[str, dict[str, Any]]] = {}
 
 
 def turn_start(messages: Sequence[Any], leaf_id: str | None, playing_id: str | None) -> str | None:
@@ -3076,6 +3104,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 entities,
                 party_briefing(entities),
             ),
+            narrate_wide=body.narrate_wide,
         )
         if body.mode == "table":
             # The table GM (A11, A20) reads the table talk, with the story for reference only.
@@ -3114,6 +3143,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             sampler = {
                 **sampler,
                 "uncapped": True,
+                # A thinking model writes the story without its thinking (the operator, 2026-11-22: replies were
+                # all "<think>…"): its traits name the reasoning it takes (reasoning_effort "none").
+                "thinking_off": traits_of(
+                    {"model": endpoint.model, "traits": dict(getattr(endpoint, "traits", None) or {})}
+                ).get("reasoning_effort"),
                 "temperature": float(sampler["temperature"]) + float(tuning["temperature_delta"]),
                 # Against replays (the play-test: a round retold almost word for word): the preset's own win.
                 "samplers": {**PROMPT["story_penalties"], **(sampler.get("samplers") or {})},
@@ -4062,6 +4096,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         return answer(moves, None)
 
     @custom_route(
+        method="GET",
+        path="/campaign_mode",
+        output_model=CampaignModeEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="A campaign's resolution mode (narrative, mechanical, hybrid), or none: the freeform gate",
+    )
+    async def campaign_mode_route(self, campaign_id: str) -> CampaignModeEnvelope:
+        frame = frame_for(self._manager(CampaignFrameManager), campaign_id)
+        return CampaignModeEnvelope(
+            campaign_mode=CampaignMode(campaign_id=campaign_id, resolution_mode=getattr(frame, "resolution_mode", None))
+        )
+
+    @custom_route(
         method="POST",
         path="/label_lines",
         input_model=LabelLinesRequestEnvelope,
@@ -4143,18 +4192,31 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         )
 
         playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
-        _assembled, _request, _sampler, _active, context = self._inputs(
-            GenerateRequest(chat_id=asked.chat_id, mode="narrate"), save_timers=False
-        )
+        requester = str(self.requester.id)
+        # Light (Zephyrex RPG, 2026-11-22: the client asks on every leaf change and focus): no prompt is
+        # built; the chat's latest branch and the turn's world (persons_for_turn), and the answer kept a turn.
+        rows = self._manager(ChatMessageManager).list(chat_id=chat.id)
+        leaf = rows[-1] if rows else None  # the list comes oldest first
+        branch = branch_to(rows, str(leaf.id)) if leaf is not None else []
+        turn = turn_start(rows, str(leaf.id), playing_id) if leaf is not None else None
+        cached = _SPEECH.get((requester, chat.id, asked.speaker_id))
+        if turn is not None and cached is not None and cached[0] == turn:
+            return SpeechOptionsEnvelope(speech_options=cached[1])
         story = set(PROMPT["story_channels"])
         story_turns = [
-            turn
-            for turn in context["history"]
-            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+            {
+                "role": row.role,
+                "speaker_character_id": row.speaker_character_id,
+                "content": shown_text(row),
+                "channel": row.channel,
+            }
+            for row in branch
+            if row.channel in story and not row.x_carded and not row.hidden
         ]
-        world = context["world"]
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        wanted = [*(chat.character_ids or []), *([playing_id] if playing_id is not None else [])]
+        world = persons_for_turn(self.model_registry, requester, chat.id, turn, wiki, wanted)
         present = [one for one in present_people(chat, playing_id, world, story_turns) if one["id"] != asked.speaker_id]
-        requester = str(self.requester.id)
 
         def holder(entity: Mapping[str, Any], sheet: Mapping[str, Any] | None) -> dict[str, Any]:
             return {
@@ -4190,6 +4252,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             sheets = [await character_sheet(self.model_registry, requester, str(entity["id"])) for entity in others]
             known = [holder(entity, read) for entity, read in zip(others, sheets, strict=True)]
             options = speech_manners(system, holder(speaking, sheet), present, known, parents)
+        if turn is not None:
+            _SPEECH[(requester, chat.id, asked.speaker_id)] = (turn, options)
         return SpeechOptionsEnvelope(speech_options=options)
 
     @custom_route(
