@@ -25,6 +25,7 @@ import { campaignPlays, chatSessions } from '~/features/data/playRecords';
 import { PARTY_TAG, personAsCast, useCast } from '~/features/data/cast';
 import useSWR from 'swr';
 import { type OpeningEntity, openingFor } from '~/features/campaign/opening';
+import { startPlace } from '~/features/campaign/startPlace';
 import { openingLine } from '~/features/data/framing';
 import { type Character, type Chat, type ChatMessage, chats, messages } from '~/features/data/records';
 import { cn } from '~/lib/utils';
@@ -375,7 +376,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   const { create: createMessage } = messages.useActions();
   const { create: createPlay } = campaignPlays.useActions();
   const { create: createSession } = chatSessions.useActions();
-  const { create: createPerson } = people.useActions();
+  const { create: createPerson, update: updatePerson } = people.useActions();
   const router = useRouter();
   const client = useClient();
   const { mutate } = useSWRConfig();
@@ -425,7 +426,22 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       const page = await client.get('/v1/world_entity', { campaign_id: campaignId, limit: '200' });
       const rows = Reflect.get(Object(page), 'world_entities');
       const entities = Array.isArray(rows) ? (rows as OpeningEntity[]) : [];
-      return openingFor(seated, situation, entities, null, null).text || situation || OPENING_PLACEHOLDER;
+      // A seat with no place starts where the opening says, or where the people are, and is put there
+      // in the wiki so the map, presence and the narrator agree (the Sullenmire start had no place).
+      const seat = entities.find((entity) => entity.id === seated);
+      let placed: string | null = null;
+      if (seated !== null && seat !== undefined && (seat.location_id ?? null) === null) {
+        placed = startPlace(situation, entities);
+        if (placed !== null) {
+          const person = Reflect.get(Object(await client.get(`/v1/person/${seated}`).catch(() => null)), 'person');
+          if (person !== undefined && person !== null)
+            await updatePerson(
+              person as Parameters<typeof updatePerson>[0],
+              { location_id: placed } as Parameters<typeof updatePerson>[1],
+            ).catch(() => null);
+        }
+      }
+      return openingFor(seated, situation, entities, null, placed).text || situation || OPENING_PLACEHOLDER;
     } catch {
       return situation || OPENING_PLACEHOLDER;
     }
