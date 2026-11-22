@@ -119,7 +119,14 @@ export function LineQueue({
   /** The speaker's ways of speaking and remote listeners (speech_options); the base three without. */
   options?: SpeechOptions;
 }): ReactElement {
-  const [queue, setQueue] = useState<QueuedLine[]>([]);
+  const [held, setQueue] = useState<QueuedLine[]>([]);
+  // A character's seat speaks only as that character: an item made a moment before the seat changed
+  // (the local UI check, 2026-11-22: a Say item stayed the narrator's after the seat became Gus) is theirs.
+  const meId = me?.id ?? null;
+  const queue: QueuedLine[] =
+    meId === null
+      ? held
+      : held.map((line) => (line.kind !== 'ooc' && line.speakerId === null ? { ...line, speakerId: meId } : line));
   const remote = options?.remote ?? [];
   const manners = options?.manners.length ? options.manners : BASE_MANNERS;
   const names = new Map([...speakers, ...present, ...remote, ...(me === null ? [] : [me])].map((one) => [one.id, one.name]));
