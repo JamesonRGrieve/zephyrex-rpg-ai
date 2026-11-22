@@ -64,6 +64,12 @@ beforeAll(async () => {
           .end(JSON.stringify({ campaign_documents: documents }));
         return;
       }
+      if (/^\/api\/v1\/campaign\/[^/]+\/lore_search/u.test(request.url ?? '')) {
+        // The wiki's hybrid lore search (lib/wikiWorld.ts loreSearch): nothing found here.
+        worldAsked.push(request.url ?? '');
+        response.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ passages: [], methods: [] }));
+        return;
+      }
       if (/^\/api\/v1\/campaign\/[^/]+\/matching/u.test(request.url ?? '')) {
         // The wiki's relevance read (lib/wikiWorld.ts matching): nothing named here.
         worldAsked.push(request.url ?? '');

@@ -23,6 +23,8 @@ export interface WorldReader {
   advanceClock: (campaignId: string, minutes: number, reason: string) => Promise<WikiClock | null>;
   /** A person moved (GM only; POST /api/v1/person_move); false when refused. */
   movePerson: (personId: string, locationId: string, reason: string) => Promise<boolean>;
+  /** The turn's lore passages from the wiki's hybrid search (POST /api/v1/campaign/{id}/lore_search); [] without. */
+  loreSearch: (campaignId: string, text: string) => Promise<{ name?: string; text?: string }[]>;
   /** The records a text names, campaign and setting canon, through the wiki's key index; [] without. */
   matching: (campaignId: string, text: string) => Promise<CastEntity[]>;
   /** A campaign's own framing (GET /api/v1/campaign/{id}/framing); null without one. */
@@ -53,6 +55,7 @@ export const NO_WORLD: WorldReader = {
   campaign: async () => [],
   byIds: async () => [],
   documents: async () => [],
+  loreSearch: async () => [],
   matching: async () => [],
   framing: async () => null,
   advanceClock: async () => null,
@@ -117,6 +120,18 @@ export function wikiReader(request: Request): WorldReader {
     );
     return Array.isArray(rows) ? (rows as CastEntity[]) : [];
   };
+  const loreSearch = async (campaignId: string, text: string): Promise<{ name?: string; text?: string }[]> => {
+    if (text.trim() === '') return [];
+    const rows: unknown = Reflect.get(
+      Object(
+        await post(`/api/v1/campaign/${encodeURIComponent(campaignId)}/lore_search`, {
+          lore_search: { text, k: WORLD_LORE.search_k, token_budget: WORLD_LORE.search_tokens },
+        }),
+      ),
+      'passages',
+    );
+    return Array.isArray(rows) ? (rows as { name?: string; text?: string }[]) : [];
+  };
   const framing = async (campaignId: string): Promise<CampaignFraming | null> => {
     const answer = await fetch(`${origin}/api/v1/campaign/${encodeURIComponent(campaignId)}/framing`, {
       headers: cookie === null ? {} : { cookie },
@@ -165,5 +180,5 @@ export function wikiReader(request: Request): WorldReader {
     const named: unknown = Reflect.get(Object(person), 'name');
     return { id, name: typeof named === 'string' ? named : name, created: Reflect.get(Object(person), 'created') === true };
   };
-  return { campaign, byIds, documents, matching, framing, advanceClock, movePerson, ensurePerson };
+  return { campaign, byIds, documents, loreSearch, matching, framing, advanceClock, movePerson, ensurePerson };
 }

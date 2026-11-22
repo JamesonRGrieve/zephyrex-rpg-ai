@@ -772,6 +772,9 @@
     "page_limit": 100,
     "canon_reach_turns": 10,
     "matching_limit": 50,
+    "search_k": 12,
+    "search_tokens": 800,
+    "search_heading": "What the setting and its books say:",
     "max_pages": 50
   },
   "injections": {

@@ -42,3 +42,20 @@ class AIChatExtension(AbstractStaticExtension):
         except HTTPException as error:
             # No oauth_consumer (no oidc provider), or no app yet: sign-in by email link still works.
             logger.warning(f"No sign-in instance: {error.detail}")
+        # The wiki's hybrid lore search embeds through rpg-ai's "embed"-role endpoint (Embedder.py).
+        from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
+        from zephyrex.extensions.ai_chat.Embedder import embed_endpoint, lore_embedder  # type: ignore[import-not-found]
+        from zephyrex.lib.Environment import env
+        from zephyrex.pydantic2.registry import ModelRegistry
+
+        try:
+            registry = ModelRegistry.attached()
+            register = loaded_ability(registry, "rpg_core", "register_embedder") if registry is not None else None
+            if register is not None:
+                root_id = str(env("ROOT_ID"))
+                endpoint = embed_endpoint(registry, root_id)
+                model = str(endpoint.model) if endpoint is not None else "nomic-embed-text-v1.5"
+                register(registry, root_id, lore_embedder(registry, root_id), model)
+                logger.info(f"The wiki's lore search embeds with {model}")
+        except Exception as error:  # lore search is extra: the app boots without it
+            logger.warning(f"No lore search embedder: {error}")

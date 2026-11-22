@@ -363,6 +363,17 @@ export async function generationInputs(
   };
   const speakerName = promptCharacters.find((character) => character.id === speakerId)?.name ?? '';
   const lore = activateLore(entries, storyTexts, storyTexts.length, speakerName, priorState, settings, roll);
+  // The turn's passages from the wiki's hybrid lore search, after the character's card.
+  const passages = wikiCampaign === null ? [] : await world.loreSearch(wikiCampaign, recentStory);
+  const found = passages
+    .filter((one) => (one.text ?? '') !== '')
+    .map((one) => `${one.name ?? ''}: ${one.text ?? ''}`.replace(/^: /u, ''))
+    .join('\n\n');
+  if (found !== '') {
+    const heading = `${WORLD_LORE.search_heading}\n${found}`;
+    lore.sections.after_char =
+      lore.sections.after_char === undefined ? heading : `${lore.sections.after_char}\n\n${heading}`;
+  }
 
   const presetRow = chatFields.preset_id === null ? null : await presets.find(chatFields.preset_id, ownerId);
   const sampler: Sampler =

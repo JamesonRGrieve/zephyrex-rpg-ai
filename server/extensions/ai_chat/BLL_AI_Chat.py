@@ -191,10 +191,12 @@ from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-f
     campaign_framing,
     character_sheet,
     ensure_person,
+    lore_passages,
     move_person,
     npc_sheet,
     persons_for,
     persons_for_turn,
+    place_in_scene,
     test_options,
     update_person,
     world_matching,
@@ -2941,6 +2943,17 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         )
         if save_timers:
             timers.save(chat.id, lore.state)
+        # The turn's passages from the wiki's hybrid lore search, once a turn, after the character's card.
+        passages = lore_passages(
+            self.model_registry, str(self.requester.id), chat.id, turn, wiki_campaign, "\n".join(recent)
+        )
+        if passages:
+            found = "\n\n".join(
+                f"{one.get('name') or ''}: {one.get('text') or ''}".strip(": ") for one in passages if one.get("text")
+            )
+            heading = f"{CONTRACT['world_lore']['search_heading']}\n{found}"
+            after = lore.sections.get("after_char")
+            lore.sections["after_char"] = heading if not after else f"{after}\n\n{heading}"
 
         sampler: dict[str, Any] = {**PRESET_DEFAULTS, "stop": [], "prompt_layout": []}
         if chat.preset_id:
@@ -4399,6 +4412,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             yield step(2, str(steps["sheet"]))
             # 3. Their sheet from the VTT's compendium for the campaign's system: never a model's numbers.
             await npc_sheet(self.model_registry, requester, person_id, role, summary)
+            # On the map beside the seat's character (the VTT's place_person; their wiki location follows).
+            from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+                play_context,
+            )
+
+            seat_id, _marks = play_context(requester, self.model_registry, chat.id)
+            await place_in_scene(self.model_registry, requester, wiki, person_id, seat_id)
             if drawing:
                 yield step(3, str(steps["picture"]))
                 # 4. A portrait, stored as an asset and set as their picture.

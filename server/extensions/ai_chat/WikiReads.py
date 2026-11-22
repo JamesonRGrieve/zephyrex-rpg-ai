@@ -127,9 +127,56 @@ def persons_for(
 _TURNS: dict[tuple[str, str], tuple[str, tuple[str, ...], list[dict[str, Any]]]] = {}
 
 
+#: One turn's lore passages (the wiki's lore_search, once per turn): (the turn's start, the passages).
+_LORE: dict[tuple[str, str], tuple[str, list[dict[str, Any]]]] = {}
+
+
 def forget_turns() -> None:
     """Every turn's world read again on its next build: rpg-ai just changed the wiki."""
     _TURNS.clear()
+    _LORE.clear()
+
+
+def lore_passages(
+    model_registry: Any, requester_id: str, chat_id: str, turn: str | None, campaign_id: str | None, text: str
+) -> list[dict[str, Any]] | None:
+    """The turn's lore passages from the wiki's hybrid search (lore_search: named records first, then full
+    text, trigram and vector ranks fused), once per turn and within the contract's budget; None without
+    the ability. Its methods are logged, to see on prod whether vectors were used."""
+    from zephyrex.lib.Logging import logger
+
+    if not campaign_id or not text.strip():
+        return []
+    key = (requester_id, chat_id)
+    cached = _LORE.get(key)
+    if turn is not None and cached is not None and cached[0] == turn:
+        return list(cached[1])
+    search = loaded_ability(model_registry, "rpg_core", "lore_search")
+    if search is None:
+        return None
+    try:
+        answer = _sync(
+            search(
+                model_registry,
+                requester_id,
+                campaign_id,
+                text,
+                k=int(WORLD_LORE["search_k"]),
+                token_budget=int(WORLD_LORE["search_tokens"]),
+            )
+        )
+    except HTTPException:
+        return []
+    passages = list(answer.get("passages") or []) if isinstance(answer, dict) else []
+    logger.info(
+        "lore_search %s: %s passages by %s",
+        campaign_id,
+        len(passages),
+        answer.get("methods") if isinstance(answer, dict) else None,
+    )
+    if turn is not None:
+        _LORE[key] = (turn, passages)
+    return passages
 
 
 def persons_for_turn(
@@ -272,3 +319,22 @@ async def character_sheet(model_registry: Any, requester_id: str, person_id: str
         return None
     sheet = await _call(read, requester_id, person_id)
     return dict(sheet) if isinstance(sheet, dict) else None
+
+
+async def place_in_scene(
+    model_registry: Any, requester_id: str, campaign_id: str | None, person_id: str, near_person_id: str | None
+) -> dict[str, Any] | None:
+    """A person put on the campaign's current scene beside ``near_person_id``'s token (the VTT's
+    current_scene and place_person; their wiki location follows), or None without the VTT or a scene."""
+    if not campaign_id:
+        return None
+    scene_of = loaded_ability(model_registry, "rpg_scene", "current_scene")
+    place = loaded_ability(model_registry, "rpg_scene", "place_person")
+    if scene_of is None or place is None:
+        return None
+    scene = await _call(scene_of, requester_id, campaign_id)
+    if not isinstance(scene, dict) or not scene.get("id"):
+        return None
+    forget_turns()
+    placed = await _call(place, requester_id, str(scene["id"]), person_id, near_person_id=near_person_id)
+    return dict(placed) if isinstance(placed, dict) else None
