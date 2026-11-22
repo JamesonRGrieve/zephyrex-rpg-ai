@@ -29,5 +29,10 @@ describe('CharacterTile', () => {
 
   it('makes initials from up to two words', () => {
     expect([initials('Ada Vance Smith'), initials('bram'), initials('  ')]).toEqual(['AV', 'B', '?']);
+    expect([
+      initials('The Barkeep (emerging from behind the bar)'),
+      initials('Sister Maelis (Varn)'),
+      initials('(x)'),
+    ]).toEqual(['B', 'SM', '?']);
   });
 });

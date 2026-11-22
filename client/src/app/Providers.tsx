@@ -5,6 +5,7 @@ import { ZephyrexApp } from 'zephyrex';
 import { SidebarContext } from 'zephyrex/components/appwrapper/src/SidebarContext';
 import { SidebarMain } from 'zephyrex/components/appwrapper/src/SidebarMain';
 import { CustomStyle } from '~/components/settings/CustomCss';
+import { PullToRefresh } from '~/components/common/PullToRefresh';
 import config from '~/zephyrex.config';
 
 /**
@@ -56,6 +57,7 @@ export function Providers({ children }: { children: ReactNode }): ReactNode {
       {/* The right-hand context pop-out, in an open chat (components/play/ContextPanel.tsx). */}
       <SidebarContext side='right' visibleOn={['/play/']} />
       <CustomStyle />
+      <PullToRefresh />
     </ZephyrexApp>
   );
 }

@@ -10,13 +10,23 @@ import type { Character } from '~/features/data/records';
 import { expandMacros } from '~/features/prompt/macros';
 
 /** The character's initials, for when there is no picture. */
+/**
+ * A name's initials for an avatar with no picture: letters only (the operator, 2026-11-22:
+ * "Parentheses are not valid last initials"), stage business in parentheses and a leading article
+ * left out: "The Barkeep (emerging…)" is "B", "Brakka Ironmantle" is "BI".
+ */
 export function initials(name: string): string {
-  const letters = name
+  const words = name
+    .replace(/\([^)]*\)?/g, ' ')
     .split(/\s+/)
-    .filter(Boolean)
+    .map((word) => word.replace(/[^\p{L}\p{N}]/gu, ''))
+    .filter(Boolean);
+  const named = words.length > 1 && /^(the|a|an)$/i.test(words[0] ?? '') ? words.slice(1) : words;
+  const letters = named
     .slice(0, 2)
-    .map((word) => word[0]?.toUpperCase() ?? '');
-  return letters.join('') || '?';
+    .map((word) => word[0] ?? '')
+    .join('');
+  return letters.toUpperCase() || '?';
 }
 
 /** One character in the gallery: picture, name, tags, and a tap target big enough for a thumb. */
