@@ -12,7 +12,6 @@ import { useClient } from 'zephyrex';
 import { z } from 'zod';
 import { sceneLocation, type StoryLine } from '~/features/campaign/sceneLocation';
 import { useCapabilities } from '~/features/capabilities';
-import { campaigns } from '~/features/data/records';
 
 const locationsSchema = z.object({
   world_entities: z.array(
@@ -42,8 +41,9 @@ export function useSceneBackground(
 ): string | null {
   const { world } = useCapabilities();
   const client = useClient();
-  const frame = campaigns.useOne(world && chat.background === null ? chat.campaign_id : null);
-  const wikiCampaign = frame.data?.wiki_campaign_id ?? null;
+  // In the composed suite a chat's campaign is the wiki's own (no frame to read: it 404'd for every
+  // playthrough).
+  const wikiCampaign = world && chat.background === null ? chat.campaign_id : null;
   const path =
     wikiCampaign === null ? null : `/v1/world_entity?campaign_id=${encodeURIComponent(wikiCampaign)}&kinds=location`;
   const locations = useSWR(path, async (key: string) => locationsSchema.parse(await client.get(key)).world_entities);

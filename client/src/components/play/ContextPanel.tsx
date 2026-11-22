@@ -141,7 +141,7 @@ export function ContextSidebar(): ReactElement | null {
 export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null }: ContextPanelProps): ReactElement {
   const client = useClient();
   const entities = useSWR(campaignId !== null ? ['rpg-ai', 'panel-entities', campaignId] : null, async () => {
-    const page = await client.get('/v1/world_entity', { campaign_id: campaignId ?? '', limit: '500' });
+    const page = await client.get('/v1/world_entity', { campaign_id: campaignId ?? '', limit: '200' });
     const rows = Reflect.get(Object(page), 'world_entities');
     return Array.isArray(rows) ? (rows as Entity[]) : [];
   });

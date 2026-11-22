@@ -347,7 +347,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
    */
   const toldOpening = async (campaignId: string, seated: string | null, situation: string): Promise<string> => {
     try {
-      const page = await client.get('/v1/world_entity', { campaign_id: campaignId, limit: '500' });
+      const page = await client.get('/v1/world_entity', { campaign_id: campaignId, limit: '200' });
       const rows = Reflect.get(Object(page), 'world_entities');
       const entities = Array.isArray(rows) ? (rows as OpeningEntity[]) : [];
       return openingFor(seated, situation, entities, null, null).text || situation;
