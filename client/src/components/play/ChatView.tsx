@@ -1981,7 +1981,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             />
           </div>
         )}
-        {view === 'map' && <MapView campaignId={chat.campaign_id ?? null} />}
+        {view === 'map' && <MapView campaignId={chat.campaign_id ?? null} gm={chat.seat === 'gm'} />}
         <ol
           className={cn(
             'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
