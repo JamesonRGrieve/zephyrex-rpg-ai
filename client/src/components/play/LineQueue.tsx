@@ -7,7 +7,7 @@
  * any character, or the narrator.
  */
 import { ArrowDown, ArrowUp, MessageSquareQuote, MessagesSquare, Send, Sparkles, X } from 'lucide-react';
-import { type ReactElement, type ReactNode, useEffect, useState } from 'react';
+import { type ReactElement, type ReactNode, useEffect, useId, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
 import { cn } from '~/lib/utils';
@@ -18,19 +18,35 @@ export interface QueueMember {
 }
 
 export type QueuedLine =
-  | { kind: 'say'; speakerId: string | null; targetId: string | null; manner?: Manner; text: string }
-  | { kind: 'do'; speakerId: string | null; targetId?: string | null; text: string }
+  | { kind: 'say'; speakerId: string | null; targetId: string | null; targetName?: string; manner?: Manner; text: string }
+  | { kind: 'do'; speakerId: string | null; targetId?: string | null; targetName?: string; text: string }
   | { kind: 'ooc'; speakerId: null; text: string };
 
 /** How a line is said (the operator, 2026-11-21), chosen per Say item. */
-export type Manner = 'speak' | 'whisper' | 'shout' | 'vox' | 'voxcast';
-const MANNERS: { value: Manner; label: string }[] = [
-  { value: 'speak', label: 'says' },
-  { value: 'whisper', label: 'whispers' },
-  { value: 'shout', label: 'shouts' },
-  { value: 'vox', label: 'vox' },
-  { value: 'voxcast', label: 'voxcast' },
+export type Manner = string;
+/** What anyone may do with their voice; the rest come from the setting and the speaker (speech_options). */
+export const BASE_MANNERS: SpeechManner[] = [
+  { id: 'speak', label: 'says', reaches: 'present' },
+  { id: 'whisper', label: 'whispers', reaches: 'present' },
+  { id: 'shout', label: 'shouts', reaches: 'present' },
 ];
+
+/** A way of speaking and how far it carries (the operator, 2026-11-22: setting-dependent modes). */
+export interface SpeechManner {
+  id: string;
+  label: string;
+  reaches: 'present' | 'remote' | 'broadcast';
+}
+
+/**
+ * Who a line can be aimed at (the operator, 2026-11-22: "only allow valid targets (largely present
+ * people, or known individuals with vox units / public vox) and should also allow custom entry"):
+ * those present, those a remote manner reaches, and any name typed.
+ */
+export interface SpeechOptions {
+  manners: readonly SpeechManner[];
+  remote: readonly (QueueMember & { via: string })[];
+}
 
 /** The narrator, as a speaker the GM may pick. */
 export const NARRATOR_NAME = 'Narrator';
@@ -50,20 +66,26 @@ export function formatLines(lines: readonly QueuedLine[], names: ReadonlyMap<str
       if (line.kind !== 'say') {
         // An action's target, when the person names one (the operator, 2026-11-21: a punch at "it"
         // was read as one at a team mate): `Name (at Target) action…`.
-        const at = line.kind === 'do' && line.targetId != null ? names.get(line.targetId) : undefined;
+        const at =
+          line.kind === 'do'
+            ? line.targetId != null
+              ? names.get(line.targetId)
+              : line.targetName?.trim() || undefined
+            : undefined;
         return `${speaker}${at === undefined ? '' : ` (at ${at})`} ${text.replace(/^\s*[*]+|[*]+\s*$/g, '')}`;
       }
-      const target = line.targetId === null ? EVERYONE : (names.get(line.targetId) ?? EVERYONE);
+      const target = line.targetId !== null ? (names.get(line.targetId) ?? EVERYONE) : line.targetName?.trim() || EVERYONE;
       const words = text.replace(/^["“]|["”]$/g, '');
       const manner = line.manner ?? 'speak';
       const tag =
-        manner === 'voxcast'
-          ? 'voxcast'
-          : manner === 'vox'
-            ? `vox to ${target}`
-            : manner === 'speak'
-              ? `to ${target}`
-              : `to ${target}, ${manner === 'whisper' ? 'whispers' : 'shouts'}`;
+        manner === 'speak'
+          ? `to ${target}`
+          : manner === 'whisper' || manner === 'shout'
+            ? `to ${target}, ${manner}s`
+            : manner === 'voxcast' || target === EVERYONE
+              ? manner
+              : // A remote manner (vox, the Message spell…): `vox to X`, `message to X`.
+                `${manner} to ${target}`;
       return `${speaker} (${tag}): "${words}"`;
     })
     .join('\n');
@@ -78,6 +100,7 @@ export function LineQueue({
   onOutOfGame,
   tools = null,
   onDraft,
+  options,
 }: {
   /** The seat's character: every item is theirs. Null for the GM, who picks a speaker per item. */
   me: QueueMember | null;
@@ -93,9 +116,19 @@ export function LineQueue({
   tools?: ReactNode;
   /** The story lines as they stand, for checks while typing (canon warnings). */
   onDraft?: (lines: string) => void;
+  /** The speaker's ways of speaking and remote listeners (speech_options); the base three without. */
+  options?: SpeechOptions;
 }): ReactElement {
   const [queue, setQueue] = useState<QueuedLine[]>([]);
-  const names = new Map([...speakers, ...present, ...(me === null ? [] : [me])].map((one) => [one.id, one.name]));
+  const remote = options?.remote ?? [];
+  const manners = options?.manners.length ? options.manners : BASE_MANNERS;
+  const names = new Map([...speakers, ...present, ...remote, ...(me === null ? [] : [me])].map((one) => [one.id, one.name]));
+  const targetList = useId();
+  /** A typed target: someone known by that name, else the name as written (custom entry). */
+  const aim = (index: number, typed: string) => {
+    const known = [...present, ...remote].find((one) => one.name.toLowerCase() === typed.trim().toLowerCase());
+    change(index, known === undefined ? { targetId: null, targetName: typed } : { targetId: known.id, targetName: '' });
+  };
   const add = (kind: 'say' | 'do' | 'ooc') =>
     setQueue((now) => [
       ...now,
@@ -128,6 +161,18 @@ export function LineQueue({
 
   return (
     <div className='grid gap-2'>
+      <datalist id={`${targetList}-present`}>
+        {present.map((one) => (
+          <option key={one.id} value={one.name} />
+        ))}
+      </datalist>
+      <datalist id={`${targetList}-remote`}>
+        {remote.map((one) => (
+          <option key={one.id} value={one.name}>
+            {one.via}
+          </option>
+        ))}
+      </datalist>
       {queue.length > 0 && (
         <ol aria-label='Queued lines' className='grid gap-2'>
           {queue.map((line, index) => (
@@ -158,49 +203,38 @@ export function LineQueue({
                     aria-label='How'
                     className='h-9 rounded-md border bg-background px-2'
                     value={line.manner ?? 'speak'}
-                    onChange={(event) => change(index, { manner: event.target.value as Manner })}
+                    onChange={(event) => change(index, { manner: event.target.value })}
                   >
-                    {MANNERS.map((one) => (
-                      <option key={one.value} value={one.value}>
+                    {manners.map((one) => (
+                      <option key={one.id} value={one.id}>
                         {one.label}
                       </option>
                     ))}
                   </select>
                 )}
                 {line.kind === 'do' && line.speakerId !== null && (
-                  <select
+                  <input
                     aria-label='At whom'
-                    className='h-9 rounded-md border bg-background px-2'
-                    value={line.targetId ?? ''}
-                    onChange={(event) => change(index, { targetId: event.target.value === '' ? null : event.target.value })}
-                  >
-                    <option value=''>at no one</option>
-                    {present
-                      .filter((one) => one.id !== line.speakerId)
-                      .map((one) => (
-                        <option key={one.id} value={one.id}>
-                          at {one.name}
-                        </option>
-                      ))}
-                  </select>
+                    list={`${targetList}-present`}
+                    placeholder='at no one'
+                    className='h-9 w-36 rounded-md border bg-background px-2'
+                    value={line.targetId != null ? (names.get(line.targetId) ?? '') : (line.targetName ?? '')}
+                    onChange={(event) => aim(index, event.target.value)}
+                  />
                 )}
-                {line.kind === 'say' && line.speakerId !== null && line.manner !== 'voxcast' && (
-                  <select
-                    aria-label='To whom'
-                    className='h-9 rounded-md border bg-background px-2'
-                    value={line.targetId ?? ''}
-                    onChange={(event) => change(index, { targetId: event.target.value === '' ? null : event.target.value })}
-                  >
-                    <option value=''>to everyone</option>
-                    {present
-                      .filter((one) => one.id !== line.speakerId)
-                      .map((one) => (
-                        <option key={one.id} value={one.id}>
-                          to {one.name}
-                        </option>
-                      ))}
-                  </select>
-                )}
+                {line.kind === 'say' &&
+                  line.speakerId !== null &&
+                  manners.find((one) => one.id === (line.manner ?? 'speak'))?.reaches !== 'broadcast' && (
+                    <input
+                      aria-label='To whom'
+                      // Those present for a voice that carries in the room; those it reaches for one that doesn't.
+                      list={`${targetList}-${manners.find((one) => one.id === (line.manner ?? 'speak'))?.reaches === 'remote' ? 'remote' : 'present'}`}
+                      placeholder='to everyone'
+                      className='h-9 w-36 rounded-md border bg-background px-2'
+                      value={line.targetId !== null ? (names.get(line.targetId) ?? '') : (line.targetName ?? '')}
+                      onChange={(event) => aim(index, event.target.value)}
+                    />
+                  )}
                 <span className='ml-auto flex gap-1'>
                   <Button
                     type='button'

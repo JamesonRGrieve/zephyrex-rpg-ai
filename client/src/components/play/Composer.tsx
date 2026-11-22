@@ -15,7 +15,7 @@ import { isScript } from '~/features/chat/stscript';
 import { PICTURE_TYPES, pictureFromFile } from '~/features/media/picture';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
-import { LineQueue, type QueueMember } from './LineQueue';
+import { LineQueue, type QueueMember, type SpeechOptions } from './LineQueue';
 import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
 
 /** A story line is checked against canon once it is this long, this long after the last keystroke. */
@@ -69,6 +69,7 @@ export function Composer({
   repliesWritten = 0,
   onCheckCanon,
   queue,
+  speechOptions,
 }: {
   writing: boolean;
   disabled?: boolean;
@@ -99,6 +100,8 @@ export function Composer({
    * plays (null as the GM), whom the GM may speak as, and who is present to be spoken to.
    */
   queue?: { me: QueueMember | null; speakers: readonly QueueMember[]; present: readonly QueueMember[] };
+  /** The seat's setting-dependent ways of speaking and remote listeners (LineQueue). */
+  speechOptions?: SpeechOptions;
 }): ReactElement {
   // A quick reply that fills on opening the chat (A38) is the box's first text.
   const [text, setText] = useState(() => fillOn(quickReplies, 'chat_open')?.text ?? '');
@@ -292,6 +295,7 @@ export function Composer({
             me={queue.me}
             speakers={queue.speakers}
             present={queue.present}
+            options={speechOptions}
             disabled={disabled}
             onSend={(lines) => onSend(lines, 'ic')}
             // Out of game is also where a slash command or script is typed (A37).

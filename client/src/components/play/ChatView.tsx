@@ -135,6 +135,8 @@ import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments, plainDashes, replayOf, seatCut } from '~/features/chat/voiceGuard';
 import { aimAt, clarify, ensurePerson, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
 import { type AuthoringStep, authorNpc, npcNeeded } from '~/features/chat/authorNpc';
+import { fetchSpeechOptions } from '~/features/chat/speechOptions';
+import useSWR from 'swr';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
@@ -321,6 +323,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   }, [chat.id, chat.variables]);
   // A script asking the person (/input, /buttons), answered through ScriptPrompt.
   const [lastRoll, setLastRoll] = useState<unknown>(null);
+
   // An NPC being authored for the story (features/chat/authorNpc.ts), shown as a card in the chat.
   const [authoring, setAuthoring] = useState<{ name: string; step: AuthoringStep } | null>(null);
   const [asking, setAsking] = useState<{
@@ -338,7 +341,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
   // A campaign (docs/DESIGN.md, The play model): its seat, sessions, rewind and fork.
   const play = useCampaign(chat, branch);
-  // Saved model-and-preset pairs (gap 8), offered in chat settings.
+  // How the seat may speak here and to whom beyond the room (speech_options: setting-dependent).
+  const speechOptions = useSWR(
+    play.isCampaign && play.playingId !== null ? ['rpg-ai', 'speech-options', chat.id, play.playingId, leafId] : null,
+    () => fetchSpeechOptions(chat.id, play.playingId ?? ''),
+  ); // Saved model-and-preset pairs (gap 8), offered in chat settings.
   const profileList = connectionProfiles.useList();
   // Canon notices (docs/DESIGN.md, Canon warnings): the person's line as they write it, and each AI line,
   // which a warning corrects (the operator, 2026-11-22: "Canon warnings should still fire on AI lines,
@@ -1989,6 +1996,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           />
         )}
         <Composer
+          speechOptions={speechOptions.data ?? undefined}
           queue={
             // Every chat's turn is queued Say, Do and Out of game items (the operator, 2026-11-21: the
             // Story / Table talk / Ask the GM switch is gone). Outside a campaign the person speaks as

@@ -30,7 +30,7 @@ describe('Composer', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Say' }));
     await userEvent.type(screen.getByLabelText('What is said'), 'Quiet.');
     await userEvent.selectOptions(screen.getByLabelText('How'), 'whisper');
-    await userEvent.selectOptions(screen.getByLabelText('To whom'), 'wren');
+    await userEvent.type(screen.getByLabelText('To whom'), 'Wren');
     await userEvent.click(screen.getByRole('button', { name: 'Do' }));
     expect(screen.getByLabelText('What is done')).toHaveAttribute('autocapitalize', 'off');
     await userEvent.type(screen.getByLabelText('What is done'), 'listens at the wall.');
