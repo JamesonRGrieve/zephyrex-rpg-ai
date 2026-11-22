@@ -471,7 +471,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       role: 'character',
       speaker_character_id: speakerId,
       // A group reply that opens with its own "Name:" loses it, as in SillyTavern.
-      swipes: [stored(withoutSpeakerPrefix(result.text, castById.get(speakerId)?.name ?? ''), 'ai_output')],
+      swipes: [thought(result, stored(withoutSpeakerPrefix(result.text, castById.get(speakerId)?.name ?? ''), 'ai_output'))],
       revision: (Reflect.get(result, 'revision') as Revision | null | undefined) ?? null,
     });
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
@@ -1044,10 +1044,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * "<think>Thinking Process…", never closed, was saved and shown as the character's line): only what
    * follows the reasoning is the story; a reply that is all reasoning counts as empty.
    */
+  /** A saved line with the model's thinking kept before it (shown folded; the prompt strips it). */
+  const thought = (written: object, text: string): string => {
+    const reasoning = Reflect.get(written, 'reasoning');
+    return typeof reasoning === 'string' && reasoning.trim() !== '' ? `<think>${reasoning.trim()}</think>\n\n${text}` : text;
+  };
   const storyPart = async (request: Parameters<typeof reply.write>[0]) => {
     const written = await timedWrite(request);
     if (written === null || written.saved !== undefined) return written;
-    return { ...written, text: splitReasoning(written.text).reply, raw: written.text };
+    const { reasoning, reply: told } = splitReasoning(written.text);
+    return { ...written, text: told, raw: written.text, reasoning };
   };
   const storyWrite = async (request: Parameters<typeof reply.write>[0]) => {
     let result = await storyPart(request);
@@ -1211,7 +1217,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           ? { role: 'narrator' as const }
           : { role: 'character' as const, speaker_character_id: part.speaker_id }),
         channel: 'ic',
-        swipes: [stored(part.text, 'ai_output')],
+        // The model's thinking rides with the first line, folded when shown, never read back as story.
+        swipes: [index === 0 ? thought(result, stored(part.text, 'ai_output')) : stored(part.text, 'ai_output')],
         // The first line of a rewritten narration carries what it replaced.
         revision: index === 0 ? ((Reflect.get(result, 'revision') as Revision | null | undefined) ?? null) : null,
       });

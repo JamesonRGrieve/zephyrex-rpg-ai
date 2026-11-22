@@ -401,14 +401,20 @@ export function MessageItem({
             ) : (
               (() => {
                 // The decision model's labels, once the message has them; the reader's guess until then.
+                // The model's thinking, folded under the line (the operator, 2026-11-22: "Just put thinking in
+                // a collapsible under narrator"); the lines read only what follows it.
+                const { reasoning, reply } = splitReasoning(message.text);
                 const structured =
                   labels !== null && labels !== undefined
                     ? labelledLines(labels, message.speaker)
-                    : readLines(message.text, [message.speaker, ...names]);
+                    : readLines(reply, [message.speaker, ...names]);
                 return structured === null ? (
                   <StoryText text={message.text} writing={writing} />
                 ) : (
-                  <StructuredLines lines={structured} speaker={message.speaker} />
+                  <>
+                    {reasoning !== '' && <Reasoning text={reasoning} writing={false} />}
+                    <StructuredLines lines={structured} speaker={message.speaker} />
+                  </>
                 );
               })()
             )}

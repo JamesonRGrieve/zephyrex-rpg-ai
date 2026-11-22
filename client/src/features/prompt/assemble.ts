@@ -607,7 +607,8 @@ function historyMessage(
   includeNames = false,
 ): ModelMessage {
   // A model's reasoning is never read back to it (A45).
-  const thinks = turn.role === 'character' && REASONING.pairs.some(([opening]) => turn.content.includes(opening as string));
+  // Every role's: the narrator's lines keep their thinking too (folded under them in the chat).
+  const thinks = REASONING.pairs.some(([opening]) => turn.content.includes(opening as string));
   const content = thinks ? splitReasoning(turn.content).reply : turn.content;
   if (turn.role === 'character' && turn.speaker_character_id === speakerId) {
     // A template that names every turn (audit gap 4) names the speaker's own too.
