@@ -837,8 +837,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
 
   /** What each reply written in this visit cost (AP5), by message id. */
   const [replyCost, setReplyCost] = useState<ReadonlyMap<string, ReplyStats>>(new Map());
+  /**
+   * The round in play (the operator, 2026-11-22: "my lines were auto regenerated and ignored. A 2/2 was
+   * created that discarded them"): the person's line starts a new one, stopping the one under way, and
+   * whatever the old one still produces is dropped, never saved under the leaf it began from (which
+   * made a sibling of the person's line and moved the view to it).
+   */
+  const roundRef = useRef(0);
   const timedWrite = async (request: Parameters<typeof reply.write>[0]) => {
+    const mine = roundRef.current;
     const { value, seconds } = await timed(() => reply.write(request));
+    if (roundRef.current !== mine) return null;
     return value === null ? null : { ...value, seconds };
   };
   /**
@@ -948,9 +957,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * so the round goes on from it. Returns the banner, or null.
    */
   const followOnMap = async (leaf: string): Promise<ChatMessage | null> => {
+    const mine = roundRef.current;
     const change = await mapStep(chat.id, leaf);
     let banner: ChatMessage | null = null;
-    if (change?.seatMoved === true && change.seatPlace !== null) {
+    if (roundRef.current === mine && change?.seatMoved === true && change.seatPlace !== null) {
       banner = await create({
         chat_id: chat.id,
         parent_id: leaf,
@@ -1149,6 +1159,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * last, then the AI GM's narration when the person sits as a player.
    */
   const playRound = async (start: ChatMessage, path: readonly ChatMessage[]) => {
+    const mine = roundRef.current;
+    const superseded = () => roundRef.current !== mine;
     if (chat.seat === null) {
       await replyAfter(start.id, path);
       return;
@@ -1188,6 +1200,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           notify('The roll was not made', error instanceof Error ? error.message : undefined);
           return true;
         }
+        if (superseded()) return false;
         const rolled = await create({
           chat_id: chat.id,
           parent_id: line.id,
@@ -1241,9 +1254,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         // They join the cast (the server adds them to the chat): read the cast and the chat again.
         else await globalMutate((key) => JSON.stringify(key ?? '').match(/person|cast|world_entity|chat/) !== null);
       }
+      if (superseded()) return;
       if (!(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
+        if (superseded()) return;
         const next = await decideNextTurn(chat.id, parent.id);
+        if (superseded()) return;
         if (!next.decided) break;
         const usable = next.kind === 'character' && next.character_id !== null && aiIds.has(next.character_id);
         // The person's own line always gets an answer: a pause (or a pick outside the AI party)
@@ -1274,6 +1290,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     let current = [...path];
     let parent: ChatMessage = start;
     for (const turn of turns) {
+      if (superseded()) return;
       const saved = turn === GM_TURN ? await narrateAfter(parent.id) : await replyAfter(parent.id, current, turn);
       // A turn that wrote nothing (stopped, or failed) ends the round there.
       if (saved === null) return;
@@ -1328,6 +1345,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   };
 
   const send = async (text: string, channel: ComposerChannel, images: string[] = []) => {
+    if (channel === 'ic') {
+      // A new round: the one under way stops, and what it still writes is dropped.
+      roundRef.current += 1;
+      if (writing) reply.stop();
+    }
     const saved = await create({
       chat_id: chat.id,
       parent_id: leaf,
