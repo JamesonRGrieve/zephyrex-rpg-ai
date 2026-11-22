@@ -146,6 +146,7 @@ import { completeText, metaBreak, narrateSegments, plainDashes, replayOf, seatCu
 import { aimAt, clarify, ensurePerson, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
 import { type AuthoringStep, authorNpc, npcNeeded } from '~/features/chat/authorNpc';
 import { fetchSpeechOptions } from '~/features/chat/speechOptions';
+import { namesIn } from '~/features/chat/namesIn';
 import type { Revision } from './RevisionButton';
 import useSWR from 'swr';
 import { mutate as globalMutate } from 'swr';
@@ -340,6 +341,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [asking, setAsking] = useState<{
     prompt: string;
     options: readonly string[] | null;
+    asker?: string;
     resolve: (answer: string | null) => void;
   } | null>(null);
 
@@ -1269,9 +1271,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const npcAsked = play.isCampaign ? npcNeeded(chat.id, start.id) : Promise.resolve(null);
       const question = play.isCampaign ? await during('Reading your line', clarify(chat.id, start.id)) : null;
       if (question !== null) {
-        const picked = await new Promise<string | null>((resolve) =>
-          setAsking({ prompt: question.question, options: question.options.map((one) => one.label), resolve }),
-        );
+        // A line that names one of the choices settles it without asking (the operator, 2026-11-22: "How
+        // was this ambiguous?" of "Stares at the barkeep" with The Barkeep among the choices).
+        const named = question.options.filter((one) => namesIn(start.swipes[start.swipe_index ?? 0] ?? '', one.label));
+        const picked =
+          named.length === 1
+            ? (named[0]?.label ?? null)
+            : await new Promise<string | null>((resolve) =>
+                setAsking({
+                  prompt: question.question,
+                  options: question.options.map((one) => one.label),
+                  asker: 'The GM',
+                  resolve,
+                }),
+              );
         const chosen = question.options.find((one) => one.label === picked);
         if (chosen !== undefined) {
           // The pick names the target: each of the person's actions that named none is aimed at it.
@@ -2093,6 +2106,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           <ScriptPrompt
             prompt={asking.prompt}
             options={asking.options}
+            asker={asking.asker}
             onAnswer={(answer) => {
               asking.resolve(answer);
               setAsking(null);

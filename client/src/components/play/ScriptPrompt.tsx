@@ -13,8 +13,11 @@ export function ScriptPrompt({
   prompt,
   options,
   onAnswer,
+  asker = 'A script',
 }: {
   prompt: string;
+  /** Who asks: a script's /buttons and /input, or the GM's question about a line. */
+  asker?: string;
   /** The choices for /buttons; null for /input's text box. */
   options: readonly string[] | null;
   onAnswer: (answer: string | null) => void;
@@ -25,7 +28,7 @@ export function ScriptPrompt({
     <Dialog open onOpenChange={(open) => (open ? undefined : onAnswer(null))}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>A script asks</DialogTitle>
+          <DialogTitle>{asker} asks</DialogTitle>
           <DialogDescription id={`${id}-prompt`}>{prompt === '' ? 'Your answer:' : prompt}</DialogDescription>
         </DialogHeader>
         {options === null ? (
