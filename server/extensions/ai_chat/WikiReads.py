@@ -12,6 +12,7 @@ A reply is assembled synchronously, so an ability that answers asynchronously gi
 from __future__ import annotations
 
 import inspect
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import HTTPException
@@ -19,6 +20,12 @@ from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
 from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
 
 WORLD_LORE: dict[str, Any] = CONTRACT["world_lore"]
+
+#: One turn builds its prompt several times (the narration, clarify, needs_roll, next_turn, map_step, the
+#: status line), and a campaign's world with its setting's canon is thousands of records (Self Hosted AI,
+#: 2026-11-22: the wait was spent before the GPU). Each requester's campaign is read whole once; after
+#: that only what changed since (the ability's since, tombstones included), merged by id.
+_WORLD: dict[tuple[str, str], tuple[datetime, dict[str, dict[str, Any]]]] = {}
 
 
 def _sync(answer: Any) -> Any:
@@ -37,23 +44,35 @@ def world_entities_page(model_registry: Any, requester_id: str, campaign_id: str
     read = loaded_ability(model_registry, "rpg_core", "world_entities")
     if read is None:
         return []
+    key = (requester_id, campaign_id)
+    cached = _WORLD.get(key)
+    since = cached[0] if cached is not None else None
+    # Taken before reading, so a change made while the pages are read is read again next time.
+    asked_at = datetime.now(UTC)
     found: list[dict[str, Any]] = []
     after: str | None = None
     for _ in range(WORLD_LORE["max_pages"]):
         limit = WORLD_LORE["page_limit"]
         try:
-            answer = read(model_registry, requester_id, campaign_id, after=after, limit=limit, include_setting=True)
+            answer = read(
+                model_registry, requester_id, campaign_id, since=since, after=after, limit=limit, include_setting=True
+            )
             page = _sync(answer)
         except HTTPException:
             # A campaign the requester can't see, or one that's gone, holds nothing for them.
-            return found
+            _WORLD.pop(key, None)
+            return []
         if not isinstance(page, dict):
-            return found
+            return found if cached is None else list(cached[1].values())
         found.extend(page.get("world_entities") or [])
         after = page.get("next")
         if not after:
             break
-    return found
+    merged = dict(cached[1]) if cached is not None else {}
+    for entity in found:
+        merged[str(entity.get("id"))] = entity
+    _WORLD[key] = (asked_at, merged)
+    return list(merged.values())
 
 
 def world_entities_by_id(model_registry: Any, requester_id: str, ids: list[str]) -> list[dict[str, Any]]:
