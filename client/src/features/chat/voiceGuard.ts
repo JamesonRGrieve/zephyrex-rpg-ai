@@ -304,19 +304,43 @@ const trigrams = (text: string): Set<string> => {
   return new Set(words.slice(2).map((word, index) => `${words[index]} ${words[index + 1]} ${word}`));
 };
 
+/** Words alone, lower case, one space apart: what "said word for word" compares. */
+const bare = (text: string): string => (text.toLowerCase().match(/[\p{L}\p{N}']+/gu) ?? []).join(' ');
+
 /**
- * A narration that retells what already happened (the play-test: a round replayed almost word for
- * word), no model call: over the threshold of its word trigrams already in the last few story lines.
- * The span is its first sentence that is mostly old, for the one regeneration to forbid; or null.
+ * What a reply retells of the story so far (the operator, 2026-11-22: "Lots of repetition"), no model
+ * call. The story is the last window_chars of `earlier` (oldest first), however many lines that is.
+ * A paragraph (line) with min_trigrams or more, mostly in it by word trigrams, is a replay; so is a
+ * quoted line of quote_words or more said word for word before. Every span, for one regeneration
+ * (forbid.spans); `at` and `span` are the first. Null when nothing is retold.
  */
-export function replayOf(text: string, earlier: readonly string[]): { at: number; span: string } | null {
-  const { threshold, window, min_trigrams } = VOICE_GUARD.replay;
-  const fresh = trigrams(text);
-  if (fresh.size < min_trigrams) return null;
-  const old = trigrams(earlier.slice(-window).join('\n'));
-  const share = (set: Set<string>): number =>
-    set.size === 0 ? 0 : [...set].filter((one) => old.has(one)).length / set.size;
-  if (share(fresh) < threshold) return null;
-  const hit = sentences(text).find((sentence) => share(trigrams(sentence.text)) >= threshold);
-  return hit === undefined ? { at: 0, span: text.trim() } : { at: hit.at, span: hit.text };
+export function replayOf(text: string, earlier: readonly string[]): { at: number; span: string; spans: string[] } | null {
+  const { threshold, window_chars, min_trigrams, quote_words } = VOICE_GUARD.replay;
+  const kept: string[] = [];
+  let size = 0;
+  for (const line of [...earlier].reverse()) {
+    if (size >= window_chars) break;
+    kept.unshift(line);
+    size += line.length + 1;
+  }
+  const story = kept.join('\n');
+  const old = trigrams(story);
+  const spoken = ` ${bare(story)} `;
+  const found: { at: number; span: string }[] = [];
+  let offset = 0;
+  for (const line of text.split('\n')) {
+    const paragraph = line.trim();
+    const fresh = trigrams(paragraph);
+    if (fresh.size >= min_trigrams && [...fresh].filter((one) => old.has(one)).length / fresh.size >= threshold)
+      found.push({ at: offset + line.indexOf(paragraph), span: paragraph });
+    else
+      for (const quote of line.matchAll(/["“]([^"”]+)["”]/gu)) {
+        const words = bare(quote[1] ?? '');
+        if (words.split(' ').length >= quote_words && spoken.includes(` ${words} `))
+          found.push({ at: offset + quote.index, span: (quote[1] ?? '').trim() });
+      }
+    offset += line.length + 1;
+  }
+  const first = found[0];
+  return first === undefined ? null : { at: first.at, span: first.span, spans: found.map((one) => one.span) };
 }

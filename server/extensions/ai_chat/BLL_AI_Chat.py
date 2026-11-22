@@ -148,6 +148,15 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_url,
 )
 from zephyrex.extensions.ai_chat.StatusLine import status_messages  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Structured import (  # type: ignore[import-not-found]
+    STRUCTURED,
+    ItemStream,
+    fresh_items,
+    partial_items,
+    run_text,
+    structured_runs,
+    turn_schema,
+)
 from zephyrex.extensions.ai_chat.SystemOrder import systems_before_last_user  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-not-found]
     present_cast,
@@ -156,6 +165,7 @@ from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-no
     turn_seat,
     turn_state,
 )
+from zephyrex.extensions.ai_chat.VoiceGuard import plain_dashes  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
     advance_clock,
     campaign_documents,
@@ -665,6 +675,31 @@ def background_place(entities: Sequence[Mapping[str, Any]], history: Sequence[Ma
     at = scene_location(lines, locations)
     location = next((entity for entity in locations if entity["id"] == at), None)
     return str((location or {}).get("summary") or "").strip() or scenario.strip()
+
+
+#: The modes asked as structured turns (Structured.py); the voices follow.
+STRUCTURED_MODES = ("narrate",)
+
+
+def structured_request(body: Mapping[str, Any], context: Mapping[str, Any]) -> dict[str, Any]:
+    """A chat request asked for JSON items: the schema as response_format, its instruction just before the
+    person's last line (SystemOrder.py), and no stop strings (the schema ends the turn)."""
+    persona = context.get("persona")
+    seat = str(persona["name"]) if persona is not None and context.get("playing_id") is not None else ""
+    content = str(STRUCTURED["instruction"]).replace("{{seat_name}}", seat or "the player")
+    instruction = {"role": "system", "content": content}
+    messages = list(body.get("messages") or [])
+    last = max((index for index, message in enumerate(messages) if message.get("role") == "user"), default=-1)
+    messages = [*messages, instruction] if last == -1 else [*messages[:last], instruction, *messages[last:]]
+    asked = {key: value for key, value in body.items() if key != "stop"}
+    return {
+        **asked,
+        "messages": messages,
+        "response_format": {
+            "type": "json_schema",
+            "json_schema": {"name": STRUCTURED["schema_name"], "schema": turn_schema(), "strict": True},
+        },
+    }
 
 
 def wiki_campaign_for(frames: Any, campaign_id: str | None) -> str | None:
@@ -1629,6 +1664,9 @@ class GenerateRequest(PlainModel):
     endpoint_id: str | None = None
     # A regeneration after the voice guard (VoiceGuard.py) caught a span: {names, span}, forbidden.
     forbid: dict[str, Any] | None = None
+    # Schema-constrained (Structured.py): the model answers JSON items, streamed as item events and saved
+    # by the server, one message per speaker run. Prose from a model that ignores the schema streams as deltas.
+    structured: bool = False
 
     @field_validator("mode")
     @classmethod
@@ -2784,6 +2822,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             ),
         )
         context = {
+            "chat": chat,
+            "playing_id": playing_id,
             "cast": cast,
             "persona": persona,
             "history": history,
@@ -3852,6 +3892,72 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             ) from error
         return "".join(pieces).strip()
 
+    async def _save_structured(
+        self,
+        asked: GenerateRequest,
+        context: dict[str, Any],
+        items: ItemStream,
+        people: list[dict[str, str]],
+        seat_name: str,
+    ) -> AsyncIterator[str]:
+        """A structured turn saved, one message per speaker run: someone unnamed becomes a person of the
+        campaign first (ensure_person; the operator, 2026-11-21), then the person and saved frames."""
+        # Nothing retold (the operator, 2026-11-22: "Lots of repetition"): a replayed item is dropped.
+        story = set(PROMPT["story_channels"])
+        earlier = [
+            str(turn["content"])
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        result = structured_runs(fresh_items(partial_items(items.text), earlier), people, seat_name)
+        if not result["runs"]:
+            return
+        chat = context["chat"]
+        chats = self._manager(ChatManager)
+        messages = self._manager(ChatMessageManager)
+        requester = str(self.requester.id)
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        known = list(people)
+        cast = list(chat.character_ids or [])
+        made: dict[str, str] = {}
+        parent = asked.leaf_id
+        saved: list[dict[str, Any]] = []
+        for found in result["runs"]:
+            run = found
+            name = run["speaker_name"]
+            if name is not None:
+                if name.lower() not in made and wiki is not None:
+                    line = str(run["lines"][0]["text"])
+                    person = await ensure_person(self.model_registry, requester, wiki, name, line)
+                    if person is not None:
+                        made[name.lower()] = str(person["id"])
+                        known.append({"id": str(person["id"]), "name": name})
+                        if str(person["id"]) not in cast:
+                            cast = [*cast, str(person["id"])]
+                            chats.update(chat.id, character_ids=cast)
+                        yield frame("person", {"name": name, "id": str(person["id"])})
+                if name.lower() in made:
+                    run = {**run, "speaker_id": made[name.lower()], "speaker_name": None}
+            text = plain_dashes(run_text(run, known))
+            created = messages.create(
+                chat_id=chat.id,
+                parent_id=parent,
+                role="narrator" if run["speaker_id"] is None else "character",
+                channel="ic",
+                speaker_character_id=run["speaker_id"],
+                swipes=[text],
+            )
+            parent = str(created.id)
+            saved.append(
+                {
+                    "id": parent,
+                    "role": "narrator" if run["speaker_id"] is None else "character",
+                    "speaker_character_id": run["speaker_id"],
+                    "text": text,
+                }
+            )
+        yield frame("saved", {"messages": saved})
+
     @custom_route(
         method="POST",
         path="/generate",
@@ -3895,6 +4001,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 yield frame("done", {"dropped": assembled.dropped})
 
             return event_stream(answered())
+        structured = (
+            body.generate.structured
+            and body.generate.mode in STRUCTURED_MODES
+            and not assembled.prefill
+            and _context["endpoint"].api not in ("text", *NATIVE_APIS)
+        )
+        if structured:
+            request = {**request, "json": structured_request(request["json"], _context)}
         client = httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS)
         try:
             upstream = await client.send(
@@ -3915,6 +4029,34 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 detail={"message": f"The model endpoint answered {upstream.status_code}", "code": "model_refused"},
             )
 
+        seat_name = (
+            str(_context["persona"]["name"])
+            if _context["persona"] is not None and _context["playing_id"] is not None
+            else ""
+        )
+        people = [{"id": str(one["id"]), "name": str(one["name"])} for one in _context["cast"]]
+        items = ItemStream(people, seat_name) if structured else None
+
+        def shown(delta: str) -> list[str]:
+            """The frames for one piece of the answer: item events, or a delta where it isn't structured."""
+            if items is None:
+                return [frame("delta", {"text": delta})]
+            was = items.mode
+            events = items.feed(delta)
+            if items.mode == "text":
+                # Prose after all: everything so far goes as deltas, the client's text path.
+                return [frame("delta", {"text": items.text if was == "unknown" else delta})]
+            # An item's start is flat, as the client reads it (replyStream.ts): {index, kind, speaker, …}.
+            return [
+                frame(
+                    event["type"],
+                    event["item"]
+                    if event["type"] == "item_start"
+                    else {key: value for key, value in event.items() if key != "type"},
+                )
+                for event in events
+            ]
+
         async def events() -> AsyncIterator[str]:
             # The reply begins with its prefill, so what's kept is the whole reply.
             if assembled.prefill:
@@ -3931,10 +4073,18 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         break
                     delta = joiner.take(payload)
                     if delta is not None:
-                        yield frame("delta", {"text": delta})
+                        for piece in shown(delta):
+                            yield piece
+                    if items is not None and items.cut:
+                        # The seat's turn: nothing of it or after it is kept.
+                        break
                 closing = joiner.end()
                 if closing is not None:
-                    yield frame("delta", {"text": closing})
+                    for piece in shown(closing):
+                        yield piece
+                if items is not None and items.mode == "json":
+                    async for piece in self._save_structured(body.generate, _context, items, people, seat_name):
+                        yield piece
                 yield frame("done", {"dropped": assembled.dropped})
             except httpx.HTTPError:
                 yield frame("error", {"detail": "The model stopped mid-reply"})

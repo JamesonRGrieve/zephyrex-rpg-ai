@@ -206,6 +206,14 @@ binding; the owner of each piece is named.
   story renders each line under its speaker.
 - **As the AI writes, the view switches** to a character the moment a line opens with their name:
   that character is shown typing.
+- **Schema-constrained turns** (the operator, 2026-11-21: "Still fucking up dialogue with the
+  narrator and character sections"): `generate` with `structured: true` asks a chat API for JSON items
+  (`kind` narrate/say/do, `speaker`, `target`, `manner`, `text`; contract `structured`), streams them
+  as `item_start`/`item_text`/`item_end`, makes anyone unnamed a person (`person`), saves each
+  speaker's run as its own message (`saved`), then `done`. Credit comes from the schema, never from
+  splitting prose. The seat's first item ends the turn; a model that answers prose falls back to plain
+  deltas. Narrate first; the voices follow. Later: server-saved lines skip the person's `stored`
+  regex scripts, which the client applies on its own saves.
 
 **The turn loop** (the decision model runs the table)
 

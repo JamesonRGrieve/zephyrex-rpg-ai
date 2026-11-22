@@ -1,0 +1,338 @@
+{
+  "$comment": "Schema-constrained turns: cases both twins run (client/src/features/chat/structured.test.ts, server/extensions/ai_chat/Structured_test.py). The tavern scene of the operator's 00:26Z play-test, seat Fennick Quill; \"Barkeep\" is not a person yet.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "items": {
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "enum": [
+                "narrate",
+                "say",
+                "do"
+              ]
+            },
+            "speaker": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Who speaks or acts: a name from the story, or a short label for someone unnamed; null for narrate."
+            },
+            "target": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "description": "Whom it is said to or done at, or null."
+            },
+            "manner": {
+              "type": [
+                "string",
+                "null"
+              ],
+              "enum": [
+                "speak",
+                "whisper",
+                "shout",
+                "vox",
+                "voxcast",
+                null
+              ]
+            },
+            "text": {
+              "type": "string",
+              "description": "The words, the action without the speaker's name, or the narration."
+            }
+          },
+          "required": [
+            "kind",
+            "speaker",
+            "target",
+            "manner",
+            "text"
+          ],
+          "additionalProperties": false
+        }
+      }
+    },
+    "required": [
+      "items"
+    ],
+    "additionalProperties": false
+  },
+  "people": [
+    {
+      "id": "bar",
+      "name": "The Barkeep"
+    },
+    {
+      "id": "mae",
+      "name": "Maelis"
+    },
+    {
+      "id": "fen",
+      "name": "Fennick Quill"
+    }
+  ],
+  "seat": "Fennick Quill",
+  "partial_cases": [
+    {
+      "name": "an item whose text is still streaming",
+      "source": "{\"items\": [{\"kind\": \"narrate\", \"speaker\": null, \"target\": null, \"manner\": null, \"text\": \"The barkeep sla",
+      "items": [
+        {
+          "fields": {
+            "kind": "narrate",
+            "speaker": null,
+            "target": null,
+            "manner": null
+          },
+          "has_text": true,
+          "text": "The barkeep sla",
+          "closed": false
+        }
+      ]
+    },
+    {
+      "name": "the whole answer",
+      "source": "{\"items\": [{\"kind\": \"narrate\", \"speaker\": null, \"target\": null, \"manner\": null, \"text\": \"The barkeep slams down her rag.\"}, {\"kind\": \"say\", \"speaker\": \"Barkeep\", \"target\": \"Fennick Quill\", \"manner\": \"shout\", \"text\": \"OUT! OUT!\"}, {\"kind\": \"do\", \"speaker\": \"Maelis\", \"target\": null, \"manner\": null, \"text\": \"locks her eyes on you.\"}, {\"kind\": \"say\", \"speaker\": \"Fennick Quill\", \"target\": null, \"manner\": \"speak\", \"text\": \"Sorry.\"}]}",
+      "items": [
+        {
+          "fields": {
+            "kind": "narrate",
+            "speaker": null,
+            "target": null,
+            "manner": null
+          },
+          "has_text": true,
+          "text": "The barkeep slams down her rag.",
+          "closed": true
+        },
+        {
+          "fields": {
+            "kind": "say",
+            "speaker": "Barkeep",
+            "target": "Fennick Quill",
+            "manner": "shout"
+          },
+          "has_text": true,
+          "text": "OUT! OUT!",
+          "closed": true
+        },
+        {
+          "fields": {
+            "kind": "do",
+            "speaker": "Maelis",
+            "target": null,
+            "manner": null
+          },
+          "has_text": true,
+          "text": "locks her eyes on you.",
+          "closed": true
+        },
+        {
+          "fields": {
+            "kind": "say",
+            "speaker": "Fennick Quill",
+            "target": null,
+            "manner": "speak"
+          },
+          "has_text": true,
+          "text": "Sorry.",
+          "closed": true
+        }
+      ]
+    },
+    {
+      "name": "escapes, decoded",
+      "source": "{\"items\":[{\"kind\":\"say\",\"speaker\":\"A\",\"target\":null,\"manner\":\"speak\",\"text\":\"He said \\\"hi\\\"\\n\\u00e9\"}]}",
+      "items": [
+        {
+          "fields": {
+            "kind": "say",
+            "speaker": "A",
+            "target": null,
+            "manner": "speak"
+          },
+          "has_text": true,
+          "text": "He said \"hi\"\né",
+          "closed": true
+        }
+      ]
+    },
+    {
+      "name": "no items key yet: nothing",
+      "source": "{\"ite",
+      "items": []
+    }
+  ],
+  "stream_case": {
+    "name": "the tavern, in three chunks: the barkeep's shout is the Barkeep's, Maelis's look is hers, and Fennick's line cuts the stream",
+    "chunks": [
+      "{\"items\": [{\"kind\": \"narrate\", \"speaker\": null, \"target\": null, \"manner\": null, \"text\": \"The barkeep sla",
+      "ms down her rag.\"}, {\"kind\": \"say\", \"speaker\": \"Barkeep\", \"target\": \"Fennick Quill\", \"manner\": \"shout\", \"text\": \"OUT! ",
+      "OUT!\"}, {\"kind\": \"do\", \"speaker\": \"Maelis\", \"target\": null, \"manner\": null, \"text\": \"locks her eyes on you.\"}, {\"kind\": \"say\", \"speaker\": \"Fennick Quill\", \"target\": null, \"manner\": \"speak\", \"text\": \"Sorry.\"}]}"
+    ],
+    "events": [
+      [
+        {
+          "type": "item_start",
+          "item": {
+            "index": 0,
+            "kind": "narrate",
+            "speaker": null,
+            "speaker_id": null,
+            "target": null,
+            "manner": null
+          }
+        },
+        {
+          "type": "item_text",
+          "index": 0,
+          "delta": "The barkeep sla"
+        }
+      ],
+      [
+        {
+          "type": "item_text",
+          "index": 0,
+          "delta": "ms down her rag."
+        },
+        {
+          "type": "item_end",
+          "index": 0,
+          "text": "The barkeep slams down her rag."
+        },
+        {
+          "type": "item_start",
+          "item": {
+            "index": 1,
+            "kind": "say",
+            "speaker": "Barkeep",
+            "speaker_id": null,
+            "target": "Fennick Quill",
+            "manner": "shout"
+          }
+        },
+        {
+          "type": "item_text",
+          "index": 1,
+          "delta": "OUT! "
+        }
+      ],
+      [
+        {
+          "type": "item_text",
+          "index": 1,
+          "delta": "OUT!"
+        },
+        {
+          "type": "item_end",
+          "index": 1,
+          "text": "OUT! OUT!"
+        },
+        {
+          "type": "item_start",
+          "item": {
+            "index": 2,
+            "kind": "do",
+            "speaker": "Maelis",
+            "speaker_id": "mae",
+            "target": null,
+            "manner": null
+          }
+        },
+        {
+          "type": "item_text",
+          "index": 2,
+          "delta": "locks her eyes on you."
+        },
+        {
+          "type": "item_end",
+          "index": 2,
+          "text": "locks her eyes on you."
+        }
+      ]
+    ],
+    "cut": true,
+    "mode": "json"
+  },
+  "prose_case": {
+    "name": "a model that answers prose: no item events, mode text",
+    "chunks": [
+      "The bar",
+      "keep glares."
+    ],
+    "mode": "text"
+  },
+  "runs_case": {
+    "name": "one message per speaker run, cut at the seat's first item",
+    "runs": [
+      {
+        "speaker_id": null,
+        "speaker_name": null,
+        "lines": [
+          {
+            "speaker_id": null,
+            "kind": "narrate",
+            "manner": null,
+            "target_id": null,
+            "target_name": null,
+            "text": "The barkeep slams down her rag."
+          }
+        ]
+      },
+      {
+        "speaker_id": null,
+        "speaker_name": "Barkeep",
+        "lines": [
+          {
+            "speaker_id": null,
+            "kind": "say",
+            "manner": "shout",
+            "target_id": "fen",
+            "target_name": null,
+            "text": "OUT! OUT!"
+          }
+        ]
+      },
+      {
+        "speaker_id": "mae",
+        "speaker_name": null,
+        "lines": [
+          {
+            "speaker_id": "mae",
+            "kind": "do",
+            "manner": null,
+            "target_id": null,
+            "target_name": null,
+            "text": "locks her eyes on you."
+          }
+        ]
+      }
+    ],
+    "cut": true
+  },
+  "text_cases": [
+    "The barkeep slams down her rag.",
+    "Barkeep (to Fennick Quill, shouts): \"OUT! OUT!\"",
+    "Maelis locks her eyes on you."
+  ],
+  "fresh_case": {
+    "name": "an item the story already told is dropped; a short shout is kept",
+    "earlier": [
+      "The barkeep slams down her rag. The tavern goes silent as every head turns.",
+      "The Barkeep: \"OUT! OUT! Get out of my tavern!\""
+    ],
+    "kept": [
+      1,
+      2,
+      3
+    ]
+  }
+}

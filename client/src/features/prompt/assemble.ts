@@ -153,7 +153,7 @@ export interface PromptInput {
     role: 'system' | 'user' | 'assistant';
   }[];
   /** A regeneration's forbidden span, with whom it wrote for (features/chat/voiceGuard.ts). */
-  forbid?: { names: readonly string[]; span: string } | null;
+  forbid?: { names: readonly string[]; span: string; spans?: readonly string[] } | null;
   /** The party block this voice reads (features/prompt/party.ts partyText): roster, relationships, briefing. */
   party?: string;
   /** The narrator sliders' lines (features/models/narratorStyle.ts): length, and the narrator's tone. */
@@ -712,6 +712,9 @@ export function narrateRule(persona: PromptPersona | null, characters: readonly 
 
 /** A regeneration's forbidden span, with whom it wrote for; nothing without one. */
 export function forbidText(forbid: PromptInput['forbid']): string {
+  // What a replay retold (voiceGuard.ts replayOf; the operator, 2026-11-22: "Lots of repetition").
+  const spans = (forbid?.spans ?? []).map((span) => span.trim()).filter((span) => span !== '');
+  if (spans.length > 0) return PROMPT.replay_prompt.replaceAll('{{spans}}', spans.map((span) => `«${span}»`).join(' '));
   if (forbid === null || forbid === undefined || forbid.span.trim() === '') return '';
   return PROMPT.forbid_prompt.replaceAll('{{names}}', forbid.names.join(', ')).replaceAll('{{span}}', forbid.span.trim());
 }

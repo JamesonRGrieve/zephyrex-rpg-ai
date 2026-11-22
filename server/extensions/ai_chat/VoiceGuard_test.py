@@ -8,6 +8,7 @@ from typing import Any
 
 import pytest
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Prompt import forbid_text  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.VoiceGuard import (  # type: ignore[import-not-found]
     complete_text,
     meta_break,
@@ -60,3 +61,8 @@ def test_acting_for_the_seat_is_cut(case: dict[str, Any]) -> None:
 @pytest.mark.parametrize("case", CASES["replay_cases"], ids=[case["name"] for case in CASES["replay_cases"]])
 def test_a_replay(case: dict[str, Any]) -> None:
     assert replay_of(case["text"], case["earlier"]) == case["hit"]
+
+
+@pytest.mark.parametrize("case", CASES["forbid_cases"], ids=[case["name"] for case in CASES["forbid_cases"]])
+def test_a_replays_spans_are_forbidden_together(case: dict[str, Any]) -> None:
+    assert forbid_text(case["forbid"]) == case["text"]

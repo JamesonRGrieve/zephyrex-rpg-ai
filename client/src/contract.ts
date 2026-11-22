@@ -127,6 +127,8 @@ export const MAP_STEP = contract.map_step;
 export const STATUS_LINE = contract.status_line;
 /** Grounded state: each person's stance toward the others present. */
 export const DISPOSITIONS = contract.dispositions;
+/** Schema-constrained turns: the schema's words and the instruction. */
+export const STRUCTURED = contract.structured;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

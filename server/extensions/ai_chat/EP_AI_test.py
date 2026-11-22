@@ -20,6 +20,15 @@ from zephyrex.testing.factories import create_user
 from rpg_ai_app import create
 
 RECEIVED: list[dict[str, Any]] = []
+#: What the fake model answers a schema-constrained turn: the narrator, Ada, and someone unnamed.
+STRUCTURED_ANSWER = {
+    "items": [
+        {"kind": "narrate", "speaker": None, "target": None, "manner": None, "text": "The bar goes quiet."},
+        {"kind": "do", "speaker": "Ada", "target": None, "manner": None, "text": "sets down her wrench."},
+        {"kind": "say", "speaker": "Ada", "target": None, "manner": "speak", "text": "Trouble."},
+        {"kind": "say", "speaker": "Barkeep", "target": "Ada", "manner": "shout", "text": "OUT!"},
+    ]
+}
 
 
 class FakeModel(BaseHTTPRequestHandler):
@@ -101,6 +110,16 @@ class FakeModel(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+        if RECEIVED[-1]["body"].get("response_format"):
+            # A schema-constrained turn (Structured.py): JSON items, streamed in pieces.
+            answer = json.dumps(STRUCTURED_ANSWER)
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream")
+            self.end_headers()
+            for piece in (answer[:40], answer[40:95], answer[95:]):
+                self.wfile.write(f"data: {json.dumps({'choices': [{'delta': {'content': piece}}]})}\n\n".encode())
+            self.wfile.write(b"data: [DONE]\n\n")
             return
         self.send_response(200)
         self.send_header("Content-Type", "text/event-stream")
@@ -691,6 +710,48 @@ class TestGenerate:
         assert prompt["messages"][0]["content"].startswith("You are the game master, narrating this story.")
         assert "- Ada: Ada fixes engines." in prompt["messages"][0]["content"]
         assert prompt["messages"][-1]["content"] == "User: I step inside."
+
+    def test_a_structured_narration_is_saved_one_message_per_speaker(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I step inside."]).json()["chat_message"]
+        RECEIVED.clear()
+        answer = server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "narrate", "structured": True}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        sent = RECEIVED[0]["body"]
+        # Asked for the schema, its instruction before the person's last line, no stop strings.
+        assert sent["response_format"]["type"] == "json_schema" and "stop" not in sent
+        assert sent["messages"][-2]["role"] == "system" and sent["messages"][-2]["content"].startswith("Answer only with JSON")
+        assert sent["messages"][-1]["role"] == "user"
+        frames = [block for block in answer.text.split("\n\n") if block.strip()]
+        names = [block.split("\n")[0].removeprefix("event: ") for block in frames]
+        assert "delta" not in names and names[-2:] == ["saved", "done"]
+        starts = [json.loads(block.split("data: ", 1)[1]) for block in frames if block.startswith("event: item_start")]
+        assert [(start["kind"], start["speaker"], start["speaker_id"]) for start in starts] == [
+            ("narrate", None, None),
+            ("do", "Ada", ada["id"]),
+            ("say", "Ada", ada["id"]),
+            ("say", "Barkeep", None),
+        ]
+        saved = json.loads(frames[-2].split("data: ", 1)[1])["messages"]
+        # Someone unnamed becomes a person of the campaign (ensure_person) before their line is saved as theirs.
+        made = [json.loads(block.split("data: ", 1)[1]) for block in frames if block.startswith("event: person")]
+        assert [one["name"] for one in made] == ["Barkeep"]
+        # Ada's two beats are one message.
+        assert [(one["role"], one["speaker_character_id"], one["text"]) for one in saved] == [
+            ("narrator", None, "The bar goes quiet."),
+            ("character", ada["id"], 'Ada sets down her wrench.\nAda (to everyone): "Trouble."'),
+            ("character", made[0]["id"], 'Barkeep (to Ada, shouts): "OUT!"'),
+        ]
+        stored = server.get(f"/v1/chat_message?chat_id={chat['id']}", headers=_headers(user)).json()["chat_messages"]
+        by_id = {one["id"]: one for one in stored}
+        assert [by_id[one["id"]]["parent_id"] for one in saved] == [line["id"], saved[0]["id"], saved[1]["id"]]
 
     def test_each_role_goes_to_the_model_serving_it(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)

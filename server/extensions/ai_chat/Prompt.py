@@ -485,6 +485,10 @@ def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping
 
 def forbid_text(forbid: Mapping[str, Any] | None) -> str:
     """A regeneration's forbidden span, with whom it wrote for; nothing without one."""
+    # What a replay retold (VoiceGuard.py replay_of; the operator, 2026-11-22: "Lots of repetition").
+    spans = [str(span).strip() for span in (forbid or {}).get("spans") or [] if str(span).strip()]
+    if spans:
+        return str(PROMPT["replay_prompt"]).replace("{{spans}}", " ".join(f"\u00ab{span}\u00bb" for span in spans))
     if not forbid or not str(forbid.get("span") or "").strip():
         return ""
     names = ", ".join(str(name) for name in forbid.get("names") or [])

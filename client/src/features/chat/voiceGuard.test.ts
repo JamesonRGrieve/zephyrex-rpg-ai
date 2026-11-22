@@ -1,6 +1,7 @@
 // @vitest-environment node
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
+import { forbidText } from '~/features/prompt/assemble';
 import cases from '../../../../contract/voice-guard-cases.json';
 import {
   completeText,
@@ -28,6 +29,9 @@ describe('the voice guard cases both twins run', () => {
   });
   it.each(cases.replay_cases)('$name', ({ text, earlier, hit }) => {
     expect(replayOf(text, earlier)).toEqual(hit);
+  });
+  it.each(cases.forbid_cases)('$name', ({ forbid, text }) => {
+    expect(forbidText(forbid)).toBe(text);
   });
   it.each(cases.seat_cut_cases)('$name', ({ text, seat, cut }) => {
     expect(seatCut(text, seat)).toBe(cut);

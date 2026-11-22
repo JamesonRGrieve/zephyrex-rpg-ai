@@ -131,6 +131,8 @@ const request = z.object({
     .object({
       names: z.array(z.string().max(LIMITS.model_name_characters)).max(LIMITS.characters_per_chat),
       span: z.string().max(4000),
+      // Replays (voiceGuard.ts replayOf): every span retold, forbidden in one regeneration.
+      spans: z.array(z.string().max(4000)).max(20).optional(),
     })
     .nullable()
     .default(null),

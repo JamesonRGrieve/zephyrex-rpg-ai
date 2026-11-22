@@ -289,21 +289,39 @@ def _trigrams(text: str) -> set[str]:
     return {f"{words[index]} {words[index + 1]} {words[index + 2]}" for index in range(len(words) - 2)}
 
 
+def _bare(text: str) -> str:
+    """Words alone, lower case, one space apart: what "said word for word" compares."""
+    return " ".join(word for word in re.findall(r"[\w']+", text.lower()) if "_" not in word)
+
+
 def replay_of(text: str, earlier: Sequence[str]) -> dict[str, Any] | None:
-    """A narration that retells what already happened, no model call: over the threshold of its word
-    trigrams already in the last few story lines; the span is its first mostly old sentence."""
+    """What a reply retells of the story so far (the operator, 2026-11-22), no model call: a paragraph
+    mostly in the last window_chars of story by word trigrams, or a quoted line said word for word
+    before. Every span, for one regeneration (forbid.spans); ``at`` and ``span`` are the first."""
     replay = VOICE_GUARD["replay"]
-    fresh = _trigrams(text)
-    if len(fresh) < int(replay["min_trigrams"]):
+    kept: list[str] = []
+    size = 0
+    for line in reversed(list(earlier)):
+        if size >= int(replay["window_chars"]):
+            break
+        kept.insert(0, line)
+        size += len(line) + 1
+    story = "\n".join(kept)
+    old = _trigrams(story)
+    spoken = f" {_bare(story)} "
+    found: list[tuple[int, str]] = []
+    offset = 0
+    for line in text.split("\n"):
+        paragraph = line.strip()
+        fresh = _trigrams(paragraph)
+        if len(fresh) >= int(replay["min_trigrams"]) and len(fresh & old) / len(fresh) >= float(replay["threshold"]):
+            found.append((offset + line.find(paragraph), paragraph))
+        else:
+            for quote in re.finditer(r'["\u201c]([^"\u201d]+)["\u201d]', line):
+                words = _bare(quote.group(1))
+                if len(words.split(" ")) >= int(replay["quote_words"]) and f" {words} " in spoken:
+                    found.append((offset + quote.start(), quote.group(1).strip()))
+        offset += len(line) + 1
+    if not found:
         return None
-    old = _trigrams("\n".join(list(earlier)[-int(replay["window"]) :]))
-
-    def share(found: set[str]) -> float:
-        return len(found & old) / len(found) if found else 0.0
-
-    if share(fresh) < float(replay["threshold"]):
-        return None
-    for at, sentence in _sentences(text):
-        if share(_trigrams(sentence)) >= float(replay["threshold"]):
-            return {"at": at, "span": sentence}
-    return {"at": 0, "span": text.strip()}
+    return {"at": found[0][0], "span": found[0][1], "spans": [span for _at, span in found]}

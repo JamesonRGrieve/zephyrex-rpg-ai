@@ -580,7 +580,10 @@
       "text": "Brakka slams his tankard down. \"By the ancestors, man! You've got guts.\" The tankard cracks down the middle. Maelis lowers herself into her seat.",
       "hit": {
         "at": 0,
-        "span": "Brakka slams his tankard down."
+        "span": "Brakka slams his tankard down. \"By the ancestors, man! You've got guts.\" The tankard cracks down the middle. Maelis lowers herself into her seat.",
+        "spans": [
+          "Brakka slams his tankard down. \"By the ancestors, man! You've got guts.\" The tankard cracks down the middle. Maelis lowers herself into her seat."
+        ]
       }
     },
     {
@@ -602,6 +605,91 @@
       ],
       "text": "Brakka slams his tankard.",
       "hit": null
+    },
+    {
+      "name": "a replay behind ten short lines (the window is characters, not six messages)",
+      "earlier": [
+        "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+        "Brakka laughs.",
+        "Maelis frowns.",
+        "Fennick shrugs.",
+        "The fire pops.",
+        "Rain hammers the shutters.",
+        "A dog barks outside.",
+        "Brakka drinks.",
+        "Maelis sighs.",
+        "The hooded woman waits.",
+        "Someone coughs."
+      ],
+      "text": "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+      "hit": {
+        "at": 0,
+        "span": "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+        "spans": [
+          "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand."
+        ]
+      }
+    },
+    {
+      "name": "only the retold paragraph is a replay",
+      "earlier": [
+        "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+        "Brakka laughs.",
+        "Maelis frowns.",
+        "Fennick shrugs.",
+        "The fire pops.",
+        "Rain hammers the shutters.",
+        "A dog barks outside.",
+        "Brakka drinks.",
+        "Maelis sighs.",
+        "The hooded woman waits.",
+        "Someone coughs."
+      ],
+      "text": "Fennick ducks under the table as glass flies overhead.\nThe River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+      "hit": {
+        "at": 55,
+        "span": "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+        "spans": [
+          "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand."
+        ]
+      }
+    },
+    {
+      "name": "a quoted line said word for word before",
+      "earlier": [
+        "Brakka roars, \"BY THE ANCESTORS, MAN!\" and the tankard cracks."
+      ],
+      "text": "Brakka bellows: \"By the ancestors, man!\" He storms out into the rain, cloak flapping.",
+      "hit": {
+        "at": 16,
+        "span": "By the ancestors, man!",
+        "spans": [
+          "By the ancestors, man!"
+        ]
+      }
+    },
+    {
+      "name": "what fell out of the window is not a replay",
+      "earlier": [
+        "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+        "lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem lorem"
+      ],
+      "text": "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+      "hit": null
+    }
+  ],
+  "forbid_cases": [
+    {
+      "name": "a replay's spans, all in one regeneration",
+      "forbid": {
+        "names": [],
+        "span": "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+        "spans": [
+          "The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.",
+          "By the ancestors, man!"
+        ]
+      },
+      "text": "Your last attempt retold what the story already said: «The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.» «By the ancestors, man!». Write what happens next instead; never repeat those."
     }
   ]
 }
