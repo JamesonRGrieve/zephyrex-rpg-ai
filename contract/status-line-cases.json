@@ -24,7 +24,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write one sentence of at most 100 characters for a list of campaigns: what the party has done and where things stand, so the player can tell this campaign apart. Use only what the players have seen. No quotes, no lead-in."
+          "content": "Answer with JSON only: {\"status_line\": one sentence of at most 100 characters for a list of campaigns (what the party has done and where things stand, only what the players have seen), \"dispositions\": [{\"who\": a name, \"toward\": a name, \"stance\": one of furious, hostile, wary, neutral, friendly, devoted, \"reason\": a few words}] for any stance the latest lines changed}."
         },
         {
           "role": "user",
@@ -41,7 +41,7 @@
       "messages": [
         {
           "role": "system",
-          "content": "Write one sentence of at most 100 characters for a list of campaigns: what the party has done and where things stand, so the player can tell this campaign apart. Use only what the players have seen. No quotes, no lead-in."
+          "content": "Answer with JSON only: {\"status_line\": one sentence of at most 100 characters for a list of campaigns (what the party has done and where things stand, only what the players have seen), \"dispositions\": [{\"who\": a name, \"toward\": a name, \"stance\": one of furious, hostile, wary, neutral, friendly, devoted, \"reason\": a few words}] for any stance the latest lines changed}."
         },
         {
           "role": "user",

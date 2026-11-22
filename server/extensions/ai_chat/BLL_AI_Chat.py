@@ -68,6 +68,11 @@ from zephyrex.extensions.ai_chat.Clarify import (  # type: ignore[import-not-fou
 )
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text, wiki_document_texts  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Dispositions import (  # type: ignore[import-not-found]
+    apply_stances,
+    parse_status,
+    scene_state,
+)
 from zephyrex.extensions.ai_chat.ExtraBody import extra_body_problem, with_extra_body  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Gen import gen_messages  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Group import group_stops  # type: ignore[import-not-found]
@@ -97,7 +102,12 @@ from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-
     native_request,
     openai_payload,
 )
-from zephyrex.extensions.ai_chat.Party import party_briefing, party_of, party_text  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Party import (  # type: ignore[import-not-found]
+    one_line,
+    party_briefing,
+    party_of,
+    party_text,
+)
 from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
     ai_cast,
     session_start_index,
@@ -137,7 +147,7 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_body,
     speech_url,
 )
-from zephyrex.extensions.ai_chat.StatusLine import status_clean, status_messages  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.StatusLine import status_messages  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.SystemOrder import systems_before_last_user  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.TurnDecision import (  # type: ignore[import-not-found]
     present_cast,
@@ -536,6 +546,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         default_factory=dict, description="The narrator's sliders (spice, verbosity, darkness, humour; absent: any)"
     )
     status_line: str = Field("", description="One spoiler-safe sentence on where the campaign stands")
+    dispositions: dict[str, Any] = Field(
+        default_factory=dict, description="Each person's stance toward each other person, with a short reason"
+    )
     background: str | None = Field(None, description="A picture behind the chat (a data URL)")
     objectives: list[dict[str, Any]] = Field(
         default_factory=list, description="Its tasks in order; the first not done is put to the model"
@@ -583,6 +596,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         canon_checks: bool = True
         narrator_style: dict[str, Any] = Field(default_factory=dict)
         status_line: str = Field("", max_length=200)
+        dispositions: dict[str, Any] = Field(default_factory=dict)
         background: str | None = None
         objectives: list[dict[str, Any]] = Field(default_factory=list)
         content_rating: str | None = None
@@ -616,6 +630,7 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         canon_checks: bool | None = None
         narrator_style: dict[str, Any] | None = None
         status_line: str | None = Field(None, max_length=200)
+        dispositions: dict[str, Any] | None = None
         background: str | None = None
         objectives: list[dict[str, Any]] | None = None
         content_rating: str | None = None
@@ -743,6 +758,7 @@ class ChatManager(AbstractBLLManager[ChatModel], RouterMixin):
         kwargs.setdefault("canon_checks", True)
         kwargs.setdefault("narrator_style", {})
         kwargs.setdefault("status_line", "")
+        kwargs.setdefault("dispositions", {})
         kwargs.setdefault("objectives", [])
         kwargs.setdefault("variables", {})
         kwargs.setdefault("group_settings", {})
@@ -1855,6 +1871,8 @@ class StatusLineRequestEnvelope(PlainModel):
 
 class StatusLineText(PlainModel):
     text: str
+    #: How many stances the call changed.
+    stances: int = 0
 
 
 class StatusLineEnvelope(PlainModel):
@@ -2669,6 +2687,28 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             # The chat's /inject injections (audit gap 5).
             chat.injections or [],
             forbid=body.forbid,
+            # Grounded state (Dispositions.py): who is here and the stances this voice reads.
+            scene=scene_state(
+                [
+                    *(
+                        [
+                            {
+                                "id": playing_id,
+                                "name": persona["name"],
+                                "line": one_line(persona.get("description") or ""),
+                            }
+                        ]
+                        if persona is not None and playing_id is not None
+                        else []
+                    ),
+                    *[
+                        {"id": character["id"], "name": character["name"], "line": one_line(character["description"])}
+                        for character in cast
+                    ],
+                ],
+                dict(chat.dispositions or {}),
+                None if body.mode == "narrate" else speaker_id,
+            ),
             # The sliders' lines: the narrator reads the length and the tone; a voice, the length.
             style=" ".join(
                 line for line in [tuning["length"], *(tuning["tones"] if body.mode == "narrate" else [])] if line
@@ -2870,11 +2910,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for turn in context["history"]
             if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
         ]
-        text = status_clean(await self._ask(context, sampler, status_messages(chat.summary or "", lines)))
+        # The same call keeps the stances (Dispositions.py): no extra model call.
+        parsed = parse_status(await self._ask(context, sampler, status_messages(chat.summary or "", lines)))
+        text = str(parsed["line"])
         if not text:
             raise HTTPException(status_code=502, detail={"message": "The model gave no line", "code": "model_refused"})
-        self._manager(ChatManager).update(chat.id, status_line=text)
-        return StatusLineEnvelope(status_line=StatusLineText(text=text))
+        people = [entity for entity in context["world"] if entity.get("kind") == "person"]
+        dispositions = apply_stances(dict(chat.dispositions or {}), parsed["updates"], people)
+        self._manager(ChatManager).update(chat.id, status_line=text, dispositions=dispositions)
+        return StatusLineEnvelope(status_line=StatusLineText(text=text, stances=len(parsed["updates"])))
 
     def _data_bank(self, chat: Any, story: list[str], gm: bool) -> str:
         """The data bank's notes for this turn (A41), from the wiki (the composed suite, mapping item 4):

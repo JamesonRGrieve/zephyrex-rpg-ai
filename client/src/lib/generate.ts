@@ -40,10 +40,11 @@ import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
 import { clarifyNeed, clarifyQuestions, shouldAsk } from '~/features/chat/clarify';
 import { mapQuestions, movers } from '~/features/world/mapStep';
-import { statusClean, statusMessages } from '~/features/chat/statusLine';
+import { statusMessages } from '~/features/chat/statusLine';
+import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
 import { parsePlayerLines, stripMarkup } from '~/features/chat/playerLines';
 import { isAttempt, rollPick, rollQuestions } from '~/features/chat/rollDecision';
-import { partyBriefing, partyOf, partyText } from '~/features/prompt/party';
+import { oneLine, partyBriefing, partyOf, partyText } from '~/features/prompt/party';
 import { systemsBeforeLastUser } from '~/features/prompt/systemOrder';
 import {
   type Move,
@@ -221,6 +222,7 @@ export async function generationInputs(
     variables: Record<string, string>;
     group_settings: GroupSettings;
     narrator_style?: NarratorStyle;
+    dispositions?: Dispositions;
     injections: Injection[];
   };
 
@@ -449,6 +451,21 @@ export async function generationInputs(
       // The chat's /inject injections (audit gap 5).
       injections: chatFields.injections,
       forbid: body.forbid,
+      // Grounded state (features/chat/dispositions.ts): who is here and the stances this voice reads.
+      scene: sceneState(
+        [
+          ...(persona === null || playingId === null
+            ? []
+            : [{ id: playingId, name: persona.name, line: oneLine(persona.description) }]),
+          ...aiCharacters.map((character) => ({
+            id: character.id,
+            name: character.name,
+            line: oneLine(character.description),
+          })),
+        ],
+        chatFields.dispositions ?? {},
+        body.mode === 'narrate' ? null : speakerId,
+      ),
       // The sliders' lines: the narrator reads the length and the tone; a voice, the length.
       style: [tuning.length, ...(body.mode === 'narrate' ? tuning.tones : [])].filter((line) => line !== '').join(' '),
       // Party members know each other (the operator, 2026-11-21): roster, relationships, briefing.
@@ -938,7 +955,7 @@ export async function statusLine(nextRequest: NextRequest): Promise<Response> {
     const parsed = statusRequest.safeParse(Reflect.get(envelope, 'status_line'));
     if (!parsed.success) throw validationError('A status_line object with a chat_id is required', 'status_line');
     const asked = parsed.data;
-    const { prompt, sampler, endpoint } = await generationInputs(
+    const { prompt, sampler, endpoint, world } = await generationInputs(
       owner.id,
       { chat_id: asked.chat_id, leaf_id: asked.leaf_id, speaker_id: null, mode: 'reply', endpoint_id: null, forbid: null },
       Math.random,
@@ -954,14 +971,24 @@ export async function statusLine(nextRequest: NextRequest): Promise<Response> {
       upstreamBody(endpoint, sampler, statusMessages(prompt.summary ?? '', lines), 'reply'),
       nextRequest.signal,
     );
-    const text = statusClean(
+    // The same call keeps the stances (features/chat/dispositions.ts): no extra model call.
+    const { line: text, updates } = parseStatus(
       await collect(completionDeltas(stream)).catch(() => {
         throw new ApiError(502, { message: 'The model stopped mid-line', code: 'model_refused' });
       }),
     );
     if (text === '') throw new ApiError(502, { message: 'The model gave no line', code: 'model_refused' });
-    await prisma.chat.updateMany({ where: { id: asked.chat_id, createdById: owner.id }, data: { statusLine: text } });
-    return Response.json({ status_line: { text } });
+    const chat = await chats.find(asked.chat_id, owner.id);
+    const current = chat === null ? {} : ((chats.fields(chat) as { dispositions?: Dispositions }).dispositions ?? {});
+    const people = world
+      .filter((entity) => entity.kind === 'person')
+      .map((entity) => ({ id: entity.id, name: entity.name }));
+    const dispositions = applyStances(current, updates, people);
+    await prisma.chat.updateMany({
+      where: { id: asked.chat_id, createdById: owner.id },
+      data: { statusLine: text, dispositions: JSON.stringify(dispositions) },
+    });
+    return Response.json({ status_line: { text, stances: updates.length } });
   } catch (error) {
     return apiErrorResponse(error);
   }

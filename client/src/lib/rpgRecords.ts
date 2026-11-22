@@ -295,6 +295,7 @@ const CHAT_COLUMNS: Columns = {
   canon_checks: plain('canonChecks'),
   narrator_style: jsonObject('narratorStyle'),
   status_line: plain('statusLine'),
+  dispositions: jsonObject('dispositions'),
   background: plain('background'),
   objectives: jsonList('objectives'),
   content_rating: plain('contentRating'),
@@ -353,6 +354,8 @@ const chatFields = {
   canon_checks: z.boolean(),
   /** One spoiler-safe sentence on where the campaign stands (features/chat/statusLine.ts). */
   status_line: z.string().max(200),
+  /** Each person's stance toward each other person (features/chat/dispositions.ts). */
+  dispositions: z.record(z.string(), z.unknown()),
   /** The narrator's sliders (features/models/narratorStyle.ts): each 0-1, or null for any. */
   narrator_style: z.record(z.string(), z.unknown()).superRefine((value, context) => {
     const problem = styleProblem(value);
@@ -417,6 +420,7 @@ const chatCreate = z.object({
   canon_checks: chatFields.canon_checks.default(true),
   narrator_style: chatFields.narrator_style.default({}),
   status_line: chatFields.status_line.default(''),
+  dispositions: chatFields.dispositions.default({}),
   background: avatar.default(null),
   objectives: chatFields.objectives.default([]),
   content_rating: chatFields.content_rating.default(null),

@@ -1,0 +1,207 @@
+{
+  "$comment": "Grounded state: cases both twins run (client/src/features/chat/dispositions.test.ts, server/extensions/ai_chat/Dispositions_test.py).",
+  "people": [
+    {
+      "id": "bar",
+      "name": "The Barkeep"
+    },
+    {
+      "id": "fen",
+      "name": "Fennick Quill"
+    },
+    {
+      "id": "bra",
+      "name": "Brakka Ironmantle"
+    }
+  ],
+  "parse_cases": [
+    {
+      "name": "the barkeep after the hearth: the line and her changed stance; a stance off the list dropped",
+      "text": "Here you go:\n{\"status_line\": \"Fennick defiled the Leaning Lantern's hearth; the barkeep threw him out\", \"dispositions\": [{\"who\": \"The Barkeep\", \"toward\": \"Fennick Quill\", \"stance\": \"furious\", \"reason\": \"defiled her hearth, she threw him out\"}, {\"who\": \"Brakka Ironmantle\", \"toward\": \"Fennick Quill\", \"stance\": \"annoyed\", \"reason\": \"x\"}]}",
+      "parsed": {
+        "line": "Fennick defiled the Leaning Lantern's hearth; the barkeep threw him out",
+        "updates": [
+          {
+            "who": "The Barkeep",
+            "toward": "Fennick Quill",
+            "stance": "furious",
+            "reason": "defiled her hearth, she threw him out"
+          }
+        ]
+      }
+    },
+    {
+      "name": "a plain line still works, with no stances",
+      "text": "Wren found the purged log",
+      "parsed": {
+        "line": "Wren found the purged log",
+        "updates": []
+      }
+    }
+  ],
+  "apply_cases": [
+    {
+      "name": "a stance set by name; an unknown name and a stance toward oneself skipped",
+      "current": {},
+      "updates": [
+        {
+          "who": "The Barkeep",
+          "toward": "Fennick Quill",
+          "stance": "furious",
+          "reason": "defiled her hearth, she threw him out"
+        },
+        {
+          "who": "Nobody",
+          "toward": "Fennick Quill",
+          "stance": "wary",
+          "reason": ""
+        },
+        {
+          "who": "Fennick Quill",
+          "toward": "Fennick Quill",
+          "stance": "wary",
+          "reason": ""
+        }
+      ],
+      "after": {
+        "bar": {
+          "fen": {
+            "stance": "furious",
+            "reason": "defiled her hearth, she threw him out"
+          }
+        }
+      }
+    },
+    {
+      "name": "a later stance replaces the earlier",
+      "current": {
+        "bar": {
+          "fen": {
+            "stance": "furious",
+            "reason": "defiled her hearth, she threw him out"
+          }
+        }
+      },
+      "updates": [
+        {
+          "who": "The Barkeep",
+          "toward": "Fennick Quill",
+          "stance": "wary",
+          "reason": "he paid for the damage"
+        }
+      ],
+      "after": {
+        "bar": {
+          "fen": {
+            "stance": "wary",
+            "reason": "he paid for the damage"
+          }
+        }
+      }
+    }
+  ],
+  "scene_cases": [
+    {
+      "name": "the barkeep's own voice: who is here and how she stands toward him (a local never asks a stranger the way)",
+      "here": [
+        {
+          "id": "bar",
+          "name": "The Barkeep",
+          "line": "Runs the Leaning Lantern."
+        },
+        {
+          "id": "fen",
+          "name": "Fennick Quill",
+          "line": "A halfling tinker."
+        }
+      ],
+      "dispositions": {
+        "bar": {
+          "fen": {
+            "stance": "furious",
+            "reason": "defiled her hearth, she threw him out"
+          }
+        }
+      },
+      "viewer": "bar",
+      "text": "Here now: The Barkeep (Runs the Leaning Lantern.), Fennick Quill (A halfling tinker.)\nThe Barkeep toward Fennick Quill: furious (defiled her hearth, she threw him out)"
+    },
+    {
+      "name": "another voice reads who is here, not her stance",
+      "here": [
+        {
+          "id": "bar",
+          "name": "The Barkeep",
+          "line": "Runs the Leaning Lantern."
+        },
+        {
+          "id": "fen",
+          "name": "Fennick Quill",
+          "line": "A halfling tinker."
+        }
+      ],
+      "dispositions": {
+        "bar": {
+          "fen": {
+            "stance": "furious",
+            "reason": "defiled her hearth, she threw him out"
+          }
+        }
+      },
+      "viewer": "fen",
+      "text": "Here now: The Barkeep (Runs the Leaning Lantern.), Fennick Quill (A halfling tinker.)"
+    },
+    {
+      "name": "the narrator reads every stance",
+      "here": [
+        {
+          "id": "bar",
+          "name": "The Barkeep",
+          "line": "Runs the Leaning Lantern."
+        },
+        {
+          "id": "fen",
+          "name": "Fennick Quill",
+          "line": "A halfling tinker."
+        }
+      ],
+      "dispositions": {
+        "bar": {
+          "fen": {
+            "stance": "furious",
+            "reason": "defiled her hearth, she threw him out"
+          }
+        }
+      },
+      "viewer": null,
+      "text": "Here now: The Barkeep (Runs the Leaning Lantern.), Fennick Quill (A halfling tinker.)\nThe Barkeep toward Fennick Quill: furious (defiled her hearth, she threw him out)"
+    },
+    {
+      "name": "fewer than two here: nothing to relate",
+      "here": [],
+      "dispositions": {
+        "bar": {
+          "fen": {
+            "stance": "furious",
+            "reason": "defiled her hearth, she threw him out"
+          }
+        }
+      },
+      "viewer": null,
+      "text": ""
+    },
+    {
+      "name": "one alone: nothing",
+      "here": [
+        {
+          "id": "bar",
+          "name": "The Barkeep",
+          "line": "Runs the Leaning Lantern."
+        }
+      ],
+      "dispositions": {},
+      "viewer": null,
+      "text": ""
+    }
+  ]
+}

@@ -158,6 +158,8 @@ export interface PromptInput {
   party?: string;
   /** The narrator sliders' lines (features/models/narratorStyle.ts): length, and the narrator's tone. */
   style?: string;
+  /** Who is here and the stances this voice reads (features/chat/dispositions.ts sceneState). */
+  scene?: string;
   group?: {
     card_mode?: (typeof GROUP_SETTINGS.card_modes)[number];
     join_prefix?: string;
@@ -780,6 +782,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
   };
   const persona = input.persona;
   const party = input.party ?? '';
+  const scene = input.scene ?? '';
   // The persona's description where it's placed (audit gap 9); in the persona section by default.
   const personaLine = persona === null || persona.description.trim() === '' ? '' : `{{user}}: ${persona.description}`;
   const personaAt = persona?.description_position ?? 'prompt';
@@ -804,6 +807,8 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
               castRule(PROMPT.voice_cast, persona, input.characters, speaker.id),
               // Structured lines (features/chat/playerLines.ts): each of the speaker's items on its own line.
               PROMPT.voice_lines,
+              // Grounded state: act only on what the speaker knows and feels (the operator's barkeep).
+              PROMPT.voice_grounding,
             ]
               .filter((part) => part !== '')
               .join(' '),
@@ -825,9 +830,12 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
           .map(memberCard)
           .filter((card) => card !== '')
           .join('\n\n')
-      : narrating && (party.trim() !== '' || input.characters.some((character) => character.description.trim() !== ''))
-        ? [castText, party].filter((part) => part.trim() !== '').join('\n\n')
-        : [speaker.description, party].filter((part) => part.trim() !== '').join('\n\n'),
+      : narrating &&
+          (party.trim() !== '' ||
+            scene.trim() !== '' ||
+            input.characters.some((character) => character.description.trim() !== ''))
+        ? [castText, party, scene].filter((part) => part.trim() !== '').join('\n\n')
+        : [speaker.description, party, scene].filter((part) => part.trim() !== '').join('\n\n'),
     personality: joining || speaker.personality.trim() === '' ? '' : `{{char}}'s personality: ${speaker.personality}`,
     scenario:
       groupScenario !== ''

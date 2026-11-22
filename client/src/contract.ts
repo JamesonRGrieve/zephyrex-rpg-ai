@@ -125,6 +125,8 @@ export const CLARIFY = contract.clarify;
 export const MAP_STEP = contract.map_step;
 /** A campaign's spoiler-safe status line. */
 export const STATUS_LINE = contract.status_line;
+/** Grounded state: each person's stance toward the others present. */
+export const DISPOSITIONS = contract.dispositions;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

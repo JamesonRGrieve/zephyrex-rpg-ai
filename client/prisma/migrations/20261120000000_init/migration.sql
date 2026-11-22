@@ -66,6 +66,7 @@ CREATE TABLE "Chat" (
     "canonChecks" BOOLEAN NOT NULL DEFAULT true,
     "narratorStyle" TEXT NOT NULL DEFAULT '{}',
     "statusLine" TEXT NOT NULL DEFAULT '',
+    "dispositions" TEXT NOT NULL DEFAULT '{}',
     "background" TEXT,
     "objectives" TEXT NOT NULL DEFAULT '[]',
     "contentRating" TEXT,

@@ -517,6 +517,7 @@ def assemble_prompt(
     forbid: Mapping[str, Any] | None = None,
     party: str = "",
     style: str = "",
+    scene: str = "",
 ) -> Assembled:
     narrating = mode == "narrate"
     # Narrating (A20), the GM speaks: no character is the speaker, and every character is named.
@@ -580,7 +581,9 @@ def assemble_prompt(
         # in character.
         ruled = cast_rule(PROMPT["voice_cast"], persona, characters, speaker["id"])
         # Structured lines (PlayerLines.py): each of the speaker's items on a line of its own.
-        main = " ".join(part for part in (main, PROMPT["in_character"], ruled, PROMPT["voice_lines"]) if part)
+        # Grounded state: act only on what the speaker knows and feels (the operator's barkeep).
+        grounding = (PROMPT["voice_lines"], PROMPT["voice_grounding"])
+        main = " ".join(part for part in (main, PROMPT["in_character"], ruled, *grounding) if part)
     # The narrator sliders' lines (NarratorStyle.py): length, and the narrator's tone.
     if style.strip():
         main = f"{main}\n\n{style.strip()}"
@@ -640,9 +643,10 @@ def assemble_prompt(
         "lore_before_char": sections.get("before_char", ""),
         "description": "\n\n".join(card for card in (member_card(character) for character in characters) if card)
         if joining
-        else "\n\n".join(part for part in (cast_text, party) if part.strip())
-        if narrating and (party.strip() or any(character["description"].strip() for character in characters))
-        else "\n\n".join(part for part in (speaker["description"], party) if part.strip()),
+        else "\n\n".join(part for part in (cast_text, party, scene) if part.strip())
+        if narrating
+        and (party.strip() or scene.strip() or any(character["description"].strip() for character in characters))
+        else "\n\n".join(part for part in (speaker["description"], party, scene) if part.strip()),
         "personality": f"{{{{char}}}}'s personality: {speaker['personality']}"
         if not joining and speaker["personality"].strip()
         else "",

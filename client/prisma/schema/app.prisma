@@ -92,6 +92,8 @@ model Chat {
   narratorStyle String  @default("{}")
   /// One spoiler-safe sentence on where the campaign stands (the summary model keeps it).
   statusLine   String   @default("")
+  /// Each person's stance toward each other person, with a short reason: a JSON object.
+  dispositions String   @default("{}")
   background   String?
   objectives   String   @default("[]")
   contentRating String?
