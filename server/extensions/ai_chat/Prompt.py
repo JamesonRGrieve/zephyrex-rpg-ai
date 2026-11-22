@@ -485,6 +485,10 @@ def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping
 
 def forbid_text(forbid: Mapping[str, Any] | None) -> str:
     """A regeneration's forbidden span, with whom it wrote for; nothing without one."""
+    # A canon warning on the last answer (the operator, 2026-11-22: "should be used to correct the AI").
+    note = str((forbid or {}).get("note") or "").strip()
+    if (forbid or {}).get("reason") == "canon" and note:
+        return str(PROMPT["canon_prompt"]).replace("{{note}}", note)
     # What a replay retold (VoiceGuard.py replay_of; the operator, 2026-11-22: "Lots of repetition").
     spans = [str(span).strip() for span in (forbid or {}).get("spans") or [] if str(span).strip()]
     if spans:

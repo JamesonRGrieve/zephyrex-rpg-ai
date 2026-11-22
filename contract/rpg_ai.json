@@ -134,6 +134,7 @@
     "narrator_mark": "Narrator",
     "voice_cast": "Never write dialogue, thoughts, decisions or actions for: {{names}}.",
     "player_label": "the player",
+    "canon_prompt": "Your last answer broke this campaign's canon: {{note}}. Write it again so it doesn't.",
     "replay_prompt": "Your last attempt retold what the story already said: {{spans}}. Write what happens next instead; never repeat those.",
     "forbid_prompt": "Your last attempt wrote this for {{names}}, which you must never do: \u00ab{{span}}\u00bb. Write it again without that.",
     "narrator_name": "Narrator"

@@ -136,6 +136,9 @@ const request = z.object({
       span: z.string().max(4000),
       // Replays (voiceGuard.ts replayOf): every span retold, forbidden in one regeneration.
       spans: z.array(z.string().max(4000)).max(20).optional(),
+      // A canon warning's correction (forbidText): reason "canon" with the warning's note.
+      reason: z.enum(['canon']).optional(),
+      note: z.string().max(1000).optional(),
     })
     .nullable()
     .default(null),
@@ -1634,7 +1637,9 @@ export async function mapStep(nextRequest: NextRequest): Promise<Response> {
  * client saves a seated person's lines as the seat's; Zephyrex RPG's build37 run: no roll ever).
  */
 export function byPerson(turn: { role: string; speaker_character_id?: string | null }, playingId: string | null): boolean {
-  return turn.role === 'user' || (playingId !== null && turn.role === 'character' && turn.speaker_character_id === playingId);
+  return (
+    turn.role === 'user' || (playingId !== null && turn.role === 'character' && turn.speaker_character_id === playingId)
+  );
 }
 
 /** The address a server lists its models at (OpenAI-compatible `GET /models`). */

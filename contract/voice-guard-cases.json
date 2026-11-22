@@ -734,6 +734,16 @@
         ]
       },
       "text": "Your last attempt retold what the story already said: «The River's Rest erupts in chaos. The barkeep drops her rag and storms around the bar, broom in hand.» «By the ancestors, man!». Write what happens next instead; never repeat those."
+    },
+    {
+      "name": "a canon warning corrects the answer, in its own words",
+      "forbid": {
+        "names": [],
+        "span": "",
+        "reason": "canon",
+        "note": "the River's Rest burned down last session"
+      },
+      "text": "Your last answer broke this campaign's canon: the River's Rest burned down last session. Write it again so it doesn't."
     }
   ],
   "runaway_cases": [

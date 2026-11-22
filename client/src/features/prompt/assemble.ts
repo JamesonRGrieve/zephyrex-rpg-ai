@@ -153,7 +153,7 @@ export interface PromptInput {
     role: 'system' | 'user' | 'assistant';
   }[];
   /** A regeneration's forbidden span, with whom it wrote for (features/chat/voiceGuard.ts). */
-  forbid?: { names: readonly string[]; span: string; spans?: readonly string[] } | null;
+  forbid?: { names: readonly string[]; span: string; spans?: readonly string[]; reason?: string; note?: string } | null;
   /** The party block this voice reads (features/prompt/party.ts partyText): roster, relationships, briefing. */
   party?: string;
   /** The narrator sliders' lines (features/models/narratorStyle.ts): length, and the narrator's tone. */
@@ -712,6 +712,9 @@ export function narrateRule(persona: PromptPersona | null, characters: readonly 
 
 /** A regeneration's forbidden span, with whom it wrote for; nothing without one. */
 export function forbidText(forbid: PromptInput['forbid']): string {
+  // A canon warning on the last answer (the operator, 2026-11-22: "should be used to correct the AI").
+  if (forbid?.reason === 'canon' && (forbid.note ?? '').trim() !== '')
+    return PROMPT.canon_prompt.replaceAll('{{note}}', (forbid.note ?? '').trim());
   // What a replay retold (voiceGuard.ts replayOf; the operator, 2026-11-22: "Lots of repetition").
   const spans = (forbid?.spans ?? []).map((span) => span.trim()).filter((span) => span !== '');
   if (spans.length > 0) return PROMPT.replay_prompt.replaceAll('{{spans}}', spans.map((span) => `«${span}»`).join(' '));
