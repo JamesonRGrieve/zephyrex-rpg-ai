@@ -7,6 +7,7 @@ The twin of client/src/features/chat/clarify.ts, held to contract/clarify-cases.
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping, Sequence
 from typing import Any
 
@@ -21,12 +22,18 @@ def clarify_need(
     """The person's do line that may need a question: theirs, with no target, among two or more."""
     if len(candidates) < 2 or seat_id is None:
         return None
+    # A line that names a thing or a place ("on the hearth", "into the fire") has its target.
+    named = re.compile(
+        rf"\b(?:{'|'.join(CLARIFY['object_prepositions'])})\s+(?:{'|'.join(CLARIFY['object_determiners'])})\s+[^\W\d_][\w'-]*",
+        re.IGNORECASE,
+    )
     for item in items:
         if (
             item["kind"] == "do"
             and item["speaker_id"] == seat_id
             and item["target_id"] is None
             and item.get("target_name") is None
+            and not named.search(str(item["text"]))
         ):
             return {"action": str(item["text"])}
     return None

@@ -16,8 +16,19 @@ export function clarifyNeed(
   candidates: readonly { id: string; name: string }[],
 ): { action: string } | null {
   if (candidates.length < 2 || seatId === null) return null;
+  // A line that names a thing or a place ("on the hearth", "into the fire") has its target (the
+  // operator, 2026-11-22: asked to choose a person for an act on the hearth).
+  const named = new RegExp(
+    `\\b(?:${CLARIFY.object_prepositions.join('|')})\\s+(?:${CLARIFY.object_determiners.join('|')})\\s+[\\p{L}'-]+`,
+    'iu',
+  );
   const item = items.find(
-    (one) => one.kind === 'do' && one.speaker_id === seatId && one.target_id === null && one.target_name === null,
+    (one) =>
+      one.kind === 'do' &&
+      one.speaker_id === seatId &&
+      one.target_id === null &&
+      one.target_name === null &&
+      !named.test(one.text),
   );
   return item === undefined ? null : { action: item.text };
 }

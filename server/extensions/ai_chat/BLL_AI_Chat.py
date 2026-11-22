@@ -2601,10 +2601,15 @@ def present_people(
         if entity.get("kind") == "location" and not entity.get("deleted")
     ]
     at = scene_location([{"text": turn["content"], "channel": "story"} for turn in story_turns], locations)
+    # The campaign's people only: a setting's canon (the compendiums' creatures) is never in the scene
+    # (the operator, 2026-11-22: offered a "cloud giant" in a tavern).
     persons = [
         {"id": str(entity["id"]), "name": str(entity["name"])}
         for entity in world
-        if entity.get("kind") == "person" and not entity.get("deleted") and entity["id"] != playing_id
+        if entity.get("kind") == "person"
+        and not entity.get("deleted")
+        and not entity.get("canon")
+        and entity["id"] != playing_id
     ]
     reach = present_cast(
         persons,
@@ -4047,7 +4052,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 "location_id": entity.get("location_id"),
             }
 
-        persons = [entity for entity in world if entity.get("kind") == "person" and not entity.get("deleted")]
+        persons = [
+            entity
+            for entity in world
+            if entity.get("kind") == "person" and not entity.get("deleted") and not entity.get("canon")
+        ]
         found = next((entity for entity in persons if entity["id"] == asked.speaker_id), None)
         speaking = found or {"id": asked.speaker_id, "name": ""}
         # The speaker's sheet says what they carry and know; nothing on it, no manner beyond the voice.
@@ -4110,10 +4119,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         known = [
             *context["cast"],
             *([{"id": playing_id, "name": actor}] if playing_id is not None else []),
+            # The campaign's people, not a setting's canon (an SRD "Guard" is not the gate's guard).
             *(
                 {"id": entity["id"], "name": entity["name"]}
                 for entity in context["world"]
-                if entity.get("kind") == "person" and not entity.get("deleted")
+                if entity.get("kind") == "person" and not entity.get("deleted") and not entity.get("canon")
             ),
         ]
         # Free: a line that meets no one new asks no model.

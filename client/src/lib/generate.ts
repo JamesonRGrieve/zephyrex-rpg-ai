@@ -1623,8 +1623,12 @@ export function presentPeople(
     storyTurns.map((turn) => ({ text: turn.content, channel: 'story' })),
     locations,
   );
+  // The campaign's people only: a setting's canon (the compendiums' creatures) is never in the scene.
   const persons = world
-    .filter((entity) => entity.kind === 'person' && entity.deleted !== true && entity.id !== playingId)
+    .filter(
+      (entity) =>
+        entity.kind === 'person' && entity.deleted !== true && field(entity, 'canon') !== true && entity.id !== playingId,
+    )
     .map((entity) => ({ id: entity.id, name: entity.name }));
   const { present } = presentCast(persons, {
     tokens: null,

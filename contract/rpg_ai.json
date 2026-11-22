@@ -896,6 +896,8 @@
     "$comment": "The GM's question tool (the operator, 2026-11-21: \"We need question tool support for ambiguity\"). Free first: only a do line of the person's with no (at X), and at least two candidates present, can need a question. Then one decide call: is its target or intent ambiguous among them? Over threshold, the player is asked, the options only the candidates. features/chat/clarify.ts, ai_chat/Clarify.py, contract/clarify-cases.json.",
     "ambiguous": "Does the story leave unclear whom or what {{actor}} means by this action, among: {{candidates}}? Action: {{action}}",
     "question": "Who or what is {{actor}} acting on? ({{action}})",
+    "object_prepositions": ["on", "onto", "at", "into", "in", "under", "over", "against", "through", "across", "toward", "towards", "behind", "beside", "near", "upon", "inside", "off", "from"],
+    "object_determiners": ["the", "a", "an", "this", "that", "his", "her", "their", "my", "its", "our", "your", "some"],
     "threshold": 0.5
   },
   "map_step": {

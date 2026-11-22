@@ -123,6 +123,58 @@
         }
       ],
       "need": null
+    },
+    {
+      "name": "an act on a thing names its target: no question (the operator's hearth)",
+      "items": [
+        {
+          "speaker_id": "fen",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": null,
+          "text": "squats over the hearth and shits on it."
+        }
+      ],
+      "seat": "fen",
+      "candidates": [
+        {
+          "id": "bar",
+          "name": "The Barkeep"
+        },
+        {
+          "id": "pri",
+          "name": "The Priest"
+        }
+      ],
+      "need": null
+    },
+    {
+      "name": "no target at all, among two present: may need a question",
+      "items": [
+        {
+          "speaker_id": "fen",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": null,
+          "text": "draws his knife and lunges."
+        }
+      ],
+      "seat": "fen",
+      "candidates": [
+        {
+          "id": "bar",
+          "name": "The Barkeep"
+        },
+        {
+          "id": "pri",
+          "name": "The Priest"
+        }
+      ],
+      "need": {
+        "action": "draws his knife and lunges."
+      }
     }
   ],
   "questions_case": {
