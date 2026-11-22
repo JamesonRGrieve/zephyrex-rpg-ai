@@ -84,7 +84,7 @@ from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-fo
     render_instruct,
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.MapStep import map_questions, movers  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.MapStep import map_questions, movers, seat_place  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.NarratorStyle import (  # type: ignore[import-not-found]
     NARRATOR_STYLE,
@@ -1852,6 +1852,10 @@ class MapStep(PlainModel):
     reason: str | None = None
     #: Each move applied: person_id, from, to and to_name.
     moves: list[dict[str, Any]] = Field(default_factory=list)
+    #: The banner's place, server truth: where the seat's character is after the round ({id, name}), or None.
+    seat_location: dict[str, str] | None = None
+    #: Whether this round moved the seat's character: show the banner.
+    seat_moved: bool = False
 
 
 class MapStepEnvelope(PlainModel):
@@ -2208,7 +2212,8 @@ def upstream_body(
         "top_p": sampler["top_p"],
         "top_k": sampler["top_k"],
         "repetition_penalty": sampler["repetition_penalty"],
-        "max_tokens": sampler["max_tokens"],
+        # A story turn sends none (uncapped); an API that requires one gets its top (NativeApis, horde).
+        **({} if sampler.get("uncapped") else {"max_tokens": sampler["max_tokens"]}),
         **({"stop": stop} if stop else {}),
         # Sent only when set (A47): servers that do not take them never see them.
         **({"logit_bias": sampler["logit_bias"]} if sampler.get("logit_bias") else {}),
@@ -2287,7 +2292,8 @@ def horde_body(body: Mapping[str, Any]) -> dict[str, Any]:
     """AI Horde's text job (A48), from the body a text API would get (lib/generate.ts hordeBody)."""
     stop = body.get("stop")
     params: dict[str, Any] = {
-        "max_length": body.get("max_tokens"),
+        # Horde requires a length: a story turn's (uncapped) is the top of the range.
+        "max_length": body.get("max_tokens") or int(SAMPLER_RANGES["max_tokens"][1]),
         "temperature": body.get("temperature"),
         "top_p": body.get("top_p"),
         "top_k": body.get("top_k"),
@@ -2751,17 +2757,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 ],
             )
             sampler = {**sampler, "stop": list(dict.fromkeys([*sampler["stop"], *stops]))}
-            # Ceilings, not lengths: the prompt's proportion and length lines set how long a turn runs.
-            # Only a safety ceiling (the operator: length is the prompt's to set; a tight cap cut a
-            # narration mid-sentence): the narrator's, or a character turn's.
-            if body.mode == "narrate":
-                sampler = {**sampler, "max_tokens": min(int(sampler["max_tokens"]), int(PROMPT["narrate_max_tokens"]))}
-            elif body.mode != "impersonate":
-                sampler = {**sampler, "max_tokens": min(int(sampler["max_tokens"]), int(PROMPT["group_max_tokens"]))}
-            # The narrator sliders' verbosity and humour (NarratorStyle.py).
+            # No token ceiling on a story turn (the operator, 2026-11-21: "Quit it with the response token
+            # limits, it cuts shit off more than it helps"): length is the prompt's and the verbosity
+            # slider's wording; complete_text guards a stream that truly ends mid-sentence. The narrator
+            # sliders' humour warms the temperature (NarratorStyle.py).
             sampler = {
                 **sampler,
-                "max_tokens": max(1, round(int(sampler["max_tokens"]) * float(tuning["max_tokens_scale"]))),
+                "uncapped": True,
                 "temperature": float(sampler["temperature"]) + float(tuning["temperature_delta"]),
                 # Against replays (the play-test: a round retold almost word for word): the preset's own win.
                 "samplers": {**PROMPT["story_penalties"], **(sampler.get("samplers") or {})},
@@ -3665,9 +3667,6 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         summary="The map follows the story: whoever the latest round moved goes to a real place the GM picks",
     )
     async def map_step_route(self, body: MapStepRequestEnvelope) -> MapStepEnvelope:
-        def answer(moves: list[dict[str, Any]], reason: str | None) -> MapStepEnvelope:
-            return MapStepEnvelope(map_step=MapStep(skipped=reason is not None, reason=reason, moves=moves))
-
         asked = body.map_step
         chat = self._manager(ChatManager).get(id=asked.chat_id)
         from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
@@ -3691,9 +3690,6 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         persona = context["persona"]
         actor = persona["name"] if persona is not None else DEFAULT_USER_NAME
         people = [*context["cast"], *([{"id": playing_id, "name": actor}] if playing_id is not None else [])]
-        moving = movers([item for turn in round_turns for item in parse_player_lines(turn["content"], people)])
-        if not moving:
-            return answer([], "nobody moved")
         world = context["world"]
         locations = [
             {
@@ -3710,6 +3706,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for entity in world
             if entity.get("kind") == "person" and not entity.get("deleted")
         ]
+
+        def answer(moves: list[dict[str, Any]], reason: str | None) -> MapStepEnvelope:
+            # The banner's place is server truth (the operator, 2026-11-21), on every answer.
+            place = seat_place(playing_id, persons, locations, moves)
+            return MapStepEnvelope(map_step=MapStep(skipped=reason is not None, reason=reason, moves=moves, **place))
+
+        moving = movers([item for turn in round_turns for item in parse_player_lines(turn["content"], people)])
+        if not moving:
+            return answer([], "nobody moved")
         questions, picks, fallbacks = map_questions(moving, persons, locations)
         if not questions:
             return answer([], "nowhere to go")

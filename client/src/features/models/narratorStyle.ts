@@ -3,7 +3,7 @@
  * Narrator sliders choose the model by reputation and tune it (the operator, 2026-11-21). A model
  * narrates only when it isn't marked not a narrator, is at least min_params_b (or of unknown size)
  * and adherent enough; the nearest to the chat's set sliders wins. Tuning maps verbosity to a
- * max_tokens scale and a length line, spice and darkness to tone lines capped by the table's content
+ * length line (never a token ceiling: the operator, 2026-11-21), spice and darkness to tone lines capped by the table's content
  * rating, and humour to a little temperature. Pure, and held to contract/narrator-style-cases.json
  * with ai_chat/NarratorStyle.py; traits from contract/model-traits.json.
  */
@@ -96,7 +96,7 @@ export function narratorEndpoint(
 export function styleTuning(
   style: NarratorStyle | null | undefined,
   rating: string | null,
-): { max_tokens_scale: number; length: string; tones: string[]; temperature_delta: number } {
+): { length: string; tones: string[]; temperature_delta: number } {
   const verbosity = style?.verbosity;
   const band =
     typeof verbosity === 'number' ? NARRATOR_STYLE.verbosity_bands.find((one) => verbosity < one.below) : undefined;
@@ -110,7 +110,6 @@ export function styleTuning(
   }
   const humour = style?.humour;
   return {
-    max_tokens_scale: band?.scale ?? 1,
     length: band?.line ?? '',
     tones,
     temperature_delta: typeof humour === 'number' ? Math.round(humour * NARRATOR_STYLE.temperature_delta * 1000) / 1000 : 0,

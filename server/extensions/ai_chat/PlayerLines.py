@@ -206,3 +206,19 @@ def location_line(text: str, locations: Sequence[Mapping[str, Any]]) -> dict[str
     if found is None:
         return {"name": banner.group(1), "location_id": None}
     return {"name": str(found["name"]), "location_id": str(found["id"])}
+
+
+def drop_stale_location(text: str, current: Mapping[str, Any] | None) -> str:
+    """A narration without any ``[location: X]`` line that doesn't name the seat's current place (by name or
+    alias, case aside), checked at save: the banner is server truth (map_step's seat_location)."""
+    names = (
+        [str(name).strip().lower() for name in [current["name"], *(current.get("aliases") or [])]]
+        if current is not None
+        else []
+    )
+    kept = []
+    for line in text.split("\n"):
+        banner = re.fullmatch(r"\s*\[location:\s*(.+?)\s*\]\s*", line, re.IGNORECASE)
+        if banner is None or banner.group(1).lower() in names:
+            kept.append(line)
+    return re.sub(r"^\n+", "", "\n".join(kept))

@@ -704,7 +704,9 @@ export function narrateRule(persona: PromptPersona | null, characters: readonly 
   // Small models follow a worked example far better than a rule (the play-test).
   // The play-test: a whole novel, acting and speaking for the person's character.
   const length = `${PROMPT.narrate_length.replaceAll('{{seat_name}}', seatName)} ${PROMPT.narrate_continue}`;
-  const markup = `${PROMPT.narrate_location} ${PROMPT.narrate_markup}`;
+  // No [location:] line: the banner's place is server truth (map_step's seat_location; the operator,
+  // 2026-11-21: "it cited the old location").
+  const markup = PROMPT.narrate_markup;
   return `${rule} ${seatRule} ${length} ${PROMPT.narrate_targets} ${markup}\n${PROMPT.narrate_example.replaceAll('{{example}}', example)}`;
 }
 

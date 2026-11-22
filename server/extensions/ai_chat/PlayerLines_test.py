@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.PlayerLines import (  # type: ignore[import-not-found]
+    drop_stale_location,
     format_player_lines,
     line_speaker,
     location_line,
@@ -46,3 +47,10 @@ LOCATIONS = CASES["location_cases"]
 @pytest.mark.parametrize("case", LOCATIONS["cases"], ids=[case["name"] for case in LOCATIONS["cases"]])
 def test_a_location_banner(case: dict[str, Any]) -> None:
     assert location_line(case["text"], LOCATIONS["locations"]) == case["line"]
+
+
+@pytest.mark.parametrize(
+    "case", CASES["stale_location_cases"], ids=[case["name"] for case in CASES["stale_location_cases"]]
+)
+def test_a_stale_location_line_goes_at_save(case: dict[str, Any]) -> None:
+    assert drop_stale_location(case["text"], case["current"]) == case["kept"]

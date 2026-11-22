@@ -2,7 +2,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/player-lines-cases.json';
-import { type PlayerLine, formatPlayerLines, lineSpeaker, locationLine, parsePlayerLines, stripMarkup } from './playerLines';
+import {
+  type PlayerLine,
+  dropStaleLocation,
+  formatPlayerLines,
+  lineSpeaker,
+  locationLine,
+  parsePlayerLines,
+  stripMarkup,
+} from './playerLines';
 
 describe('the structured lines cases both twins run', () => {
   it.each(cases.parse_cases)('$name', ({ text, items }) => {
@@ -22,5 +30,11 @@ describe('the structured lines cases both twins run', () => {
   });
   it.each(cases.speaker_cases)('the speaker of "$line"', ({ line, speaker }) => {
     expect(lineSpeaker(line, cases.people)).toBe(speaker);
+  });
+});
+
+describe('a stale location line goes at save (the banner is server truth)', () => {
+  it.each(cases.stale_location_cases)('$name', ({ text, current, kept }) => {
+    expect(dropStaleLocation(text, current)).toBe(kept);
   });
 });

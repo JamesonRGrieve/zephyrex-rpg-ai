@@ -117,8 +117,6 @@
     "objective_depth": 2,
     "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}}, and stop where {{user}} would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.",
     "cast_heading": "The characters:",
-    "group_max_tokens": 800,
-    "narrate_max_tokens": 450,
     "in_character": "Every line of the story is in character: never address the player, apologise, or mention the text, the story, prompts or being cut off. Never use em dashes: use commas, full stops or ellipses, and end a line that breaks off with an ellipsis.",
     "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. Write one item per line: your narration as `Narrator: ...`; another character, when you give them a moment, on a line of their own, in the third person: `Name (to Someone): \"what they say\"` (or to everyone; to X, whispers; to everyone, shouts; vox to X; voxcast) or `Name does something`. Anyone else in the scene who speaks or acts (a barkeep, a guard) gets their own lines the same way, named by what they are: `The Barkeep pauses mid-wipe.`, `The Barkeep (to Someone): \"...\"`. Narrator lines are only for the world: scenery, crowds, events and what comes of things; speech never goes in one. Never put what they say, think or decide in a Narrator line. The characters you may voice: {{names}}.",
     "narrate_seat": "Things may happen to {{seat_name}}: what hits, grabs or throws them, and what they perceive. Never write what {{seat_name}} does by choice, says, thinks, feels, decides or knows (no \"you know her as\", no \"you never quite\").",
@@ -128,7 +126,6 @@
     "narrate_continue": "Open with what comes of the latest line; never retell what already happened.",
     "story_penalties": {"frequency_penalty": 0.3, "presence_penalty": 0.2},
     "narrate_targets": "An action's object is its stated target (at X), else the nearest hostile; never a member of the party unless named. Never invent props, devices or objects the story doesn't have.",
-    "narrate_location": "Only when the scene moves to a different place, begin with a line [location: Place], the place's name as the story knows it; never a markdown heading or a bold title.",
     "narrate_markup": "A device's display or readout goes in a screen block: a line [screen: Cogitator] (or Data-slate, Auspex, Vox-log), its lines, then [/screen]. For emphasis you may colour a few words: [red]...[/red], or amber, green, blue, gold or grey.",
     "voice_lines": "Write {{char}}'s turn one item per line: `{{char}} (to Someone): \"what they say\"` or `{{char}} does something`.",
     "markup": {"screens": ["Cogitator", "Data-slate", "Auspex", "Vox-log"], "colours": ["red", "amber", "green", "blue", "gold", "grey"]},
@@ -188,6 +185,7 @@
     "$comment": "Native APIs (audit gap 8): Anthropic's Messages API and Google's Gemini API, asked from the same chat messages as an OpenAI-compatible endpoint and read back as its stream (features/models/nativeApis.ts, ai_chat/NativeApis.py; cases in contract/native-api-cases.json). A conversation must open on the person's turn: when it doesn't, `opening` is that turn.",
     "anthropic_version": "2023-06-01",
     "anthropic_temperature_max": 1,
+    "$comment_uncapped": "Story turns send no max_tokens (the operator, 2026-11-21: \"Quit it with the response token limits\"); an API that requires one (Anthropic's, AI Horde's) gets the top of sampler_ranges.max_tokens.",
     "opening": "(The story begins.)"
   },
   "instruct_templates": {
@@ -869,9 +867,9 @@
     "unknown": 0.5,
     "cold_speed_factor": 0.5,
     "verbosity_bands": [
-      {"below": 0.34, "scale": 0.6, "line": "Keep each turn brief: a sentence or two."},
-      {"below": 0.67, "scale": 1.0, "line": ""},
-      {"below": 1.01, "scale": 1.5, "line": "Take your time: a rich turn of several paragraphs when the moment earns it."}
+      {"below": 0.34, "line": "Keep each turn brief: a sentence or two."},
+      {"below": 0.67, "line": ""},
+      {"below": 1.01, "line": "Take your time: a rich turn of several paragraphs when the moment earns it."}
     ],
     "ratings": ["general", "teen", "mature"],
     "tone": [

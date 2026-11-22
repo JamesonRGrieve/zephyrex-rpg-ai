@@ -60,3 +60,25 @@ export function mapQuestions(
   }
   return { questions, picks, fallbacks };
 }
+
+/**
+ * Where the seat's character is after the round's moves, and whether this round moved them: the
+ * banner's place (the operator, 2026-11-21: "It got the location change wrong again, it cited the old
+ * location"). Server truth, never the narrator's word. Null place when the seat has no location.
+ */
+export function seatPlace(
+  seatId: string | null,
+  persons: readonly { id: string; location_id: string | null }[],
+  locations: readonly { id: string; name: string }[],
+  moves: readonly { person_id: string; from: string | null; to: string }[],
+): { seat_location: { id: string; name: string } | null; seat_moved: boolean } {
+  if (seatId === null) return { seat_location: null, seat_moved: false };
+  const own = moves.filter((move) => move.person_id === seatId);
+  const last = own.at(-1);
+  const at = last?.to ?? persons.find((person) => person.id === seatId)?.location_id ?? null;
+  const place = at === null ? undefined : locations.find((location) => location.id === at);
+  return {
+    seat_location: place === undefined ? null : { id: place.id, name: place.name },
+    seat_moved: own.some((move) => move.from !== move.to),
+  };
+}

@@ -205,3 +205,20 @@ export function locationLine(
   );
   return { name: found?.name ?? banner[1] ?? '', location_id: found?.id ?? null };
 }
+
+/**
+ * A narration without any `[location: X]` line that doesn't name the seat's current place (by name or
+ * alias, case aside), checked at save: the banner is server truth (map_step's seat_location), and the
+ * narrator once cited the old place (the operator, 2026-11-21). With no current place, every one goes.
+ */
+export function dropStaleLocation(text: string, current: { name: string; aliases?: readonly string[] } | null): string {
+  const names = current === null ? [] : [current.name, ...(current.aliases ?? [])].map((name) => name.trim().toLowerCase());
+  return text
+    .split('\n')
+    .filter((line) => {
+      const banner = /^\s*\[location:\s*(.+?)\s*\]\s*$/iu.exec(line);
+      return banner === null || names.includes((banner[1] ?? '').toLowerCase());
+    })
+    .join('\n')
+    .replace(/^\n+/u, '');
+}

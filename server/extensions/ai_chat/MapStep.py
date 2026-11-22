@@ -67,3 +67,25 @@ def map_questions(
         picks[mover["id"]] = labels
         fallbacks[mover["id"]] = here
     return questions, picks, fallbacks
+
+
+def seat_place(
+    seat_id: str | None,
+    persons: Sequence[Mapping[str, Any]],
+    locations: Sequence[Mapping[str, Any]],
+    moves: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    """Where the seat's character is after the round's moves, and whether this round moved them.
+
+    The banner's place (the operator, 2026-11-21): server truth, never the narrator's word.
+    """
+    if seat_id is None:
+        return {"seat_location": None, "seat_moved": False}
+    own = [move for move in moves if move["person_id"] == seat_id]
+    listed = next((person.get("location_id") for person in persons if person["id"] == seat_id), None)
+    at = own[-1]["to"] if own else listed
+    place = next((location for location in locations if location["id"] == at), None) if at is not None else None
+    return {
+        "seat_location": {"id": place["id"], "name": place["name"]} if place is not None else None,
+        "seat_moved": any(move["from"] != move["to"] for move in own),
+    }

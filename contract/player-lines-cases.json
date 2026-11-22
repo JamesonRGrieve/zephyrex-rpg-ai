@@ -355,5 +355,46 @@
         "line": null
       }
     ]
-  }
+  },
+  "stale_location_cases": [
+    {
+      "name": "the old place cited after the seat moved: the line goes",
+      "text": "[location: the Bridge]\nSteam rises from the Galley's pots.",
+      "current": {
+        "name": "Galley",
+        "aliases": [
+          "the mess"
+        ]
+      },
+      "kept": "Steam rises from the Galley's pots."
+    },
+    {
+      "name": "the current place, by alias and case aside: kept",
+      "text": "[location: The Mess]\nSteam rises.",
+      "current": {
+        "name": "Galley",
+        "aliases": [
+          "the mess"
+        ]
+      },
+      "kept": "[location: The Mess]\nSteam rises."
+    },
+    {
+      "name": "no current place: every banner goes",
+      "text": "[location: Galley]\nSteam rises.",
+      "current": null,
+      "kept": "Steam rises."
+    },
+    {
+      "name": "no banner: unchanged",
+      "text": "Steam rises.",
+      "current": {
+        "name": "Galley",
+        "aliases": [
+          "the mess"
+        ]
+      },
+      "kept": "Steam rises."
+    }
+  ]
 }

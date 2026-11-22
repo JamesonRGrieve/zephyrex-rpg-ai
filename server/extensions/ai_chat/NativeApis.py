@@ -24,6 +24,8 @@ from typing import Any
 from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
 
 NATIVE: dict[str, Any] = CONTRACT["native_apis"]
+#: Anthropic requires a max_tokens: a story turn's (uncapped) is the top of the range.
+_TOP_TOKENS = int(CONTRACT["sampler_ranges"]["max_tokens"][1])
 NATIVE_APIS = ("anthropic", "google")
 
 
@@ -75,7 +77,11 @@ def native_request(api: str, base_url: str, api_key: str, body: Mapping[str, Any
         payload: dict[str, Any] = {"model": model}
         if system:
             payload["system"] = system
-        payload |= {"messages": turns, "max_tokens": max_tokens if max_tokens is not None else 1024, "stream": True}
+        payload |= {
+            "messages": turns,
+            "max_tokens": max_tokens if max_tokens is not None else _TOP_TOKENS,
+            "stream": True,
+        }
         if temperature is not None:
             payload["temperature"] = min(NATIVE["anthropic_temperature_max"], temperature)
         if top_p is not None and top_p < 1:

@@ -1,9 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Narrator sliders choose the model by reputation and tune it (the operator, 2026-11-21): a model narrates
 only when it isn't marked not a narrator, is at least min_params_b (or of unknown size) and adherent
-enough; the nearest to the chat's set sliders wins. Tuning maps verbosity to a max_tokens scale and a
-length line, spice and darkness to tone lines capped by the table's content rating, humour to a little
-temperature.
+enough; the nearest to the chat's set sliders wins. Tuning maps verbosity to a length line
+(never a token ceiling: the operator, 2026-11-21), spice and darkness to tone lines capped by the
+table's content rating, humour to a little temperature.
 
 The twin of client/src/features/models/narratorStyle.ts, held to contract/narrator-style-cases.json.
 """
@@ -109,7 +109,6 @@ def style_tuning(style: Mapping[str, Any] | None, rating: str | None) -> dict[st
     if isinstance(humour, (int, float)):
         delta = round(float(humour) * float(NARRATOR_STYLE["temperature_delta"]), 3)
     return {
-        "max_tokens_scale": band["scale"] if band else 1,
         "length": band["line"] if band else "",
         "tones": tones,
         "temperature_delta": delta,

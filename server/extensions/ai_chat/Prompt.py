@@ -40,7 +40,7 @@ NARRATOR = "Narrator"
 
 
 def estimate_tokens(message: Mapping[str, str]) -> int:
-    return math.ceil(len(message["content"]) / PROMPT["characters_per_token"]) + PROMPT["message_overhead_tokens"]
+    return int(math.ceil(len(message["content"]) / PROMPT["characters_per_token"]) + PROMPT["message_overhead_tokens"])
 
 
 @dataclass(frozen=True)
@@ -477,7 +477,9 @@ def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping
     example_text = str(PROMPT["narrate_example"]).replace("{{example}}", example)
     # The play-test: a whole novel, acting and speaking for the person's character.
     length = str(PROMPT["narrate_length"]).replace("{{seat_name}}", seat_name) + " " + str(PROMPT["narrate_continue"])
-    markup = f"{PROMPT['narrate_location']} {PROMPT['narrate_markup']}"
+    # No [location:] line: the banner's place is server truth (map_step's seat_location; the operator,
+    # 2026-11-21: "it cited the old location").
+    markup = str(PROMPT["narrate_markup"])
     return f"{rule} {seat_rule} {length} {PROMPT['narrate_targets']} {markup}\n{example_text}"
 
 
@@ -771,14 +773,14 @@ def assemble_prompt(
 
     budget = context_tokens - max_tokens
     used = sum(estimate_tokens(message) for message in [system, *after, *(message for _depth, message in inserts)])
-    kept = len(turns)
+    start = len(turns)
     for index in range(len(turns) - 1, -1, -1):
         cost = used + estimate_tokens(turns[index])
         if cost > budget:
             break
         used = cost
-        kept = index
-    window = turns[kept:]
+        start = index
+    window = turns[start:]
     placed: list[dict[str, str]] = []
     for index in range(len(window) + 1):
         placed += [message for depth, message in inserts if max(0, len(window) - depth) == index]
@@ -788,12 +790,12 @@ def assemble_prompt(
     if mode == "continue" and placed and placed[-1]["role"] == "assistant":
         return Assembled(
             messages=[system, *placed[:-1], *after, placed[-1]],
-            dropped=kept,
+            dropped=start,
             variables=with_variables,
             prefill=prefill or None,
         )
     return Assembled(
-        messages=[system, *placed, *after], dropped=kept, variables=with_variables, prefill=prefill or None
+        messages=[system, *placed, *after], dropped=start, variables=with_variables, prefill=prefill or None
     )
 
 
@@ -865,7 +867,7 @@ def table_gm_prompt(
         if turn["role"] == "user":
             return user_name
         if turn["role"] == "character":
-            return names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
+            return str(names_by_id.get(turn["speaker_character_id"] or "", NARRATOR))
         return NARRATOR
 
     story = [turn for turn in history if turn["channel"] in PROMPT["story_channels"] and _read(turn)]
@@ -939,13 +941,13 @@ def scene_picture_prompt(
         if turn["role"] == "user":
             return user_name
         if turn["role"] == "character":
-            return names_by_id.get(turn["speaker_character_id"] or "", NARRATOR)
+            return str(names_by_id.get(turn["speaker_character_id"] or "", NARRATOR))
         return NARRATOR
 
     scene = " ".join(
         f"{named(turn)}: {split_reasoning(turn['content'])[1]}" for turn in story[-PICTURE["scene_turns"] :]
     )
-    return (PICTURE["scene_prefix"] + scene)[: PICTURE["prompt_characters"]]
+    return str(PICTURE["scene_prefix"] + scene)[: int(PICTURE["prompt_characters"])]
 
 
 def portrait_picture_prompt(character: Mapping[str, Any], asked: str = "") -> str:
@@ -958,7 +960,7 @@ def portrait_picture_prompt(character: Mapping[str, Any], asked: str = "") -> st
     )
     description = " ".join(filled.split())
     text = PICTURE["portrait_prefix"] + character["name"] + (f". {description}" if description else "")
-    return text[: PICTURE["prompt_characters"]]
+    return str(text)[: int(PICTURE["prompt_characters"])]
 
 
 def background_picture_prompt(
@@ -974,4 +976,4 @@ def background_picture_prompt(
         return asked.strip()[: PICTURE["prompt_characters"]]
     setting = " ".join(scenario.split())
     place = setting if setting else scene_picture_prompt(characters, persona, history)[len(PICTURE["scene_prefix"]) :]
-    return (PICTURE["background_prefix"] + place)[: PICTURE["prompt_characters"]]
+    return str(PICTURE["background_prefix"] + place)[: int(PICTURE["prompt_characters"])]

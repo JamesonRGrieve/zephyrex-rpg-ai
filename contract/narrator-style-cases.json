@@ -240,7 +240,6 @@
       },
       "rating": "mature",
       "tuning": {
-        "max_tokens_scale": 0.6,
         "length": "Keep each turn brief: a sentence or two.",
         "tones": [],
         "temperature_delta": 0
@@ -253,7 +252,6 @@
       },
       "rating": "mature",
       "tuning": {
-        "max_tokens_scale": 1.0,
         "length": "",
         "tones": [],
         "temperature_delta": 0
@@ -266,7 +264,6 @@
       },
       "rating": "mature",
       "tuning": {
-        "max_tokens_scale": 1.5,
         "length": "Take your time: a rich turn of several paragraphs when the moment earns it.",
         "tones": [],
         "temperature_delta": 0
@@ -279,7 +276,6 @@
       },
       "rating": "mature",
       "tuning": {
-        "max_tokens_scale": 1,
         "length": "",
         "tones": [
           "Romance and desire may be frank on the page, within the table's lines."
@@ -294,7 +290,6 @@
       },
       "rating": "teen",
       "tuning": {
-        "max_tokens_scale": 1,
         "length": "",
         "tones": [],
         "temperature_delta": 0
@@ -308,7 +303,6 @@
       },
       "rating": "general",
       "tuning": {
-        "max_tokens_scale": 1,
         "length": "",
         "tones": [
           "Keep the tone hopeful, with no grisly detail.",
@@ -322,7 +316,6 @@
       "style": null,
       "rating": null,
       "tuning": {
-        "max_tokens_scale": 1,
         "length": "",
         "tones": [],
         "temperature_delta": 0

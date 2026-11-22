@@ -149,5 +149,61 @@
       "target_name": null,
       "text": "raises a fist."
     }
+  ],
+  "seat_cases": [
+    {
+      "name": "the seat moved this round: the new place, and a banner",
+      "seat": "wren",
+      "moves": [
+        {
+          "person_id": "wren",
+          "from": "bridge",
+          "to": "galley"
+        }
+      ],
+      "place": {
+        "seat_location": {
+          "id": "galley",
+          "name": "Galley"
+        },
+        "seat_moved": true
+      }
+    },
+    {
+      "name": "someone else moved: the seat's own place, no banner",
+      "seat": "wren",
+      "moves": [
+        {
+          "person_id": "tess",
+          "from": null,
+          "to": "hab"
+        }
+      ],
+      "place": {
+        "seat_location": {
+          "id": "bridge",
+          "name": "the Bridge"
+        },
+        "seat_moved": false
+      }
+    },
+    {
+      "name": "the seat has no place yet: null",
+      "seat": "tess",
+      "moves": [],
+      "place": {
+        "seat_location": null,
+        "seat_moved": false
+      }
+    },
+    {
+      "name": "no seat: null",
+      "seat": null,
+      "moves": [],
+      "place": {
+        "seat_location": null,
+        "seat_moved": false
+      }
+    }
   ]
 }

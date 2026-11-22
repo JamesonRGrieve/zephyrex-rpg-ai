@@ -13,7 +13,7 @@
  *   (`choices[0].delta.content`, and `reasoning_content` for a model's thinking), so one reader takes
  *   every API.
  */
-import { NATIVE_APIS } from '~/contract';
+import { NATIVE_APIS, SAMPLER_RANGES } from '~/contract';
 
 export type NativeApi = 'anthropic' | 'google';
 
@@ -84,7 +84,8 @@ export function nativeRequest(
         model,
         ...(system === '' ? {} : { system }),
         messages: turns,
-        max_tokens: maxTokens ?? 1024,
+        // Anthropic requires one: a story turn's (uncapped) is the top of the range.
+        max_tokens: maxTokens ?? SAMPLER_RANGES.max_tokens[1],
         stream: true,
         ...(temperature === undefined ? {} : { temperature: Math.min(NATIVE_APIS.anthropic_temperature_max, temperature) }),
         ...(topP === undefined || topP >= 1 ? {} : { top_p: topP }),

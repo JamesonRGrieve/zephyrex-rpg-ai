@@ -32,6 +32,7 @@ import {
   PICTURE,
   PRESET_DEFAULTS,
   PROMPT,
+  SAMPLER_RANGES,
   TABLE,
 } from '~/contract';
 import { branchTo } from '~/features/chat/branch';
@@ -39,7 +40,7 @@ import { aiCast, sessionStartIndex, sessionsSummary } from '~/features/chat/play
 import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
 import { clarifyNeed, clarifyQuestions, shouldAsk } from '~/features/chat/clarify';
-import { mapQuestions, movers } from '~/features/world/mapStep';
+import { mapQuestions, movers, seatPlace } from '~/features/world/mapStep';
 import { statusMessages } from '~/features/chat/statusLine';
 import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
 import { parsePlayerLines, stripMarkup } from '~/features/chat/playerLines';
@@ -151,6 +152,8 @@ export interface Sampler {
   guidance_scale?: number | null;
   /** SillyTavern's further samplers (audit gap 2): only the ones set. */
   samplers?: SamplerValues;
+  /** A story turn: no max_tokens on the wire (max_tokens still reserves room in the context budget). */
+  uncapped?: boolean;
 }
 
 export interface Endpoint {
@@ -390,19 +393,11 @@ export async function generationInputs(
     purpose === 'reply'
       ? {
           ...sampler,
-          // The narrator sliders: verbosity scales the ceiling, and their humour warms the temperature.
-          max_tokens: Math.max(
-            1,
-            Math.round(
-              // Only a safety ceiling (the operator: length is the prompt's to set; a tight cap cut a
-              // narration mid-sentence): the narrator's, or a character turn's.
-              (body.mode === 'narrate'
-                ? Math.min(sampler.max_tokens, PROMPT.narrate_max_tokens)
-                : body.mode !== 'impersonate'
-                  ? Math.min(sampler.max_tokens, PROMPT.group_max_tokens)
-                  : sampler.max_tokens) * tuning.max_tokens_scale,
-            ),
-          ),
+          // No token ceiling on a story turn (the operator, 2026-11-21: "Quit it with the response token
+          // limits, it cuts shit off more than it helps"): length is the prompt's and the verbosity
+          // slider's wording; completeText guards a stream that truly ends mid-sentence.
+          uncapped: true,
+          // The narrator sliders' humour warms the temperature.
           temperature: sampler.temperature + tuning.temperature_delta,
           // Against replays (the play-test: a round retold almost word for word): the preset's own win.
           samplers: { ...PROMPT.story_penalties, ...(sampler.samplers ?? {}) },
@@ -705,7 +700,8 @@ export function upstreamBody(
     top_p: sampler.top_p,
     top_k: sampler.top_k,
     repetition_penalty: sampler.repetition_penalty,
-    max_tokens: sampler.max_tokens,
+    // A story turn sends none (uncapped); an API that requires one gets its top (nativeApis, hordeBody).
+    ...(sampler.uncapped === true ? {} : { max_tokens: sampler.max_tokens }),
     ...(stop.length === 0 ? {} : { stop }),
     // Sent only when set (A47): servers that do not take them never see them.
     ...(Object.keys(sampler.logit_bias ?? {}).length === 0 ? {} : { logit_bias: sampler.logit_bias }),
@@ -780,7 +776,8 @@ export function hordeBody(body: Record<string, unknown>): Record<string, unknown
   return {
     prompt: body.prompt,
     params: {
-      max_length: body.max_tokens,
+      // Horde requires a length: a story turn's (uncapped) is the top of the range.
+      max_length: body.max_tokens ?? SAMPLER_RANGES.max_tokens[1],
       temperature: body.temperature,
       top_p: body.top_p,
       top_k: body.top_k,
@@ -1538,11 +1535,10 @@ const mapStepRequest = z.object({
  * I say in narrative mode"): the latest round's do lines with a movement word (free to find; no model
  * call without one) each get one decide question among real places (features/world/mapStep.ts); the
  * moves go through the wiki's person moves, the GM's alone. Answer `{ "map_step": { "skipped",
- * "reason", "moves": [{ "person_id", "from", "to", "to_name" }] } }`.
+ * "reason", "moves": [{ "person_id", "from", "to", "to_name" }], "seat_location": { "id", "name" } |
+ * null, "seat_moved" } }`: the banner's place, server truth, never the narrator's word.
  */
 export async function mapStep(nextRequest: NextRequest): Promise<Response> {
-  const answer = (moves: { person_id: string; from: string | null; to: string; to_name: string }[], reason: string | null) =>
-    Response.json({ map_step: { skipped: reason !== null, reason, moves } });
   try {
     const owner = localOwner(nextRequest);
     const envelope = await readJsonObject(nextRequest);
@@ -1570,8 +1566,6 @@ export async function mapStep(nextRequest: NextRequest): Promise<Response> {
     const round = from === -1 ? storyTurns : storyTurns.slice(from);
     const actor = prompt.persona?.name ?? DEFAULT_USER_NAME;
     const people = [...prompt.characters, ...(playingId === null ? [] : [{ id: playingId, name: actor }])];
-    const moving = movers(round.flatMap((turn) => parsePlayerLines(turn.content, people)));
-    if (moving.length === 0) return answer([], 'nobody moved');
     const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
     const locations = world
       .filter((entity) => entity.kind === 'location' && entity.deleted !== true)
@@ -1588,6 +1582,16 @@ export async function mapStep(nextRequest: NextRequest): Promise<Response> {
         name: entity.name,
         location_id: (field(entity, 'location_id') as string | null | undefined) ?? null,
       }));
+    // The banner's place is server truth (the operator, 2026-11-21), on every answer.
+    const answer = (
+      moves: { person_id: string; from: string | null; to: string; to_name: string }[],
+      reason: string | null,
+    ) =>
+      Response.json({
+        map_step: { skipped: reason !== null, reason, moves, ...seatPlace(playingId, persons, locations, moves) },
+      });
+    const moving = movers(round.flatMap((turn) => parsePlayerLines(turn.content, people)));
+    if (moving.length === 0) return answer([], 'nobody moved');
     const { questions, picks, fallbacks } = mapQuestions(moving, persons, locations);
     if (Object.keys(questions).length === 0) return answer([], 'nowhere to go');
     const deciding = await decider(owner.id);
