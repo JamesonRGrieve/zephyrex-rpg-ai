@@ -33,8 +33,9 @@ const endpoint = (api: 'chat' | 'text') => ({
 describe('a preset’s further samplers in the request (audit gap 2)', () => {
   it('sends a chat API only the ones it takes, and a text API every one, under each name', () => {
     const chat = upstreamBody(endpoint('chat'), sampler, messages, 'reply');
-    expect(chat).toMatchObject({ presence_penalty: 0.4, seed: 7 });
-    expect(chat).not.toHaveProperty('min_p');
+    // min_p reaches a chat API too (vLLM, llama.cpp and ollama read it): the runaway fix, 2026-11-22.
+    expect(chat).toMatchObject({ min_p: 0.05, presence_penalty: 0.4, seed: 7 });
+    expect(chat).not.toHaveProperty('dry_multiplier');
     const text = upstreamBody(endpoint('text'), sampler, messages, 'reply');
     expect(text).toMatchObject({ min_p: 0.05, presence_penalty: 0.4, seed: 7 });
     // DRY's base never goes without its multiplier.

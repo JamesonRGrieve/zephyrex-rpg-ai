@@ -448,8 +448,10 @@ export async function generationInputs(
           thinking_effort: storyTraits.reasoning_effort ?? null,
           // The narrator sliders' humour warms the temperature.
           temperature: sampler.temperature + tuning.temperature_delta,
-          // Against replays (the play-test: a round retold almost word for word): the preset's own win.
-          samplers: { ...PROMPT.story_penalties, ...(sampler.samplers ?? {}) },
+          // min_p, not penalties (the operator, 2026-11-22: a run-on sentence and a synonym spiral on
+          // cydonia): penalties over a long uncapped reply penalise "." and "," and every word used, so the
+          // model can't close a sentence and reaches for ever rarer synonyms. The preset's own win.
+          samplers: { ...PROMPT.story_samplers, ...(sampler.samplers ?? {}) },
           stop: [
             ...new Set([
               ...sampler.stop,

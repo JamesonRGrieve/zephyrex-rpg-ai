@@ -3207,8 +3207,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 "thinking": thinking_mode(traits),
                 "thinking_effort": traits.get("reasoning_effort"),
                 "temperature": float(sampler["temperature"]) + float(tuning["temperature_delta"]),
-                # Against replays (the play-test: a round retold almost word for word): the preset's own win.
-                "samplers": {**PROMPT["story_penalties"], **(sampler.get("samplers") or {})},
+                # min_p, not penalties (the operator, 2026-11-22: a 5,684-character run-on sentence and a synonym
+                # spiral on cydonia): repetition, frequency and presence penalties over a long uncapped reply
+                # penalise "." and "," and every word used, so the model can't close a sentence and reaches
+                # for ever rarer synonyms. Replays are handled by the replay guard. The preset's own win.
+                "samplers": {**PROMPT["story_samplers"], **(sampler.get("samplers") or {})},
             }
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         # "Start reply with" (audit gap 3): a text API carries on from it, as from a reply being continued.

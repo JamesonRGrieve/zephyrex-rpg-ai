@@ -71,10 +71,10 @@
     "context_tokens": [512, 1048576]
   },
   "preset_defaults": {
-    "temperature": 0.8,
-    "top_p": 0.95,
-    "top_k": 40,
-    "repetition_penalty": 1.1,
+    "temperature": 0.75,
+    "top_p": 1.0,
+    "top_k": 0,
+    "repetition_penalty": 1.0,
     "max_tokens": 400,
     "context_tokens": 8192
   },
@@ -125,7 +125,7 @@
     "narrate_length": "Narrate at most three short paragraphs, and end the moment {{seat_name}} would act, speak, think or decide; then stop, without asking what they do.",
     "voice_grounding": "Act only on what {{char}} knows and feels: their home, their stance toward each person present, and what just happened. Never ask what {{char}} would know; never be friendly to someone {{char}} would resent without a reason.",
     "narrate_continue": "Open with what comes of the latest line; never retell what already happened.",
-    "story_penalties": {"frequency_penalty": 0.3, "presence_penalty": 0.2},
+    "story_samplers": {"min_p": 0.05},
     "narrate_targets": "An action's object is its stated target (at X), else the nearest hostile; never a member of the party unless named. Never invent props, devices or objects the story doesn't have.",
     "narrate_markup": "A device's display or readout goes in a screen block: a line [screen: Cogitator] (or Data-slate, Auspex, Vox-log), its lines, then [/screen]. For emphasis you may colour a few words: [red]...[/red], or amber, green, blue, gold or grey.",
     "voice_lines": "Write {{char}}'s turn one item per line: `{{char}} (to Someone): \"what they say\"` or `{{char}} does something`.",
@@ -427,7 +427,7 @@
         "range": [0, 1],
         "neutral": 0,
         "wire": ["min_p"],
-        "apis": ["text", "horde"],
+        "apis": ["chat", "text", "horde"],
         "group": "truncation"
       },
       {

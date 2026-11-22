@@ -19,7 +19,7 @@
       "params": {}
     },
     {
-      "name": "a chat API gets only the penalties and the seed",
+      "name": "a chat API gets min_p (vLLM, llama.cpp and ollama read it), the penalties and the seed",
       "values": {
         "min_p": 0.05,
         "presence_penalty": 0.5,
@@ -29,6 +29,7 @@
       },
       "api": "chat",
       "params": {
+        "min_p": 0.05,
         "presence_penalty": 0.5,
         "frequency_penalty": 0.3,
         "seed": 42

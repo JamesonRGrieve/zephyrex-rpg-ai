@@ -1262,6 +1262,24 @@ class TestGenerate:
         assert sent["think"] is False and sent["chat_template_kwargs"] == {"enable_thinking": False}
         assert sent["reasoning_effort"] == "none"
 
+    def test_a_story_turn_samples_with_min_p_and_no_penalties(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-22: a 5,684-character run-on sentence and a synonym spiral on cydonia. Penalties
+        # over a long uncapped reply penalise "." and every word used; min_p trims the tail instead.
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="cydonia-24b-v4.3", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ada?"]).json()["chat_message"]
+        RECEIVED.clear()
+        server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": ada["id"]}},
+            headers=_headers(user),
+        )
+        sent = RECEIVED[0]["body"]
+        assert sent["min_p"] == 0.05 and sent["repetition_penalty"] == 1.0 and sent["top_k"] == 0
+        assert "frequency_penalty" not in sent and "presence_penalty" not in sent
+
     def test_thinking_past_its_budget_is_closed_and_the_turn_asked_again_without(
         self, server: TestClient, model_url: str
     ) -> None:
