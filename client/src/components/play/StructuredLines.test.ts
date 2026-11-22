@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { actionApart, readLines } from './StructuredLines';
+import { actionApart, actsWith, readLines } from './StructuredLines';
 
 describe('readLines', () => {
   it('an action that carries speech is the action, then a bubble', () => {
@@ -51,5 +51,19 @@ describe('readLines', () => {
     expect(
       actionApart({ kind: 'do', speaker: 'Mags', target: null, text: 'wipes the bar. She sighs. Mags looks up.' }),
     ).toHaveLength(1);
+  });
+  it('a name followed by a noun is narration, not that person acting', () => {
+    expect(
+      readLines('The Rogue Trader vessel Fortune of Varn drifts dark.\nThe Acolyte sits up.', [
+        'The Rogue Trader',
+        'The Acolyte',
+      ]),
+    ).toEqual([
+      { kind: 'narrate', text: 'The Rogue Trader vessel Fortune of Varn drifts dark.' },
+      { kind: 'do', speaker: 'The Acolyte', target: null, text: 'sits up.' },
+    ]);
+    expect(actsWith('slowly turns')).toBe(true);
+    expect(actsWith('sat up')).toBe(true);
+    expect(actsWith('vessel drifts')).toBe(false);
   });
 });

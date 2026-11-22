@@ -133,7 +133,7 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
         structured += 1;
         return { kind: 'do', speaker: actor, target: (aimed[1] ?? '').trim(), text: (aimed[2] ?? '').trim() };
       }
-      if (!/^[(:]/.test(rest)) {
+      if (!/^[(:]/.test(rest) && actsWith(rest)) {
         structured += 1;
         return { kind: 'do', speaker: actor, target: null, text: rest.trim() };
       }
@@ -298,6 +298,22 @@ export function withSpeechApart(line: ShownLine): ShownLine[] {
     .replace(/^[,.]\s*/, '');
   if (after !== '' && /\p{L}/u.test(after)) pieces.push({ ...line, text: after });
   return pieces.length === 0 ? [line] : pieces;
+}
+
+const IRREGULAR =
+  /^(?:sat|stood|took|went|came|ran|saw|said|made|gave|got|held|kept|left|put|set|threw|drew|fell|felt|knew|spun|struck|swung|rose|broke|bit|hid|led|let|lay|shook|slid|spat|stuck|swore|tore|woke|wore|wrote|drank|ate|fought|caught|brought|bought|thought|sought|taught|hit|cut|shut|read|began|became|bent|blew|built|chose|clung|crept|dealt|dove|dug|fled|flung|flew|forgot|froze|grew|hung|heard|lit|lost|meant|met|paid|quit|rang|rode|sang|sank|shot|shone|slept|slung|spoke|sprang|stole|stung|stank|strode|swam|swept|thrust|told|trod|understood|won|wound|wrung|can|will|would|could|should|might|must|may|tries|cries|flies|dies|lies|ties)$/i;
+
+/**
+ * Whether what follows a name is that person acting (the RC run, 2026-11-22: "The Rogue Trader vessel
+ * Fortune of Varn drifts…" was credited to the Rogue Trader): it opens with a verb (walks, nodded,
+ * sat, slowly turns), not a word that goes on naming something.
+ */
+export function actsWith(rest: string): boolean {
+  const words = rest.trim().split(/\s+/);
+  const word = (words[0] ?? '').replace(/[^\p{L}'-]/gu, '');
+  if (word === '') return false;
+  if (/ly$/i.test(word)) return actsWith(words.slice(1).join(' '));
+  return /(?:s|ed)$/i.test(word) || IRREGULAR.test(word);
 }
 
 /** Words that keep a later sentence on the actor (she, his, them…), not the scene's. */
