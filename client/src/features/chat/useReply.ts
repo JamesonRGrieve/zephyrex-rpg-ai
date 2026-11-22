@@ -61,6 +61,10 @@ async function refusal(response: Response): Promise<string> {
   return typeof message === 'string' ? message : `The reply could not start (${response.status})`;
 }
 
+/** How long a reply may take to start, and how long it may then go quiet, before it ends with what it has. */
+const FIRST_TOKEN_MS = 180_000;
+const STALL_MS = 60_000;
+
 /** Resolves once the tab is visible again (and the network has had a moment to come back). */
 function backInView(): Promise<void> {
   return new Promise((resolve) => {
@@ -100,6 +104,15 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
     let saved: SavedLine[] | undefined;
     setState({ status: 'writing', text });
     const show = () => setState({ status: 'writing', text, items });
+    // A stream that goes quiet without closing (the local RC run, 2026-11-22: a reply stopped mid-sentence
+    // and stayed "writing" for four minutes) ends with what it has: the round keeps its last complete
+    // sentence and goes on. The first token may take a while on a long prompt; after it, silence is a stall.
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const heard = (first: boolean) => {
+      clearTimeout(quiet);
+      quiet = setTimeout(() => abort.abort(), first ? FIRST_TOKEN_MS : STALL_MS);
+    };
+    heard(true);
     try {
       const response = await fetch(GENERATE_PATH, {
         method: 'POST',
@@ -112,6 +125,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         return null;
       }
       await readEvents(response.body.pipeThrough(new TextDecoderStream()).getReader(), '', (event) => {
+        heard(false);
         if (event.type === 'delta') {
           text += event.text;
           setState({ status: 'writing', text });
@@ -145,6 +159,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         return null;
       }
     } finally {
+      clearTimeout(quiet);
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onHide);
     }
     if (failure !== null && text === '' && saved === undefined) {
