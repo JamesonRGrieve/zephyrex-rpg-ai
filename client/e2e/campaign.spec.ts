@@ -86,6 +86,7 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
   const chatUrl = page.url();
   const welcome = page.getByRole('article', { name: 'Massen' }).filter({ hasText: 'Welcome to Solenne' });
   await welcome.getByRole('button', { name: /More for/ }).click();
+  await page.getByRole('menuitem', { name: 'Branch' }).click();
   await page.getByRole('menuitem', { name: 'Fork a new campaign from here' }).click();
   await expect(page).not.toHaveURL(chatUrl);
   await expect(page.getByRole('article', { name: 'Narrator' }).first()).toContainText('The ship leaves the warp.');

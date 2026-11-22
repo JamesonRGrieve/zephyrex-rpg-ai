@@ -1527,11 +1527,24 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       message.role === 'user' ||
       (play.isCampaign && message.speaker_character_id !== null && message.speaker_character_id === play.playingId);
     if (own) {
+      // A fork (the operator, 2026-11-22: "It also didnt trigger a fork and stacked up under existing
+      // messages"): the line is resubmitted as a new alternative beside the old one, and the round runs
+      // from it; the old branch stays, a page of the branch arrows away.
       const at = branch.findIndex((one) => one.id === message.id);
       roundRef.current += 1;
       if (writing) reply.stop();
-      setLeafId(message.id);
-      await playRound(message, at === -1 ? [...branch, message] : branch.slice(0, at + 1));
+      setRoundStep('Sending your line again');
+      const copy = await create({
+        chat_id: chat.id,
+        parent_id: message.parent_id,
+        role: message.role,
+        channel: message.channel,
+        ...(message.speaker_character_id === null ? {} : { speaker_character_id: message.speaker_character_id }),
+        swipes: [message.swipes[message.swipe_index ?? 0] ?? ''],
+      });
+      setLeafId(copy.id);
+      await playRound(copy, [...(at === -1 ? branch : branch.slice(0, at)), copy]);
+      setRoundStep(null);
       return;
     }
     // A narration gets another telling, as a further swipe.
@@ -1991,7 +2004,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                         }
                   }
                   onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
-                  onRegenerate={message.role === 'character' && !writing ? () => void regenerate(message) : undefined}
+                  onRegenerate={
+                    message.role === 'character' && !writing && roundStep === null
+                      ? () => void regenerate(message)
+                      : undefined
+                  }
                   onRegenerateWith={
                     message.role === 'character' && !writing && modelList.length > 1
                       ? {

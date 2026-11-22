@@ -21,8 +21,7 @@ describe('MessageItem', () => {
   it('reads a message aloud from the menu, where offered', async () => {
     const onSpeak = vi.fn();
     render(<MessageItem message={ADA_REPLY} onSpeak={onSpeak} />);
-    await userEvent.click(screen.getByRole('button', { name: "More for Ada Vance's message" }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Read aloud' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Read aloud' }));
     expect(onSpeak).toHaveBeenCalledOnce();
   });
 
@@ -69,16 +68,14 @@ describe('MessageItem', () => {
   it('offers to continue a message from the menu', async () => {
     const onContinue = vi.fn();
     render(<MessageItem message={ADA_REPLY} onContinue={onContinue} />);
-    await userEvent.click(screen.getByRole('button', { name: "More for Ada Vance's message" }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Continue' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Continue' }));
     expect(onContinue).toHaveBeenCalledOnce();
   });
 
   it('edits in place from the menu', async () => {
     const onEdit = vi.fn();
     render(<MessageItem message={USER_LINE} onEdit={onEdit} />);
-    await userEvent.click(screen.getByRole('button', { name: "More for Sam's message" }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Edit' }));
+    await userEvent.click(screen.getByRole('button', { name: 'Edit' }));
     const box = screen.getByLabelText('Edit message');
     await userEvent.clear(box);
     await userEvent.type(box, 'I hand her the wrench.');
@@ -104,9 +101,11 @@ describe('MessageItem', () => {
     const onMoveDown = vi.fn();
     render(<MessageItem message={ADA_REPLY} onMoveUp={onMoveUp} onMoveDown={onMoveDown} />);
     await userEvent.click(screen.getByRole('button', { name: /More for/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Branch' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Move up' }));
     expect(onMoveUp).toHaveBeenCalledTimes(1);
     await userEvent.click(screen.getByRole('button', { name: /More for/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Branch' }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'Move down' }));
     expect(onMoveDown).toHaveBeenCalledTimes(1);
   });
@@ -120,7 +119,8 @@ describe('MessageItem', () => {
     const run = vi.fn();
     render(<MessageItem message={ADA_REPLY} onRegenerateWith={{ models: [{ id: 'e2', name: 'Big' }], run }} />);
     await userEvent.click(screen.getByRole('button', { name: /More for/ }));
-    await userEvent.click(await screen.findByRole('menuitem', { name: 'Again with Big' }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: /Again with/ }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Big' }));
     expect(run).toHaveBeenCalledWith('e2');
   });
 });

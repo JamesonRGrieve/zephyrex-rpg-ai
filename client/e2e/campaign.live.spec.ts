@@ -234,6 +234,7 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
   // Fork a new campaign from the first line of the fight.
   const fight = page.getByRole('article').filter({ hasText: 'Three cultists burst' }).first();
   await fight.getByRole('button', { name: /More for/ }).click();
+  await page.getByRole('menuitem', { name: 'Branch' }).click();
   await page.getByRole('menuitem', { name: 'Fork a new campaign from here' }).click();
   await expect(page).not.toHaveURL(new RegExp(chatId), { timeout: 30_000 });
   await expect(page.getByRole('article').filter({ hasText: 'Three cultists burst' })).toBeVisible();

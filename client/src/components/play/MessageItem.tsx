@@ -34,7 +34,16 @@ import {
 import { type ReactElement, useId, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from 'zephyrex/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from 'zephyrex/ui/dropdown-menu';
 import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
 import { textAndCode } from '~/features/chat/codeBlocks';
@@ -530,6 +539,45 @@ export function MessageItem({
             {message.fork.count > 1 && actions.onFork !== undefined && (
               <Pager label='Branch' index={message.fork.index} count={message.fork.count} onStep={actions.onFork} />
             )}
+            {/* The everyday actions under the message; the rest a level down (the operator, 2026-11-22: "The 3
+                dots under messages also needs sub menus and the super common stuff needs broken out under the
+                message"). */}
+            {actions.onEdit !== undefined && (
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='size-9'
+                aria-label='Edit'
+                onClick={() => setEditing(message.text)}
+              >
+                <Pencil aria-hidden />
+              </Button>
+            )}
+            {actions.onSpeak !== undefined && (
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='size-9'
+                aria-label='Read aloud'
+                onClick={actions.onSpeak}
+              >
+                <Volume2 aria-hidden />
+              </Button>
+            )}
+            {actions.onContinue !== undefined && (
+              <Button
+                type='button'
+                variant='ghost'
+                size='icon'
+                className='size-9'
+                aria-label='Continue'
+                onClick={actions.onContinue}
+              >
+                <FastForward aria-hidden />
+              </Button>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button
@@ -543,34 +591,9 @@ export function MessageItem({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
-                {actions.onEdit !== undefined && (
-                  <DropdownMenuItem onSelect={() => setEditing(message.text)}>
-                    <Pencil aria-hidden /> Edit
-                  </DropdownMenuItem>
-                )}
                 {actions.onTranslate !== undefined && (
                   <DropdownMenuItem onSelect={actions.onTranslate.run}>
                     <Languages aria-hidden /> {actions.onTranslate.label}
-                  </DropdownMenuItem>
-                )}
-                {actions.onSpeak !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onSpeak}>
-                    <Volume2 aria-hidden /> Read aloud
-                  </DropdownMenuItem>
-                )}
-                {actions.onContinue !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onContinue}>
-                    <FastForward aria-hidden /> Continue
-                  </DropdownMenuItem>
-                )}
-                {actions.onHide !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onHide}>
-                    <EyeOff aria-hidden /> {message.hidden === true ? 'Show to the model' : 'Hide from the model'}
-                  </DropdownMenuItem>
-                )}
-                {actions.onXCard !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onXCard}>
-                    <X aria-hidden /> X-card
                   </DropdownMenuItem>
                 )}
                 {actions.onBookmark !== undefined && (
@@ -578,35 +601,69 @@ export function MessageItem({
                     <Bookmark aria-hidden /> {message.bookmarked ? 'Remove bookmark' : 'Bookmark'}
                   </DropdownMenuItem>
                 )}
-                {actions.onRegenerateWith?.models.map((model) => (
-                  <DropdownMenuItem key={model.id} onSelect={() => actions.onRegenerateWith?.run(model.id)}>
-                    <RotateCw aria-hidden /> Again with {model.name}
-                  </DropdownMenuItem>
-                ))}
-                {actions.onMoveUp !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onMoveUp}>
-                    <ArrowUp aria-hidden /> Move up
+                {actions.onXCard !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onXCard}>
+                    <X aria-hidden /> X-card
                   </DropdownMenuItem>
                 )}
-                {actions.onMoveDown !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onMoveDown}>
-                    <ArrowDown aria-hidden /> Move down
+                {actions.onHide !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onHide}>
+                    <EyeOff aria-hidden /> {message.hidden === true ? 'Show to the model' : 'Hide from the model'}
                   </DropdownMenuItem>
                 )}
-                {actions.onBranch !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onBranch}>
-                    <GitBranch aria-hidden /> {actions.branchLabel ?? 'Branch from here'}
-                  </DropdownMenuItem>
+                {(actions.onRegenerateWith?.models.length ?? 0) > 0 && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <RotateCw aria-hidden /> Again with…
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {actions.onRegenerateWith?.models.map((model) => (
+                        <DropdownMenuItem key={model.id} onSelect={() => actions.onRegenerateWith?.run(model.id)}>
+                          {model.name}
+                        </DropdownMenuItem>
+                      ))}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                 )}
-                {actions.onForkCampaign !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onForkCampaign}>
-                    <GitBranch aria-hidden /> Fork a new campaign from here
-                  </DropdownMenuItem>
+                {(actions.onBranch !== undefined ||
+                  actions.onForkCampaign !== undefined ||
+                  actions.onMoveUp !== undefined ||
+                  actions.onMoveDown !== undefined) && (
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <GitBranch aria-hidden /> Branch
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      {actions.onBranch !== undefined && (
+                        <DropdownMenuItem onSelect={actions.onBranch}>
+                          <GitBranch aria-hidden /> {actions.branchLabel ?? 'Branch from here'}
+                        </DropdownMenuItem>
+                      )}
+                      {actions.onForkCampaign !== undefined && (
+                        <DropdownMenuItem onSelect={actions.onForkCampaign}>
+                          <GitBranch aria-hidden /> Fork a new campaign from here
+                        </DropdownMenuItem>
+                      )}
+                      {actions.onMoveUp !== undefined && (
+                        <DropdownMenuItem onSelect={actions.onMoveUp}>
+                          <ArrowUp aria-hidden /> Move up
+                        </DropdownMenuItem>
+                      )}
+                      {actions.onMoveDown !== undefined && (
+                        <DropdownMenuItem onSelect={actions.onMoveDown}>
+                          <ArrowDown aria-hidden /> Move down
+                        </DropdownMenuItem>
+                      )}
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                 )}
                 {actions.onDelete !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onDelete} className='text-destructive'>
-                    <Trash2 aria-hidden /> Delete
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={actions.onDelete} className='text-destructive'>
+                      <Trash2 aria-hidden /> Delete
+                    </DropdownMenuItem>
+                  </>
                 )}
               </DropdownMenuContent>
             </DropdownMenu>
