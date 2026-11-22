@@ -6,8 +6,19 @@
  * on a touch screen Enter is a new line and the send button sends. It stays above the on-screen
  * keyboard and the home indicator.
  */
-import { BookOpen, ImagePlus, Mic, MicOff, Send, Square, WandSparkles, X } from 'lucide-react';
+import { ImagePlus, Mic, MicOff, Send, SkipForward, Square, WandSparkles, X } from 'lucide-react';
 import { type KeyboardEvent, type ReactElement, type ReactNode, useEffect, useId, useRef, useState } from 'react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from 'zephyrex/ui/alert-dialog';
 import { Button } from 'zephyrex/ui/button';
 import { useDictation } from '~/features/speech/useDictation';
 import { type Command, parseCommand } from '~/features/chat/commands';
@@ -308,17 +319,7 @@ export function Composer({
               <>
                 {seatSwitch}
                 {onNarrate !== undefined && (
-                  <Button
-                    type='button'
-                    size='icon'
-                    variant='ghost'
-                    className='size-11 shrink-0'
-                    aria-label='Narrate what happens next'
-                    disabled={disabled}
-                    onClick={onNarrate}
-                  >
-                    <BookOpen aria-hidden />
-                  </Button>
+                  <PassButton className='size-11 shrink-0' disabled={disabled} onPass={onNarrate} />
                 )}
               </>
             }
@@ -385,17 +386,7 @@ export function Composer({
               </Button>
             )}
             {onNarrate !== undefined && !writing && channel === 'ic' && (
-              <Button
-                type='button'
-                size='icon'
-                variant='ghost'
-                className='order-3 size-11 shrink-0 sm:order-none'
-                aria-label='Narrate what happens next'
-                disabled={disabled}
-                onClick={onNarrate}
-              >
-                <BookOpen aria-hidden />
-              </Button>
+              <PassButton className='order-3 size-11 shrink-0 sm:order-none' disabled={disabled} onPass={onNarrate} />
             )}
             {onImpersonate !== undefined && !writing && channel === 'ic' && (
               <Button
@@ -440,5 +431,49 @@ export function Composer({
         )}
       </div>
     </form>
+  );
+}
+
+/**
+ * Passing the turn (the operator, 2026-11-22: "The book icon for continue narration should be a pass icon so
+ * it's more obvious what it does, with a are you sure you want to pass your turn confirmation"): the GM
+ * narrates what happens next without the person acting.
+ */
+function PassButton({
+  className,
+  disabled,
+  onPass,
+}: {
+  className: string;
+  disabled: boolean;
+  onPass: () => void;
+}): ReactElement {
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger asChild>
+        <Button
+          type='button'
+          size='icon'
+          variant='ghost'
+          className={className}
+          aria-label='Pass your turn'
+          disabled={disabled}
+        >
+          <SkipForward aria-hidden />
+        </Button>
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>Pass your turn?</AlertDialogTitle>
+          <AlertDialogDescription>The GM tells what happens next without you acting.</AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel className='h-11'>Keep my turn</AlertDialogCancel>
+          <AlertDialogAction className='h-11' onClick={onPass}>
+            Pass
+          </AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }

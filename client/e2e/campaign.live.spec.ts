@@ -193,7 +193,8 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
     1,
   );
   const before = await page.getByRole('article').count();
-  await page.getByRole('button', { name: 'Narrate what happens next' }).click();
+  await page.getByRole('button', { name: 'Pass your turn' }).click();
+  await page.getByRole('button', { name: 'Pass', exact: true }).click();
   await expect.poll(() => page.getByRole('article').count(), { timeout: TURN }).toBeGreaterThanOrEqual(before + 1);
   await settled(page);
   record('AI GM narrates', (await lines(page)).slice(before));

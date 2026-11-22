@@ -113,7 +113,7 @@ export function LineQueue({
   onSend: (text: string) => void;
   /** Out of game (the operator, 2026-11-21): the player to the GM, never the story. */
   onOutOfGame?: (text: string) => void;
-  /** Further buttons beside Say and Do (Narrate what happens next). */
+  /** Further buttons beside Say and Do (changing seat, passing the turn). */
   tools?: ReactNode;
   /** The story lines as they stand, for checks while typing (canon warnings). */
   onDraft?: (lines: string) => void;
