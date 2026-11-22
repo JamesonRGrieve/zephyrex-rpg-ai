@@ -1087,12 +1087,28 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // Narration keeps what happens to the person's character and cuts at the first thing it would
     // have them do by choice, say, think or feel (the operator, 2026-11-21).
     const seat = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
-    const kept = request.mode === 'narrate' && seat !== '' ? seatCut(result.text, seat) : result.text;
+    let kept = request.mode === 'narrate' && seat !== '' ? seatCut(result.text, seat) : result.text;
+    // A narration that opened with the seat's own doing was cut to nothing (the operator, 2026-11-22: "My
+    // next response started generating something then disappeared"): written once more with that opening
+    // forbidden, telling what they perceive and what happens around them.
+    let cutAway = false;
+    if (request.mode === 'narrate' && seat !== '' && completeText(kept).trim() === '' && result.text.trim() !== '') {
+      revise('voice', `It narrated what ${seat} chose to do.`);
+      const opening = result.text.trim().split(/(?<=[.!?…])\s/)[0] ?? result.text.trim();
+      const again = await storyPart({ ...request, forbid: { names: [seat], span: opening } });
+      if (again !== null) {
+        result = again;
+        kept = seatCut(again.text, seat);
+      }
+      cutAway = completeText(kept).trim() === '';
+    }
     const whole = plainDashes(completeText(kept));
     if (whole.trim() === '') {
       notify(
         'The model gave no reply',
-        'It answered with nothing twice: often a refusal under the chat’s content rating. Try again, or rephrase.',
+        cutAway
+          ? `It only narrated ${seat}’s own choices, twice. Say or do what ${seat} does next, or narrate it as the GM.`
+          : 'It answered with nothing twice: often a refusal under the chat’s content rating. Try again, or rephrase.',
       );
       return null;
     }
