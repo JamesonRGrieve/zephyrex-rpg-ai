@@ -129,6 +129,8 @@ export const STATUS_LINE = contract.status_line;
 export const DISPOSITIONS = contract.dispositions;
 /** Schema-constrained turns: the schema's words and the instruction. */
 export const STRUCTURED = contract.structured;
+/** The GM authors an NPC the story needs: cues, the question, the author's prompt and the steps. */
+export const NPC_AUTHOR = contract.npc_author;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

@@ -1065,6 +1065,62 @@ class TestGenerate:
         decided = [sent for sent in RECEIVED if sent["path"].endswith("/chat/completions")]
         assert decided and "Dexterity" in json.dumps(decided[0]["body"])
 
+    def test_a_line_meeting_someone_new_asks_whether_to_author_them(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-22: "when I walk up to the barkeeper, since an npc for that doesn't exist, it
+        # should author one as a pre-step".
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Tavern", character_ids=[ada["id"]]).json()["chat"]
+
+        def needed(said: str) -> dict[str, Any]:
+            line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=[said]).json()["chat_message"]
+            answer = server.post(
+                "/v1/ai_chat/npc_needed",
+                json={"npc_needed": {"chat_id": chat["id"], "leaf_id": line["id"]}},
+                headers=_headers(user),
+            )
+            assert answer.status_code == 200, answer.text
+            result: dict[str, Any] = answer.json()["npc_needed"]
+            return result
+
+        # Free: meeting no one, or only someone present, asks no model.
+        assert needed("I sit by the fire.")["needed"] is False
+        assert needed("I walk up to Ada.")["reason"] == "everyone the line meets is known"
+        assert needed("I walk up to the barkeeper.")["reason"] == "no decision model"
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        RECEIVED.clear()
+        assert needed("I walk up to the barkeeper.")["needed"] is False  # this fake judge answers no JSON
+        assert "the barkeeper" in json.dumps(RECEIVED[-1]["body"])
+
+    def test_authoring_an_npc_makes_them_a_person_of_the_campaign(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        campaign = server.post("/v1/campaign", json={"campaign": {"name": "The Tavern"}}, headers=_headers(user))
+        assert campaign.status_code == 201, campaign.text
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(
+            server, user, "chat", title="Tavern", character_ids=[ada["id"]], campaign_id=campaign.json()["campaign"]["id"]
+        ).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I walk up to the barkeeper."]).json()["chat_message"]
+        answer = server.post(
+            "/v1/ai_chat/author_npc",
+            json={"author_npc": {"chat_id": chat["id"], "leaf_id": line["id"], "name": "The Barkeeper", "role": "barkeeper"}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        frames = [block for block in answer.text.split("\n\n") if block.strip() and not block.startswith(":")]
+        names = [block.split("\n")[0].removeprefix("event: ") for block in frames]
+        steps = [json.loads(block.split("data: ", 1)[1]) for block in frames if block.startswith("event: step")]
+        assert names[-1] == "done", answer.text
+        # No drawing model here: three steps (written, a person, a sheet), and the last says all done.
+        assert [step["label"] for step in steps][:3] == ["Writing The Barkeeper", "Making them a person of the campaign", "Building their sheet"]
+        assert steps[-1]["done"] == steps[-1]["total"] == 3
+        made = json.loads(frames[-1].split("data: ", 1)[1])
+        assert made["name"] == "The Barkeeper"
+        cast = server.get(f"/v1/chat/{chat['id']}", headers=_headers(user)).json()["chat"]["character_ids"]
+        assert made["person_id"] in cast
+
     def test_canon_warnings_can_be_turned_off_for_a_chat(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "a 'permanently dismiss for this campaign' button for radical looney
         # toon campaigns". canon_checks is on by default; off, the canon check answers unchecked.

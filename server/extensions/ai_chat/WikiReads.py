@@ -188,3 +188,27 @@ def campaign_framing(model_registry: Any, requester_id: str, campaign_id: str | 
     answer = _sync(read(model_registry, requester_id, campaign_id))
     framing = answer.get("campaign_framing") if isinstance(answer, dict) else None
     return framing if isinstance(framing, dict) else None
+
+
+async def update_person(
+    model_registry: Any, requester_id: str, person_id: str, fields: dict[str, Any]
+) -> dict[str, Any] | None:
+    """A person filled in (the wiki's update_person: summary, entry, personality, motive, voice, picture),
+    or None without the ability or when refused."""
+    update = loaded_ability(model_registry, "rpg_core", "update_person")
+    if update is None:
+        return None
+    done = await _call(update, model_registry, requester_id, person_id, fields)
+    return dict(done) if isinstance(done, dict) else None
+
+
+async def npc_sheet(
+    model_registry: Any, requester_id: str, person_id: str, role: str, hint: str
+) -> dict[str, Any] | None:
+    """A new NPC's sheet from the VTT's compendium for the campaign's system (rpg_builder's npc_sheet):
+    never a model's numbers. None without the ability, or when the system has no blocks."""
+    build = loaded_ability(model_registry, "rpg_builder", "npc_sheet")
+    if build is None:
+        return None
+    built = await _call(build, requester_id, person_id, role, hint=hint)
+    return dict(built) if isinstance(built, dict) else None

@@ -104,6 +104,12 @@ from zephyrex.extensions.ai_chat.NativeApis import (  # type: ignore[import-not-
     native_request,
     openai_payload,
 )
+from zephyrex.extensions.ai_chat.NpcAuthor import (  # type: ignore[import-not-found]
+    NPC_AUTHOR,
+    npc_entry,
+    npc_figures,
+    npc_writing,
+)
 from zephyrex.extensions.ai_chat.Party import (  # type: ignore[import-not-found]
     one_line,
     party_briefing,
@@ -122,6 +128,7 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
     background_picture_prompt,
     estimate_tokens,
     expression_prompt,
+    frame_text,
     pick_option,
     portrait_picture_prompt,
     scene_picture_prompt,
@@ -178,8 +185,10 @@ from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-f
     campaign_framing,
     ensure_person,
     move_person,
+    npc_sheet,
     persons_for,
     test_options,
+    update_person,
 )
 from zephyrex.extensions.ai_chat.WorldCast import (  # type: ignore[import-not-found]
     seat_person,
@@ -717,6 +726,53 @@ async def heartbeat_lines(upstream: Any, interval: float) -> AsyncIterator[str |
         except StopAsyncIteration:
             return
         yield line
+
+
+async def heartbeat_iter(events: AsyncIterator[str], interval: float) -> AsyncIterator[str]:
+    """A stream's pieces, with a heartbeat for each ``interval`` that brings none (a step's long pause)."""
+    iterator = events.__aiter__()
+    while True:
+        task = asyncio.ensure_future(iterator.__anext__())
+        while True:
+            done, _pending = await asyncio.wait({task}, timeout=interval)
+            if done:
+                break
+            yield HEARTBEAT
+        try:
+            piece = task.result()
+        except StopAsyncIteration:
+            return
+        yield piece
+
+
+async def store_picture(model_registry: Any, requester_id: str, name: str, image: str) -> str | None:
+    """A drawn picture (a data URL) kept as the requester's asset through the framework's attachments
+    (as POST /v1/asset/upload keeps one); its id, or None where attachments aren't loaded."""
+    import base64
+    import hashlib
+    import uuid
+
+    try:
+        from zephyrex.extensions.attachments.BLL_Attachments import AssetManager
+        from zephyrex.extensions.cloud.EXT_Cloud import EXT_Cloud
+    except ImportError:
+        return None
+    head, _comma, data = image.partition(",")
+    content = base64.b64decode(data) if data else b""
+    if not content:
+        return None
+    content_type = head.removeprefix("data:").split(";")[0] or "image/png"
+    path = f"attachments/{requester_id}/{uuid.uuid4().hex}"
+    stored = await EXT_Cloud.upload_file(path=path, content=content)
+    asset = AssetManager(requester_id=requester_id, model_registry=model_registry).create(
+        name=f"{name}.png",
+        content_type=content_type,
+        size=len(content),
+        sha256=hashlib.sha256(content).hexdigest(),
+        provider=str(stored["provider"]),
+        path=str(stored.get("path", path)),
+    )
+    return str(asset.id)
 
 
 def structured_retry(body: Mapping[str, Any], seat_name: str) -> dict[str, Any]:
@@ -1927,6 +1983,39 @@ class ClarifyRequestEnvelope(PlainModel):
 class ClarifyEnvelope(PlainModel):
     #: The question and its options (those present), or None: nothing to ask.
     clarify: dict[str, Any] | None = None
+
+
+class NpcNeededRequest(PlainModel):
+    """Whether the person's latest line meets someone who must be authored first (the operator, 2026-11-22)."""
+
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+
+
+class NpcNeededRequestEnvelope(PlainModel):
+    npc_needed: NpcNeededRequest
+
+
+class NpcNeeded(PlainModel):
+    needed: bool
+    name: str | None = None
+    role: str | None = None
+    reason: str = ""
+
+
+class NpcNeededEnvelope(PlainModel):
+    npc_needed: NpcNeeded
+
+
+class AuthorNpcRequest(PlainModel):
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+    name: str = Field(..., min_length=1, max_length=MAX_NAME)
+    role: str = Field("", max_length=200)
+
+
+class AuthorNpcRequestEnvelope(PlainModel):
+    author_npc: AuthorNpcRequest
 
 
 class MapStepRequest(PlainModel):
@@ -3187,18 +3276,24 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         summary="A picture of a scene, a portrait or a background, drawn by a model serving the image role (A30)",
     )
     async def picture_route(self, body: PictureRequestEnvelope) -> PictureEnvelope:
-        asked = body.picture
-        # Only a model the person set to draw: a chat model is never asked for a picture.
+        prompt = self._picture_prompt(body.picture)
+        return PictureEnvelope(picture=Picture(prompt=prompt, image=await self._draw(prompt)))
+
+    def _drawing_endpoint(self) -> Any:
+        """The model the person set to draw (the default one first), or None: a chat model never draws."""
         drawing = sorted(
             (row for row in self._manager(ModelEndpointManager).list() if "image" in (row.roles or [])),
             key=lambda row: row.name,
         )
-        endpoint = next((row for row in drawing if row.is_default), None) or next(iter(drawing), None)
+        return next((row for row in drawing if row.is_default), None) or next(iter(drawing), None)
+
+    async def _draw(self, prompt: str) -> str:
+        """A picture of the prompt from the person's drawing model, as a data URL, or the framework's error."""
+        endpoint = self._drawing_endpoint()
         if endpoint is None:
             raise HTTPException(
                 status_code=409, detail={"message": "Set a model to draw pictures first", "code": "no_image_model"}
             )
-        prompt = self._picture_prompt(asked)
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         try:
             async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
@@ -3235,7 +3330,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 status_code=502,
                 detail={"message": "The model sent no picture this app can keep", "code": "model_refused"},
             )
-        return PictureEnvelope(picture=Picture(prompt=prompt, image=image))
+        return image
 
     @custom_route(
         method="POST",
@@ -3840,6 +3935,172 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if await move_person(self.model_registry, requester, str(move["person_id"]), str(move["to"]), "the story")
         ]
         return answer(moves, None)
+
+    @custom_route(
+        method="POST",
+        path="/npc_needed",
+        input_model=NpcNeededRequestEnvelope,
+        output_model=NpcNeededEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Whether the person's latest line meets someone who isn't a person yet, to author first",
+    )
+    async def npc_needed_route(self, body: NpcNeededRequestEnvelope) -> NpcNeededEnvelope:
+        def answer(needed: bool, reason: str, figure: Mapping[str, str] | None = None) -> NpcNeededEnvelope:
+            return NpcNeededEnvelope(
+                npc_needed=NpcNeeded(
+                    needed=needed,
+                    name=figure["name"] if figure else None,
+                    role=figure["role"] if figure else None,
+                    reason=reason,
+                )
+            )
+
+        asked = body.npc_needed
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id, mode="narrate"), save_timers=False
+        )
+        story = set(PROMPT["story_channels"])
+        story_turns = [
+            turn
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        latest = next((turn for turn in reversed(story_turns) if by_person(turn, playing_id)), None)
+        if latest is None:
+            return answer(False, "no line of the person's")
+        persona = context["persona"]
+        actor = persona["name"] if persona is not None else DEFAULT_USER_NAME
+        known = [
+            *context["cast"],
+            *([{"id": playing_id, "name": actor}] if playing_id is not None else []),
+            *(
+                {"id": entity["id"], "name": entity["name"]}
+                for entity in context["world"]
+                if entity.get("kind") == "person" and not entity.get("deleted")
+            ),
+        ]
+        # Free: a line that meets no one new asks no model.
+        figures = npc_figures(str(latest["content"]), known)
+        if not figures:
+            return answer(False, "everyone the line meets is known")
+        deciding = self._decider()
+        if deciding is None:
+            return answer(False, "no decision model")
+        present = ", ".join(str(one["name"]) for one in context["cast"]) or "no one"
+        question = {
+            "type": "choice",
+            "instructions": str(NPC_AUTHOR["question"]).replace("{{actor}}", actor).replace("{{present}}", present),
+            "criteria": [figure["phrase"] for figure in figures] + [str(NPC_AUTHOR["none"])],
+        }
+        answers = await ask_decider(
+            deciding.base_url,
+            deciding.model,
+            decrypt_secret(deciding.api_key) if deciding.api_key else "",
+            "\n".join(str(turn["content"]) for turn in story_turns[-6:]),
+            {"npc": question},
+            getattr(deciding, "extra_body", None),
+        )
+        picked = ((answers or {}).get("npc") or {}).get("choice")
+        figure = next((one for one in figures if one["phrase"] == picked), None)
+        if figure is None:
+            return answer(False, "the decision model chose no one new")
+        return answer(True, f"{actor}'s line meets {figure['phrase']}", figure)
+
+    @custom_route(
+        method="POST",
+        path="/author_npc",
+        input_model=AuthorNpcRequestEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        response_class=StreamingResponse,
+        openapi_tags=("AI Chat",),
+        summary="Author a new NPC the story needs: written, made a person of the campaign, a sheet, a portrait",
+    )
+    async def author_npc_route(self, body: AuthorNpcRequestEnvelope) -> StreamingResponse:
+        asked = body.author_npc
+        chats = self._manager(ChatManager)
+        chat = chats.get(id=asked.chat_id)
+        name, role = asked.name.strip(), asked.role.strip() or asked.name.strip()
+        drawing = self._drawing_endpoint() is not None
+        total = 4 if drawing else 3
+        steps = NPC_AUTHOR["steps"]
+
+        def step(index: int, label: str) -> str:
+            return frame("step", {"label": label, "done": index, "total": total})
+
+        async def authored() -> AsyncIterator[str]:
+            requester = str(self.requester.id)
+            yield step(0, str(steps["write"]).replace("{{name}}", name))
+            # 1. Written by the summary model from the campaign's framing and the scene.
+            _assembled, _request, sampler, _active, context = await asyncio.to_thread(
+                self._inputs,
+                GenerateRequest(chat_id=asked.chat_id, leaf_id=asked.leaf_id, mode="narrate"),
+                False,
+                "summary",
+            )
+            story = set(PROMPT["story_channels"])
+            scene = "\n".join(
+                str(turn["content"]) for turn in context["history"] if turn["channel"] in story and not turn["hidden"]
+            )[-4000:]
+            framed = frame_text(self._frame_of(chat.campaign_id))
+            instruction = str(NPC_AUTHOR["author_prompt"]).replace("{{name}}", name).replace("{{role}}", role)
+            messages = [
+                {"role": "system", "content": "\n\n".join(part for part in (framed, instruction) if part)},
+                {"role": "user", "content": scene or "(The story begins.)"},
+            ]
+            try:
+                fields = npc_writing(await self._ask(context, sampler, messages))
+            except HTTPException:
+                fields = npc_writing("")
+            summary = fields["summary"] or role
+            yield step(1, str(steps["person"]))
+            # 2. A GM-only person of the campaign, joined to the chat's cast.
+            wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+            person = await ensure_person(self.model_registry, requester, wiki, name, summary) if wiki else None
+            if person is None:
+                yield frame("error", {"detail": "The wiki can't make this person here"})
+                return
+            person_id = str(person["id"])
+            cast = list(chats.get(id=chat.id).character_ids or [])
+            if person_id not in cast:
+                chats.update(chat.id, character_ids=[*cast, person_id])
+            filled = {"summary": summary, "entry": npc_entry(fields)}
+            filled |= {key: fields[key] for key in ("personality", "motive", "voice") if fields[key]}
+            await update_person(self.model_registry, requester, person_id, {k: v for k, v in filled.items() if v})
+            yield step(2, str(steps["sheet"]))
+            # 3. Their sheet from the VTT's compendium for the campaign's system: never a model's numbers.
+            await npc_sheet(self.model_registry, requester, person_id, role, summary)
+            if drawing:
+                yield step(3, str(steps["picture"]))
+                # 4. A portrait, stored as an asset and set as their picture.
+                try:
+                    portrait = portrait_picture_prompt({"name": name, "description": fields["description"]})
+                    image = await self._draw(portrait)
+                    asset_id = await store_picture(self.model_registry, requester, name, image)
+                    if asset_id is not None:
+                        await update_person(self.model_registry, requester, person_id, {"picture": asset_id})
+                except HTTPException:
+                    pass
+            yield step(total, str(steps["picture"] if drawing else steps["sheet"]))
+            yield frame("done", {"person_id": person_id, "name": name})
+
+        async def safe() -> AsyncIterator[str]:
+            try:
+                async for piece in heartbeat_iter(authored(), HEARTBEAT_SECONDS):
+                    yield piece
+            except HTTPException as error:
+                detail = error.detail.get("message") if isinstance(error.detail, dict) else str(error.detail)
+                yield frame("error", {"detail": detail or "The NPC could not be authored"})
+
+        return event_stream(safe())
 
     @custom_route(
         method="POST",

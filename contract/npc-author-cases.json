@@ -1,0 +1,62 @@
+{
+  "$comment": "The figures a person's line addresses or approaches who aren't people yet: cases both twins run (client/src/features/chat/npcAuthor.test.ts, server/extensions/ai_chat/NpcAuthor_test.py).",
+  "people": [
+    {
+      "id": "fen",
+      "name": "Fennick Quill"
+    },
+    {
+      "id": "bar",
+      "name": "The Barkeep"
+    },
+    {
+      "id": "mae",
+      "name": "Maelis"
+    }
+  ],
+  "cases": [
+    {
+      "name": "the operator's example: walking up to the barkeeper, who is no one present by that word, goes to the decision model",
+      "line": "Fennick Quill walks up to the barkeeper and orders an ale.",
+      "figures": [
+        {
+          "phrase": "the barkeeper",
+          "name": "The Barkeeper",
+          "role": "barkeeper"
+        }
+      ]
+    },
+    {
+      "name": "someone present already: nothing to author, no model call",
+      "line": "Fennick Quill walks up to the barkeep and orders an ale.",
+      "figures": []
+    },
+    {
+      "name": "a place belongs to the phrase, not the role",
+      "line": "Fennick Quill asks the guard at the gate for directions.",
+      "figures": [
+        {
+          "phrase": "the guard at the gate",
+          "name": "The Guard",
+          "role": "guard"
+        }
+      ]
+    },
+    {
+      "name": "a say line's target who isn't a person",
+      "line": "Fennick Quill (to the old fisherman): \"Seen a boat?\"",
+      "figures": [
+        {
+          "phrase": "the old fisherman",
+          "name": "The Old Fisherman",
+          "role": "old fisherman"
+        }
+      ]
+    },
+    {
+      "name": "no approach or address: nothing",
+      "line": "Fennick Quill sits by the fire and sharpens his knife.",
+      "figures": []
+    }
+  ]
+}
