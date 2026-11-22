@@ -22,6 +22,8 @@ import { post } from './support/seed';
 const LIVE = process.env.LIVE_MODEL_URL ?? '';
 const STORY = process.env.LIVE_STORY_MODEL ?? '';
 const SUMMARY = process.env.LIVE_SUMMARY_MODEL ?? '';
+// The decision model that runs the table (who acts next, rolls, labels), as prod has one.
+const DECIDE = process.env.LIVE_DECIDE_MODEL ?? '';
 /** How long one model turn may take (a cold load on the lab's tier is about two minutes). */
 const TURN = 240_000;
 
@@ -103,6 +105,9 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
     roles: ['story', 'gm'],
     is_default: true,
   });
+  if (DECIDE !== '') {
+    await post(page, 'model_endpoint', { name: 'Decide', base_url: LIVE, model: DECIDE, api: 'chat', roles: ['decide'] });
+  }
   if (SUMMARY !== '') {
     await post(page, 'model_endpoint', {
       name: 'Summaries',
