@@ -387,6 +387,36 @@ done yet). The owner is named where it isn't rpg-ai's client.
   lite gets the same through better-sqlite3 and sqlite-vec. _Name index built; hybrid in progress
   (Wiki); per-turn snapshot built (Parity)._
 
+**Starting a campaign**
+
+- **New character** (built with the VTT's character builder) and **Freeform character** (a name only,
+  developed during play by the GM agent; narrative campaigns only) sit beside the scenario's and the
+  setting's characters. _Built (client); freeform development and the mode read in progress (Parity)._
+- **Starting takes the whole page:** once Start is pressed the copy and boot progress covers everything;
+  nothing can be edited. _Built._
+- **Prefab characters are complete at start:** every pregen carries its full character sheet and
+  starting inventory by the system's creation rules, and the scenario copy carries them over. _Open (VTT
+  build_pregen and a backfill of the 112 pregens; Wiki copies traits and inventory)._
+- **A seat with no place starts where the opening says,** else where the scenario's people are, and is
+  put there. _Built._
+- **Every scenario is playable:** people have kinds, the opening is a real situation (never a pointer to
+  other notes), there is a place to start; every import and generation validates this and fails loudly.
+  Scenarios are tagged by origin: **Imported** (from transcripts and vaults) or **Stereotypical**
+  (generated). _Wiki repair built; prod repair after the deploy._
+
+**The decision model**
+
+- **Three tries** when it chokes; then the narrator carries the moment, prompted wide enough to give the
+  party and the people present their reactions. _Built (client); server retries and wording in progress._
+
+**The map and the dice**
+
+- **Full map control from play:** the GM picks and makes scenes, places and removes tokens (an authored
+  NPC is placed beside the seat), opens doors, measures, pings and paints fog; players move their own
+  token, measure, ping, and see only what their token sees. _Scene list built; the rest in progress (VTT)._
+- **The dice tray rolls in 3D** (the server's values, never the renderer's), looks designed rather than a
+  form, and defaults to the system's die (d20 for 5e), never d100. _In progress (VTT)._
+
 **Operations**
 
 - **Dev and release-candidate tests never use the prod model tier** (gigabyte); they use the desktop.
