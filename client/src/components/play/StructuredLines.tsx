@@ -140,7 +140,7 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
     }
     return { kind: 'narrate', text: line };
   });
-  return structured === 0 ? null : shown.flatMap(withSpeechApart);
+  return structured === 0 ? null : shown.flatMap(withSpeechApart).flatMap(actionApart);
 }
 
 // Opaque fills, so the tail can sit over the bubble's edge without a seam.
@@ -298,4 +298,35 @@ export function withSpeechApart(line: ShownLine): ShownLine[] {
     .replace(/^[,.]\s*/, '');
   if (after !== '' && /\p{L}/u.test(after)) pieces.push({ ...line, text: after });
   return pieces.length === 0 ? [line] : pieces;
+}
+
+/** Words that keep a later sentence on the actor (she, his, them…), not the scene's. */
+const ACTOR_WORDS = /^(?:she|he|they|it|her|his|their|its|him|them|then|and|but|still)\b/i;
+
+/**
+ * An action keeps only what the actor does (the operator, 2026-11-22: "this should be action 'blinks
+ * slowly' and the rest should be narration. But it all got crammed into barkeep action"): its first
+ * sentence, and the ones after it that are still about them (a pronoun, their name, or a verb going
+ * on). From the first sentence about someone or something else, the rest is narration.
+ */
+export function actionApart(line: ShownLine): ShownLine[] {
+  if (line.kind !== 'do') return [line];
+  const sentences =
+    line.text
+      .match(/[^.!?…]+(?:[.!?…]+["”’)]*|$)\s*/g)
+      ?.map((one) => one.trim())
+      .filter(Boolean) ?? [];
+  if (sentences.length < 2) return [line];
+  const first = line.speaker.split(/\s+/).find((word) => /^\p{Lu}/u.test(word) && !/^(?:The|A|An)$/.test(word)) ?? '';
+  const ownedBy = (sentence: string) =>
+    ACTOR_WORDS.test(sentence) ||
+    /^\p{Ll}/u.test(sentence) ||
+    (first !== '' && sentence.startsWith(first)) ||
+    sentence.toLowerCase().startsWith(line.speaker.toLowerCase());
+  const cut = sentences.findIndex((sentence, index) => index > 0 && !ownedBy(sentence));
+  if (cut === -1) return [line];
+  return [
+    { ...line, text: sentences.slice(0, cut).join(' ') },
+    { kind: 'narrate', text: sentences.slice(cut).join(' ') },
+  ];
 }

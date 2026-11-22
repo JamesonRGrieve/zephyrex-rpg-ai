@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { readLines } from './StructuredLines';
+import { actionApart, readLines } from './StructuredLines';
 
 describe('readLines', () => {
   it('an action that carries speech is the action, then a bubble', () => {
@@ -35,5 +35,21 @@ describe('readLines', () => {
       },
       { kind: 'do', speaker: 'Sister Maelis Varn', target: null, text: 'She shakes her head.' },
     ]);
+  });
+  it('an action keeps what the actor does; the scene after it is narration', () => {
+    expect(
+      actionApart({
+        kind: 'do',
+        speaker: 'Mags Thornbury',
+        target: null,
+        text: 'blinks slowly. Around the room, fights are pausing mid-swing as people process this question.',
+      }),
+    ).toEqual([
+      { kind: 'do', speaker: 'Mags Thornbury', target: null, text: 'blinks slowly.' },
+      { kind: 'narrate', text: 'Around the room, fights are pausing mid-swing as people process this question.' },
+    ]);
+    expect(
+      actionApart({ kind: 'do', speaker: 'Mags', target: null, text: 'wipes the bar. She sighs. Mags looks up.' }),
+    ).toHaveLength(1);
   });
 });
