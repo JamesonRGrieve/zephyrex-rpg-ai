@@ -1043,6 +1043,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const parts = narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== '');
     let parent = parentId;
     let saved: ChatMessage | null = null;
+    // A line is saved only as someone in the chat's cast (the server refuses anyone else, and the
+    // round died on it: the hand-piloted run's 422). The campaign's people who speak here for the
+    // first time join it, in one update. (A new unnamed speaker is added by ensure_person itself.)
+    const newcomers = [
+      ...new Set(
+        parts.flatMap((part) =>
+          part.speaker_id !== null && !chat.character_ids.includes(part.speaker_id) ? [part.speaker_id] : [],
+        ),
+      ),
+    ];
+    if (newcomers.length > 0) await updateChat(chat, { character_ids: [...chat.character_ids, ...newcomers] });
     for (const [index, found] of (parts.length > 0 ? parts : [{ speaker_id: null, text: result.text }]).entries()) {
       // Someone the campaign doesn't know yet (an unnamed barkeep) becomes a person of it the first
       // time they speak, and their lines are theirs (the operator, 2026-11-21).
