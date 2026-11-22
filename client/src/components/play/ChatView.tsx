@@ -358,8 +358,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const play = useCampaign(chat, branch);
   // How the seat may speak here and to whom beyond the room (speech_options: setting-dependent).
   const speechOptions = useSWR(
-    play.isCampaign && play.playingId !== null ? ['rpg-ai', 'speech-options', chat.id, play.playingId, leafId] : null,
+    // Once per seat, not per line or per focus (the server builds it from the sheet: never cheap).
+    play.isCampaign && play.playingId !== null ? ['rpg-ai', 'speech-options', chat.id, play.playingId] : null,
     () => fetchSpeechOptions(chat.id, play.playingId ?? ''),
+    { revalidateOnFocus: false, revalidateIfStale: false },
   ); // Saved model-and-preset pairs (gap 8), offered in chat settings.
   const profileList = connectionProfiles.useList();
   // Canon notices (docs/DESIGN.md, Canon warnings): the person's line as they write it, and each AI line,
