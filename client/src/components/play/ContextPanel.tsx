@@ -24,6 +24,8 @@ import { type ReactElement, useMemo, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
 import { useClient } from 'zephyrex';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from 'zephyrex/ui/accordion';
+import { Button } from 'zephyrex/ui/button';
+import type { LucideIcon } from 'lucide-react';
 import { type Presence, presentCast } from '~/features/chat/turnDecision';
 
 export interface PanelMember {
@@ -128,6 +130,61 @@ function subscribe(listener: () => void): () => void {
   return () => listeners.delete(listener);
 }
 
+/** One of the chat's actions (what the ⋯ menu held), shown in the sidebar. */
+export interface ChatAction {
+  label: string;
+  icon: LucideIcon;
+  run: () => void;
+  disabled?: boolean;
+}
+export interface ActionGroup {
+  label: string;
+  actions: readonly ChatAction[];
+}
+
+let actions: readonly ActionGroup[] | null = null;
+const actionListeners = new Set<() => void>();
+/** The open chat's actions, published each render (their handlers read the chat's latest state). */
+export function setContextActions(next: readonly ActionGroup[] | null): void {
+  actions = next;
+  for (const listener of actionListeners) listener();
+}
+function subscribeActions(listener: () => void): () => void {
+  actionListeners.add(listener);
+  return () => actionListeners.delete(listener);
+}
+
+/** The chat's actions as a list in the sidebar (the operator, 2026-11-22: the ⋯ menu moves here). */
+function ChatActions(): ReactElement | null {
+  const groups = useSyncExternalStore(
+    subscribeActions,
+    () => actions,
+    () => null,
+  );
+  if (groups === null) return null;
+  return (
+    <div className='grid gap-3'>
+      {groups.map((group) => (
+        <section key={group.label} aria-label={group.label} className='grid gap-1'>
+          <h3 className='px-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground'>{group.label}</h3>
+          {group.actions.map(({ label, icon: Icon, run, disabled }) => (
+            <Button
+              key={label}
+              type='button'
+              variant='ghost'
+              className='h-11 justify-start gap-2'
+              disabled={disabled}
+              onClick={run}
+            >
+              <Icon className='size-4' aria-hidden /> {label}
+            </Button>
+          ))}
+        </section>
+      ))}
+    </div>
+  );
+}
+
 /** What the right-hand sidebar shows while a chat is open. */
 export function ContextSidebar(): ReactElement | null {
   const props = useSyncExternalStore(
@@ -157,6 +214,12 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
       </p>
       <div className='px-2'>
         <Accordion type='single' defaultValue='here'>
+          <AccordionItem value='chat'>
+            <AccordionTrigger>This chat</AccordionTrigger>
+            <AccordionContent>
+              <ChatActions />
+            </AccordionContent>
+          </AccordionItem>
           <AccordionItem value='here'>
             <AccordionTrigger>Here ({here.length})</AccordionTrigger>
             <AccordionContent>

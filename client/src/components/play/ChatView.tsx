@@ -16,7 +16,6 @@ import {
   MessagesSquare,
   PanelRight,
   Download,
-  Ellipsis,
   Flag,
   GitFork,
   LoaderCircle,
@@ -31,19 +30,8 @@ import {
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
-import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Badge } from 'zephyrex/ui/badge';
 import { Button } from 'zephyrex/ui/button';
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuSub,
-  DropdownMenuSubContent,
-  DropdownMenuSubTrigger,
-  DropdownMenuTrigger,
-} from 'zephyrex/ui/dropdown-menu';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
@@ -115,7 +103,6 @@ import {
   chatSchema,
   connectionProfiles,
 } from '~/features/data/records';
-import { initials } from '../characters/CharacterTile';
 import { ChatSettings, type LoreSettingsValue } from './ChatSettings';
 import { Composer } from './Composer';
 import { ScenarioPlay } from '~/components/campaign/ScenarioPlay';
@@ -134,7 +121,7 @@ import { CanonOff } from './CanonNotice';
 import { RollSheet } from './RollSheet';
 import type { NarratorStyle } from '~/features/models/narratorStyle';
 import { SheetPanel } from './SheetPanel';
-import { ContextSidebar, setContextPanel } from './ContextPanel';
+import { type ActionGroup, type ChatAction, ContextSidebar, setContextActions, setContextPanel } from './ContextPanel';
 import { SidebarContent } from 'zephyrex/components/appwrapper/src/SidebarContentManager';
 import { useSidebar } from 'zephyrex/ui/sidebar';
 
@@ -153,7 +140,7 @@ import useSWR from 'swr';
 import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
-import { SeatPicker } from './SeatPicker';
+import { SeatSwitch } from './SeatPicker';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
 import type { GroupSettings } from '~/features/chat/groupSettings';
@@ -275,6 +262,12 @@ export function messageViews(
 const DECIDE_ROUND_LIMIT = 4;
 /** How many times the decision model is asked before the round falls back to the narrator. */
 const DECIDE_TRIES = 3;
+/** The play screen's views, as the app bar's tabs; a later view is one more entry. */
+type PlayView = 'chat' | 'map';
+const PLAY_VIEWS: readonly { id: PlayView; label: string; icon: typeof MessagesSquare }[] = [
+  { id: 'chat', label: 'Chat', icon: MessagesSquare },
+  { id: 'map', label: 'Map', icon: MapIcon },
+];
 
 function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const list = messages.useList({ chat_id: chat.id });
@@ -304,7 +297,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const [rollOpen, setRollOpen] = useState(false);
   const [sheetOpen, setSheetOpen] = useState(false);
   const { toggleSidebar: toggleContext } = useSidebar('right');
-  const [view, setView] = useState<'chat' | 'map'>('chat');
+  const [view, setView] = useState<PlayView>('chat');
   const [namesOpen, setNamesOpen] = useState(false);
   const entryList = lorebookEntries.useList(undefined, namesOpen);
   const { create: createEntry } = lorebookEntries.useActions();
@@ -934,6 +927,40 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [contextKey]);
   useEffect(() => () => setContextPanel(null), []);
+  // The seat changes from beside Say and Do, in the bottom drawer (the operator, 2026-11-22).
+  const seatSwitch = play.isCampaign ? (
+    <SeatSwitch
+      seat={play.playingId}
+      party={chat.character_ids.flatMap((id) => {
+        const character = castById.get(id);
+        return character === undefined
+          ? []
+          : [
+              {
+                id,
+                name: character.name,
+                avatar: character.avatar,
+                pc: character.tags.includes(PARTY_TAG),
+                line: character.folder,
+              },
+            ];
+      })}
+      everyone={(cast.data ?? []).map((character) => ({
+        id: character.id,
+        name: character.name,
+        avatar: character.avatar,
+        pc: character.tags.includes(PARTY_TAG),
+        line: character.folder,
+      }))}
+      onChange={(next) => {
+        setSeatSaving(true);
+        void play
+          .setSeat(next, (id) => castById.get(id)?.tags.includes(PARTY_TAG) ?? false)
+          .catch((error: unknown) => notify('The seat was not changed', error instanceof Error ? error.message : undefined))
+          .finally(() => setSeatSaving(false));
+      }}
+    />
+  ) : null;
   const streamText = reply.state.status === 'writing' ? reply.state.text : '';
   // The AI never writes the person's character (the operator, 2026-11-21: "it just did an entire
   // novel including both acting and speaking for my character"): the moment a line opens with the
@@ -1744,6 +1771,84 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     onTurn: () => void replyAfter(leaf, branch),
   });
 
+  // What the ⋯ menu held is in the right pop-out (the operator, 2026-11-22: "Everything in the ... can
+  // move to the right pop out"), grouped as it was.
+  const chatActions: ActionGroup[] = [
+    {
+      label: 'Play',
+      actions: (
+        [
+          { label: 'X-card the latest reply', icon: X, run: () => void xCardLatest() },
+          {
+            label: chat.paused ? 'Resume' : 'Pause',
+            icon: chat.paused ? Play : Pause,
+            run: () =>
+              void updateChat(chat, { paused: !chat.paused }).then(() =>
+                notify(
+                  chat.paused ? 'Resumed' : 'Paused',
+                  chat.paused ? undefined : 'No story turns until you resume. The GM still answers.',
+                ),
+              ),
+          },
+          play.isCampaign
+            ? {
+                label: play.ending ? 'Ending the session…' : 'End session',
+                icon: Flag,
+                disabled: play.ending || endSession.ending,
+                run: () =>
+                  void play.endSession(branch.at(-1) ?? null).then((marker) => {
+                    if (marker !== null) setLeafId(marker);
+                    if (endSession.available) void endSession.end();
+                    if (marker !== null) void refreshStatusLine(chat.id, marker);
+                  }),
+              }
+            : endSession.available
+              ? {
+                  label: endSession.ending ? 'Writing the session report…' : 'End session',
+                  icon: Flag,
+                  disabled: endSession.ending,
+                  run: () => void endSession.end(),
+                }
+              : null,
+          { label: 'Chat settings', icon: Settings2, run: () => setSettingsOpen(true) },
+        ] as (ChatAction | null)[]
+      ).filter((one): one is ChatAction => one !== null),
+    },
+    {
+      label: 'Scene and story',
+      actions: (
+        [
+          {
+            label: drawing ? 'Drawing the scene…' : 'Picture of the scene',
+            icon: ImageIcon,
+            disabled: drawing || chat.character_ids.length === 0,
+            run: () => void drawScene(),
+          },
+          running !== undefined ? { label: 'Scenario', icon: Clock3, run: () => setScenarioOpen(true) } : null,
+          { label: 'Every branch', icon: GitFork, run: () => setTreeOpen(true) },
+          { label: 'Names without lore', icon: BookOpen, run: () => setNamesOpen(true) },
+        ] as (ChatAction | null)[]
+      ).filter((one): one is ChatAction => one !== null),
+    },
+    {
+      label: 'Export',
+      actions: [
+        { label: 'For SillyTavern', icon: Download, run: () => void exportBranch('jsonl') },
+        { label: 'As text', icon: Download, run: () => void exportBranch('text') },
+        { label: 'As a book (EPUB)', icon: BookOpen, run: () => void exportBranch('epub') },
+        { label: 'As an illustrated book', icon: BookOpen, run: () => void exportBranch('epub', true) },
+      ],
+    },
+    {
+      label: 'Tools',
+      actions: [
+        { label: 'Inspect the prompt', icon: ScanText, run: () => void openInspector() },
+        { label: 'Reload the app', icon: RotateCw, run: () => window.location.reload() },
+      ],
+    },
+  ];
+  useEffect(() => setContextActions(chatActions));
+  useEffect(() => () => setContextActions(null), []);
   // Only a chat that never loaded shows the problem (the operator, 2026-11-22: "When I switch tabs and come
   // back to chat in progress I get a NetworkError"): coming back re-reads the chat before a phone's network
   // is up, and that failed re-read replaced the chat, round and all. The chat stays; SWR tries again.
@@ -1787,58 +1892,27 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             {/* Wraps inside the screen on a phone: never wider than the bar (the audit's 780 px phone). */}
             <div className='flex min-w-0 flex-nowrap items-center justify-end gap-1'>
               {play.isCampaign && (
-                // The seat hot-swaps at any time: the GM or any character (docs/DESIGN.md, The play model).
-                <SeatPicker
-                  seat={play.playingId}
-                  party={chat.character_ids.flatMap((id) => {
-                    const character = castById.get(id);
-                    return character === undefined
-                      ? []
-                      : [
-                          {
-                            id,
-                            name: character.name,
-                            avatar: character.avatar,
-                            pc: character.tags.includes(PARTY_TAG),
-                            line: character.folder,
-                          },
-                        ];
-                  })}
-                  everyone={(cast.data ?? []).map((character) => ({
-                    id: character.id,
-                    name: character.name,
-                    avatar: character.avatar,
-                    pc: character.tags.includes(PARTY_TAG),
-                    line: character.folder,
-                  }))}
-                  onChange={(next) => {
-                    setSeatSaving(true);
-                    void play
-                      .setSeat(next, (id) => castById.get(id)?.tags.includes(PARTY_TAG) ?? false)
-                      .catch((error: unknown) =>
-                        notify('The seat was not changed', error instanceof Error ? error.message : undefined),
-                      )
-                      .finally(() => setSeatSaving(false));
-                  }}
-                />
-              )}
-              {play.isCampaign && (
-                // Chat and map swap in one tap (the operator, 2026-11-21), from both views.
-                <Button
-                  type='button'
-                  variant='ghost'
-                  className='h-11 max-sm:w-11 max-sm:px-0'
-                  aria-pressed={view === 'map'}
-                  aria-label={view === 'map' ? 'Back to the chat' : 'Show the map'}
-                  onClick={() => setView(view === 'map' ? 'chat' : 'map')}
-                >
-                  {view === 'map' ? (
-                    <MessagesSquare aria-hidden className='size-4' />
-                  ) : (
-                    <MapIcon aria-hidden className='size-4' />
-                  )}
-                  <span className='max-sm:sr-only'>{view === 'map' ? 'Chat' : 'Map'}</span>
-                </Button>
+                // The app bar is the play screen's views as tabs (the operator, 2026-11-22: "The app bar becomes
+                // tabbed views. Chat, Map, and any other views we add later").
+                <div role='tablist' aria-label='Views' className='mr-auto flex items-center gap-1 rounded-lg bg-muted p-1'>
+                  {PLAY_VIEWS.map(({ id, label, icon: Icon }) => (
+                    <button
+                      key={id}
+                      type='button'
+                      role='tab'
+                      aria-selected={view === id}
+                      aria-label={label}
+                      onClick={() => setView(id)}
+                      className={cn(
+                        'flex h-9 items-center gap-1.5 rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors',
+                        view === id && 'bg-background text-foreground shadow-sm',
+                      )}
+                    >
+                      <Icon aria-hidden className='size-4' />
+                      <span className='max-sm:sr-only'>{label}</span>
+                    </button>
+                  ))}
+                </div>
               )}
               <Button
                 type='button'
@@ -1849,115 +1923,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               >
                 <X aria-hidden /> <span className='max-sm:sr-only'>X-card</span>
               </Button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button type='button' variant='ghost' size='icon' className='size-11' aria-label='More for this chat'>
-                    <Ellipsis aria-hidden />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align='end'>
-                  {/* Grouped so it isn't a wall of choices (the operator, 2026-11-22: "the 3 dots menu needs
-                      cleaning up with submenus to make it less overwhelming"): play first, the rest a level down. */}
-                  <DropdownMenuItem className='sm:hidden' onSelect={() => void xCardLatest()}>
-                    <X aria-hidden /> X-card the latest reply
-                  </DropdownMenuItem>
-                  <DropdownMenuItem
-                    onSelect={() =>
-                      void updateChat(chat, { paused: !chat.paused }).then(() =>
-                        notify(
-                          chat.paused ? 'Resumed' : 'Paused',
-                          chat.paused ? undefined : 'No story turns until you resume. The GM still answers.',
-                        ),
-                      )
-                    }
-                  >
-                    {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />} {chat.paused ? 'Resume' : 'Pause'}
-                  </DropdownMenuItem>
-                  {play.isCampaign ? (
-                    // A save point: the session's summary, then the next session (and A24's report into the wiki).
-                    <DropdownMenuItem
-                      disabled={play.ending || endSession.ending}
-                      onSelect={() =>
-                        void play.endSession(branch.at(-1) ?? null).then((marker) => {
-                          if (marker !== null) setLeafId(marker);
-                          if (endSession.available) void endSession.end();
-                          // The campaign's status line is rewritten as each session ends.
-                          if (marker !== null) void refreshStatusLine(chat.id, marker);
-                        })
-                      }
-                    >
-                      <Flag aria-hidden /> {play.ending ? 'Ending the session…' : 'End session'}
-                    </DropdownMenuItem>
-                  ) : (
-                    endSession.available && (
-                      // A24: the session's report into the linked wiki campaign's log.
-                      <DropdownMenuItem disabled={endSession.ending} onSelect={() => void endSession.end()}>
-                        <Flag aria-hidden /> {endSession.ending ? 'Writing the session report…' : 'End session'}
-                      </DropdownMenuItem>
-                    )
-                  )}
-                  <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-                    <Settings2 aria-hidden /> Chat settings
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <ImageIcon aria-hidden /> Scene and story
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem
-                        disabled={drawing || chat.character_ids.length === 0}
-                        onSelect={() => void drawScene()}
-                      >
-                        <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
-                      </DropdownMenuItem>
-                      {running !== undefined && (
-                        <DropdownMenuItem onSelect={() => setScenarioOpen(true)}>
-                          <Clock3 aria-hidden /> Scenario
-                        </DropdownMenuItem>
-                      )}
-                      <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
-                        <GitFork aria-hidden /> Every branch
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => setNamesOpen(true)}>
-                        <BookOpen aria-hidden /> Names without lore
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <Download aria-hidden /> Export
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
-                        <Download aria-hidden /> Export for SillyTavern
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => void exportBranch('text')}>
-                        <Download aria-hidden /> Export as text
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => void exportBranch('epub')}>
-                        <BookOpen aria-hidden /> Export as a book (EPUB)
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => void exportBranch('epub', true)}>
-                        <BookOpen aria-hidden /> Export as an illustrated book
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                  <DropdownMenuSub>
-                    <DropdownMenuSubTrigger>
-                      <ScanText aria-hidden /> Tools
-                    </DropdownMenuSubTrigger>
-                    <DropdownMenuSubContent>
-                      <DropdownMenuItem onSelect={() => void openInspector()}>
-                        <ScanText aria-hidden /> Inspect the prompt
-                      </DropdownMenuItem>
-                      <DropdownMenuItem onSelect={() => window.location.reload()}>
-                        <RotateCw aria-hidden /> Reload the app
-                      </DropdownMenuItem>
-                    </DropdownMenuSubContent>
-                  </DropdownMenuSub>
-                </DropdownMenuContent>
-              </DropdownMenu>
               {play.isCampaign && (
                 // Every piece of context lives in the right-hand panel (the operator, 2026-11-21); its button is
                 // the rightmost in the bar, beside the panel it opens (the operator, 2026-11-22).
@@ -2227,6 +2192,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           />
         )}
         <Composer
+          seatSwitch={seatSwitch}
           speechOptions={speechOptions.data ?? undefined}
           queue={
             // Every chat's turn is queued Say, Do and Out of game items (the operator, 2026-11-21: the

@@ -7,7 +7,7 @@
  * keyboard and the home indicator.
  */
 import { BookOpen, ImagePlus, Mic, MicOff, Send, Square, WandSparkles, X } from 'lucide-react';
-import { type KeyboardEvent, type ReactElement, useEffect, useId, useRef, useState } from 'react';
+import { type KeyboardEvent, type ReactElement, type ReactNode, useEffect, useId, useRef, useState } from 'react';
 import { Button } from 'zephyrex/ui/button';
 import { useDictation } from '~/features/speech/useDictation';
 import { type Command, parseCommand } from '~/features/chat/commands';
@@ -70,6 +70,7 @@ export function Composer({
   onCheckCanon,
   queue,
   speechOptions,
+  seatSwitch = null,
 }: {
   writing: boolean;
   disabled?: boolean;
@@ -102,6 +103,8 @@ export function Composer({
   queue?: { me: QueueMember | null; speakers: readonly QueueMember[]; present: readonly QueueMember[] };
   /** The seat's setting-dependent ways of speaking and remote listeners (LineQueue). */
   speechOptions?: SpeechOptions;
+  /** Changing seat, beside Say and Do (a campaign's SeatSwitch). */
+  seatSwitch?: ReactNode;
 }): ReactElement {
   // A quick reply that fills on opening the chat (A38) is the box's first text.
   const [text, setText] = useState(() => fillOn(quickReplies, 'chat_open')?.text ?? '');
@@ -302,19 +305,22 @@ export function Composer({
             onOutOfGame={(line) => runLine(line, 'gm')}
             onDraft={setDraft}
             tools={
-              onNarrate === undefined ? null : (
-                <Button
-                  type='button'
-                  size='icon'
-                  variant='ghost'
-                  className='size-11 shrink-0'
-                  aria-label='Narrate what happens next'
-                  disabled={disabled}
-                  onClick={onNarrate}
-                >
-                  <BookOpen aria-hidden />
-                </Button>
-              )
+              <>
+                {seatSwitch}
+                {onNarrate !== undefined && (
+                  <Button
+                    type='button'
+                    size='icon'
+                    variant='ghost'
+                    className='size-11 shrink-0'
+                    aria-label='Narrate what happens next'
+                    disabled={disabled}
+                    onClick={onNarrate}
+                  >
+                    <BookOpen aria-hidden />
+                  </Button>
+                )}
+              </>
             }
           />
         ) : (
