@@ -1065,7 +1065,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         ),
       ),
     ];
-    if (newcomers.length > 0) await updateChat(chat, { character_ids: [...chat.character_ids, ...newcomers] });
+    if (newcomers.length > 0) {
+      // Read the chat afresh: within a round the one this page holds is already stale (the run's 412,
+      // "The record was changed since it was read").
+      const fresh = chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${chat.id}`)), 'chat'));
+      const missing = newcomers.filter((id) => !fresh.character_ids.includes(id));
+      if (missing.length > 0) await updateChat(fresh, { character_ids: [...fresh.character_ids, ...missing] });
+    }
     for (const [index, found] of (parts.length > 0 ? parts : [{ speaker_id: null, text: result.text }]).entries()) {
       // Someone the campaign doesn't know yet (an unnamed barkeep) becomes a person of it the first
       // time they speak, and their lines are theirs (the operator, 2026-11-21).
