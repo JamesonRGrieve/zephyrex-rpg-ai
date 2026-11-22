@@ -68,7 +68,12 @@ const NO_PICTURES: ReadonlyMap<string, PersonLook> = new Map();
 
 /** The summary's first sentence, without the name it may start with ("Ilsa Marrow The Mystic. …"). */
 export function oneLine(name: string, summary: string | null | undefined): string {
-  let text = (summary ?? '').trim();
+  // Markdown and a leading section heading ("# Description", "Description ") are not the line.
+  let text = (summary ?? '')
+    .replace(/^#+\s*/gm, '')
+    .replace(/[*_`]/g, '')
+    .trim()
+    .replace(/^(description|summary|overview|about)\s*:?\s+/i, '');
   if (name !== '' && text.toLowerCase().startsWith(name.toLowerCase())) text = text.slice(name.length).trim();
   const end = text.search(/[.!?](\s|$)/);
   const first = end < 0 ? text : text.slice(0, end + 1);

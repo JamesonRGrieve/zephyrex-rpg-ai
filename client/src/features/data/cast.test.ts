@@ -47,5 +47,9 @@ describe('oneLine', () => {
     expect(oneLine('Ilsa Marrow', 'Ilsa Marrow The Mystic. A sanctioned psyker, soul-bound.')).toBe('The Mystic.');
     expect(oneLine('Rook', 'A blunt soldier with a lasgun')).toBe('A blunt soldier with a lasgun');
     expect(oneLine('X', null)).toBe('');
+    expect(oneLine('Fennick Quill', '## Description\nA small, quick man in a patched green coat.')).toBe(
+      'A small, quick man in a patched green coat.',
+    );
+    expect(oneLine('Brakka', 'Description Broad, red-braided caravan guard.')).toBe('Broad, red-braided caravan guard.');
   });
 });
