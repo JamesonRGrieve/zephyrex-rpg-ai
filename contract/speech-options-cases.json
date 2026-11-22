@@ -1,0 +1,328 @@
+{
+  "$comment": "How a speaker may speak and to whom: cases both twins run (client/src/features/chat/speechManners.test.ts, server/extensions/ai_chat/SpeechOptions_test.py).",
+  "present": [
+    {
+      "id": "mae",
+      "name": "Maelis"
+    }
+  ],
+  "known": [
+    {
+      "id": "mae",
+      "name": "Maelis",
+      "gear": [],
+      "abilities": [],
+      "location_id": "bar"
+    },
+    {
+      "id": "ruhl",
+      "name": "Confessor Ruhl",
+      "gear": [
+        "Micro-bead",
+        "Laspistol"
+      ],
+      "abilities": [],
+      "location_id": "keep"
+    },
+    {
+      "id": "kord",
+      "name": "Kord",
+      "gear": [
+        "Chainsword"
+      ],
+      "abilities": [],
+      "location_id": "alley"
+    },
+    {
+      "id": "ilsa",
+      "name": "Ilsa",
+      "gear": [],
+      "abilities": [],
+      "location_id": "keep"
+    }
+  ],
+  "parents": {
+    "bar": "town",
+    "alley": "town",
+    "town": null,
+    "keep": null
+  },
+  "cases": [
+    {
+      "name": "40k with a micro-bead: vox reaches those who carry one too",
+      "system": "dark-heresy-2e",
+      "speaker": {
+        "id": "tess",
+        "name": "Tessaly Kord",
+        "gear": [
+          "Micro-bead",
+          "Auspex"
+        ],
+        "abilities": [],
+        "location_id": "bar"
+      },
+      "options": {
+        "manners": [
+          {
+            "id": "speak",
+            "label": "says",
+            "reaches": "present"
+          },
+          {
+            "id": "whisper",
+            "label": "whispers",
+            "reaches": "present"
+          },
+          {
+            "id": "shout",
+            "label": "shouts",
+            "reaches": "present"
+          },
+          {
+            "id": "vox",
+            "label": "vox",
+            "reaches": "remote"
+          }
+        ],
+        "present": [
+          {
+            "id": "mae",
+            "name": "Maelis"
+          }
+        ],
+        "remote": [
+          {
+            "id": "ruhl",
+            "name": "Confessor Ruhl",
+            "via": "vox"
+          }
+        ]
+      }
+    },
+    {
+      "name": "40k with a vox-caster: voxcast to everyone, and vox too (a caster is a vox) to those who carry one",
+      "system": "dark-heresy-2e",
+      "speaker": {
+        "id": "tess",
+        "name": "Tessaly Kord",
+        "gear": [
+          "Vox-caster"
+        ],
+        "abilities": [],
+        "location_id": "bar"
+      },
+      "options": {
+        "manners": [
+          {
+            "id": "speak",
+            "label": "says",
+            "reaches": "present"
+          },
+          {
+            "id": "whisper",
+            "label": "whispers",
+            "reaches": "present"
+          },
+          {
+            "id": "shout",
+            "label": "shouts",
+            "reaches": "present"
+          },
+          {
+            "id": "vox",
+            "label": "vox",
+            "reaches": "remote"
+          },
+          {
+            "id": "voxcast",
+            "label": "voxcast",
+            "reaches": "broadcast"
+          }
+        ],
+        "present": [
+          {
+            "id": "mae",
+            "name": "Maelis"
+          }
+        ],
+        "remote": [
+          {
+            "id": "ruhl",
+            "name": "Confessor Ruhl",
+            "via": "vox"
+          }
+        ]
+      }
+    },
+    {
+      "name": "40k without a vox: only the voice",
+      "system": "dark-heresy-2e",
+      "speaker": {
+        "id": "tess",
+        "name": "Tessaly Kord",
+        "gear": [
+          "Laspistol"
+        ],
+        "abilities": [],
+        "location_id": "bar"
+      },
+      "options": {
+        "manners": [
+          {
+            "id": "speak",
+            "label": "says",
+            "reaches": "present"
+          },
+          {
+            "id": "whisper",
+            "label": "whispers",
+            "reaches": "present"
+          },
+          {
+            "id": "shout",
+            "label": "shouts",
+            "reaches": "present"
+          }
+        ],
+        "present": [
+          {
+            "id": "mae",
+            "name": "Maelis"
+          }
+        ],
+        "remote": []
+      }
+    },
+    {
+      "name": "5e knowing Message: those in the same place or one beside it",
+      "system": "dnd-5e",
+      "speaker": {
+        "id": "fen",
+        "name": "Fennick Quill",
+        "gear": [],
+        "abilities": [
+          "Message",
+          "Mage Hand"
+        ],
+        "location_id": "bar"
+      },
+      "options": {
+        "manners": [
+          {
+            "id": "speak",
+            "label": "says",
+            "reaches": "present"
+          },
+          {
+            "id": "whisper",
+            "label": "whispers",
+            "reaches": "present"
+          },
+          {
+            "id": "shout",
+            "label": "shouts",
+            "reaches": "present"
+          },
+          {
+            "id": "message",
+            "label": "Message",
+            "reaches": "remote"
+          }
+        ],
+        "present": [
+          {
+            "id": "mae",
+            "name": "Maelis"
+          }
+        ],
+        "remote": [
+          {
+            "id": "kord",
+            "name": "Kord",
+            "via": "message"
+          }
+        ]
+      }
+    },
+    {
+      "name": "5e without Message: only the voice",
+      "system": "dnd-5e",
+      "speaker": {
+        "id": "fen",
+        "name": "Fennick Quill",
+        "gear": [],
+        "abilities": [
+          "Mage Hand"
+        ],
+        "location_id": "bar"
+      },
+      "options": {
+        "manners": [
+          {
+            "id": "speak",
+            "label": "says",
+            "reaches": "present"
+          },
+          {
+            "id": "whisper",
+            "label": "whispers",
+            "reaches": "present"
+          },
+          {
+            "id": "shout",
+            "label": "shouts",
+            "reaches": "present"
+          }
+        ],
+        "present": [
+          {
+            "id": "mae",
+            "name": "Maelis"
+          }
+        ],
+        "remote": []
+      }
+    },
+    {
+      "name": "no system: only the voice",
+      "system": null,
+      "speaker": {
+        "id": "fen",
+        "name": "Fennick Quill",
+        "gear": [
+          "Micro-bead"
+        ],
+        "abilities": [
+          "Message"
+        ],
+        "location_id": "bar"
+      },
+      "options": {
+        "manners": [
+          {
+            "id": "speak",
+            "label": "says",
+            "reaches": "present"
+          },
+          {
+            "id": "whisper",
+            "label": "whispers",
+            "reaches": "present"
+          },
+          {
+            "id": "shout",
+            "label": "shouts",
+            "reaches": "present"
+          }
+        ],
+        "present": [
+          {
+            "id": "mae",
+            "name": "Maelis"
+          }
+        ],
+        "remote": []
+      }
+    }
+  ]
+}

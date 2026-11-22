@@ -156,6 +156,7 @@ from zephyrex.extensions.ai_chat.Speech import (  # type: ignore[import-not-foun
     speech_body,
     speech_url,
 )
+from zephyrex.extensions.ai_chat.SpeechOptions import speech_manners  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.StatusLine import status_messages  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Structured import (  # type: ignore[import-not-found]
     STRUCTURED,
@@ -183,6 +184,7 @@ from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-f
     advance_clock,
     campaign_documents,
     campaign_framing,
+    character_sheet,
     ensure_person,
     move_person,
     npc_sheet,
@@ -2007,6 +2009,22 @@ class NpcNeededEnvelope(PlainModel):
     npc_needed: NpcNeeded
 
 
+class SpeechOptionsRequest(PlainModel):
+    """How a speaker may speak here, and to whom (the operator, 2026-11-22: setting-dependent manners)."""
+
+    chat_id: str = Field(..., min_length=1)
+    speaker_id: str = Field(..., min_length=1)
+
+
+class SpeechOptionsRequestEnvelope(PlainModel):
+    speech_options: SpeechOptionsRequest
+
+
+class SpeechOptionsEnvelope(PlainModel):
+    #: {manners: [{id, label, reaches}], present: [{id, name}], remote: [{id, name, via}]}
+    speech_options: dict[str, Any]
+
+
 class AuthorNpcRequest(PlainModel):
     chat_id: str = Field(..., min_length=1)
     leaf_id: str | None = None
@@ -2529,6 +2547,48 @@ async def horde_text(endpoint: Any, key: str, body: Mapping[str, Any]) -> str:
             status_code=502, detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"}
         ) from error
     raise HTTPException(status_code=504, detail={"message": "The Horde took too long", "code": "model_timeout"})
+
+
+def present_people(
+    chat: Any, playing_id: str | None, world: Sequence[Mapping[str, Any]], story_turns: Sequence[Mapping[str, Any]]
+) -> list[dict[str, str]]:
+    """The wiki persons present in the scene beside the seat (TurnDecision.present_cast, as the Context
+    panel's Here): those at the scene's place or in its latest lines, and those reached by vox."""
+    locations = [
+        {**entity, "aliases": list(entity.get("aliases") or [])}
+        for entity in world
+        if entity.get("kind") == "location" and not entity.get("deleted")
+    ]
+    at = scene_location([{"text": turn["content"], "channel": "story"} for turn in story_turns], locations)
+    persons = [
+        {"id": str(entity["id"]), "name": str(entity["name"])}
+        for entity in world
+        if entity.get("kind") == "person" and not entity.get("deleted") and entity["id"] != playing_id
+    ]
+    reach = present_cast(
+        persons,
+        {
+            "tokens": None,
+            "scene_location": at,
+            "location_parents": {location["id"]: location.get("parent_id") for location in locations},
+            "person_locations": {
+                entity["id"]: entity.get("location_id") for entity in world if entity.get("kind") == "person"
+            },
+            "recent": [
+                {
+                    "speaker_id": playing_id
+                    if turn["role"] == "user"
+                    else turn["speaker_character_id"]
+                    if turn["role"] == "character"
+                    else None,
+                    "text": turn["content"],
+                }
+                for turn in story_turns
+            ],
+            "vox": chat.vox_ids or [],
+        },
+    )
+    return [person for person in persons if person["id"] in reach["present"]]
 
 
 def by_person(turn: Mapping[str, Any], playing_id: str | None) -> bool:
@@ -3804,42 +3864,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         persona = context["persona"]
         actor = persona["name"] if persona is not None else DEFAULT_USER_NAME
         people = [*context["cast"], {"id": playing_id, "name": actor}]
-        world = context["world"]
-        locations = [
-            {**entity, "aliases": list(entity.get("aliases") or [])}
-            for entity in world
-            if entity.get("kind") == "location" and not entity.get("deleted")
-        ]
-        at = scene_location([{"text": turn["content"], "channel": "story"} for turn in story_turns], locations)
-        persons = [
-            {"id": entity["id"], "name": entity["name"]}
-            for entity in world
-            if entity.get("kind") == "person" and not entity.get("deleted") and entity["id"] != playing_id
-        ]
-        reach = present_cast(
-            persons,
-            {
-                "tokens": None,
-                "scene_location": at,
-                "location_parents": {location["id"]: location.get("parent_id") for location in locations},
-                "person_locations": {
-                    entity["id"]: entity.get("location_id") for entity in world if entity.get("kind") == "person"
-                },
-                "recent": [
-                    {
-                        "speaker_id": playing_id
-                        if turn["role"] == "user"
-                        else turn["speaker_character_id"]
-                        if turn["role"] == "character"
-                        else None,
-                        "text": turn["content"],
-                    }
-                    for turn in story_turns
-                ],
-                "vox": chat.vox_ids or [],
-            },
-        )
-        candidates = [person for person in persons if person["id"] in reach["present"]]
+        candidates = present_people(chat, playing_id, context["world"], story_turns)
         need = clarify_need(parse_player_lines(story_turns[-1]["content"], people), playing_id, candidates)
         deciding = self._decider() if need is not None else None
         if need is None or deciding is None:
@@ -3935,6 +3960,69 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if await move_person(self.model_registry, requester, str(move["person_id"]), str(move["to"]), "the story")
         ]
         return answer(moves, None)
+
+    @custom_route(
+        method="POST",
+        path="/speech_options",
+        input_model=SpeechOptionsRequestEnvelope,
+        output_model=SpeechOptionsEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="How a speaker may speak here and to whom: the voice to those present, and their sheet's manners",
+    )
+    async def speech_options_route(self, body: SpeechOptionsRequestEnvelope) -> SpeechOptionsEnvelope:
+        asked = body.speech_options
+        chat = self._manager(ChatManager).get(id=asked.chat_id)
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        _assembled, _request, _sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=asked.chat_id, mode="narrate"), save_timers=False
+        )
+        story = set(PROMPT["story_channels"])
+        story_turns = [
+            turn
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        world = context["world"]
+        present = [one for one in present_people(chat, playing_id, world, story_turns) if one["id"] != asked.speaker_id]
+        requester = str(self.requester.id)
+
+        def holder(entity: Mapping[str, Any], sheet: Mapping[str, Any] | None) -> dict[str, Any]:
+            return {
+                "id": str(entity["id"]),
+                "name": str(entity["name"]),
+                "gear": [str(item.get("name") or "") for item in (sheet or {}).get("gear") or []],
+                # Known spells (the VTT's traits of kind "spell": 5e's Message, Sending).
+                "abilities": [
+                    str(one.get("name") or "")
+                    for one in (sheet or {}).get("abilities") or []
+                    if one.get("kind") == "spell"
+                ],
+                "location_id": entity.get("location_id"),
+            }
+
+        persons = [entity for entity in world if entity.get("kind") == "person" and not entity.get("deleted")]
+        found = next((entity for entity in persons if entity["id"] == asked.speaker_id), None)
+        speaking = found or {"id": asked.speaker_id, "name": ""}
+        # The speaker's sheet says what they carry and know; nothing on it, no manner beyond the voice.
+        sheet = await character_sheet(self.model_registry, requester, asked.speaker_id)
+        system = str(sheet["system"]) if sheet and sheet.get("system") else None
+        parents = {str(entity["id"]): entity.get("parent_id") for entity in world if entity.get("kind") == "location"}
+        known = [holder(entity, None) for entity in persons]
+        options = speech_manners(system, holder(speaking, sheet), present, known, parents)
+        if any(manner["id"] == "vox" for manner in options["manners"]):
+            # Vox reaches those who carry one too: their sheets, read only when the speaker has one.
+            limit = int(LIMITS["characters_per_chat"])
+            others = [entity for entity in persons if entity["id"] != asked.speaker_id][:limit]
+            sheets = [await character_sheet(self.model_registry, requester, str(entity["id"])) for entity in others]
+            known = [holder(entity, read) for entity, read in zip(others, sheets, strict=True)]
+            options = speech_manners(system, holder(speaking, sheet), present, known, parents)
+        return SpeechOptionsEnvelope(speech_options=options)
 
     @custom_route(
         method="POST",

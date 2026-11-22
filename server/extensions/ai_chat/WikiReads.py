@@ -212,3 +212,13 @@ async def npc_sheet(
         return None
     built = await _call(build, requester_id, person_id, role, hint=hint)
     return dict(built) if isinstance(built, dict) else None
+
+
+async def character_sheet(model_registry: Any, requester_id: str, person_id: str) -> dict[str, Any] | None:
+    """A person's sheet from the VTT (rpg_dice's character_sheet: system, gear, abilities), or None without
+    the ability, a sheet, or the requester's access."""
+    read = loaded_ability(model_registry, "rpg_dice", "character_sheet")
+    if read is None:
+        return None
+    sheet = await _call(read, requester_id, person_id)
+    return dict(sheet) if isinstance(sheet, dict) else None

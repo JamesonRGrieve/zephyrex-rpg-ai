@@ -131,6 +131,8 @@ export const DISPOSITIONS = contract.dispositions;
 export const STRUCTURED = contract.structured;
 /** The GM authors an NPC the story needs: cues, the question, the author's prompt and the steps. */
 export const NPC_AUTHOR = contract.npc_author;
+/** How a speaker may speak and to whom: the base manners and each system's, with what each needs. */
+export const SPEECH_OPTIONS = contract.speech_options;
 /** STscript's /inject (audit gap 5): a chat's injections, their positions, roles and limits. */
 export const INJECTIONS = contract.injections as unknown as Omit<typeof contract.injections, 'positions' | 'roles'> & {
   positions: readonly ['chat', 'before', 'after'];

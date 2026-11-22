@@ -1121,6 +1121,22 @@ class TestGenerate:
         cast = server.get(f"/v1/chat/{chat['id']}", headers=_headers(user)).json()["chat"]["character_ids"]
         assert made["person_id"] in cast
 
+    def test_a_speaker_without_a_sheet_has_only_their_voice(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-22: vox only with a vox carried, Message only with the spell known.
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Tavern", character_ids=[ada["id"]]).json()["chat"]
+        answer = server.post(
+            "/v1/ai_chat/speech_options",
+            json={"speech_options": {"chat_id": chat["id"], "speaker_id": ada["id"]}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        options = answer.json()["speech_options"]
+        assert [manner["id"] for manner in options["manners"]] == ["speak", "whisper", "shout"]
+        assert options["remote"] == []
+
     def test_canon_warnings_can_be_turned_off_for_a_chat(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "a 'permanently dismiss for this campaign' button for radical looney
         # toon campaigns". canon_checks is on by default; off, the canon check answers unchecked.

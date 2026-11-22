@@ -41,6 +41,7 @@ import { groupStops } from '~/features/chat/group';
 import { genMessages } from '~/features/prompt/gen';
 import { clarifyNeed, clarifyQuestions, shouldAsk } from '~/features/chat/clarify';
 import { mapQuestions, movers, seatPlace } from '~/features/world/mapStep';
+import { speechManners } from '~/features/chat/speechManners';
 import { statusMessages } from '~/features/chat/statusLine';
 import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
 import { paragraphCut } from '~/features/chat/voiceGuard';
@@ -1499,35 +1500,7 @@ export async function clarify(nextRequest: NextRequest): Promise<Response> {
     if (last === undefined || !byPerson(last, playingId)) return none;
     const actor = prompt.persona?.name ?? DEFAULT_USER_NAME;
     const people = [...prompt.characters, { id: playingId, name: actor }];
-    const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
-    const locations = world
-      .filter((entity) => entity.kind === 'location' && entity.deleted !== true)
-      .map((entity) => ({ ...entity, aliases: [...((field(entity, 'aliases') as string[] | undefined) ?? [])] }));
-    const at = sceneLocation(
-      storyTurns.map((turn) => ({ text: turn.content, channel: 'story' })),
-      locations,
-    );
-    const persons = world
-      .filter((entity) => entity.kind === 'person' && entity.deleted !== true && entity.id !== playingId)
-      .map((entity) => ({ id: entity.id, name: entity.name }));
-    const { present } = presentCast(persons, {
-      tokens: null,
-      scene_location: at,
-      location_parents: Object.fromEntries(
-        locations.map((location) => [location.id, (field(location, 'parent_id') as string | null | undefined) ?? null]),
-      ),
-      person_locations: Object.fromEntries(
-        world
-          .filter((entity) => entity.kind === 'person')
-          .map((entity) => [entity.id, (field(entity, 'location_id') as string | null | undefined) ?? null]),
-      ),
-      recent: storyTurns.map((turn) => ({
-        speaker_id: turn.role === 'user' ? playingId : turn.role === 'character' ? turn.speaker_character_id : null,
-        text: turn.content,
-      })),
-      vox: fields.vox_ids,
-    });
-    const candidates = persons.filter((person) => present.includes(person.id));
+    const candidates = presentPeople(world, playingId, storyTurns, fields.vox_ids);
     const need = clarifyNeed(parsePlayerLines(last.content, people), playingId, candidates);
     if (need === null) return none;
     const deciding = await decider(owner.id);
@@ -1627,6 +1600,89 @@ export async function mapStep(nextRequest: NextRequest): Promise<Response> {
       }
     }
     return answer(moves, null);
+  } catch (error) {
+    return apiErrorResponse(error);
+  }
+}
+
+/**
+ * The wiki persons present in the scene beside the seat (presentCast, as the Context panel's Here): those
+ * at the scene's place or in its latest lines, and those reached by vox.
+ */
+export function presentPeople(
+  world: readonly CastEntity[],
+  playingId: string | null,
+  storyTurns: readonly PromptTurn[],
+  voxIds: readonly string[],
+): { id: string; name: string }[] {
+  const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
+  const locations = world
+    .filter((entity) => entity.kind === 'location' && entity.deleted !== true)
+    .map((entity) => ({ ...entity, aliases: [...((field(entity, 'aliases') as string[] | undefined) ?? [])] }));
+  const at = sceneLocation(
+    storyTurns.map((turn) => ({ text: turn.content, channel: 'story' })),
+    locations,
+  );
+  const persons = world
+    .filter((entity) => entity.kind === 'person' && entity.deleted !== true && entity.id !== playingId)
+    .map((entity) => ({ id: entity.id, name: entity.name }));
+  const { present } = presentCast(persons, {
+    tokens: null,
+    scene_location: at,
+    location_parents: Object.fromEntries(
+      locations.map((location) => [location.id, (field(location, 'parent_id') as string | null | undefined) ?? null]),
+    ),
+    person_locations: Object.fromEntries(
+      world
+        .filter((entity) => entity.kind === 'person')
+        .map((entity) => [entity.id, (field(entity, 'location_id') as string | null | undefined) ?? null]),
+    ),
+    recent: storyTurns.map((turn) => ({
+      speaker_id: turn.role === 'user' ? playingId : turn.role === 'character' ? turn.speaker_character_id : null,
+      text: turn.content,
+    })),
+    vox: [...voxIds],
+  });
+  return persons.filter((person) => present.includes(person.id));
+}
+
+/**
+ * `POST /v1/ai_chat/speech_options` (the operator, 2026-11-22: setting-dependent manners): how a speaker
+ * may speak and to whom (features/chat/speechManners.ts). Lite reads no VTT sheet, so it offers the voice
+ * alone: speak, whisper and shout to those present.
+ */
+export async function speechOptions(nextRequest: NextRequest): Promise<Response> {
+  try {
+    const owner = localOwner(nextRequest);
+    const envelope = await readJsonObject(nextRequest);
+    const parsed = z
+      .object({ chat_id: z.string().min(1), speaker_id: z.string().min(1) })
+      .safeParse(Reflect.get(envelope, 'speech_options'));
+    if (!parsed.success)
+      throw validationError('A speech_options object with a chat_id and speaker_id is required', 'speech_options');
+    const asked = parsed.data;
+    const chat = await chats.find(asked.chat_id, owner.id);
+    if (chat === null) throw notFound(chats.modelName);
+    const fields = chats.fields(chat) as { vox_ids: string[] };
+    const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
+    const playingId = play?.playingId ?? null;
+    const { prompt, world } = await generationInputs(
+      owner.id,
+      { chat_id: asked.chat_id, leaf_id: null, speaker_id: null, mode: 'narrate', endpoint_id: null, forbid: null },
+      Math.random,
+      'reply',
+      wikiReader(nextRequest),
+    );
+    const story = new Set<string>(PROMPT.story_channels);
+    const storyTurns = prompt.history.filter(
+      (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
+    );
+    const present = presentPeople(world, playingId, storyTurns, fields.vox_ids).filter(
+      (person) => person.id !== asked.speaker_id,
+    );
+    const speaker = world.find((entity) => entity.id === asked.speaker_id);
+    const options = speechManners(null, { id: asked.speaker_id, name: speaker?.name ?? '' }, present, [], {});
+    return Response.json({ speech_options: options });
   } catch (error) {
     return apiErrorResponse(error);
   }
