@@ -9,13 +9,14 @@
  * from there), and opens on its framing note's Opening Situation (else the campaign's
  * description) as the narrator's first line, which is where Session 1 starts.
  */
-import { journals, worlds } from '@zephyrex-rpg/wiki/features/data/records';
+import { journals, people, worlds } from '@zephyrex-rpg/wiki/features/data/records';
 import { useRouter } from 'next/navigation';
 import { notify } from 'zephyrex/hooks/useToast';
 import { useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
 import { type ReactElement, useMemo, useRef, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
@@ -92,6 +93,12 @@ export interface StartChoice {
   playing: string | null;
   /** The party the AI pilots. */
   party: string[];
+  /**
+   * A character made for this campaign (the operator, 2026-11-22: "a 'New Character' that uses the
+   * character builder and a 'Freeform Character' that lets the character be developed during play
+   * (narrative mode only)"): made in the playthrough at start and played; `playing` is then null.
+   */
+  make?: { kind: 'new' | 'freeform'; name: string };
 }
 
 /** The choices: the seat, who the person plays, and the party. Data-free, so a story can drive it. */
@@ -142,7 +149,10 @@ export function CampaignStartForm({
   creep = 0,
   detail = null,
   onStart,
+  mechanical = false,
 }: {
+  /** A campaign whose outcomes the rules decide: no freeform character there. */
+  mechanical?: boolean;
   cast: readonly Character[];
   starting: boolean;
   step?: number;
@@ -154,7 +164,8 @@ export function CampaignStartForm({
   const [playing, setPlaying] = useState<string | null>(null);
   const [party, setParty] = useState<string[] | null>(null);
   const [query, setQuery] = useState('');
-  const playingId = seat === 'player' ? playing : null;
+  const [make, setMake] = useState<{ kind: 'new' | 'freeform'; name: string } | null>(null);
+  const playingId = seat === 'player' && make === null ? playing : null;
   const chosenParty = party ?? defaultParty(cast, playingId);
   const found = cast.filter((character) => character.name.toLowerCase().includes(query.trim().toLowerCase()));
   const toggle = (id: string) =>
@@ -163,7 +174,21 @@ export function CampaignStartForm({
         ? chosenParty.filter((one) => one !== id)
         : [...chosenParty, id].slice(0, LIMITS.characters_per_chat),
     );
-  const ready = seat === 'gm' ? chosenParty.length > 0 : playingId !== null;
+  const ready = seat === 'gm' ? chosenParty.length > 0 : make !== null ? make.name.trim() !== '' : playingId !== null;
+  // Once it starts, the copy and the boot take the whole page (the operator, 2026-11-22: "The world
+  // copying / boot up should take up the full page. Once you start that you shouldn't be editing
+  // characters etc anyway").
+  if (starting) {
+    const progress = (
+      <div className='fixed inset-0 z-[100] flex items-center justify-center bg-background p-6 pt-safe pb-safe'>
+        <div className='grid w-full max-w-md gap-4'>
+          <StartProgress step={step} creep={creep} detail={detail} />
+        </div>
+      </div>
+    );
+    // Over the whole page, never inside the sheet it was started from.
+    return typeof document === 'undefined' ? progress : createPortal(progress, document.body);
+  }
   return (
     <div className='flex min-h-0 flex-1 flex-col'>
       <div className='grid flex-1 gap-4 overflow-y-auto p-4'>
@@ -197,6 +222,41 @@ export function CampaignStartForm({
             <h3 id='start-who' className='text-sm font-medium'>
               Who do you play?
             </h3>
+            <div role='group' aria-label='Make your own' className='grid gap-2 sm:grid-cols-2'>
+              {(['new', 'freeform'] as const)
+                .filter((kind) => kind === 'new' || !mechanical)
+                .map((kind) => (
+                  <button
+                    key={kind}
+                    type='button'
+                    aria-pressed={make?.kind === kind}
+                    onClick={() => {
+                      setMake((now) => (now?.kind === kind ? null : { kind, name: now?.name ?? '' }));
+                      setPlaying(null);
+                      setParty(null);
+                    }}
+                    className={cn(
+                      'min-h-11 rounded-lg border px-3 py-2 text-left',
+                      make?.kind === kind && 'border-primary bg-primary/10',
+                    )}
+                  >
+                    <span className='block font-medium'>{kind === 'new' ? 'New character' : 'Freeform character'}</span>
+                    <span className='block text-xs text-muted-foreground'>
+                      {kind === 'new' ? 'Built with the character builder' : 'Just a name; who they are grows in play'}
+                    </span>
+                  </button>
+                ))}
+            </div>
+            {make !== null && (
+              <Input
+                aria-label='Their name'
+                placeholder='Their name'
+                className='h-11'
+                autoFocus
+                value={make.name}
+                onChange={(event) => setMake({ ...make, name: event.target.value })}
+              />
+            )}
             <Input
               aria-label='Find a character'
               placeholder='Find a character'
@@ -231,6 +291,7 @@ export function CampaignStartForm({
                         pressed={playing === character.id}
                         onClick={() => {
                           setPlaying(character.id);
+                          setMake(null);
                           setParty(null);
                         }}
                       />
@@ -267,12 +328,18 @@ export function CampaignStartForm({
         </section>
       </div>
       <div className='grid gap-3 border-t p-4'>
-        {starting && <StartProgress step={step} creep={creep} detail={detail} />}
         <Button
           type='button'
           className='h-11 w-full'
           disabled={!ready || starting}
-          onClick={() => onStart({ seat, playing: playingId, party: chosenParty.filter((id) => id !== playingId) })}
+          onClick={() =>
+            onStart({
+              seat,
+              playing: playingId,
+              party: chosenParty.filter((id) => id !== playingId),
+              ...(seat === 'player' && make !== null ? { make: { kind: make.kind, name: make.name.trim() } } : {}),
+            })
+          }
         >
           {starting ? 'Starting…' : 'Start the campaign'}
         </Button>
@@ -289,7 +356,12 @@ const instantiated = z.object({ campaign: z.object({ id: z.string() }), id_map: 
  */
 export function remapChoice(choice: StartChoice, idMap: Readonly<Record<string, string>>): StartChoice {
   const to = (id: string) => idMap[id] ?? id;
-  return { seat: choice.seat, playing: choice.playing === null ? null : to(choice.playing), party: choice.party.map(to) };
+  return {
+    seat: choice.seat,
+    playing: choice.playing === null ? null : to(choice.playing),
+    party: choice.party.map(to),
+    ...(choice.make === undefined ? {} : { make: choice.make }),
+  };
 }
 
 export function CampaignStart({ campaignId, onStarted }: { campaignId: string; onStarted: () => void }): ReactElement {
@@ -301,6 +373,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   const { create: createMessage } = messages.useActions();
   const { create: createPlay } = campaignPlays.useActions();
   const { create: createSession } = chatSessions.useActions();
+  const { create: createPerson } = people.useActions();
   const router = useRouter();
   const client = useClient();
   const { mutate } = useSWRConfig();
@@ -404,6 +477,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
     copy?: { campaign: { id: string }; id_map: Record<string, string> };
     chat?: Chat;
     opening?: ChatMessage;
+    person?: { id: string };
   }>({});
   const start = async (choice: StartChoice) => {
     const scenario = campaign.data;
@@ -423,7 +497,25 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
         ));
       made.current.copy = copy;
       const world = { ...scenario, id: copy.campaign.id };
-      const { seat, playing, party } = remapChoice(choice, copy.id_map);
+      const remapped = remapChoice(choice, copy.id_map);
+      const { seat, party } = remapped;
+      // A character made for this campaign: a player character of the playthrough, played from the start.
+      // New: the builder fills their sheet (the Context panel's character sheet opens on it). Freeform:
+      // a name only, filled in as play shows who they are.
+      const made_person =
+        choice.make === undefined
+          ? null
+          : (made.current.person ??
+            (await stalls(
+              createPerson({
+                name: choice.make.name.slice(0, LIMITS.name_characters),
+                kind: 'pc',
+                campaign_id: world.id,
+                summary: choice.make.kind === 'freeform' ? 'A freeform character: who they are grows in play.' : '',
+              } as Parameters<typeof createPerson>[0]),
+            )));
+      if (made_person !== null) made.current.person = made_person;
+      const playing = made_person?.id ?? remapped.playing;
       // The campaign's story is one chat: the party (and whoever the person starts as) are its cast.
       const members = playing === null || party.includes(playing) ? party : [...party, playing];
       setStep(1);

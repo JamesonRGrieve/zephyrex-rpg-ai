@@ -57,8 +57,40 @@ export const AsAnyCharacter: Story = {
 export const Copying: Story = {
   args: { starting: true, step: 0, creep: 0.4 },
   play: async ({ canvasElement }) => {
-    const canvas = within(canvasElement);
+    // The progress covers the whole page, rendered on the page's body.
+    const canvas = within(canvasElement.ownerDocument.body);
     await expect(canvas.getByRole('progressbar', { name: 'Starting the campaign' })).toBeVisible();
     await expect(canvas.getByText(/Copying the scenario for your campaign… \(1 of 4\)/)).toBeVisible();
+    // The progress is the whole page: nothing to edit while it starts.
+    await expect(canvas.queryByRole('button', { name: /Start the campaign|Starting/ })).toBeNull();
+    await expect(canvas.queryByRole('radio')).toBeNull();
+  },
+};
+
+/** A character of their own: a freeform one, named, played from the start; none in a mechanical campaign. */
+export const MakeYourOwn: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('radio', { name: /A character/ }));
+    await userEvent.click(canvas.getByRole('button', { name: /Freeform character/ }));
+    await expect(canvas.getByRole('button', { name: 'Start the campaign' })).toBeDisabled();
+    await userEvent.type(canvas.getByLabelText('Their name'), 'Wren');
+    await userEvent.click(canvas.getByRole('button', { name: 'Start the campaign' }));
+    await expect(args.onStart).toHaveBeenCalledWith({
+      seat: 'player',
+      playing: null,
+      party: ['gus', 'az'],
+      make: { kind: 'freeform', name: 'Wren' },
+    });
+  },
+};
+
+export const Mechanical: Story = {
+  args: { mechanical: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('radio', { name: /A character/ }));
+    await expect(canvas.getByRole('button', { name: /New character/ })).toBeVisible();
+    await expect(canvas.queryByRole('button', { name: /Freeform character/ })).toBeNull();
   },
 };
