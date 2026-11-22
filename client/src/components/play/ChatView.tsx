@@ -1151,27 +1151,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       );
       return null;
     }
-    // Canon: a line that breaks it is written once more with the problem named.
+    // Canon: an AI line is checked and its notice shown; it is never rewritten for it (the operator,
+    // 2026-11-22: "disable the auto rewrites of canon violations. It's a canon violation because of what I
+    // did. If I want a rewrite I will trigger one").
     const speakerName =
       request.speaker_id === null || request.speaker_id === undefined
         ? 'The GM'
         : (castById.get(request.speaker_id)?.name ?? 'A character');
     const notice = chat.canon_checks !== false ? await checkLine(whole, speakerName).catch(() => null) : null;
-    if (notice !== null && notice.level !== 'none') {
-      revise('canon', notice.reason);
-      const again = await storyPart({
-        ...request,
-        forbid: { names: [], span: '', reason: 'canon', note: notice.reason },
-      });
-      if (again !== null) {
-        const fixed = plainDashes(completeText(again.text));
-        if (fixed.trim() !== '') {
-          const still = await checkLine(fixed, speakerName).catch(() => null);
-          return { ...again, text: fixed, canon: still !== null && still.level !== 'none' ? still : null, revision };
-        }
-      }
-      return { ...result, text: whole, canon: notice, revision };
-    }
+    if (notice !== null && notice.level !== 'none') return { ...result, text: whole, canon: notice, revision };
     return { ...result, text: whole, canon: null as CanonNoticeValue | null, revision };
   };
   const noteCost = (id: string, written: { text: string; seconds: number }) =>
