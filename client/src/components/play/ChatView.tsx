@@ -374,7 +374,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const checkLine = useCallback(
     (text: string, speaker: string, signal?: AbortSignal) =>
       checkCanon({ chat_id: chat.id, text, speaker }, signal).then((verdict) =>
-        verdict === null || !verdict.checked ? null : { level: verdict.level, reason: verdict.reason },
+        verdict === null || !verdict.checked
+          ? null
+          : { level: verdict.level, reason: verdict.reason, fact: verdict.fact, line: text },
       ),
     [chat.id],
   );

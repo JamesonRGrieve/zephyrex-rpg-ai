@@ -13,6 +13,10 @@ import { cn } from '~/lib/utils';
 export interface CanonNoticeValue {
   level: 'none' | 'yellow' | 'red';
   reason: string;
+  /** The record it differs from, in the record's own words (the operator, 2026-11-22: "I need WHY!"). */
+  fact?: string | null;
+  /** The line that was checked. */
+  line?: string;
 }
 
 /**
@@ -47,6 +51,18 @@ export function CanonDetails({
         <span className='font-medium'>{red ? 'Breaks canon. ' : 'May contravene canon. '}</span>
         {notice.reason}
       </p>
+      {notice.line !== undefined && notice.line.trim() !== '' && (
+        <section className='grid gap-1'>
+          <h3 className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>The line</h3>
+          <blockquote className='whitespace-pre-wrap rounded-md border bg-muted/40 p-3'>{notice.line}</blockquote>
+        </section>
+      )}
+      {notice.fact !== undefined && notice.fact !== null && notice.fact.trim() !== '' && (
+        <section className='grid gap-1'>
+          <h3 className='text-xs font-medium uppercase tracking-wide text-muted-foreground'>What canon says</h3>
+          <blockquote className='whitespace-pre-wrap rounded-md border bg-muted/40 p-3'>{notice.fact}</blockquote>
+        </section>
+      )}
       <p className='text-muted-foreground'>
         Canon warnings compare lines with the setting and this campaign&apos;s record. They are table information only and
         never enter the story.
