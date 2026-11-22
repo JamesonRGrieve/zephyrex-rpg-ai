@@ -33,7 +33,16 @@ import { deferWithUndo, notify } from 'zephyrex/hooks/useToast';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Badge } from 'zephyrex/ui/badge';
 import { Button } from 'zephyrex/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from 'zephyrex/ui/dropdown-menu';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
+  DropdownMenuTrigger,
+} from 'zephyrex/ui/dropdown-menu';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from 'zephyrex/ui/sheet';
 import { useIsMobile } from 'zephyrex/hooks/useMobile';
@@ -1049,7 +1058,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (notice !== null && notice.level !== 'none') {
       const again = await timedWrite({
         ...request,
-        forbid: { names: [], span: `Canon: ${notice.reason}`, spans: [`Canon: ${notice.reason}`] },
+        forbid: { names: [], span: '', reason: 'canon', note: notice.reason },
       });
       if (again !== null) {
         const fixed = plainDashes(completeText(again.text));
@@ -1669,19 +1678,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   <span className='max-sm:sr-only'>{view === 'map' ? 'Chat' : 'Map'}</span>
                 </Button>
               )}
-              {play.isCampaign && (
-                // Every piece of context lives in the right-hand panel (the operator, 2026-11-21).
-                <Button
-                  type='button'
-                  variant='ghost'
-                  className='h-11 max-sm:w-11 max-sm:px-0'
-                  aria-label='Context'
-                  onClick={toggleContext}
-                >
-                  <PanelRight aria-hidden className='size-4' />
-                  <span className='max-sm:sr-only'>Context</span>
-                </Button>
-              )}
               <Button
                 type='button'
                 variant='outline'
@@ -1698,15 +1694,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   </Button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align='end'>
-                  {/* The app bar keeps only what play needs at hand; the rest is here (the operator, 2026-11-21). */}
+                  {/* Grouped so it isn't a wall of choices (the operator, 2026-11-22: "the 3 dots menu needs
+                      cleaning up with submenus to make it less overwhelming"): play first, the rest a level down. */}
                   <DropdownMenuItem className='sm:hidden' onSelect={() => void xCardLatest()}>
                     <X aria-hidden /> X-card the latest reply
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => window.location.reload()}>
-                    <RotateCw aria-hidden /> Reload the app
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
-                    <Settings2 aria-hidden /> Chat settings
                   </DropdownMenuItem>
                   <DropdownMenuItem
                     onSelect={() =>
@@ -1719,23 +1710,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                     }
                   >
                     {chat.paused ? <Play aria-hidden /> : <Pause aria-hidden />} {chat.paused ? 'Resume' : 'Pause'}
-                  </DropdownMenuItem>
-                  {running !== undefined && (
-                    <DropdownMenuItem onSelect={() => setScenarioOpen(true)}>
-                      <Clock3 aria-hidden /> Scenario
-                    </DropdownMenuItem>
-                  )}
-                  <DropdownMenuItem onSelect={() => void openInspector()}>
-                    <ScanText aria-hidden /> Inspect the prompt
-                  </DropdownMenuItem>
-                  <DropdownMenuItem disabled={drawing || chat.character_ids.length === 0} onSelect={() => void drawScene()}>
-                    <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setNamesOpen(true)}>
-                    <BookOpen aria-hidden /> Names without lore
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
-                    <GitFork aria-hidden /> Every branch
                   </DropdownMenuItem>
                   {play.isCampaign ? (
                     // A save point: the session's summary, then the next session (and A24's report into the wiki).
@@ -1760,20 +1734,82 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       </DropdownMenuItem>
                     )
                   )}
-                  <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
-                    <Download aria-hidden /> Export for SillyTavern
+                  <DropdownMenuItem onSelect={() => setSettingsOpen(true)}>
+                    <Settings2 aria-hidden /> Chat settings
                   </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void exportBranch('text')}>
-                    <Download aria-hidden /> Export as text
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void exportBranch('epub')}>
-                    <BookOpen aria-hidden /> Export as a book (EPUB)
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => void exportBranch('epub', true)}>
-                    <BookOpen aria-hidden /> Export as an illustrated book
-                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <ImageIcon aria-hidden /> Scene and story
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem
+                        disabled={drawing || chat.character_ids.length === 0}
+                        onSelect={() => void drawScene()}
+                      >
+                        <ImageIcon aria-hidden /> {drawing ? 'Drawing the scene…' : 'Picture of the scene'}
+                      </DropdownMenuItem>
+                      {running !== undefined && (
+                        <DropdownMenuItem onSelect={() => setScenarioOpen(true)}>
+                          <Clock3 aria-hidden /> Scenario
+                        </DropdownMenuItem>
+                      )}
+                      <DropdownMenuItem onSelect={() => setTreeOpen(true)}>
+                        <GitFork aria-hidden /> Every branch
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => setNamesOpen(true)}>
+                        <BookOpen aria-hidden /> Names without lore
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <Download aria-hidden /> Export
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onSelect={() => void exportBranch('jsonl')}>
+                        <Download aria-hidden /> Export for SillyTavern
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void exportBranch('text')}>
+                        <Download aria-hidden /> Export as text
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void exportBranch('epub')}>
+                        <BookOpen aria-hidden /> Export as a book (EPUB)
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => void exportBranch('epub', true)}>
+                        <BookOpen aria-hidden /> Export as an illustrated book
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
+                  <DropdownMenuSub>
+                    <DropdownMenuSubTrigger>
+                      <ScanText aria-hidden /> Tools
+                    </DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent>
+                      <DropdownMenuItem onSelect={() => void openInspector()}>
+                        <ScanText aria-hidden /> Inspect the prompt
+                      </DropdownMenuItem>
+                      <DropdownMenuItem onSelect={() => window.location.reload()}>
+                        <RotateCw aria-hidden /> Reload the app
+                      </DropdownMenuItem>
+                    </DropdownMenuSubContent>
+                  </DropdownMenuSub>
                 </DropdownMenuContent>
               </DropdownMenu>
+              {play.isCampaign && (
+                // Every piece of context lives in the right-hand panel (the operator, 2026-11-21); its button is
+                // the rightmost in the bar, beside the panel it opens (the operator, 2026-11-22).
+                <Button
+                  type='button'
+                  variant='ghost'
+                  className='h-11 max-sm:w-11 max-sm:px-0'
+                  aria-label='Context'
+                  onClick={toggleContext}
+                >
+                  <PanelRight aria-hidden className='size-4' />
+                  <span className='max-sm:sr-only'>Context</span>
+                </Button>
+              )}
             </div>
           </>,
         )}
