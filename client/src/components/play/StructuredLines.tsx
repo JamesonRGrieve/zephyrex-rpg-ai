@@ -59,7 +59,7 @@ import { cn } from '~/lib/utils';
 export type Manner = 'speak' | 'whisper' | 'shout' | 'vox' | 'voxcast';
 export type ShownLine =
   | { kind: 'say'; speaker: string; target: string | null; manner: Manner; text: string }
-  | { kind: 'do'; speaker: string; target: string | null; text: string }
+  | { kind: 'do'; speaker: string; target: string | null; text: string; icon?: ActionKind }
   | { kind: 'narrate'; text: string };
 
 const MANNERS: readonly Manner[] = ['speak', 'whisper', 'shout', 'vox', 'voxcast'];
@@ -205,7 +205,7 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
               key={key}
               className='flex items-start gap-2 rounded-lg border border-primary/30 bg-primary/5 px-3 py-2 [overflow-wrap:anywhere]'
             >
-              <ActionIcon kind={actionKind(line.text)} />
+              <ActionIcon kind={line.icon ?? actionKind(line.text)} />
               <span>
                 {other && <span className='font-medium'>{line.speaker} </span>}
                 <span className='italic'>{other ? line.text : capitalised(line.text)}</span>

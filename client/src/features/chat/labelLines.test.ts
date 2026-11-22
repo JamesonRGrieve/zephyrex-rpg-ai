@@ -1,0 +1,27 @@
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import { describe, expect, it } from 'vitest';
+import { labelledLines, readLabels } from './labelLines';
+
+describe('line labels', () => {
+  it("the tankard: an unattributed line becomes the thrower's throw; meta is dropped", () => {
+    const labels = readLabels([
+      { index: 0, kind: 'drop', text: '(There is no security.)', actor_name: null, icon: null },
+      { index: 1, kind: 'do', text: 'A second tankard follows the first.', actor_name: 'Brakka Ironmantle', icon: 'throw' },
+    ]);
+    expect(labels).not.toBeNull();
+    expect(labelledLines(labels ?? [], 'Brakka Ironmantle')).toEqual([
+      { kind: 'do', speaker: 'Brakka Ironmantle', target: null, text: 'A second tankard follows the first.', icon: 'throw' },
+    ]);
+  });
+  it('unknown icons and kinds are ignored; nothing usable is null', () => {
+    expect(readLabels([{ kind: 'sing', text: 'la' }])).toBeNull();
+    expect(readLabels([{ kind: 'do', text: 'waves', actor_name: 'Mags', icon: 'teleport' }])?.[0]?.icon).toBeNull();
+    expect(readLabels(null)).toBeNull();
+  });
+  it('speech keeps its manner and target', () => {
+    const labels = readLabels([{ kind: 'say', text: 'Out.', actor_name: 'Mags', target_name: 'Fennick', manner: 'shout' }]);
+    expect(labelledLines(labels ?? [], 'Narrator')).toEqual([
+      { kind: 'say', speaker: 'Mags', target: 'Fennick', manner: 'shout', text: 'Out.' },
+    ]);
+  });
+});

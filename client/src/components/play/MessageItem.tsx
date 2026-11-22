@@ -10,6 +10,7 @@
  */
 import { type ReplyStats, statsLabel } from '~/features/chat/replyStats';
 import { type Revision, RevisionButton } from './RevisionButton';
+import { type LineLabel, labelledLines } from '~/features/chat/labelLines';
 import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
 import {
   ArrowDown,
@@ -303,6 +304,7 @@ export function MessageItem({
   cost,
   canon,
   revision = null,
+  labels = null,
   names = [],
   ...actions
 }: {
@@ -322,6 +324,8 @@ export function MessageItem({
   canon?: CanonNoticeValue;
   /** A line the AI wrote again: its first answer and why, behind a small icon. */
   revision?: Revision | null;
+  /** Who does and says what, line by line, as the decision model labelled it (line_labels). */
+  labels?: readonly LineLabel[] | null;
 } & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   const editId = useId();
@@ -396,7 +400,11 @@ export function MessageItem({
               <p className='whitespace-pre-wrap [overflow-wrap:anywhere]'>{message.text}</p>
             ) : (
               (() => {
-                const structured = readLines(message.text, [message.speaker, ...names]);
+                // The decision model's labels, once the message has them; the reader's guess until then.
+                const structured =
+                  labels !== null && labels !== undefined
+                    ? labelledLines(labels, message.speaker)
+                    : readLines(message.text, [message.speaker, ...names]);
                 return structured === null ? (
                   <StoryText text={message.text} writing={writing} />
                 ) : (

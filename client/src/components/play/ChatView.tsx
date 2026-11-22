@@ -147,6 +147,7 @@ import { aimAt, clarify, ensurePerson, mapStep, refreshStatusLine, worldTick } f
 import { type AuthoringStep, authorNpc, npcNeeded } from '~/features/chat/authorNpc';
 import { fetchSpeechOptions } from '~/features/chat/speechOptions';
 import { namesIn } from '~/features/chat/namesIn';
+import { labelLines, readLabels } from '~/features/chat/labelLines';
 import type { Revision } from './RevisionButton';
 import useSWR from 'swr';
 import { mutate as globalMutate } from 'swr';
@@ -470,6 +471,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       revision: (Reflect.get(result, 'revision') as Revision | null | undefined) ?? null,
     });
     if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
+    labelSaved(saved.id);
     const replyCanon = Reflect.get(result, 'canon') as CanonNoticeValue | null | undefined;
     if (replyCanon) setCanonNotices((current) => new Map(current).set(saved.id, replyCanon));
     setLeafId(saved.id);
@@ -859,6 +861,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * made a sibling of the person's line and moved the view to it).
    */
   const roundRef = useRef(0);
+  /** The decision model labels a saved story line (who acts, speech or action, its icon), then it re-renders. */
+  const labelSaved = (id: string) =>
+    void labelLines(chat.id, id).then((labelled) => {
+      if (labelled) void list.mutate();
+    });
   /**
    * The step the round is on (the operator, 2026-11-22: "my last message didn't seem to trigger a
    * response. Can we get a progress indicator for the decision model calls etc?"): shown under the
@@ -1175,6 +1182,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         // The first line of a rewritten narration carries what it replaced.
         revision: index === 0 ? ((Reflect.get(result, 'revision') as Revision | null | undefined) ?? null) : null,
       });
+      labelSaved(line.id);
       if (settings.readAloud) readAloud(part.speaker_id, line.swipes[0] ?? '');
       if (index === 0) noteCost(line.id, result);
       autoTranslate(line.id, line.swipes[0] ?? '');
@@ -2027,6 +2035,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   translation={translationOf(message.id)}
                   canon={canonNotices.get(message.id)}
                   revision={message.revision ?? null}
+                  labels={readLabels(Reflect.get(message, 'line_labels'))}
                 />
               </li>
             );
