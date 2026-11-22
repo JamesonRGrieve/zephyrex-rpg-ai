@@ -16,6 +16,7 @@ from pydantic import Field, field_validator
 
 # Resolves only at runtime, through the extensions namespace path.
 from zephyrex.extensions.ai_character.Contract import CONTRACT, LIMITS  # type: ignore[import-not-found]
+from zephyrex.lib.CustomRoute import ExposeIn, custom_route
 from zephyrex.logic.AbstractLogicManager import (
     AbstractBLLManager,
     ApplicationModel,
@@ -176,8 +177,51 @@ FRAME_FIELDS = (
 )
 
 
+class FramePair(PlainModel):
+    campaign_id: str = Field(..., min_length=1, max_length=MAX_SHORT)
+    scenario_id: str = Field(..., min_length=1, max_length=MAX_SHORT)
+
+
+class FrameBackfill(PlainModel):
+    pairs: list[FramePair] = Field(..., max_length=1000)
+
+
+class FrameBackfillEnvelope(PlainModel):
+    backfill: FrameBackfill
+
+
+class FrameBackfilled(PlainModel):
+    #: The playthroughs that got their scenario's frame.
+    copied: list[str]
+
+
+class FrameBackfilledEnvelope(PlainModel):
+    backfill: FrameBackfilled
+
+
 class CampaignFrameManager(AbstractBLLManager[CampaignFrameModel], RouterMixin):
     _model = CampaignFrameModel
+
+    @custom_route(
+        method="POST",
+        path="/backfill",
+        input_model=FrameBackfillEnvelope,
+        output_model=FrameBackfilledEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("Campaign frames",),
+        summary="Playthroughs started before frames were copied get their scenario's frame (pairs from the wiki)",
+    )
+    async def backfill_route(self, body: FrameBackfillEnvelope) -> FrameBackfilledEnvelope:
+        copied = [
+            pair.campaign_id
+            for pair in body.backfill.pairs
+            if copy_frame(self, self._scenarios(), pair.scenario_id, pair.campaign_id) is not None
+        ]
+        return FrameBackfilledEnvelope(backfill=FrameBackfilled(copied=copied))
+
+    def _scenarios(self) -> "ScenarioManager":
+        return ScenarioManager(requester_id=str(self.requester.id), model_registry=self.model_registry)
 
     def create(self, **kwargs: Any) -> Any:
         for key, value in (
@@ -196,6 +240,35 @@ class CampaignFrameManager(AbstractBLLManager[CampaignFrameModel], RouterMixin):
         # By name (as the lite edition answers).
         rows = super().list(*args, **kwargs)
         return sorted(rows, key=lambda row: row.name) if isinstance(rows, list) else rows
+
+
+def frame_for(frames: Any, campaign_id: str | None) -> Any:
+    """A campaign's frame: the frame of that id, or, for a wiki campaign (the composed suite; a frame's
+    id is never chosen), the frame whose wiki_campaign_id it is. None without one: callers go on."""
+    if not campaign_id:
+        return None
+    try:
+        return frames.get(id=campaign_id)
+    except HTTPException:
+        pass
+    found = frames.list(wiki_campaign_id=campaign_id)
+    return found[0] if found else None
+
+
+def copy_frame(frames: Any, scenarios: Any, source_id: str, made_id: str) -> Any:
+    """A playthrough's own copy of its scenario's frame, and of the scenarios under it (Zephyrex RPG's
+    prod run, 2026-11-22: every playthrough ran without its frame). Nothing when the playthrough has one
+    already or the scenario has none; the copy, otherwise."""
+    if frame_for(frames, made_id) is not None:
+        return None
+    source = frame_for(frames, source_id)
+    if source is None:
+        return None
+    copied = {field: getattr(source, field) for field in FRAME_FIELDS}
+    made = frames.create(name=source.name, wiki_campaign_id=made_id, **copied)
+    for scenario in scenarios.list(campaign_id=str(source.id)):
+        scenarios.create(name=scenario.name, campaign_id=str(made.id), **scenario_of(scenario))
+    return made
 
 
 def frame_of(campaign: Any) -> dict[str, Any]:
@@ -472,3 +545,25 @@ class ScenarioManager(AbstractBLLManager[ScenarioModel], RouterMixin):
 def scenario_of(scenario: Any) -> dict[str, Any]:
     """A scenario record as Prompt.scenario_text reads it."""
     return {field: getattr(scenario, field) for field in SCENARIO_FIELDS}
+
+
+def _copy_frame_on_instantiate(
+    model_registry: Any, requester_id: str, source_id: str, made_id: str, id_map: dict[str, str]
+) -> None:
+    """The wiki's instantiate (a playthrough started from a scenario) copies the scenario's frame too."""
+    copy_frame(
+        CampaignFrameManager(requester_id=requester_id, model_registry=model_registry),
+        ScenarioManager(requester_id=requester_id, model_registry=model_registry),
+        source_id,
+        made_id,
+    )
+
+
+try:
+    from zephyrex.extensions.rpg_core.BLL_RPGCore import (  # type: ignore[import-not-found,attr-defined,unused-ignore]
+        AFTER_INSTANTIATE,
+    )
+except ImportError:
+    AFTER_INSTANTIATE = None
+if AFTER_INSTANTIATE is not None and _copy_frame_on_instantiate not in AFTER_INSTANTIATE:
+    AFTER_INSTANTIATE.append(_copy_frame_on_instantiate)

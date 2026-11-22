@@ -78,6 +78,7 @@ class CanonCheckManager(AbstractBLLManager[Any], RouterMixin):
     async def check_route(self, body: Any) -> CanonVerdictEnvelope:
         from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[import-not-found]
             CampaignFrameManager,
+            frame_for,
         )
         from zephyrex.extensions.ai_chat.BLL_AI_Chat import (  # type: ignore[import-not-found]
             ChatManager,
@@ -106,7 +107,8 @@ class CanonCheckManager(AbstractBLLManager[Any], RouterMixin):
             for entry in manager(LorebookEntryManager).list(lorebook_id=book_id)
             if entry.enabled
         ]
-        frame = manager(CampaignFrameManager).get(id=chat.campaign_id) if chat.campaign_id else None
+        # A playthrough's frame, or none (a wiki campaign without one): never a 404.
+        frame = frame_for(manager(CampaignFrameManager), chat.campaign_id)
         sessions = manager(ChatSessionManager).list(chat_id=chat.id)
         facts = facts_in_reach(
             asked.text,

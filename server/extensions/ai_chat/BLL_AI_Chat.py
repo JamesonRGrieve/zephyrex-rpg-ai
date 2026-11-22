@@ -38,6 +38,7 @@ from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
 from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[import-not-found]
     CampaignFrameManager,
     ScenarioManager,
+    frame_for,
     frame_of,
     scenario_of,
 )
@@ -2508,12 +2509,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     def _frame_of(self, campaign_id: str | None) -> Any:
         """The campaign frame a chat names, as the prompt reads it; none for a wiki campaign (the
         composed suite) or a frame that's gone."""
-        if campaign_id is None:
-            return None
-        try:
-            return frame_of(self._manager(CampaignFrameManager).get(id=campaign_id))
-        except HTTPException:
-            return None
+        frame = frame_for(self._manager(CampaignFrameManager), campaign_id)
+        return None if frame is None else frame_of(frame)
 
     def _inputs(
         self, body: GenerateRequest, save_timers: bool = True, purpose: str = "reply", memories: str = ""
@@ -3449,10 +3446,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         mode = "narrative"
         if chat.campaign_id:
             # A chat's campaign may be a wiki campaign with no frame of the person's: narrative then.
-            try:
-                frame = self._manager(CampaignFrameManager).get(id=chat.campaign_id)
-            except HTTPException:
-                frame = None
+            frame = frame_for(self._manager(CampaignFrameManager), chat.campaign_id)
             mode = getattr(frame, "resolution_mode", None) or "narrative"
         story = set(PROMPT["story_channels"])
         # The actor's latest story line: an attempt at something uncertain always gets a test.
@@ -3957,6 +3951,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         yield frame("person", {"name": name, "id": str(person["id"])})
                 if name.lower() in made:
                     run = {**run, "speaker_id": made[name.lower()], "speaker_name": None}
+            if run["speaker_id"] is not None and run["speaker_id"] not in cast:
+                # Whoever speaks is in the chat before their line is saved (a message's speaker must be).
+                cast = [*cast, str(run["speaker_id"])]
+                chats.update(chat.id, character_ids=cast)
             text = plain_dashes(run_text(run, known))
             created = messages.create(
                 chat_id=chat.id,
