@@ -2829,7 +2829,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         cast = world_cast(entities, chat.character_ids or [])
         # Narrating (A20), the GM speaks, so no character is named as the speaker.
         # Translating reads no cast, so it needs no speaker.
-        no_speaker = body.mode == "narrate" or (purpose == "translate" and not cast)
+        # The table GM speaks as the GM (the operator, 2026-11-22: an out-of-game question got a 422 and nothing).
+        no_speaker = body.mode in ("narrate", "table") or (purpose == "translate" and not cast)
         speaker_id = "" if no_speaker else body.speaker_id or (cast[0]["id"] if cast else None)
         if speaker_id is None or (not no_speaker and all(character["id"] != speaker_id for character in cast)):
             raise HTTPException(
@@ -3006,7 +3007,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             int(sampler["context_tokens"]),
             int(sampler["max_tokens"]),
             {"sections": lore.sections, "at_depth": lore.at_depth},
-            body.mode,
+            # The table GM's own prompt replaces this one below; it speaks as the GM, so no speaker.
+            "narrate" if body.mode == "table" else body.mode,
             sampler["prompt_layout"] or [],
             chat.system_prompt or "",
             story_so_far,

@@ -267,7 +267,8 @@ export async function generationInputs(
   const castIds = worldCast(allEntities, chatFields.character_ids).map((character) => character.id);
   // Narrating (A20), the GM speaks, so no character is named as the speaker.
   // Translating reads no cast, so it needs no speaker.
-  const noSpeaker = body.mode === 'narrate' || (purpose === 'translate' && castIds.length === 0);
+  // The table GM speaks as the GM (the operator, 2026-11-22: an out-of-game question got a 422 and nothing).
+  const noSpeaker = body.mode === 'narrate' || body.mode === 'table' || (purpose === 'translate' && castIds.length === 0);
   const speakerId = noSpeaker ? '' : (body.speaker_id ?? castIds[0]);
   // GM secrets (E): a GM-only record reaches the GM's prompts and that person's own voice only.
   const entities = worldKnownTo(allEntities, speakerId ?? null, body.mode === 'narrate' || body.mode === 'table');
@@ -458,7 +459,8 @@ export async function generationInputs(
       context_tokens: sampler.context_tokens,
       max_tokens: sampler.max_tokens,
       lore,
-      mode: body.mode === 'table' ? 'reply' : body.mode,
+      // The table GM's own prompt (tableGmPrompt) is built from this; it speaks as the GM, so no speaker.
+      mode: body.mode === 'table' ? 'narrate' : body.mode,
       layout: sampler.prompt_layout,
       system_prompt: chatFields.system_prompt,
       summary: [chatFields.summary.trim(), sessionSummary].filter((part) => part !== '').join('\n\n'),

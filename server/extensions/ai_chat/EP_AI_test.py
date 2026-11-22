@@ -1205,6 +1205,23 @@ class TestGenerate:
         stored = server.get(f"/v1/chat_message/{line['id']}", headers=_headers(user)).json()["chat_message"]
         assert stored["line_labels"] is None
 
+    def test_the_table_gm_answers_a_chat_with_no_ai_cast(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-22: "Do out of game messages not trigger an out of game GM response?" (a 422).
+        user = create_user(server)
+        dex = _cast(server, user, "character", name="Dex").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        # Prod's chat 4187e2b3: the only character is the person's own seat, so no AI cast.
+        chat = _chat(server, user, "chat", title="Solo", character_ids=[dex["id"]]).json()["chat"]
+        _create(server, user, "campaign_play", chat_id=chat["id"], playing_id=dex["id"])
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", channel="gm", swipes=["Can I sneak?"]).json()["chat_message"]
+        answer = server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "table"}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        assert "Mind " in answer.text and "event: done" in answer.text
+
     def test_canon_warnings_can_be_turned_off_for_a_chat(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "a 'permanently dismiss for this campaign' button for radical looney
         # toon campaigns". canon_checks is on by default; off, the canon check answers unchecked.
