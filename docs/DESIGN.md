@@ -277,6 +277,122 @@ binding; the owner of each piece is named.
 - Imports and wipes use the framework's batch routes (plural create, batch update and delete),
   never one request per record.
 
+### The play-test rulings (the operator, 2026-11-21 and 2026-11-22)
+
+Live play-tests of the tavern campaign set these rules. Each is binding. **Status** is what the code
+does as of this entry: _live_ (in the deployed build), _built_ (pushed, awaiting a ship), _open_ (not
+done yet). The owner is named where it isn't rpg-ai's client.
+
+**Who says and does what**
+
+- **Speech in bubbles, actions credited.** A character's quoted words render as a speech bubble (tail
+  at the bottom left), styled by manner: speak, whisper, shout, vox, voxcast. Actions render as that
+  character's action with an icon, never as faint narrator text. _Live._
+- **The split must be right.** "The split of character actions and dialogue from the narrator is
+  critical." Quotes inside narration become the speaker's bubble; "Name action" lines are theirs; a
+  name followed by a noun ("The Rogue Trader vessel…") is narration; an action keeps the actor's
+  sentences, and the scene after it is narration ("blinks slowly. Around the room…"). _Live/built._
+- **The decision model labels every line** (who acts, speech or action or narration, the icon from the
+  full 40-kind library), using the lines before it as context: "A second tankard follows the first" is
+  the thrower's throw; stray asides are dropped. Labels are kept on the message (line_labels) and the
+  message renders from them. _Built (client); server in progress (Parity)._
+- **At least 40 action icons** (water droplets for relieving oneself, a tankard for drinking, a throw…).
+  _Live._
+- **Things happen to the seat's character, never by it.** The AI never voices, moves or decides for
+  the person's character; narration cuts at the first thing it would have them do by choice. _Live._
+- **Characters act on what they know and feel** (dispositions, home; a barkeep never asks directions
+  in her own town). _Open (Parity: prompt and knowledge)._
+- **One model per format.** Each model gets the instruction wording that works for it, found by a
+  direct eval over all models. _On hold by the operator ("no eval yet")._
+- **No em dashes** in the story. _Live._
+- **No response token caps** ("moldy Band-Aid"). _Live._
+- **A thinking model's reasoning never enters the story;** story turns run with thinking off. _Built
+  (client strip); thinking-off server-side in progress (Parity)._
+
+**Mechanics**
+
+- **No model-invented dice.** Rolls use the system's own tests (5e d20, DH2 d100) through the VTT; a
+  model never writes a formula. _Live._
+- **Targets are real.** Say and Do targets are typed, suggesting only valid ones: those present, or
+  known people reachable by a vox or by spell; any name may be typed. _Built._
+- **Speech modes follow the setting and the sheet.** Vox and voxcast only in 40k and only with a vox in
+  hand; Message or Sending in D&D only when the spell is known. _Built (Parity + VTT)._
+- **The GM asks about a target only when there is none:** never when the line names one (a person or
+  a thing, "on the hearth"), never offering anyone who isn't present (no canon creatures), always with a
+  box to type something else; the question says "The GM asks". _Built._
+
+**The table and the GM**
+
+- **Out of game** sits beside Say and Do and replaces "Table talk" and "Ask the GM"; the channel switch
+  is gone. Out of game is between the GM and you, the player, not your character, and is styled apart
+  from the narrator. _Live._
+- **Canon warnings** check the person's lines and the AI's; a warning on an AI line rewrites it once
+  with the problem named. A warning is one line with Details, which opens the bottom drawer holding the
+  finding and the button to turn warnings off for the campaign. _Built._
+- **A rewritten line shows a small icon** that opens its first answer and reasoning, and why it was
+  rewritten, in the drawer. _Built._
+- **Regenerate on the person's line resubmits it** and starts the NPC turns from there; on a narration
+  it writes another telling. _Built._
+- **The person's line starts a new round:** a round still running stops, and nothing it writes later
+  is saved (it once made a 2/2 that replaced the person's lines). _Built._
+- **The round shows the step it is on** (reading your line, deciding a roll, who acts next…), so a
+  quiet round never looks dead. _Built._
+- **NPC authoring.** When a line meets someone who doesn't exist (the barkeeper), the decision model
+  decides an NPC is needed and the GM authors one first, with an in-chat progress bar ("Authoring new
+  NPC (barkeeper)"): campaign-only, an Elevate to scenario button on their profile, a picture when a
+  drawing model is set, a sheet authored or adapted from the compendium; then they act. _Live (Parity,
+  Wiki, VTT)._
+
+**Places and the map**
+
+- **A location change is a grand banner with a map icon,** never a markdown title, named from the
+  map's truth, not the narrator's wording. Banners show sub-locations: the place as the title, its
+  town and region as the subtitle. _Live._
+- **The opening starts with the location banner,** then the situation, then who is with you, never the
+  place's raw wiki entry. _Live._
+- **The GM moves people on the map** from what is said in the story, and the map is one tap away. _Live._
+
+**Screens**
+
+- **The app bar holds the play controls on one row on a phone,** with no "Play" title and no sticky
+  header at the start of the chat; the Context button is the rightmost; the ⋯ menu groups its items in
+  submenus. _Built._
+- **Context lives in the app wrapper's right sidebar,** never a bottom sheet; the bottom drawer is part
+  of the same app wrapper (client-framework). _Live/built._
+- **Send and Stop sit at the right of the composer row,** never on a row of their own. _Built._
+- **Auto-scroll only when the person is at the bottom.** _Live._
+- **Pull down on the app bar to reload,** at any scroll. _Built._
+- **Initials are letters only** ("Parentheses are not valid last initials"). _Live._
+- **Switching tabs never breaks play:** the chat stays, a cut reply is asked for again, and starting a
+  campaign carries on after a tab switch. _Built/live._
+- **The down page retries every 10 s** with an animation, for the page asked for. _Live._
+- **Screens of cogitators and data-slates** have their own styling, and the model may colour text
+  itself (the bright red). _Live._
+- **Chat settings** hold only what a campaign can change in play: no lorebooks or World Info, no
+  campaign or scenario choice. _Live._
+- **Campaigns under a scenario** each have a concise status line kept current by play, never the
+  scenario's name repeated. _Live._
+
+**Characters and content**
+
+- **Pregens per setting:** a couple per class, generic to the setting. _Live._
+- **The campaign start shows only the scenario's own people.** _Live._
+- **The VTT's RAW builder** (ability scores, creation choices) is in Context's character sheet. _Live._
+- **The 40k and 5e SRD compendiums are imported** into the wiki as setting canon. _5e live; the 40k
+  all-lines import is open (after the canon-reading fix ships)._
+- **The whole D&D and 40k book library will be in the wiki,** so context is retrieval, never a scan:
+  one context per turn (later prompts in a turn add only what new lines name), an indexed name lookup
+  (world_keys), then hybrid retrieval (full text, trigram and pgvector embeddings from
+  nomic-embed-text-v1.5) over chunked, tagged passages scoped to the campaign's setting and system;
+  lite gets the same through better-sqlite3 and sqlite-vec. _Name index built; hybrid in progress
+  (Wiki); per-turn snapshot built (Parity)._
+
+**Operations**
+
+- **Dev and release-candidate tests never use the prod model tier** (gigabyte); they use the desktop.
+- **Deploys only when the operator unfreezes;** say before one, since it restarts the server.
+- **The summaries model stays on the 24 GB tier;** never add models to the 72 GB tier.
+
 ### Mapping onto what exists
 
 _Superseded by [The composed suite](#the-composed-suite-the-operator-2026-11-21): the records below are rpg-ai's own, built standalone; they move to the wiki and the VTT and are then removed._
