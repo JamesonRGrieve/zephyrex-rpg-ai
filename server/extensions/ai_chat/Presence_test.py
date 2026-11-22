@@ -20,3 +20,14 @@ def test_a_settings_canon_creature_is_never_present() -> None:
     present = present_people(SimpleNamespace(vox_ids=[]), "fen", world, turns)
     assert "giant" not in [one["id"] for one in present]
     assert {one["id"] for one in present} == {"bar", "pri"}
+
+
+def test_a_freeform_character_is_known_by_its_tag() -> None:
+    # The operator, 2026-11-22: a "Freeform Character" developed during play; the wiki tags it "Freeform".
+    from zephyrex.extensions.ai_chat.BLL_AI_Chat import is_freeform
+
+    assert is_freeform({"id": "dex", "tags": ["Freeform", "Rogue Trader"]})
+    assert is_freeform({"id": "dex", "tags": ["freeform"]})
+    assert is_freeform({"id": "dex", "summary": "A freeform character: who they are grows in play."})
+    assert not is_freeform({"id": "ada", "tags": ["Engineer"], "summary": "Fixes engines."})
+    assert not is_freeform(None)

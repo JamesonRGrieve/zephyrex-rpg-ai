@@ -2065,6 +2065,43 @@ class NpcNeededEnvelope(PlainModel):
     npc_needed: NpcNeeded
 
 
+class DevelopFreeformRequest(PlainModel):
+    """The seat's freeform character filled in from what the story has established (the operator, 2026-11-22)."""
+
+    chat_id: str = Field(..., min_length=1)
+
+
+class DevelopFreeformRequestEnvelope(PlainModel):
+    develop_freeform: DevelopFreeformRequest
+
+
+class DevelopedFreeform(PlainModel):
+    developed: bool
+    person_id: str | None = None
+    #: The fields written (summary, entry, personality, motive, voice), or why nothing was.
+    fields: list[str] = Field(default_factory=list)
+    reason: str = ""
+
+
+class DevelopedFreeformEnvelope(PlainModel):
+    develop_freeform: DevelopedFreeform
+
+
+def is_freeform(entity: Mapping[str, Any] | None) -> bool:
+    """Whether a person is a freeform character: the wiki's mark (freeform, or a Freeform tag), else the
+    summary the start screen gives one."""
+    if entity is None:
+        return False
+    # The wiki's tag names (world entity rows' tags), matched without regard to case as the wiki does.
+    tags = [str(tag.get("name") if isinstance(tag, Mapping) else tag).lower() for tag in entity.get("tags") or []]
+    mark = str(CONTRACT["freeform"]["summary_mark"]).lower()
+    return (
+        entity.get("freeform") is True
+        or str(CONTRACT["freeform"]["tag"]).lower() in tags
+        or str(entity.get("summary") or "").strip().lower().startswith(mark)
+    )
+
+
 class CampaignMode(PlainModel):
     campaign_id: str
     #: narrative, mechanical or hybrid; None when the campaign has no frame that says.
@@ -4107,6 +4144,71 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if await move_person(self.model_registry, requester, str(move["person_id"]), str(move["to"]), "the story")
         ]
         return answer(moves, None)
+
+    @custom_route(
+        method="POST",
+        path="/develop_freeform",
+        input_model=DevelopFreeformRequestEnvelope,
+        output_model=DevelopedFreeformEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="The seat's freeform character filled in from what the story has established, nothing invented",
+    )
+    async def develop_freeform_route(self, body: DevelopFreeformRequestEnvelope) -> DevelopedFreeformEnvelope:
+        def answer(
+            reason: str, person_id: str | None = None, fields: list[str] | None = None
+        ) -> DevelopedFreeformEnvelope:
+            return DevelopedFreeformEnvelope(
+                develop_freeform=DevelopedFreeform(
+                    developed=bool(fields), person_id=person_id, fields=fields or [], reason=reason
+                )
+            )
+
+        chat = self._manager(ChatManager).get(id=body.develop_freeform.chat_id)
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        requester = str(self.requester.id)
+        playing_id, _marks = play_context(requester, self.model_registry, chat.id)
+        if playing_id is None:
+            return answer("no seat")
+        rows = self._manager(ChatMessageManager).list(chat_id=chat.id)
+        if not rows:
+            return answer("nothing in the story yet")
+        _assembled, _request, sampler, _active, context = self._inputs(
+            GenerateRequest(chat_id=chat.id, leaf_id=str(rows[-1].id), mode="narrate"),
+            save_timers=False,
+            purpose="summary",
+        )
+        seat = next((entity for entity in context["world"] if str(entity.get("id")) == playing_id), None)
+        if not is_freeform(seat):
+            return answer("the seat's character isn't freeform", playing_id)
+        story = set(PROMPT["story_channels"])
+        lines = [
+            str(turn["content"])
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ][-int(CONTRACT["freeform"]["window_lines"]) :]
+        if not lines:
+            return answer("nothing in the story yet", playing_id)
+        name = str((seat or {}).get("name") or "")
+        messages = [
+            {"role": "system", "content": str(CONTRACT["freeform"]["prompt"]).replace("{{name}}", name)},
+            {"role": "user", "content": "\n".join(lines)},
+        ]
+        try:
+            fields = npc_writing(await self._ask(context, sampler, messages))
+        except HTTPException:
+            return answer("the model gave nothing", playing_id)
+        kept = ("summary", "personality", "motive", "voice")
+        filled = {"entry": npc_entry(fields), **{key: fields[key] for key in kept}}
+        written = {key: value for key, value in filled.items() if value}
+        if not written:
+            return answer("the story hasn't shown them yet", playing_id)
+        done = await update_person(self.model_registry, requester, playing_id, written)
+        return answer("" if done is not None else "the wiki didn't take it", playing_id, list(written) if done else [])
 
     @custom_route(
         method="GET",

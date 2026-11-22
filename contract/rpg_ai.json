@@ -920,6 +920,13 @@
     "summary_heading": "The story so far:",
     "lines_heading": "Latest:"
   },
+  "freeform": {
+    "$comment": "A freeform character, developed during play (the operator, 2026-11-22: \"a 'Freeform Character' that lets the character be developed during play (narrative mode only)\"): the GM fills in the seat's person from what the story has established, never a backstory of its own, after a session ends and when the client asks (every few rounds). A person is freeform when the wiki marks them so (freeform, or a Freeform tag), or by the summary the start screen gives them.",
+    "tag": "Freeform",
+    "summary_mark": "A freeform character",
+    "prompt": "From the story below, write only what it has established about {{name}}, the player's character: how they look, how they carry themselves and speak, what they want, what they have done. Answer with JSON only: {\"summary\": one line, who they are so far, \"description\": how they look and carry themselves, \"personality\": a sentence, \"motive\": what they want, \"voice\": how they speak}. Leave a field empty (\"\") where the story says nothing. Never invent a backstory, a past or a trait the story hasn't shown.",
+    "window_lines": 80
+  },
   "npc_author": {
     "$comment": "The GM authors an NPC the story needs (the operator, 2026-11-22: \"when I walk up to the barkeeper, since an npc for that doesn't exist, it should author one as a pre-step\"). npc_needed finds the figures the person's latest line addresses or approaches (a say line's target that isn't a person, or the phrase after an approach cue), free; none, no model call. With some, one decide call picks the one who needs authoring, or none. author_npc writes them (the summary model), makes them a GM-only person of the campaign, builds their sheet from the VTT's compendium (never a model's numbers), and paints a portrait when a model draws. features/chat/npcAuthor.ts, ai_chat/NpcAuthor.py, contract/npc-author-cases.json.",
     "cues": ["walk up to", "walks up to", "walked up to", "go up to", "goes up to", "approach", "approaches", "talk to", "talks to", "speak to", "speaks to", "ask", "asks", "greet", "greets", "call to", "calls to", "call out to", "calls out to", "wave at", "waves at", "nod to", "nods to", "hail", "hails", "turn to", "turns to", "sit with", "sits with", "order from", "orders from", "buy from", "buys from", "signal", "signals", "pay", "pays", "tell", "tells"],

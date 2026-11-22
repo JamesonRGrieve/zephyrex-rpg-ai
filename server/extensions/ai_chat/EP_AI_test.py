@@ -1255,6 +1255,19 @@ class TestGenerate:
         assert mode.status_code == 200, mode.text
         assert mode.json()["campaign_mode"]["resolution_mode"] is None
 
+    def test_a_seat_that_isnt_freeform_is_left_as_it_is(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        dex = _cast(server, user, "character", name="Dex").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Solo", character_ids=[dex["id"]]).json()["chat"]
+        _create(server, user, "campaign_play", chat_id=chat["id"], playing_id=dex["id"])
+        _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I look around."])
+        answer = server.post(
+            "/v1/ai_chat/develop_freeform", json={"develop_freeform": {"chat_id": chat["id"]}}, headers=_headers(user)
+        )
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["develop_freeform"]["developed"] is False
+
     def test_canon_warnings_can_be_turned_off_for_a_chat(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "a 'permanently dismiss for this campaign' button for radical looney
         # toon campaigns". canon_checks is on by default; off, the canon check answers unchecked.

@@ -99,6 +99,7 @@ class SessionEndManager(AbstractBLLManager[Any], RouterMixin):
     async def end_route(self, body: Any) -> SessionEnded:
         from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[import-not-found]
             CampaignFrameManager,
+            frame_for,
         )
         from zephyrex.extensions.ai_campaign.SessionReport import (  # type: ignore[import-not-found]
             report_mentions,
@@ -116,12 +117,11 @@ class SessionEndManager(AbstractBLLManager[Any], RouterMixin):
         chat_id = envelope.session_end.chat_id
         requester = str(self.requester.id)
         chat = ChatManager(requester_id=requester, model_registry=self.model_registry).get(id=chat_id)
-        frame = (
-            CampaignFrameManager(requester_id=requester, model_registry=self.model_registry).get(id=chat.campaign_id)
-            if chat.campaign_id
-            else None
-        )
-        wiki_campaign_id = getattr(frame, "wiki_campaign_id", None) if frame is not None else None
+        # A chat's campaign is the wiki campaign (the composed suite; a vault scenario has no frame row), or
+        # the wiki campaign a frame of the old kind names.
+        frames = CampaignFrameManager(requester_id=requester, model_registry=self.model_registry)
+        frame = frame_for(frames, chat.campaign_id)
+        wiki_campaign_id = getattr(frame, "wiki_campaign_id", None) if frame is not None else chat.campaign_id
         if not wiki_campaign_id:
             raise HTTPException(
                 status_code=422,
@@ -173,4 +173,16 @@ class SessionEndManager(AbstractBLLManager[Any], RouterMixin):
         )
         if inspect.isawaitable(written):
             written = await written
+        # A freeform character grows with the story: the GM fills in what this session established.
+        from zephyrex.extensions.ai_chat.BLL_AI_Chat import (
+            DevelopFreeformRequest,
+            DevelopFreeformRequestEnvelope,
+        )
+
+        try:
+            await chats.develop_freeform_route(
+                DevelopFreeformRequestEnvelope(develop_freeform=DevelopFreeformRequest(chat_id=chat_id))
+            )
+        except HTTPException:
+            pass
         return SessionEnded(report_id=str(written["id"]), title=title, mentions=len(mentions))
