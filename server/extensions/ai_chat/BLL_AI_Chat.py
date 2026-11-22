@@ -684,8 +684,8 @@ def background_place(entities: Sequence[Mapping[str, Any]], history: Sequence[Ma
     return str((location or {}).get("summary") or "").strip() or scenario.strip()
 
 
-#: The modes asked as structured turns (Structured.py); the voices follow.
-STRUCTURED_MODES = ("narrate",)
+#: The modes asked as structured turns (Structured.py): the narrator's, and a character's own turn.
+STRUCTURED_MODES = ("narrate", "reply")
 
 
 def structured_request(body: Mapping[str, Any], context: Mapping[str, Any]) -> dict[str, Any]:
@@ -693,7 +693,10 @@ def structured_request(body: Mapping[str, Any], context: Mapping[str, Any]) -> d
     person's last line (SystemOrder.py), and no stop strings (the schema ends the turn)."""
     persona = context.get("persona")
     seat = str(persona["name"]) if persona is not None and context.get("playing_id") is not None else ""
-    content = str(STRUCTURED["instruction"]).replace("{{seat_name}}", seat or "the player")
+    # A voice's turn is that character's items alone; the narrator's credits everyone.
+    speaker = next((one["name"] for one in context.get("cast") or [] if one["id"] == context.get("speaker_id")), None)
+    template = STRUCTURED["voice_instruction"] if speaker is not None else STRUCTURED["instruction"]
+    content = str(template).replace("{{seat_name}}", seat or "the player").replace("{{char}}", str(speaker or ""))
     instruction = {"role": "system", "content": content}
     messages = list(body.get("messages") or [])
     last = max((index for index, message in enumerate(messages) if message.get("role") == "user"), default=-1)
@@ -2832,6 +2835,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         context = {
             "chat": chat,
             "playing_id": playing_id,
+            "speaker_id": speaker_id or None,
             "cast": cast,
             "persona": persona,
             "history": history,
@@ -3922,6 +3926,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         ]
         within = partial_items(items.text)[: int(VOICE_GUARD["runaway"]["max_items"])]
         result = structured_runs(fresh_items(within, earlier), people, seat_name)
+        if asked.mode != "narrate":
+            # A voice writes for itself alone (the operator: no character writes for the others).
+            result = {**result, "runs": [run for run in result["runs"] if run["speaker_id"] == context["speaker_id"]]}
         if not result["runs"]:
             return
         chat = context["chat"]

@@ -753,6 +753,27 @@ class TestGenerate:
         by_id = {one["id"]: one for one in stored}
         assert [by_id[one["id"]]["parent_id"] for one in saved] == [line["id"], saved[0]["id"], saved[1]["id"]]
 
+    def test_a_structured_voice_keeps_its_own_lines_alone(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ada?"]).json()["chat_message"]
+        RECEIVED.clear()
+        answer = server.post(
+            "/v1/ai_chat/generate",
+            json={"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": ada["id"], "structured": True}},
+            headers=_headers(user),
+        )
+        assert answer.status_code == 200, answer.text
+        assert RECEIVED[0]["body"]["messages"][-2]["content"].startswith("Answer only with JSON: {\"items\": [...]}, one item per beat of Ada's turn")
+        frames = [block for block in answer.text.split("\n\n") if block.strip()]
+        saved = json.loads(next(block for block in frames if block.startswith("event: saved")).split("data: ", 1)[1])["messages"]
+        # The narration and the barkeep the model wrote too are not Ada's to write: only her run is kept.
+        assert [(one["role"], one["speaker_character_id"], one["text"]) for one in saved] == [
+            ("character", ada["id"], 'Ada sets down her wrench.\nAda (to everyone): "Trouble."'),
+        ]
+
     def test_each_role_goes_to_the_model_serving_it(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
         ada = _cast(server, user, "character", name="Ada").json()["character"]
