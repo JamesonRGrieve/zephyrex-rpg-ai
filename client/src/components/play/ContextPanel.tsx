@@ -246,7 +246,8 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
       const page = await client.get(`/v1/scene/${sceneId}/tokens`);
       const rows = Reflect.get(Object(page), 'scene_tokens');
       return (Array.isArray(rows) ? rows : []).flatMap((row) => {
-        const person = Reflect.get(Object(row), 'person_id');
+        // The scene's read names the wiki person entity_id.
+        const person = Reflect.get(Object(row), 'entity_id') ?? Reflect.get(Object(row), 'person_id');
         return typeof person === 'string' ? [person] : [];
       });
     },

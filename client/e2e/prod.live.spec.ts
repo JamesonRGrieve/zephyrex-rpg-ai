@@ -107,13 +107,13 @@ async function presence(page: Page, chatId: string): Promise<{ onScene: string[]
     } | null;
     const tokens = scene
       ? (((await call('GET', `scene/${scene.id}/tokens`)).scene_tokens ?? []) as {
-          person_id: string | null;
+          entity_id: string | null;
         }[])
       : [];
     const named = (id: string | null) => people.find((one) => one.id === id)?.name ?? '';
     const partyPlace = people.find((one) => one.kind === 'pc')?.location_id ?? null;
     return {
-      onScene: tokens.map((one) => named(one.person_id)).filter((name) => name !== ''),
+      onScene: tokens.map((one) => named(one.entity_id)).filter((name) => name !== ''),
       withParty: partyPlace === null ? [] : people.filter((one) => one.location_id === partyPlace).map((one) => one.name),
     };
   }, chatId);
