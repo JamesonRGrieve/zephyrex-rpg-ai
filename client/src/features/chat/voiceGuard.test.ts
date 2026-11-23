@@ -46,4 +46,12 @@ describe('the voice guard cases both twins run', () => {
   it.each(cases.meta_cases)('$name', ({ text, hit }) => {
     expect(metaBreak(text)).toEqual(hit);
   });
+  it("a screen block stays the narrator's: its labelled rows are never speakers", () => {
+    const parts = narrateSegments(
+      'The arch wails.\n[screen: Auspex]\nCONTRABAND: LICENSED FIREARMS (x3)\nWARNING: SCAN INCOMPLETE\n[/screen]\nThe guards raise their weapons.',
+      [{ id: 'horvec', name: 'Sergeant Horvec' }],
+      'Dex',
+    );
+    expect(parts.every((part) => part.speaker_id === null && Reflect.get(part, 'speaker_name') == null)).toBe(true);
+  });
 });

@@ -120,8 +120,17 @@ export function narrateSegments(
     nameForms(name).some((form) => new RegExp(`^\\*\\s*${escaped(form)}($|[^\\p{L}\\p{N}])`, 'iu').test(line));
   const isSeat = (said: string): boolean => seat.trim() !== '' && isNamed(said, seat);
   let speaker: string | null = null;
+  // A cogitator or data-slate's screen ([screen]…[/screen]) is the narrator's, line for line: its
+  // "CONTRABAND:" or "WARNING:" rows are never speakers (the operator's 40k transcript, 2026-11-23).
+  let onScreen = false;
   for (const line of text.split('\n')) {
     const trimmed = line.trim();
+    if (/^\[screen\b/i.test(trimmed)) onScreen = true;
+    if (onScreen) {
+      push(null, trimmed);
+      if (/\[\/screen\]/i.test(trimmed)) onScreen = false;
+      continue;
+    }
     if (trimmed.startsWith(PROMPT.interlude_mark)) {
       const said = trimmed.slice(PROMPT.interlude_mark.length).trim();
       if (isSeat(said)) break;
