@@ -134,8 +134,13 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
   };
 
   const startChat = async () => {
-    const chat = await createChat({ title: `Chat with ${saved.name}`, character_ids: [saved.id] });
-    router.push(`/play/${chat.id}`);
+    try {
+      const chat = await createChat({ title: `Chat with ${saved.name}`, character_ids: [saved.id] });
+      router.push(`/play/${chat.id}`);
+    } catch (error) {
+      // Never a button that does nothing: say why the chat didn't start.
+      notify('The chat was not started', error instanceof Error ? error.message : undefined);
+    }
   };
 
   const deleteCharacter = () => {
