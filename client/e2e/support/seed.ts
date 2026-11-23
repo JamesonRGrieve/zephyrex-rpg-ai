@@ -11,11 +11,7 @@ import type { Page } from '@playwright/test';
  * Playwright's page.request doesn't send a Secure cookie over http, so on a hosted build at
  * 127.0.0.1 (where the browser itself accepts one) it answered 401 while the page was signed in.
  */
-export async function post(
-  page: Page,
-  resource: string,
-  fields: Record<string, unknown>,
-): Promise<{ id: string }> {
+export async function post(page: Page, resource: string, fields: Record<string, unknown>): Promise<{ id: string }> {
   if (!page.url().startsWith('http')) await page.goto('/play');
   const answer = await page.evaluate(
     async ({ resource, fields }) => {
@@ -70,15 +66,30 @@ export async function seedChat(page: Page): Promise<Seeded> {
     constant: true,
     content: 'The Kestrel is an old ore hauler.',
   });
+  // In the composed suite a chat's cast are wiki persons (Parity, 79cc3de): Ada is one there, in a wiki
+  // campaign of her own; the lite edition takes the card itself.
+  let castId = character.id;
   const chat = await post(page, 'chat', {
     title: 'Chat with Ada Vance',
-    character_ids: [character.id],
+    character_ids: [castId],
     lorebook_ids: [lorebook.id],
+  }).catch(async (error: unknown) => {
+    if (!String(error).includes('character_ids')) throw error;
+    const world = await post(page, 'campaign', { name: 'The Kestrel (e2e)', is_scenario: false });
+    castId = (
+      await post(page, 'person', {
+        name: 'Ada Vance',
+        kind: 'npc',
+        description: 'The ship’s engineer: dry, kind, and never far from the reactor.',
+        campaign_id: world.id,
+      })
+    ).id;
+    return post(page, 'chat', { title: 'Chat with Ada Vance', character_ids: [castId], lorebook_ids: [lorebook.id] });
   });
   const greeting = await post(page, 'chat_message', {
     chat_id: chat.id,
     role: 'character',
-    speaker_character_id: character.id,
+    speaker_character_id: castId,
     swipes: [
       '*wipes her hands on a rag* "Mind the coolant," she says. "It bites."',
       '"You’re the new deckhand? Good. Hold this."',
@@ -114,7 +125,7 @@ export async function seedChat(page: Page): Promise<Seeded> {
   // person in Ada's seat) and Session 1, so the session view is audited too.
   const story = await post(page, 'chat', {
     title: 'The Kestrel Run',
-    character_ids: [character.id],
+    character_ids: [castId],
     campaign_id: campaign.id,
     seat: 'player',
     lorebook_ids: [lorebook.id],
@@ -124,7 +135,7 @@ export async function seedChat(page: Page): Promise<Seeded> {
     role: 'narrator',
     swipes: ['The Kestrel shudders into dock at Vell. A customs officer knocks on the airlock.'],
   });
-  await post(page, 'campaign_play', { chat_id: story.id, playing_id: character.id });
+  await post(page, 'campaign_play', { chat_id: story.id, playing_id: castId });
   await post(page, 'chat_session', { chat_id: story.id, number: 1, start_message_id: opening.id });
   return {
     characterId: character.id,

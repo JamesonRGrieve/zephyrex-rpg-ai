@@ -36,7 +36,13 @@ export function Landing({ start = START }: { start?: { label: string; href: stri
           </div>
         </Section>
         <Section id='compare' title='Coming from SillyTavern?' eyebrow='How it compares'>
-          <div className='overflow-x-auto rounded-xl border'>
+          {/* Scrolls sideways on a phone: focusable and named, so a keyboard can scroll it (WCAG 2.1.1). */}
+          <div
+            className='overflow-x-auto rounded-xl border focus-visible:outline-2 focus-visible:outline-ring'
+            role='region'
+            aria-label='How it compares with SillyTavern'
+            tabIndex={0}
+          >
             <table className='w-full min-w-[32rem] text-left text-sm'>
               <thead className='bg-muted/50'>
                 <tr>
