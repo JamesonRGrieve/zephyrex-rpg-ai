@@ -1237,6 +1237,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const last = lines.at(-1);
     const saved = (fresh ?? []).find((one) => one.id === last?.id) ?? null;
     if (last !== undefined) setLeafId(last.id);
+    // Lines the server saved (a structured turn, or a turn run on the server) get what a line the page
+    // saves gets: the decision model's labels and the device's translation.
+    for (const line of lines) {
+      labelSaved(line.id);
+      autoTranslate(line.id, line.text);
+    }
     const banner = play.isCampaign && last !== undefined ? await followOnMap(last.id) : null;
     return banner ?? saved;
   };
