@@ -35,6 +35,8 @@ export interface WorldReader {
     name: string,
     summary: string,
   ) => Promise<{ id: string; name: string; created: boolean } | null>;
+  /** A character card imported as the person's own wiki person (POST /api/v1/campaign/card_person); null when refused. */
+  cardPerson: (card: Record<string, unknown>) => Promise<{ person_id: string; campaign_id: string } | null>;
 }
 
 /** The wiki's campaign clock: minutes from day 1, 00:00, as its day and "HH:MM". */
@@ -61,6 +63,7 @@ export const NO_WORLD: WorldReader = {
   advanceClock: async () => null,
   movePerson: async () => false,
   ensurePerson: async () => null,
+  cardPerson: async () => null,
 };
 
 /** A reader that asks this app's own wiki resource, with the request's cookies (the caller's access). */
@@ -180,5 +183,13 @@ export function wikiReader(request: Request): WorldReader {
     const named: unknown = Reflect.get(Object(person), 'name');
     return { id, name: typeof named === 'string' ? named : name, created: Reflect.get(Object(person), 'created') === true };
   };
-  return { campaign, byIds, documents, loreSearch, matching, framing, advanceClock, movePerson, ensurePerson };
+  const cardPerson = async (card: Record<string, unknown>): Promise<{ person_id: string; campaign_id: string } | null> => {
+    const made: unknown = await post('/api/v1/campaign/card_person', { card });
+    const personId: unknown = Reflect.get(Object(made), 'person_id');
+    const campaignId: unknown = Reflect.get(Object(made), 'campaign_id');
+    return typeof personId === 'string' && typeof campaignId === 'string'
+      ? { person_id: personId, campaign_id: campaignId }
+      : null;
+  };
+  return { campaign, byIds, documents, loreSearch, matching, framing, advanceClock, movePerson, ensurePerson, cardPerson };
 }
