@@ -84,7 +84,12 @@ export async function seedChat(page: Page): Promise<Seeded> {
         campaign_id: world.id,
       })
     ).id;
-    return post(page, 'chat', { title: 'Chat with Ada Vance', character_ids: [castId], lorebook_ids: [lorebook.id] });
+    return post(page, 'chat', {
+      title: 'Chat with Ada Vance',
+      character_ids: [castId],
+      campaign_id: world.id,
+      lorebook_ids: [lorebook.id],
+    });
   });
   const greeting = await post(page, 'chat_message', {
     chat_id: chat.id,

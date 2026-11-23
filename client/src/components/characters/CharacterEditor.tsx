@@ -135,7 +135,21 @@ export function CharacterEditor({ id }: { id: string }): ReactElement {
 
   const startChat = async () => {
     try {
-      const chat = await createChat({ title: `Chat with ${saved.name}`, character_ids: [saved.id] });
+      // A card plays as its wiki person (the operator, 2026-11-21: "A character card imports as a wiki
+      // person with its voice"): the person it's linked to, or it imported once and linked
+      // (POST /v1/ai_chat/card_person); an older server takes the card itself.
+      const linked = await client
+        .post('/v1/ai_chat/card_person', { card_person: { card_id: saved.id } })
+        .then((answer) => Object(Reflect.get(Object(answer), 'card_person')) as Record<string, unknown>)
+        .catch(() => null);
+      // The person lives in the requester's own Characters campaign; the chat carries it.
+      const personId = linked?.person_id;
+      const campaignId = linked?.campaign_id;
+      const chat = await createChat({
+        title: `Chat with ${saved.name}`,
+        character_ids: [typeof personId === 'string' ? personId : saved.id],
+        ...(typeof personId === 'string' && typeof campaignId === 'string' ? { campaign_id: campaignId } : {}),
+      });
       router.push(`/play/${chat.id}`);
     } catch (error) {
       // Never a button that does nothing: say why the chat didn't start.
