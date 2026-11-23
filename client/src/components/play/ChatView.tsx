@@ -635,7 +635,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const voiceFor = (name: string | null): CharacterVoice => {
       if (name === null) return settings.narratorVoice;
       const member = members.find((one) => one.name === name);
-      if (member !== undefined) return voiceOf(member.extensions);
+      // A campaign's people are wiki persons: their own voice (tts_voice) is read by the server.
+      if (member !== undefined)
+        return chat.campaign_id ? { ...voiceOf(member.extensions), speakerId: member.id } : voiceOf(member.extensions);
       const npc = npcs.find((one) => one.name === name);
       return npc?.voice === undefined ? settings.narratorVoice : voiceFrom(npc.voice);
     };

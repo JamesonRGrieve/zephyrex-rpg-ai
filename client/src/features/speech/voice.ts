@@ -19,6 +19,11 @@ export interface CharacterVoice {
   pitch: number;
   /** The voice's name on a model set to speak (A29, server voices); null for its default voice. */
   server: string | null;
+  /**
+   * The speaker as a wiki person: with no server voice set here, the server reads their tts_voice (the
+   * operator, 2026-11-23: "a voice select option per character").
+   */
+  speakerId?: string;
 }
 
 export const DEFAULT_VOICE: CharacterVoice = { name: null, rate: 1, pitch: 1, server: null };

@@ -20,7 +20,14 @@ export async function serverSpeech(text: string, voice: CharacterVoice): Promise
   const response = await fetch(SPEECH_PATH, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
-    body: JSON.stringify({ speech: { text, voice: voice.server, speed: voice.rate } }),
+    body: JSON.stringify({
+      speech: {
+        text,
+        voice: voice.server,
+        speed: voice.rate,
+        ...(voice.server === null && voice.speakerId !== undefined ? { speaker_id: voice.speakerId } : {}),
+      },
+    }),
   });
   const body: unknown = await response.json().catch(() => null);
   const audio: unknown = Reflect.get(Object(Reflect.get(Object(body), 'speech')), 'audio');
@@ -37,7 +44,8 @@ let playing: HTMLAudioElement | null = null;
 // Audio asked for ahead of time: the next part of a reading is fetched while this one plays, so parts
 // follow each other without a wait between them (the operator, 2026-11-23: "The voice is also choppy").
 const ahead = new Map<string, Promise<string>>();
-const aheadKey = (text: string, voice: CharacterVoice) => `${voice.server ?? ''}|${voice.rate}|${text}`;
+const aheadKey = (text: string, voice: CharacterVoice) =>
+  `${voice.server ?? ''}|${voice.speakerId ?? ''}|${voice.rate}|${text}`;
 
 /** Starts fetching `text`'s audio now, for a part that plays next. */
 export function prefetchSpeech(text: string, voice: CharacterVoice): void {

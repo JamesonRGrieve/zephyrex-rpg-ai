@@ -20,12 +20,13 @@ import {
   Loot,
   SceneList,
 } from '@zephyrex/vtt-play';
-import { type ReactElement, useMemo, useSyncExternalStore } from 'react';
+import { type ReactElement, useMemo, useState, useSyncExternalStore } from 'react';
 import useSWR from 'swr';
 import { useClient } from 'zephyrex';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from 'zephyrex/ui/accordion';
 import { Button } from 'zephyrex/ui/button';
-import type { LucideIcon } from 'lucide-react';
+import { PersonVoice } from './PersonVoice';
+import { type LucideIcon, Volume2 } from 'lucide-react';
 import { type Presence, presentCast } from '~/features/chat/turnDecision';
 
 export interface PanelMember {
@@ -95,12 +96,38 @@ function BuilderStep({ personId }: { personId: string }): ReactElement | null {
   );
 }
 
-function Member({ member, note }: { member: PanelMember; note?: string | null }): ReactElement {
+function Member({
+  member,
+  note,
+  voiced = false,
+}: {
+  member: PanelMember;
+  note?: string | null;
+  /** A campaign's person: their voice can be picked here. */
+  voiced?: boolean;
+}): ReactElement {
+  const [voicing, setVoicing] = useState(false);
   return (
     <li className='rounded-md border px-3 py-2'>
-      <span className='block font-medium'>{member.name}</span>
+      <div className='flex items-start justify-between gap-2'>
+        <span className='block font-medium'>{member.name}</span>
+        {voiced && (
+          <Button
+            type='button'
+            variant='ghost'
+            size='icon'
+            className='size-11 shrink-0'
+            aria-label={`${member.name}'s voice`}
+            aria-expanded={voicing}
+            onClick={() => setVoicing((now) => !now)}
+          >
+            <Volume2 aria-hidden className='size-4' />
+          </Button>
+        )}
+      </div>
       {note ? <span className='block text-xs text-muted-foreground'>Last seen: {note}</span> : null}
       {member.line !== '' && <span className='line-clamp-2 block text-xs text-muted-foreground'>{member.line}</span>}
+      {voicing && <PersonVoice personId={member.id} />}
     </li>
   );
 }
@@ -225,7 +252,7 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
             <AccordionContent>
               <ul className='grid gap-2'>
                 {here.map((member) => (
-                  <Member key={member.id} member={member} />
+                  <Member key={member.id} member={member} voiced={campaignId !== null} />
                 ))}
               </ul>
             </AccordionContent>
@@ -235,7 +262,7 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
             <AccordionContent>
               <ul className='grid gap-2'>
                 {away.map(({ member, place }) => (
-                  <Member key={member.id} member={member} note={place ?? 'unknown'} />
+                  <Member key={member.id} member={member} note={place ?? 'unknown'} voiced={campaignId !== null} />
                 ))}
               </ul>
             </AccordionContent>
