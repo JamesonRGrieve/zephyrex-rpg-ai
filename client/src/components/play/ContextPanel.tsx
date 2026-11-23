@@ -241,7 +241,9 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
       const found = Reflect.get(Object(answer), 'scene') ?? Reflect.get(Object(answer), 'current') ?? answer;
       const sceneId = Reflect.get(Object(found), 'id');
       if (typeof sceneId !== 'string') return null;
-      const page = await client.get('/v1/scene_token', { scene_id: sceneId, limit: '200' });
+      // The scene's own read (membership checked), which sees every token: a character moved between scenes
+      // has a token the system made, which a list of one's own rows misses (VTT, 2026-11-23).
+      const page = await client.get(`/v1/scene/${sceneId}/tokens`);
       const rows = Reflect.get(Object(page), 'scene_tokens');
       return (Array.isArray(rows) ? rows : []).flatMap((row) => {
         const person = Reflect.get(Object(row), 'person_id');

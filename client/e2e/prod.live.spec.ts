@@ -106,7 +106,7 @@ async function presence(page: Page, chatId: string): Promise<{ onScene: string[]
       id: string;
     } | null;
     const tokens = scene
-      ? (((await call('GET', `scene_token?scene_id=${scene.id}&limit=200`)).scene_tokens ?? []) as {
+      ? (((await call('GET', `scene/${scene.id}/tokens`)).scene_tokens ?? []) as {
           person_id: string | null;
         }[])
       : [];

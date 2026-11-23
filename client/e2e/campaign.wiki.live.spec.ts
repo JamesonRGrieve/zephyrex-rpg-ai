@@ -239,11 +239,7 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   await page.getByRole('button', { name: 'Context', exact: true }).click();
   await expect(page.getByRole('list', { name: 'Here' })).not.toContainText('Chief Petty Officer Rask', { timeout: 30_000 });
   // His token is on the scene he was moved to.
-  const there = await api<{ scene_tokens: { person_id: string | null }[] }>(
-    page,
-    'GET',
-    `scene_token?scene_id=${shaft.id}&limit=50`,
-  );
+  const there = await api<{ scene_tokens: { person_id: string | null }[] }>(page, 'GET', `scene/${shaft.id}/tokens`);
   expect(there.scene_tokens.map((one) => one.person_id)).toContain(rask?.id ?? '');
   record('The GM moves Rask to another scene', [
     { speaker: 'map', text: 'Here, then on The Vent Shaft and no longer here' },
