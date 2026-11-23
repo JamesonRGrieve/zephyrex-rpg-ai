@@ -252,9 +252,17 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
   );
   const tokens =
     sceneTokens.data !== undefined && sceneTokens.data !== null && sceneTokens.data.length > 0 ? sceneTokens.data : null;
+  // Anyone with a token on the scene is here, the campaign's NPCs too, not only the chat's cast.
+  const people = useMemo(() => {
+    const known = new Set(cast.map((member) => member.id));
+    const onScene = (entities.data ?? []).filter(
+      (one) => one.kind === 'person' && !known.has(one.id) && (tokens ?? []).includes(one.id),
+    );
+    return [...cast, ...onScene.map((one) => ({ id: one.id, name: one.name, line: '' }))];
+  }, [cast, entities.data, tokens]);
   const { here, away } = useMemo(
-    () => whereabouts(cast, seatId, entities.data ?? [], recent, tokens),
-    [cast, seatId, entities.data, recent, tokens],
+    () => whereabouts(people, seatId, entities.data ?? [], recent, tokens),
+    [people, seatId, entities.data, recent, tokens],
   );
   const sheetFor = seatId ?? cast[0]?.id ?? null;
   return (

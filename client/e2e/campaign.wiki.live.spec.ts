@@ -217,7 +217,7 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   const rask = people.persons.find((one) => one.name === 'Chief Petty Officer Rask');
   expect(rask, "Rask is the playthrough's person").toBeDefined();
   await post(page, 'scene_token', { scene_id: sceneId, person_id: rask?.id ?? '', name: 'Chief Petty Officer Rask' });
-  await post(page, 'scene', { name: 'The Vent Shaft', campaign_id: campaignId });
+  const shaft = await post(page, 'scene', { name: 'The Vent Shaft', campaign_id: campaignId });
   await page.reload();
   await page.getByRole('button', { name: 'Context', exact: true }).click();
   await expect(page.getByRole('list', { name: 'Here' })).toContainText('Chief Petty Officer Rask', { timeout: 30_000 });
@@ -238,9 +238,16 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
     .click();
   await page.getByRole('button', { name: 'Context', exact: true }).click();
   await expect(page.getByRole('list', { name: 'Here' })).not.toContainText('Chief Petty Officer Rask', { timeout: 30_000 });
-  await page.getByRole('button', { name: /^Elsewhere/ }).click();
-  await expect(page.getByRole('list', { name: 'Elsewhere' })).toContainText('Chief Petty Officer Rask');
-  record('The GM moves Rask to another scene', [{ speaker: 'map', text: 'Here, then Elsewhere after the move' }]);
+  // His token is on the scene he was moved to.
+  const there = await api<{ scene_tokens: { person_id: string | null }[] }>(
+    page,
+    'GET',
+    `scene_token?scene_id=${shaft.id}&limit=50`,
+  );
+  expect(there.scene_tokens.map((one) => one.person_id)).toContain(rask?.id ?? '');
+  record('The GM moves Rask to another scene', [
+    { speaker: 'map', text: 'Here, then on The Vent Shaft and no longer here' },
+  ]);
   await page.keyboard.press('Escape');
 
   // The X-card is on the message, with an optional reason (the operator, 2026-11-23); it can be put back.
