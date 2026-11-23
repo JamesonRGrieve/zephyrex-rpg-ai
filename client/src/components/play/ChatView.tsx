@@ -141,6 +141,7 @@ import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
 import { SeatSwitch } from './SeatPicker';
+import { EntityLinksProvider, type LinkedEntity } from './EntityLinks';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
 import type { GroupSettings } from '~/features/chat/groupSettings';
@@ -400,6 +401,27 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     .filter((one) => one.id !== play.playingId)
     .map((one) => ({ id: one.id, name: one.name, line: one.folder }));
   const everyName = (cast.data ?? []).map((one) => one.name);
+  // The campaign's people, places and items, for names as links into the drawer (shares the Context
+  // panel's read).
+  const worldList = useSWR(chat.campaign_id ? ['rpg-ai', 'panel-entities', chat.campaign_id] : null, async () => {
+    const page = await client.get('/v1/world_entity', { campaign_id: chat.campaign_id ?? '', limit: '200' });
+    const rows = Reflect.get(Object(page), 'world_entities');
+    return Array.isArray(rows) ? rows : [];
+  });
+  const linkable = useMemo(
+    () =>
+      (worldList.data ?? []).flatMap((row): LinkedEntity[] => {
+        const id = Reflect.get(Object(row), 'id');
+        const name = Reflect.get(Object(row), 'name');
+        const kind = Reflect.get(Object(row), 'kind');
+        return typeof id === 'string' &&
+          typeof name === 'string' &&
+          (kind === 'person' || kind === 'location' || kind === 'item')
+          ? [{ id, name, kind }]
+          : [];
+      }),
+    [worldList.data],
+  );
   // Each member's talkativeness (gap 7): with no one named, who speaks up next in a group.
   const castTalk = new Map(chat.character_ids.map((id) => [id, talkativenessOf(castById.get(id)?.extensions)]));
   // A group's turn order and allow-self (audit gap 6).
@@ -2005,207 +2027,212 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           </div>
         )}
         {view === 'map' && <MapView campaignId={chat.campaign_id ?? null} gm={chat.seat === 'gm'} />}
-        <ol
-          className={cn(
-            'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
-            view === 'map' && 'hidden',
-            TEXT_SIZE_CLASS[settings.textSize],
-            settings.chatLayout === 'document' && 'gap-3 font-serif',
-            background !== null && 'bg-background pt-3',
-          )}
-          aria-label='Chat'
-          aria-live='polite'
-        >
-          {list.data === undefined && <SkeletonRows rows={4} avatar />}
-          {list.data !== undefined && views.length === 0 && writingAfter === null && !hidden.pending && (
-            <li className='rounded-xl border border-dashed p-6 text-center text-muted-foreground'>
-              Say something to begin.
-            </li>
-          )}
-          {views.map((view) => {
-            const message = byId(view.id);
-            if (message === undefined) return null;
-            // Display-only regex scripts (A33) change how a message looks here, never what is saved.
-            const placement: RegexPlacement | null =
-              message.role === 'user' ? 'user_input' : message.role === 'character' ? 'ai_output' : null;
-            const depth = branch.length - 1 - branch.findIndex((one) => one.id === message.id);
-            const regexed =
-              placement === null ? view : { ...view, text: applyRegex(view.text, scripts, placement, 'display', depth) };
-            // A note the table GM proposes (A11) is shown apart, for a player to add; the answer without it.
-            const proposal = message.channel === 'gm' && message.role === 'narrator' ? proposedNote(regexed.text) : null;
-            const shown = proposal === null ? regexed : { ...regexed, text: proposal.rest };
-            return (
-              <li key={view.id}>
-                <MessageItem
-                  layout={settings.chatLayout}
-                  names={everyName}
-                  message={shown}
-                  cost={replyCost.get(message.id)}
-                  proposal={
-                    proposal === null
-                      ? undefined
-                      : {
-                          label: TABLE.note_labels[proposal.note.kind],
-                          text: proposal.note.text,
-                          added: hasNote(chat.table_notes, proposal.note),
-                          onAdd: () => void addNote(proposal.note),
-                        }
-                  }
-                  onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
-                  onRegenerate={
-                    message.role === 'character' && !writing && roundStep === null
-                      ? () => void regenerate(message)
-                      : undefined
-                  }
-                  onRegenerateWith={
-                    message.role === 'character' && !writing && modelList.length > 1
-                      ? {
-                          models: modelList.map((one) => ({ id: one.id, name: one.name })),
-                          run: (endpointId) => void regenerate(message, endpointId),
-                        }
-                      : undefined
-                  }
-                  onFork={(step) => fork(message, step)}
-                  onEdit={(text) =>
-                    void update(message, {
-                      swipes: message.swipes.map((old, index) => (index === message.swipe_index ? text : old)),
-                    })
-                  }
-                  onEditFork={!writing && roundStep === null ? (text) => void editFork(message, text) : undefined}
-                  onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
-                  onMoveUp={
-                    message.parent_id !== null && onlyReply(message.parent_id) !== undefined && !writing
-                      ? () => void moveUp(message)
-                      : undefined
-                  }
-                  onMoveDown={(() => {
-                    const below = onlyReply(message.id);
-                    return below !== undefined && !writing ? () => void moveUp(below) : undefined;
-                  })()}
-                  onBranch={() => {
-                    setLeafId(message.id);
-                    notify(
-                      play.isCampaign ? 'Rewound to here' : 'Branching from here',
-                      play.isCampaign
-                        ? 'The story goes on from this line; what came after stays as a branch.'
-                        : 'Your next message starts a new branch.',
-                    );
-                  }}
-                  branchLabel={play.isCampaign ? 'Rewind to here' : undefined}
-                  onForkCampaign={
-                    play.isCampaign
-                      ? () =>
-                          void play
-                            .fork(message, branch)
-                            .then((id) => {
-                              if (id !== null) {
-                                notify('Forked', 'A new campaign goes on from that line.');
-                                router.push(`/play/${id}`);
-                              }
-                            })
-                            .catch((error: unknown) =>
-                              notify('The campaign was not forked', error instanceof Error ? error.message : String(error)),
-                            )
-                      : undefined
-                  }
-                  onDelete={() => deleteMessage(message)}
-                  onXCard={(reason) => {
-                    void update(message, { x_carded: !message.x_carded });
-                    // A reason given is kept for the GM as a table note, so the story stays away from it.
-                    if (!message.x_carded && reason !== '')
-                      void addNote({ kind: 'tone', text: `X-card: keep away from ${reason}` });
-                  }}
-                  onHide={() => void update(message, { hidden: !message.hidden })}
-                  onContinue={
-                    message.role === 'character' && message.id === leaf && !writing
-                      ? () => void continueMessage(message)
-                      : undefined
-                  }
-                  onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
-                  onSpeakFrom={canSpeak ? () => readThrough(message.id) : undefined}
-                  translation={translationOf(message.id)}
-                  canon={canonNotices.get(message.id)}
-                  revision={message.revision ?? null}
-                  labels={readLabels(Reflect.get(message, 'line_labels'))}
-                />
+        <EntityLinksProvider campaignId={chat.campaign_id ?? null} entities={linkable}>
+          <ol
+            className={cn(
+              'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
+              view === 'map' && 'hidden',
+              TEXT_SIZE_CLASS[settings.textSize],
+              settings.chatLayout === 'document' && 'gap-3 font-serif',
+              background !== null && 'bg-background pt-3',
+            )}
+            aria-label='Chat'
+            aria-live='polite'
+          >
+            {list.data === undefined && <SkeletonRows rows={4} avatar />}
+            {list.data !== undefined && views.length === 0 && writingAfter === null && !hidden.pending && (
+              <li className='rounded-xl border border-dashed p-6 text-center text-muted-foreground'>
+                Say something to begin.
               </li>
-            );
-          })}
-          {writingAfter !== null && (
-            // The narrator's stream splits as it comes (the operator, 2026-11-21: "As soon as the model
-            // types the character's name it should transition to them typing"): each part shows under
-            // whoever it belongs to, the last one writing.
-            <>
-              {streamParts.map((part, index) => {
-                const member = part.speaker_id === null ? null : castById.get(part.speaker_id);
-                const last = index === streamParts.length - 1;
-                return (
-                  // Stream parts have no identity beyond their place in the stream.
-                  <li key={index}>
-                    <MessageItem
-                      layout={settings.chatLayout}
-                      names={everyName}
-                      writing={last}
-                      message={{
-                        id: `writing-${index}`,
-                        role:
-                          member == null && part.name === undefined
-                            ? writingAfter?.speakerId === NARRATOR_TURN
-                              ? 'narrator'
-                              : 'character'
-                            : 'character',
-                        channel: 'ic',
-                        speaker:
-                          member?.name ??
-                          part.name ??
-                          pending?.name ??
-                          (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
-                        avatar:
-                          member?.avatar ?? (member == null && part.name === undefined ? (pending?.avatar ?? null) : null),
-                        text: part.text,
-                        swipe: { index: 0, count: 1 },
-                        fork: { index: 0, count: 1 },
-                        bookmarked: false,
-                        images: [],
+            )}
+            {views.map((view) => {
+              const message = byId(view.id);
+              if (message === undefined) return null;
+              // Display-only regex scripts (A33) change how a message looks here, never what is saved.
+              const placement: RegexPlacement | null =
+                message.role === 'user' ? 'user_input' : message.role === 'character' ? 'ai_output' : null;
+              const depth = branch.length - 1 - branch.findIndex((one) => one.id === message.id);
+              const regexed =
+                placement === null ? view : { ...view, text: applyRegex(view.text, scripts, placement, 'display', depth) };
+              // A note the table GM proposes (A11) is shown apart, for a player to add; the answer without it.
+              const proposal = message.channel === 'gm' && message.role === 'narrator' ? proposedNote(regexed.text) : null;
+              const shown = proposal === null ? regexed : { ...regexed, text: proposal.rest };
+              return (
+                <li key={view.id}>
+                  <MessageItem
+                    layout={settings.chatLayout}
+                    names={everyName}
+                    message={shown}
+                    cost={replyCost.get(message.id)}
+                    proposal={
+                      proposal === null
+                        ? undefined
+                        : {
+                            label: TABLE.note_labels[proposal.note.kind],
+                            text: proposal.note.text,
+                            added: hasNote(chat.table_notes, proposal.note),
+                            onAdd: () => void addNote(proposal.note),
+                          }
+                    }
+                    onSwipe={(step) => void update(message, { swipe_index: message.swipe_index + step })}
+                    onRegenerate={
+                      message.role === 'character' && !writing && roundStep === null
+                        ? () => void regenerate(message)
+                        : undefined
+                    }
+                    onRegenerateWith={
+                      message.role === 'character' && !writing && modelList.length > 1
+                        ? {
+                            models: modelList.map((one) => ({ id: one.id, name: one.name })),
+                            run: (endpointId) => void regenerate(message, endpointId),
+                          }
+                        : undefined
+                    }
+                    onFork={(step) => fork(message, step)}
+                    onEdit={(text) =>
+                      void update(message, {
+                        swipes: message.swipes.map((old, index) => (index === message.swipe_index ? text : old)),
+                      })
+                    }
+                    onEditFork={!writing && roundStep === null ? (text) => void editFork(message, text) : undefined}
+                    onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
+                    onMoveUp={
+                      message.parent_id !== null && onlyReply(message.parent_id) !== undefined && !writing
+                        ? () => void moveUp(message)
+                        : undefined
+                    }
+                    onMoveDown={(() => {
+                      const below = onlyReply(message.id);
+                      return below !== undefined && !writing ? () => void moveUp(below) : undefined;
+                    })()}
+                    onBranch={() => {
+                      setLeafId(message.id);
+                      notify(
+                        play.isCampaign ? 'Rewound to here' : 'Branching from here',
+                        play.isCampaign
+                          ? 'The story goes on from this line; what came after stays as a branch.'
+                          : 'Your next message starts a new branch.',
+                      );
+                    }}
+                    branchLabel={play.isCampaign ? 'Rewind to here' : undefined}
+                    onForkCampaign={
+                      play.isCampaign
+                        ? () =>
+                            void play
+                              .fork(message, branch)
+                              .then((id) => {
+                                if (id !== null) {
+                                  notify('Forked', 'A new campaign goes on from that line.');
+                                  router.push(`/play/${id}`);
+                                }
+                              })
+                              .catch((error: unknown) =>
+                                notify(
+                                  'The campaign was not forked',
+                                  error instanceof Error ? error.message : String(error),
+                                ),
+                              )
+                        : undefined
+                    }
+                    onDelete={() => deleteMessage(message)}
+                    onXCard={(reason) => {
+                      void update(message, { x_carded: !message.x_carded });
+                      // A reason given is kept for the GM as a table note, so the story stays away from it.
+                      if (!message.x_carded && reason !== '')
+                        void addNote({ kind: 'tone', text: `X-card: keep away from ${reason}` });
+                    }}
+                    onHide={() => void update(message, { hidden: !message.hidden })}
+                    onContinue={
+                      message.role === 'character' && message.id === leaf && !writing
+                        ? () => void continueMessage(message)
+                        : undefined
+                    }
+                    onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
+                    onSpeakFrom={canSpeak ? () => readThrough(message.id) : undefined}
+                    translation={translationOf(message.id)}
+                    canon={canonNotices.get(message.id)}
+                    revision={message.revision ?? null}
+                    labels={readLabels(Reflect.get(message, 'line_labels'))}
+                  />
+                </li>
+              );
+            })}
+            {writingAfter !== null && (
+              // The narrator's stream splits as it comes (the operator, 2026-11-21: "As soon as the model
+              // types the character's name it should transition to them typing"): each part shows under
+              // whoever it belongs to, the last one writing.
+              <>
+                {streamParts.map((part, index) => {
+                  const member = part.speaker_id === null ? null : castById.get(part.speaker_id);
+                  const last = index === streamParts.length - 1;
+                  return (
+                    // Stream parts have no identity beyond their place in the stream.
+                    <li key={index}>
+                      <MessageItem
+                        layout={settings.chatLayout}
+                        names={everyName}
+                        writing={last}
+                        message={{
+                          id: `writing-${index}`,
+                          role:
+                            member == null && part.name === undefined
+                              ? writingAfter?.speakerId === NARRATOR_TURN
+                                ? 'narrator'
+                                : 'character'
+                              : 'character',
+                          channel: 'ic',
+                          speaker:
+                            member?.name ??
+                            part.name ??
+                            pending?.name ??
+                            (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
+                          avatar:
+                            member?.avatar ?? (member == null && part.name === undefined ? (pending?.avatar ?? null) : null),
+                          text: part.text,
+                          swipe: { index: 0, count: 1 },
+                          fork: { index: 0, count: 1 },
+                          bookmarked: false,
+                          images: [],
+                        }}
+                      />
+                    </li>
+                  );
+                })}
+              </>
+            )}
+            {roundStep !== null && authoring === null && !writing && (
+              <li>
+                <p role='status' className='flex items-center gap-2 px-1 text-sm text-muted-foreground'>
+                  <LoaderCircle aria-hidden className='size-4 animate-spin' /> {roundStep}…
+                </p>
+              </li>
+            )}
+            {authoring !== null && (
+              // The GM authoring an NPC the story needs, before the round goes on.
+              <li>
+                <div role='status' className='grid gap-2 rounded-lg border border-dashed px-3 py-3 text-sm'>
+                  <span className='font-medium'>Authoring new NPC ({authoring.name})</span>
+                  <div
+                    role='progressbar'
+                    aria-label={`Authoring ${authoring.name}`}
+                    aria-valuemin={0}
+                    aria-valuemax={Math.max(1, authoring.step.total)}
+                    aria-valuenow={authoring.step.done}
+                    className='h-2 overflow-hidden rounded-full bg-muted'
+                  >
+                    <div
+                      className='h-full rounded-full bg-primary transition-[width] duration-500'
+                      style={{
+                        width: `${Math.max(8, Math.round((authoring.step.done / Math.max(1, authoring.step.total)) * 100))}%`,
                       }}
                     />
-                  </li>
-                );
-              })}
-            </>
-          )}
-          {roundStep !== null && authoring === null && !writing && (
-            <li>
-              <p role='status' className='flex items-center gap-2 px-1 text-sm text-muted-foreground'>
-                <LoaderCircle aria-hidden className='size-4 animate-spin' /> {roundStep}…
-              </p>
-            </li>
-          )}
-          {authoring !== null && (
-            // The GM authoring an NPC the story needs, before the round goes on.
-            <li>
-              <div role='status' className='grid gap-2 rounded-lg border border-dashed px-3 py-3 text-sm'>
-                <span className='font-medium'>Authoring new NPC ({authoring.name})</span>
-                <div
-                  role='progressbar'
-                  aria-label={`Authoring ${authoring.name}`}
-                  aria-valuemin={0}
-                  aria-valuemax={Math.max(1, authoring.step.total)}
-                  aria-valuenow={authoring.step.done}
-                  className='h-2 overflow-hidden rounded-full bg-muted'
-                >
-                  <div
-                    className='h-full rounded-full bg-primary transition-[width] duration-500'
-                    style={{
-                      width: `${Math.max(8, Math.round((authoring.step.done / Math.max(1, authoring.step.total)) * 100))}%`,
-                    }}
-                  />
+                  </div>
+                  <span className='text-xs text-muted-foreground'>{authoring.step.label}…</span>
                 </div>
-                <span className='text-xs text-muted-foreground'>{authoring.step.label}…</span>
-              </div>
-            </li>
-          )}
-        </ol>
+              </li>
+            )}
+          </ol>
+        </EntityLinksProvider>
         <div ref={end} />
         {speaking !== null && (
           // While anything is read aloud, a way to stop it.

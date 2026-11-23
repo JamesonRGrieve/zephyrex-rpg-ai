@@ -10,6 +10,7 @@
  */
 import { type ReplyStats, statsLabel } from '~/features/chat/replyStats';
 import { type Revision, RevisionButton } from './RevisionButton';
+import { Linked } from './EntityLinks';
 import { type LineLabel, labelledLines } from '~/features/chat/labelLines';
 import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
 import {
@@ -220,10 +221,12 @@ export function Coloured({ text }: { text: string }): ReactElement {
       {colourSpans(text).map((span, index) =>
         // Spans have no identity beyond their place in the text.
         span.colour === null ? (
-          <span key={index}>{span.text}</span>
+          <span key={index}>
+            <Linked text={span.text} />
+          </span>
         ) : (
           <span key={index} className={COLOURS[span.colour]}>
-            {span.text}
+            <Linked text={span.text} />
           </span>
         ),
       )}

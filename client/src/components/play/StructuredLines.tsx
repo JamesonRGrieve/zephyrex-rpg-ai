@@ -55,6 +55,7 @@ import {
 import { type ActionKind, actionKind } from '~/features/chat/actionKind';
 import type { ReactElement } from 'react';
 import { cn } from '~/lib/utils';
+import { Linked } from './EntityLinks';
 
 export type Manner = 'speak' | 'whisper' | 'shout' | 'vox' | 'voxcast';
 export type ShownLine =
@@ -193,7 +194,7 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
                 </figcaption>
               )}
               <blockquote className={cn('relative mb-1.5 [overflow-wrap:anywhere]', BUBBLE[line.manner])}>
-                {line.text}
+                <Linked text={line.text} />
                 <span aria-hidden className={cn('absolute -bottom-[7px] left-4 size-3 rotate-45', TAIL[line.manner])} />
               </blockquote>
             </figure>
@@ -208,7 +209,9 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
               <ActionIcon kind={line.icon ?? actionKind(line.text)} />
               <span>
                 {other && <span className='font-medium'>{line.speaker} </span>}
-                <span className='italic'>{other ? line.text : capitalised(line.text)}</span>
+                <span className='italic'>
+                  <Linked text={other ? line.text : capitalised(line.text)} />
+                </span>
                 {line.target !== null && <span className='ml-1 text-xs text-muted-foreground'>→ {line.target}</span>}
               </span>
             </p>
@@ -216,7 +219,7 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
         }
         return (
           <p key={key} className='[overflow-wrap:anywhere]'>
-            {line.text}
+            <Linked text={line.text} />
           </p>
         );
       })}
