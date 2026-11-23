@@ -448,6 +448,18 @@ export function MessageItem({
                 // The decision model's labels, once the message has them; the reader's guess until then.
                 // The model's thinking, folded under the line (the operator, 2026-11-22: "Just put thinking in
                 // a collapsible under narrator"); the lines read only what follows it.
+                // While it streams, the prose sits in a pending box; the lines are laid out once it's
+                // finished (the operator, 2026-11-23: "a pending indication UI bounding box… then finalized").
+                if (writing && message.text !== '')
+                  return (
+                    <div
+                      role='status'
+                      aria-label='Being written'
+                      className='rounded-md border border-dashed border-muted-foreground/40 px-3 py-2'
+                    >
+                      <StoryText text={message.text} writing />
+                    </div>
+                  );
                 const { reasoning, reply } = splitReasoning(message.text);
                 const structured =
                   labels !== null && labels !== undefined

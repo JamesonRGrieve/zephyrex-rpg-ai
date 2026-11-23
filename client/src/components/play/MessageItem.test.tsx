@@ -37,6 +37,13 @@ describe('MessageItem', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Add a model endpoint first');
   });
 
+  it('keeps a reply that is still being written in a pending box, its lines laid out once done', () => {
+    const { rerender } = render(<MessageItem message={ADA_REPLY} writing />);
+    expect(screen.getByRole('status', { name: 'Being written' })).toBeInTheDocument();
+    rerender(<MessageItem message={ADA_REPLY} />);
+    expect(screen.queryByRole('status', { name: 'Being written' })).not.toBeInTheDocument();
+  });
+
   it('flags a reply for review with an optional note, or marks it good', async () => {
     const send = vi.fn();
     render(<MessageItem message={ADA_REPLY} onFeedback={{ given: null, send }} />);
