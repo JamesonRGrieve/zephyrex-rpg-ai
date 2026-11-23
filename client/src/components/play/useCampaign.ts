@@ -22,6 +22,8 @@ import { type Chat, type ChatMessage, chatSchema, chats, messages } from '~/feat
 export interface CampaignState {
   /** Whether this chat is a campaign (else a sandbox chat). */
   isCampaign: boolean;
+  /** Whether the play state has been read yet. */
+  loaded: boolean;
   play: CampaignPlay | null;
   sessions: ChatSession[];
   /** The session the shown branch is in. */
@@ -64,10 +66,7 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
    * the version on between the read and the write, and the write is refused (412): read again and
    * re-apply, a few times. The change is computed from the fresh chat each time, so it is idempotent.
    */
-  const writeChat = async (
-    id: string,
-    change: (current: Chat) => Parameters<typeof updateChat>[1],
-  ): Promise<void> => {
+  const writeChat = async (id: string, change: (current: Chat) => Parameters<typeof updateChat>[1]): Promise<void> => {
     for (let attempt = 1; ; attempt += 1) {
       const current = await freshChat(id);
       try {
@@ -194,6 +193,8 @@ export function useCampaign(chat: Chat, branch: readonly ChatMessage[]): Campaig
 
   return {
     isCampaign: play !== null,
+    /** The play state has been read (a campaign chat's lines wait for it, so a line is never saved as no one's). */
+    loaded: plays.data !== undefined,
     play,
     sessions,
     current,

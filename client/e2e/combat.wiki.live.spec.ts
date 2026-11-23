@@ -36,8 +36,14 @@ test('a fight: the AI-run Guard takes its turn in the VTT order, its attack reso
   const system = systems.game_systems.find((one) => one.slug === 'srd-5e');
   expect(system, 'the srd-5e game system is seeded').toBeDefined();
   const systemId = system?.id ?? '';
-  const campaign = await post(page, 'campaign', { name: 'Ambush at the Ford (e2e)', game_system_id: systemId });
-  const brann = await post(page, 'person', { name: 'Brann', kind: 'pc', campaign_id: campaign.id });
+  // A scenario, started as people start one: its people and sheets are copied into the playthrough.
+  const scenario = await post(page, 'campaign', {
+    name: 'Ambush at the Ford (e2e)',
+    is_scenario: true,
+    game_system_id: systemId,
+    description: 'At the ford, a guard in a stained tabard levels his spear at Brann.',
+  });
+  const brann = await post(page, 'person', { name: 'Brann', kind: 'pc', campaign_id: scenario.id });
   for (const [slug, value] of [
     ['strength', 16],
     ['dexterity', 14],
@@ -50,36 +56,40 @@ test('a fight: the AI-run Guard takes its turn in the VTT order, its attack reso
     expect(trait, `the ${slug} trait`).not.toBe('');
     await post(page, 'person_trait', { person_id: brann.id, trait_id: trait, ...(value === null ? {} : { value }) });
   }
-  const holt = await post(page, 'person', { name: 'Holt', kind: 'npc', campaign_id: campaign.id });
+  const holt = await post(page, 'person', { name: 'Holt', kind: 'npc', campaign_id: scenario.id });
   await api(page, 'POST', 'builder/npc-sheet', { npc: { person_id: holt.id, role: 'guard' } });
 
-  const chat = await post(page, 'chat', {
-    title: 'Ambush at the Ford',
-    mode: 'group',
-    character_ids: [brann.id, holt.id],
-    campaign_id: campaign.id,
-    seat: 'player',
-    // As every campaign start sets it: the decision model runs the table.
-    group_settings: { order: 'decide' },
-  });
-  await post(page, 'campaign_play', { chat_id: chat.id, playing_id: brann.id });
-  await post(page, 'chat_message', {
-    chat_id: chat.id,
-    parent_id: null,
-    role: 'narrator',
-    channel: 'ic',
-    swipes: ['At the ford, a guard in a stained tabard levels his spear at Brann.'],
-  });
+  await page.goto('/campaigns');
+  await page.getByRole('button', { name: /^Start a campaign of Ambush at the Ford \(e2e\)/ }).click();
+  await page.getByRole('button', { name: 'Start the campaign' }).click();
+  await expect(page).toHaveURL(/\/play\/[\w-]+$/, { timeout: 60_000 });
+  const chatId = page.url().split('/').pop() ?? '';
+  // Brann's seat.
+  await page.getByRole('button', { name: /^Your seat:/ }).click();
+  await page.getByLabel('Find a character').fill('Brann');
+  await page.getByRole('list', { name: 'Seats' }).getByRole('button', { name: /Brann/ }).first().click();
+  await expect(page.getByRole('button', { name: 'Your seat: Brann' })).toBeVisible({ timeout: 30_000 });
 
-  const encounter = await post(page, 'encounter', { campaign_id: campaign.id, name: 'Ambush' });
-  for (const person of [brann, holt]) await post(page, 'combatant', { encounter_id: encounter.id, person_id: person.id });
+  // The fight, in the playthrough: its own Brann and Holt.
+  const playthrough = (await api<{ chat: { campaign_id: string } }>(page, 'GET', `chat/${chatId}`)).chat.campaign_id;
+  const people = await api<{ persons: { id: string; name: string }[] }>(
+    page,
+    'GET',
+    `person?campaign_id=${playthrough}&limit=50`,
+  );
+  const fighters = ['Brann', 'Holt'].map((name) => people.persons.find((one) => one.name === name)?.id ?? '');
+  expect(fighters).not.toContain('');
+  const encounter = await post(page, 'encounter', { campaign_id: playthrough, name: 'Ambush' });
+  for (const person of fighters) await post(page, 'combatant', { encounter_id: encounter.id, person_id: person });
   await api(page, 'POST', `encounter/${encounter.id}/initiative`, { roll: { reroll: false } });
   const started = await api<{ encounter: { status: string } }>(page, 'POST', `encounter/${encounter.id}/start`, {
     control: {},
   });
   expect(started.encounter.status).toBe('running');
 
-  await page.goto(`/play/${chat.id}`);
+  await page.reload();
+  // The campaign's state is read before the line goes (the seat shows once it is).
+  await expect(page.getByRole('button', { name: 'Your seat: Brann' })).toBeVisible({ timeout: 60_000 });
   await expect(page.getByRole('button', { name: 'Say', exact: true })).toBeVisible({ timeout: 60_000 });
   await page.getByRole('button', { name: 'Do', exact: true }).click();
   await page.getByLabel('What is done').last().fill('I raise my longsword and step toward the guard.');

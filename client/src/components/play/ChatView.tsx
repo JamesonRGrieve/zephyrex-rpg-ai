@@ -1771,6 +1771,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   };
 
   const send = async (text: string, channel: ComposerChannel, images: string[] = []) => {
+    // A campaign chat's line is its seat's: never sent before the play state is read, or it would be saved
+    // as no one's (the combat integration run, 2026-11-23: a line sent just after the page opened).
+    if (chat.campaign_id && !play.loaded) {
+      notify('One moment', 'The campaign is still loading; send again.');
+      return;
+    }
     if (channel === 'ic') {
       // A new round: the one under way stops, and what it still writes is dropped.
       roundRef.current += 1;
