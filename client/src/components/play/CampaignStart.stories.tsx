@@ -85,6 +85,26 @@ export const MakeYourOwn: Story = {
   },
 };
 
+/** Described: who they are, in the person's words; the builder's picks are made from it after the copy. */
+export const Described: Story = {
+  args: { mechanical: true },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await userEvent.click(canvas.getByRole('radio', { name: /A character/ }));
+    await userEvent.click(canvas.getByRole('button', { name: /Describe them/ }));
+    await userEvent.type(canvas.getByLabelText('Their name'), 'Pip');
+    await expect(canvas.getByRole('button', { name: 'Start the campaign' })).toBeDisabled();
+    await userEvent.type(canvas.getByLabelText('Who they are'), 'A sly halfling dock runner');
+    await userEvent.click(canvas.getByRole('button', { name: 'Start the campaign' }));
+    await expect(args.onStart).toHaveBeenCalledWith({
+      seat: 'player',
+      playing: null,
+      party: ['gus', 'az'],
+      make: { kind: 'described', name: 'Pip', concept: 'A sly halfling dock runner' },
+    });
+  },
+};
+
 export const Mechanical: Story = {
   args: { mechanical: true },
   play: async ({ canvasElement }) => {

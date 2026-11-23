@@ -20,6 +20,7 @@ import { createPortal } from 'react-dom';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
 import { Input } from 'zephyrex/ui/input';
+import { Textarea } from 'zephyrex/ui/textarea';
 import { LIMITS } from '~/contract';
 import { campaignPlays, chatSessions } from '~/features/data/playRecords';
 import { PARTY_TAG, personAsCast, useCast } from '~/features/data/cast';
@@ -101,8 +102,21 @@ export interface StartChoice {
    * character builder and a 'Freeform Character' that lets the character be developed during play
    * (narrative mode only)"): made in the playthrough at start and played; `playing` is then null.
    */
-  make?: { kind: 'new' | 'freeform'; name: string };
+  make?: { kind: MakeKind; name: string; concept?: string };
 }
+
+/**
+ * New: the character builder. Freeform: a name, filled in by play (narrative only). Described: the person
+ * says who they are, and the decision model makes the builder's picks from the builder's own options
+ * (the operator, 2026-11-23: "AI assisted character creation modes"); every pick can be changed after.
+ */
+export type MakeKind = 'new' | 'described' | 'freeform';
+
+const MAKE_KINDS: Record<MakeKind, { label: string; hint: string }> = {
+  new: { label: 'New character', hint: 'Built with the character builder' },
+  described: { label: 'Describe them', hint: 'Say who they are; the builder is filled in for you to change' },
+  freeform: { label: 'Freeform character', hint: 'Just a name; who they are grows in play' },
+};
 
 /** The choices: the seat, who the person plays, and the party. Data-free, so a story can drive it. */
 /** The steps of a start, in order (the operator, 2026-11-21: "A progress bar for the copy"). */
@@ -167,7 +181,7 @@ export function CampaignStartForm({
   const [playing, setPlaying] = useState<string | null>(null);
   const [party, setParty] = useState<string[] | null>(null);
   const [query, setQuery] = useState('');
-  const [make, setMake] = useState<{ kind: 'new' | 'freeform'; name: string } | null>(null);
+  const [make, setMake] = useState<{ kind: MakeKind; name: string; concept?: string } | null>(null);
   const playingId = seat === 'player' && make === null ? playing : null;
   const chosenParty = party ?? defaultParty(cast, playingId);
   const found = cast.filter((character) => character.name.toLowerCase().includes(query.trim().toLowerCase()));
@@ -177,7 +191,12 @@ export function CampaignStartForm({
         ? chosenParty.filter((one) => one !== id)
         : [...chosenParty, id].slice(0, LIMITS.characters_per_chat),
     );
-  const ready = seat === 'gm' ? chosenParty.length > 0 : make !== null ? make.name.trim() !== '' : playingId !== null;
+  const ready =
+    seat === 'gm'
+      ? chosenParty.length > 0
+      : make !== null
+        ? make.name.trim() !== '' && (make.kind !== 'described' || (make.concept ?? '').trim() !== '')
+        : playingId !== null;
   // Once it starts, the copy and the boot take the whole page (the operator, 2026-11-22: "The world
   // copying / boot up should take up the full page. Once you start that you shouldn't be editing
   // characters etc anyway").
@@ -226,8 +245,8 @@ export function CampaignStartForm({
               Who do you play?
             </h3>
             <div role='group' aria-label='Make your own' className='grid gap-2 sm:grid-cols-2'>
-              {(['new', 'freeform'] as const)
-                .filter((kind) => kind === 'new' || !mechanical)
+              {(['new', 'described', 'freeform'] as const)
+                .filter((kind) => kind !== 'freeform' || !mechanical)
                 .map((kind) => (
                   <button
                     key={kind}
@@ -243,10 +262,8 @@ export function CampaignStartForm({
                       make?.kind === kind && 'border-primary bg-primary/10',
                     )}
                   >
-                    <span className='block font-medium'>{kind === 'new' ? 'New character' : 'Freeform character'}</span>
-                    <span className='block text-xs text-muted-foreground'>
-                      {kind === 'new' ? 'Built with the character builder' : 'Just a name; who they are grows in play'}
-                    </span>
+                    <span className='block font-medium'>{MAKE_KINDS[kind].label}</span>
+                    <span className='block text-xs text-muted-foreground'>{MAKE_KINDS[kind].hint}</span>
                   </button>
                 ))}
             </div>
@@ -258,6 +275,16 @@ export function CampaignStartForm({
                 autoFocus
                 value={make.name}
                 onChange={(event) => setMake({ ...make, name: event.target.value })}
+              />
+            )}
+            {make?.kind === 'described' && (
+              <Textarea
+                aria-label='Who they are'
+                placeholder='Who they are: "a sly halfling who grew up running cargo on the docks, quick with a knife"'
+                rows={3}
+                maxLength={LIMITS.persona_description_characters}
+                value={make.concept ?? ''}
+                onChange={(event) => setMake({ ...make, concept: event.target.value })}
               />
             )}
             <Input
@@ -340,7 +367,15 @@ export function CampaignStartForm({
               seat,
               playing: playingId,
               party: chosenParty.filter((id) => id !== playingId),
-              ...(seat === 'player' && make !== null ? { make: { kind: make.kind, name: make.name.trim() } } : {}),
+              ...(seat === 'player' && make !== null
+                ? {
+                    make: {
+                      kind: make.kind,
+                      name: make.name.trim(),
+                      ...(make.kind === 'described' ? { concept: (make.concept ?? '').trim() } : {}),
+                    },
+                  }
+                : {}),
             })
           }
         >
@@ -529,9 +564,21 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
                 name: choice.make.name.slice(0, LIMITS.name_characters),
                 kind: 'pc',
                 campaign_id: world.id,
-                summary: choice.make.kind === 'freeform' ? 'A freeform character: who they are grows in play.' : '',
+                summary:
+                  choice.make.kind === 'freeform'
+                    ? 'A freeform character: who they are grows in play.'
+                    : (choice.make.concept ?? '').slice(0, LIMITS.persona_description_characters),
               } as Parameters<typeof createPerson>[0]),
             )));
+      if (made_person !== null && made.current.person === undefined && choice.make?.kind === 'described') {
+        // The builder's picks from who they are, by the decision model among the builder's options; a
+        // system without a builder, or no decision model, leaves the picks to the person.
+        await client
+          .post('/v1/ai_chat/builder_pick', {
+            builder_pick: { person_id: made_person.id, concept: choice.make.concept ?? '' },
+          })
+          .catch(() => undefined);
+      }
       if (made_person !== null) made.current.person = made_person;
       const playing = made_person?.id ?? remapped.playing;
       // The campaign's story is one chat: the party (and whoever the person starts as) are its cast.
