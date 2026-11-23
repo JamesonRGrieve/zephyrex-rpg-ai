@@ -271,7 +271,10 @@ const PLAY_VIEWS: readonly { id: PlayView; label: string; icon: typeof MessagesS
 
 function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const list = messages.useList({ chat_id: chat.id });
-  const cast = useCast();
+  // A campaign's cast is its own people, never every person in the wiki nor the old cards (the operator,
+  // 2026-11-23: in a D&D tavern the hooded woman's lines were credited to Ma Delvin, a Night Hag and a 40k
+  // Master of Ordnance, because unnamed dialogue was matched against ~1,100 people of every scenario).
+  const cast = useCast(chat.campaign_id ?? null, { cards: chat.campaign_id == null });
   const personaList = personas.useList();
   const presetList = presets.useList();
   const endpointList = endpoints.useList();
