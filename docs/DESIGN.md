@@ -466,6 +466,20 @@ _Decision models everywhere, in parallel_
 - **Volunteered VRAM** (separate product): a desktop utility that lets people lend their GPU to others
   for priority use in return. It authenticates to the server with their account, reports the system's
   capabilities, and receives jobs securely.
+  - _Shape (proposal):_ the utility signs in with the person's account (device-code flow, no password
+    stored), detects GPUs, VRAM, driver and runtime, benchmarks a reference decision model, and
+    advertises what it can serve (role, model, context, rate). It pulls jobs over an outbound
+    connection only (no inbound port on the volunteer's machine), runs them in a sandboxed local
+    model server, and returns results signed with its device key.
+  - _What it may run:_ only the decision and embedding roles at first: short, stateless prompts with
+    nothing private beyond the scene text. Story generation stays on the operator's tiers.
+  - _Priority:_ hours served earn queue priority for the volunteer's own turns; the ledger is the
+    server's, per account.
+  - _Trust:_ any answer outside the supplied options is refused (the decide protocol already does);
+    a sample of jobs is re-asked on the operator's tiers and a device that disagrees too often is
+    dropped.
+  - **Open, the operator's decisions:** which repo and product owns it; the job broker's placement;
+    the privacy line for scene text sent to volunteers; platforms first (Windows, Linux, macOS).
 
 _Rounds that survive anything_
 - **Fully asynchronous turns:** Send makes two requests. One posts the turn and returns at once (204);
