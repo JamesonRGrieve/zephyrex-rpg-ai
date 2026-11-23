@@ -90,6 +90,22 @@ export async function mapStep(chatId: string, leafId: string): Promise<MapChange
       };
 }
 
+/**
+ * The party put on the campaign's current scene (Parity's place_party: the seat's character, then the cast,
+ * through the VTT's place_person), so who is present is real from the first round. How many were placed and
+ * on which scene; null when it couldn't be done.
+ */
+export async function placeParty(chatId: string): Promise<{ placed: number; sceneId: string | null } | null> {
+  const answer = await step('place_party', 'place_party', { chat_id: chatId });
+  if (answer === null || typeof answer !== 'object') return null;
+  const placed = Reflect.get(answer, 'placed');
+  const sceneId = Reflect.get(answer, 'scene_id');
+  return {
+    placed: typeof placed === 'number' ? placed : Array.isArray(placed) ? placed.length : 0,
+    sceneId: typeof sceneId === 'string' ? sceneId : null,
+  };
+}
+
 /** The campaign's one-line status, rewritten from the story so far (for the campaign list). */
 export async function refreshStatusLine(chatId: string, leafId: string): Promise<void> {
   await step('status_line', 'status_line', { chat_id: chatId, leaf_id: leafId });

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { aimAt, mapStep } from './mapStep';
+import { aimAt, mapStep, placeParty } from './mapStep';
 
 describe('aimAt', () => {
   it("aims the person's untargeted actions; speech and aimed actions stay", () => {
@@ -70,5 +70,25 @@ describe('mapStep', () => {
   it('is nothing when no one moved and the scene stayed', async () => {
     answer({ moves: [], seat_moved: false, scene_changed: false, seat_location: { id: 'l1', name: 'Here', chain: [] } });
     expect(await mapStep('c1', 'm1')).toBeNull();
+  });
+});
+
+describe('placeParty', () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it('reads how many were placed and on which scene', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ place_party: { placed: 3, scene_id: 's1' } }), { status: 200 })),
+    );
+    expect(await placeParty('c1')).toEqual({ placed: 3, sceneId: 's1' });
+  });
+
+  it('is null when the server could not place them', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('{}', { status: 404 })),
+    );
+    expect(await placeParty('c1')).toBeNull();
   });
 });

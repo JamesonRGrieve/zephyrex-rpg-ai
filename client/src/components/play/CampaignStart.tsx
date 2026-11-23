@@ -27,6 +27,7 @@ import { PARTY_TAG, personAsCast, useCast } from '~/features/data/cast';
 import useSWR from 'swr';
 import { type OpeningEntity, openingFor } from '~/features/campaign/opening';
 import { startPlace } from '~/features/campaign/startPlace';
+import { placeParty } from '~/features/chat/mapStep';
 import { openingLine } from '~/features/data/framing';
 import { type Character, type Chat, type ChatMessage, chats, messages } from '~/features/data/records';
 import { cn } from '~/lib/utils';
@@ -618,6 +619,9 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       made.current.opening = opening;
       setStep(3);
       await stalls(createPlay({ chat_id: chat.id, playing_id: playing }));
+      // The party on the scene's map from the start, so who is present (who may speak) is real in round one.
+      if ((await placeParty(chat.id)) === null)
+        notify('The party is not on the map yet', 'Place their tokens from the Map before play.');
       await stalls(createSession({ chat_id: chat.id, number: 1, start_message_id: opening.id }));
       made.current = {};
       // Open the session first, then close the sheet: never a closed sheet onto nothing (the
