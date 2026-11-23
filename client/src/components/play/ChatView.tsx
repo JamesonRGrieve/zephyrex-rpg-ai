@@ -141,7 +141,6 @@ import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
 import { SeatSwitch } from './SeatPicker';
-import { useCapabilities } from '~/features/capabilities';
 import { EntityLinksProvider, type LinkedEntity } from './EntityLinks';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -409,13 +408,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const rows = Reflect.get(Object(page), 'world_entities');
     return Array.isArray(rows) ? rows : [];
   });
-  // Feedback on messages for manual review, when the server keeps it (ai_feedback).
-  const feedbackOn = useCapabilities().feedback;
-  const feedbackList = useSWR(feedbackOn ? ['rpg-ai', 'message-feedback', chat.id] : null, async () => {
-    const page = await client.get('/v1/message_feedback', { chat_id: chat.id });
-    const rows = Reflect.get(Object(page), 'message_feedback');
-    return Array.isArray(rows) ? rows : [];
-  });
+  // Feedback on messages for manual review (ai_chat's message_feedback): offered once its read answers.
+  const feedbackList = useSWR(
+    ['rpg-ai', 'message-feedback', chat.id],
+    async () => {
+      const page = await client.get('/v1/message_feedback', { chat_id: chat.id });
+      const rows = Reflect.get(Object(page), 'message_feedback');
+      return Array.isArray(rows) ? rows : [];
+    },
+    { shouldRetryOnError: false },
+  );
   const feedbackGiven = useMemo(() => {
     const given = new Map<string, 'good' | 'bad'>();
     for (const row of feedbackList.data ?? []) {
@@ -425,9 +427,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
     return given;
   }, [feedbackList.data]);
-  const sendFeedback = async (messageId: string, verdict: 'good' | 'bad', note: string) => {
+  const feedbackOn = feedbackList.data !== undefined && feedbackList.error === undefined;
+  const sendFeedback = async (messageId: string, verdict: 'good' | 'bad', reason: string, note: string) => {
     try {
-      await client.post('/v1/message_feedback', { message_id: messageId, verdict, ...(note === '' ? {} : { note }) });
+      await client.post('/v1/message_feedback', {
+        message_feedback: {
+          message_id: messageId,
+          verdict,
+          ...(reason === '' ? {} : { reason }),
+          ...(note === '' ? {} : { note }),
+        },
+      });
       notify(verdict === 'bad' ? 'Flagged for review' : 'Marked good');
       void feedbackList.mutate();
     } catch (error) {
@@ -2179,7 +2189,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       feedbackOn && message.role !== 'user'
                         ? {
                             given: feedbackGiven.get(message.id) ?? null,
-                            send: (verdict, note) => void sendFeedback(message.id, verdict, note),
+                            send: (verdict, reason, note) => void sendFeedback(message.id, verdict, reason, note),
                           }
                         : undefined
                     }

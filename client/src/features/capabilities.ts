@@ -27,8 +27,6 @@ export interface Capabilities {
   world: boolean;
   /** The table (zephyrex-vtt's extensions). */
   table: boolean;
-  /** Feedback on a message for manual review, its context kept by the server (the operator, 2026-11-23). */
-  feedback: boolean;
 }
 
 export function capabilitiesOf(names: ReadonlySet<string>, loaded: boolean): Capabilities {
@@ -41,7 +39,6 @@ export function capabilitiesOf(names: ReadonlySet<string>, loaded: boolean): Cap
     accounts: names.has('auth_session'),
     world: names.has('rpg_log') || names.has('world_narrative'),
     table: names.has('rpg_state') || names.has('rpg_scene'),
-    feedback: names.has('ai_feedback'),
   };
 }
 

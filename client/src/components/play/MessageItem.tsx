@@ -101,7 +101,7 @@ export interface MessageActions {
    * Feedback for manual review (the operator, 2026-11-23: "per message feedback… the context behind every
    * instance of stupidity"): the server keeps the message's whole context with it.
    */
-  onFeedback?: { given: 'good' | 'bad' | null; send: (verdict: 'good' | 'bad', note: string) => void };
+  onFeedback?: { given: 'good' | 'bad' | null; send: (verdict: 'good' | 'bad', reason: string, note: string) => void };
   /** The X-card on this message, with an optional reason (the operator, 2026-11-23). */
   onXCard?: (reason: string) => void;
   /** Hides the message from the model, or shows it to the model again (gap 10). */
@@ -222,6 +222,18 @@ const COLOURS: Record<Colour, string> = {
 };
 
 /** Text with the narrator's palette colours (features/chat/markup.ts). */
+/** Common ways a reply goes wrong, to sort flagged replies in review; the note says the rest. */
+const FLAG_REASONS = [
+  'Wrong speaker',
+  'Spoke or acted for my character',
+  'Out of character or as an assistant',
+  'Invented a roll or a rule',
+  'Ignored what I did',
+  'Contradicts the story or the world',
+  'Repetitive or rambling',
+  'Other',
+] as const;
+
 export function Coloured({ text }: { text: string }): ReactElement {
   return (
     <>
@@ -356,6 +368,7 @@ export function MessageItem({
   const [carding, setCarding] = useState<string | null>(null);
   // The note for a flagged reply, while its box is open.
   const [flagging, setFlagging] = useState<string | null>(null);
+  const [flagReason, setFlagReason] = useState('');
   const editId = useId();
   const label = CHANNEL_LABEL[message.channel];
   const tableTalk = message.channel === 'ooc' || message.channel === 'gm';
@@ -550,10 +563,27 @@ export function MessageItem({
             className='mt-2 grid gap-2 rounded-md border p-3'
             onSubmit={(event) => {
               event.preventDefault();
-              actions.onFeedback?.send('bad', flagging.trim());
+              actions.onFeedback?.send('bad', flagReason, flagging.trim());
               setFlagging(null);
+              setFlagReason('');
             }}
           >
+            <label htmlFor={`${editId}-reason`} className='text-sm font-medium'>
+              Reason
+            </label>
+            <select
+              id={`${editId}-reason`}
+              className='h-11 rounded-md border bg-background px-2 text-sm'
+              value={flagReason}
+              onChange={(event) => setFlagReason(event.target.value)}
+            >
+              <option value=''>Not given</option>
+              {FLAG_REASONS.map((reason) => (
+                <option key={reason} value={reason}>
+                  {reason}
+                </option>
+              ))}
+            </select>
             <label htmlFor={`${editId}-flag`} className='text-sm font-medium'>
               What went wrong? (optional; the reply&apos;s whole context is kept for review)
             </label>
@@ -689,7 +719,7 @@ export function MessageItem({
                 )}
                 {actions.onFeedback !== undefined && (
                   <>
-                    <DropdownMenuItem onSelect={() => actions.onFeedback?.send('good', '')}>
+                    <DropdownMenuItem onSelect={() => actions.onFeedback?.send('good', '', '')}>
                       <ThumbsUp aria-hidden /> {actions.onFeedback.given === 'good' ? 'Marked good' : 'Good reply'}
                     </DropdownMenuItem>
                     <DropdownMenuItem onSelect={() => setFlagging('')}>
