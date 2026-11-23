@@ -342,6 +342,14 @@
     "recent_story_turns": 6,
     "recent_story_heading": "The story so far, most recent last:",
     "gm_name": "GM",
+    "voice": {
+      "$comment": "The table GM's own voice, guarded (the operator, 2026-11-23; prod chat b93b668e answered an out-of-game question as \"Sergeant Horvec: …\" and as \"Understood. I'll pause here…\"): an answer that opens with a speaker's label (Name:) or as an assistant is flagged (TableVoice.py, lib/tableVoice.ts; contract/table-voice-cases.json); the stream says voice_problem and the client asks again with forbid {reason: table_voice, note}.",
+      "assistant_openings": ["understood", "certainly", "of course", "sure,", "sure!", "as an ai", "i'll pause", "i will pause", "i'm here to help", "happy to help", "absolutely"],
+      "allowed_labels": ["GM", "Note", "OOC", "Table"],
+      "npc_note": "You answered as {{name}}, a character in the story. Answer as the GM, in your own voice, never as anyone in the story.",
+      "assistant_note": "You answered as an assistant. Answer as the GM running this game, plainly, never as an assistant (no \"Understood\", no offers to help).",
+      "retry_prompt": "Your last answer was wrong: {{note}}"
+    },
     "note_prompt": "When the players settle a house rule, a pacing or tone choice, or something to remember, end your answer with it on a line of its own: Note (house_rule, pacing, tone or reminder): the note. The players decide whether to keep it.",
     "note_line": "Note ({{kind}}): "
   },

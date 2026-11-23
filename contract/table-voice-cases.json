@@ -1,0 +1,49 @@
+{
+  "$comment": "The table GM's voice guard: answers both twins flag (server/extensions/ai_chat/TableVoice.py, client/src/lib/tableVoice.ts). The first two are prod chat b93b668e's (2026-11-23).",
+  "cases": [
+    {
+      "name": "an NPC's voice (b93b668e 07:00:41)",
+      "answer": "Sergeant Horvec: Sergeant Horvec watches you walk past, his hand on his stub revolver.",
+      "problem": {
+        "kind": "npc",
+        "name": "Sergeant Horvec"
+      }
+    },
+    {
+      "name": "an assistant's voice (b93b668e 07:01:15)",
+      "answer": "Understood. I'll pause here and wait for your instructions before continuing.",
+      "problem": {
+        "kind": "assistant",
+        "name": null
+      }
+    },
+    {
+      "name": "the GM's own voice, plainly",
+      "answer": "Horvec is watching the gate; he hasn't noticed you yet. You'd need a Deceive test to walk past him.",
+      "problem": null
+    },
+    {
+      "name": "the GM's own label is fine",
+      "answer": "GM: Horvec is still at the checkpoint.",
+      "problem": null
+    },
+    {
+      "name": "a note line is fine",
+      "answer": "That works as a house rule.\nNote (house_rule): Stealth past guards uses Agility.",
+      "problem": null
+    },
+    {
+      "name": "thinking is not the answer",
+      "answer": "<think>Who is speaking?</think>Horvec hasn't seen you.",
+      "problem": null
+    },
+    {
+      "name": "an assistant opening after thinking",
+      "answer": "<think>ok</think>Certainly! Here is what happens.",
+      "problem": {
+        "kind": "assistant",
+        "name": null
+      }
+    }
+  ]
+}

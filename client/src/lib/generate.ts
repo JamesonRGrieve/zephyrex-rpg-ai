@@ -47,6 +47,7 @@ import { labelQuestions, messageLines, readLabels } from '~/features/chat/lineLa
 import { statusMessages } from '~/features/chat/statusLine';
 import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
 import { paragraphCut } from '~/features/chat/voiceGuard';
+import { tableVoiceNote, tableVoiceProblem } from '~/lib/tableVoice';
 import { thinkSplitter, thinkingFields, thinkingMode, type ThinkingMode } from '~/lib/thinking';
 import { frameFromFraming } from '~/features/prompt/campaignFraming';
 import { frameFor } from '~/lib/frameCopy';
@@ -2148,6 +2149,9 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
         );
         yield* pass(completionDeltas(without), false);
       }
+      // The table GM's own voice (the operator, 2026-11-23; lib/tableVoice.ts): flagged for the client to ask again.
+      const problem = body.mode === 'table' && told.trim() !== '' ? tableVoiceProblem(told) : null;
+      if (problem !== null) yield event('voice_problem', { ...problem, note: tableVoiceNote(problem) });
       yield event('done', { dropped: assembled.dropped });
     }
     const source = frames();

@@ -185,6 +185,10 @@ from zephyrex.extensions.ai_chat.Structured import (  # type: ignore[import-not-
     turn_schema,
 )
 from zephyrex.extensions.ai_chat.SystemOrder import systems_before_last_user  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.TableVoice import (  # type: ignore[import-not-found]
+    table_voice_note,
+    table_voice_problem,
+)
 from zephyrex.extensions.ai_chat.Thinking import (  # type: ignore[import-not-found]
     THINKING,
     ThinkSplitter,
@@ -3296,6 +3300,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 {"content_rating": chat.content_rating, "lines": chat.lines or [], "veils": chat.veils or []},
                 chat.table_notes or [],
                 frame,
+                forbid=body.forbid,
             )
         if purpose == "reply":
             # Group stop strings (Group.py): a reply ends where it starts another speaker's line.
@@ -5688,6 +5693,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         else:
                             reformatted = got
                             yield frame("reformat", got)
+                if body.generate.mode == "table" and str(flags["told"]).strip():
+                    # The table GM's own voice (the operator, 2026-11-23; TableVoice.py): an answer as someone
+                    # in the story or as an assistant is flagged, never saved, and asked again by the client.
+                    problem = table_voice_problem(str(flags["told"]))
+                    if problem is not None:
+                        flags["saved"] = True
+                        yield frame("voice_problem", {**problem, "note": table_voice_note(problem)})
                 if body.generate.server_save and not flags["saved"] and str(flags["told"]).strip():
                     # An asynchronous turn is saved by the server (the operator, 2026-11-23: "on reconnecting the
                     # result is there"): the reformatted runs, else the reply as one line, in the shape a

@@ -718,6 +718,9 @@ export function forbidText(forbid: PromptInput['forbid']): string {
   // A canon warning on the last answer (the operator, 2026-11-22: "should be used to correct the AI").
   if (forbid?.reason === 'canon' && (forbid.note ?? '').trim() !== '')
     return PROMPT.canon_prompt.replaceAll('{{note}}', (forbid.note ?? '').trim());
+  // The table GM answered in someone else's voice (lib/tableVoice.ts).
+  if (forbid?.reason === 'table_voice' && (forbid.note ?? '').trim() !== '')
+    return TABLE.voice.retry_prompt.replaceAll('{{note}}', (forbid.note ?? '').trim());
   // What a replay retold (voiceGuard.ts replayOf; the operator, 2026-11-22: "Lots of repetition").
   const spans = (forbid?.spans ?? []).map((span) => span.trim()).filter((span) => span !== '');
   if (spans.length > 0) return PROMPT.replay_prompt.replaceAll('{{spans}}', spans.map((span) => `«${span}»`).join(' '));
@@ -1043,7 +1046,16 @@ export function translatePrompt(text: string, language: string): ModelMessage[] 
 export function tableGmPrompt(
   input: Pick<
     PromptInput,
-    'characters' | 'persona' | 'history' | 'context_tokens' | 'max_tokens' | 'summary' | 'safety' | 'table_notes' | 'frame'
+    | 'characters'
+    | 'persona'
+    | 'history'
+    | 'context_tokens'
+    | 'max_tokens'
+    | 'summary'
+    | 'safety'
+    | 'table_notes'
+    | 'frame'
+    | 'forbid'
   >,
 ): AssembledPrompt {
   const userName = input.persona?.name ?? DEFAULT_USER_NAME;
@@ -1068,6 +1080,8 @@ export function tableGmPrompt(
     tableNotesText(input.table_notes),
     summary.trim() === '' ? '' : PROMPT.summary_prefix + summary,
     recent.length === 0 ? '' : [TABLE.recent_story_heading, ...recent].join('\n'),
+    // A retry after the voice guard caught the last answer's voice (lib/tableVoice.ts).
+    forbidText(input.forbid),
   ];
   const system: ModelMessage = {
     role: 'system',

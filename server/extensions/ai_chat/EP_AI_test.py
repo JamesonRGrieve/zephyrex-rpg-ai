@@ -155,7 +155,10 @@ class FakeModel(BaseHTTPRequestHandler):
                 self.wfile.write(f"data: {json.dumps({'choices': [choice]})}\n\n".encode())
             self.wfile.write(b"data: [DONE]\n\n")
             return
-        for index, piece in enumerate(("“Mind ", "the coolant.”")):
+        # A line marked NPCVOICE: gets an answer in a character's voice (the table GM's voice guard).
+        npc_voice = "NPCVOICE:" in json.dumps(RECEIVED[-1]["body"].get("messages") or [])
+        pieces = ("Sergeant Horvec: ", "Halt.") if npc_voice else ("“Mind ", "the coolant.”")
+        for index, piece in enumerate(pieces):
             if stall and index == 1:
                 self.wfile.flush()
                 time.sleep(1.5)
@@ -1457,6 +1460,22 @@ class TestGenerate:
         assert here.status_code == 200, here.text
         assert here.json()["present"]["source"] in ("vtt", "story")
         assert isinstance(here.json()["present"]["person_ids"], list)
+
+    def test_the_table_gm_answering_as_a_character_is_flagged(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-23: prod chat b93b668e's table GM answered as "Sergeant Horvec: …".
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Gate", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(
+            server, user, "chat_message", chat_id=chat["id"], role="user", channel="gm", swipes=["NPCVOICE: what's he doing?"]
+        ).json()["chat_message"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "table"}}
+        answer = server.post("/v1/ai_chat/generate", json=asked, headers=_headers(user)).text
+        assert "event: voice_problem" in answer and "Sergeant Horvec" in answer
+        retried = {"generate": {**asked["generate"], "forbid": {"reason": "table_voice", "note": "You answered as Sergeant Horvec."}}}
+        prompt = server.post("/v1/ai_chat/prompt", json=retried, headers=_headers(user)).json()["prompt"]
+        assert "Your last answer was wrong: You answered as Sergeant Horvec." in prompt["messages"][0]["content"]
 
     def test_a_scene_with_no_picture_gets_a_battlemap(
         self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch

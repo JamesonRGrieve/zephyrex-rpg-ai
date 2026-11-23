@@ -497,6 +497,9 @@ def forbid_text(forbid: Mapping[str, Any] | None) -> str:
     note = str((forbid or {}).get("note") or "").strip()
     if (forbid or {}).get("reason") == "canon" and note:
         return str(PROMPT["canon_prompt"]).replace("{{note}}", note)
+    # The table GM answered in someone else's voice (TableVoice.py).
+    if (forbid or {}).get("reason") == "table_voice" and note:
+        return str(TABLE["voice"]["retry_prompt"]).replace("{{note}}", note)
     # What a replay retold (VoiceGuard.py replay_of; the operator, 2026-11-22: "Lots of repetition").
     spans = [str(span).strip() for span in (forbid or {}).get("spans") or [] if str(span).strip()]
     if spans:
@@ -874,6 +877,7 @@ def table_gm_prompt(
     safety: Mapping[str, Any] | None = None,
     table_notes: Sequence[Mapping[str, Any]] | None = None,
     frame: Mapping[str, Any] | None = None,
+    forbid: Mapping[str, Any] | None = None,
 ) -> Assembled:
     """What the table GM reads to answer the players out of character (A11, A20). The system text:
     the contract's GM prompt, the safety tools, the table notes, the summary and the last few story
@@ -900,6 +904,8 @@ def table_gm_prompt(
         table_notes_text(table_notes),
         PROMPT["summary_prefix"] + summary if summary.strip() else "",
         "\n".join([TABLE["recent_story_heading"], *recent]) if recent else "",
+        # A retry after the voice guard caught the last answer's voice (TableVoice.py).
+        forbid_text(forbid),
     ]
     system = {"role": "system", "content": "\n\n".join(part.strip() for part in parts if part.strip())}
     talk = [
