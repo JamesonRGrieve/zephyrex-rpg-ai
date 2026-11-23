@@ -46,7 +46,25 @@ describe('mapStep', () => {
       seatMoved: false,
       seatChain: ['Transit Levels', 'Hive Desoleum', 'Desoleum'],
       sceneChanged: true,
+      sceneMoves: [],
     });
+  });
+
+  it("reads who the round's lines took off the scene or brought onto it, and whether the VTT applied it", async () => {
+    answer({
+      moves: [],
+      seat_moved: false,
+      scene_changed: false,
+      scene_moves: [
+        { person_id: 'p1', name: 'Old Hesk', change: 'left', applied: true },
+        { person_id: 'p2', name: 'Mira', change: 'arrived', applied: false },
+        { person_id: 'p3', name: 'Nobody', change: 'wandered', applied: true },
+      ],
+    });
+    expect((await mapStep('c1', 'm1'))?.sceneMoves).toEqual([
+      { personId: 'p1', name: 'Old Hesk', change: 'left', applied: true },
+      { personId: 'p2', name: 'Mira', change: 'arrived', applied: false },
+    ]);
   });
 
   it('is nothing when no one moved and the scene stayed', async () => {

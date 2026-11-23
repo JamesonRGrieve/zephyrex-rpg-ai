@@ -20,6 +20,29 @@ export interface MapChange {
    * null from a server that doesn't say, where a change of place stands in.
    */
   sceneChanged: boolean | null;
+  /**
+   * Who the round's lines took off the current scene or brought onto it, whoever wrote them (Parity's
+   * scene-presence step; the decision model judges, the VTT applies). `applied` is false when the VTT
+   * could not make the change, so nobody is told the map moved when it didn't.
+   */
+  sceneMoves: SceneMove[];
+}
+
+export interface SceneMove {
+  personId: string;
+  name: string;
+  change: 'left' | 'arrived';
+  applied: boolean;
+}
+
+function readSceneMoves(raw: unknown): SceneMove[] {
+  return (Array.isArray(raw) ? raw : []).flatMap((one) => {
+    const personId = Reflect.get(Object(one), 'person_id');
+    const name = Reflect.get(Object(one), 'name');
+    const change = Reflect.get(Object(one), 'change');
+    if (typeof personId !== 'string' || typeof name !== 'string' || (change !== 'left' && change !== 'arrived')) return [];
+    return [{ personId, name, change, applied: Reflect.get(Object(one), 'applied') === true }];
+  });
 }
 
 async function step(path: string, envelope: string, body: Record<string, unknown>): Promise<unknown> {
@@ -32,7 +55,7 @@ async function step(path: string, envelope: string, body: Record<string, unknown
   return Reflect.get(Object(await response.json().catch(() => null)), envelope) ?? null;
 }
 
-/** Moves the map after the round ending at `leafId`: who went where, or null when nobody moved. */
+/** Moves the map after the round ending at `leafId`: who went where (or left or arrived), or null when nobody moved. */
 export async function mapStep(chatId: string, leafId: string): Promise<MapChange | null> {
   const answer = Object(await step('map_step', 'map_step', { chat_id: chatId, leaf_id: leafId })) as Record<string, unknown>;
   const moves = Array.isArray(answer.moves) ? answer.moves : [];
@@ -53,9 +76,18 @@ export async function mapStep(chatId: string, leafId: string): Promise<MapChange
   const seatChain = Array.isArray(chain) ? chain.filter((one): one is string => typeof one === 'string' && one !== '') : [];
   const sceneChanged = typeof answer.scene_changed === 'boolean' ? answer.scene_changed : null;
   const shown = Reflect.get(Object(answer.scene), 'name');
-  return moved.length === 0 && !seatMoved && sceneChanged !== true
+  const sceneMoves = readSceneMoves(answer.scene_moves);
+  return moved.length === 0 && !seatMoved && sceneChanged !== true && sceneMoves.length === 0
     ? null
-    : { moved, scene: typeof shown === 'string' ? shown : null, seatPlace, seatMoved, seatChain, sceneChanged };
+    : {
+        moved,
+        scene: typeof shown === 'string' ? shown : null,
+        seatPlace,
+        seatMoved,
+        seatChain,
+        sceneChanged,
+        sceneMoves,
+      };
 }
 
 /** The campaign's one-line status, rewritten from the story so far (for the campaign list). */

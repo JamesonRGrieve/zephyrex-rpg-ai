@@ -1255,6 +1255,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // (the operator, 2026-11-23); a server that doesn't say falls back to a change of place. Its subtitle
     // is where that place is, fully qualified (up to the planet or system in 40k, the region in D&D).
     const shows = change !== null && (change.sceneChanged ?? change.seatMoved);
+    // A departure or arrival the VTT couldn't make is said, so the map isn't taken to have moved.
+    for (const move of change?.sceneMoves ?? [])
+      if (!move.applied)
+        notify(
+          `${move.name} ${move.change === 'left' ? 'left' : 'arrived'} in the story`,
+          'The map could not be updated: move their token by hand.',
+        );
     if (roundRef.current === mine && shows && change.seatPlace !== null) {
       const within = change.seatChain.join(', ');
       banner = await create({
