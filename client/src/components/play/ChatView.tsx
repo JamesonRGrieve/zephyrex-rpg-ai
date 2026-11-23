@@ -1197,13 +1197,18 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const mine = roundRef.current;
     const change = await during('Following the story on the map', mapStep(chat.id, leaf));
     let banner: ChatMessage | null = null;
-    if (roundRef.current === mine && change?.seatMoved === true && change.seatPlace !== null) {
+    // The banner marks a scene change in the VTT only (a new map or level), never a move within a scene
+    // (the operator, 2026-11-23); a server that doesn't say falls back to a change of place. Its subtitle
+    // is where that place is, fully qualified (up to the planet or system in 40k, the region in D&D).
+    const shows = change !== null && (change.sceneChanged ?? change.seatMoved);
+    if (roundRef.current === mine && shows && change.seatPlace !== null) {
+      const within = change.seatChain.join(', ');
       banner = await create({
         chat_id: chat.id,
         parent_id: leaf,
         role: 'narrator',
         channel: 'ic',
-        swipes: [stored(`[location: ${change.seatPlace}]`, 'ai_output')],
+        swipes: [stored(`[location: ${change.seatPlace}${within === '' ? '' : ` | ${within}`}]`, 'ai_output')],
       });
       setLeafId(banner.id);
     }

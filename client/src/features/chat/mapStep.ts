@@ -13,6 +13,13 @@ export interface MapChange {
   /** Where the person's character is after the round, and whether that's a change of place. */
   seatPlace: string | null;
   seatMoved: boolean;
+  /** The places above the seat's, nearest first, up to the planet, system or region (fully qualified). */
+  seatChain: string[];
+  /**
+   * The VTT's scene changed (a new map or level): the only time the banner shows (the operator, 2026-11-23);
+   * null from a server that doesn't say, where a change of place stands in.
+   */
+  sceneChanged: boolean | null;
 }
 
 async function step(path: string, envelope: string, body: Record<string, unknown>): Promise<unknown> {
@@ -42,7 +49,13 @@ export async function mapStep(chatId: string, leafId: string): Promise<MapChange
   const seatPlace =
     typeof Reflect.get(Object(seat), 'name') === 'string' ? (Reflect.get(Object(seat), 'name') as string) : null;
   const seatMoved = answer.seat_moved === true;
-  return moved.length === 0 && !seatMoved ? null : { moved, scene: null, seatPlace, seatMoved };
+  const chain = Reflect.get(Object(seat), 'chain');
+  const seatChain = Array.isArray(chain) ? chain.filter((one): one is string => typeof one === 'string' && one !== '') : [];
+  const sceneChanged = typeof answer.scene_changed === 'boolean' ? answer.scene_changed : null;
+  const shown = Reflect.get(Object(answer.scene), 'name');
+  return moved.length === 0 && !seatMoved && sceneChanged !== true
+    ? null
+    : { moved, scene: typeof shown === 'string' ? shown : null, seatPlace, seatMoved, seatChain, sceneChanged };
 }
 
 /** The campaign's one-line status, rewritten from the story so far (for the campaign list). */
