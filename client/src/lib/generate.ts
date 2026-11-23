@@ -1753,7 +1753,11 @@ export async function labelLines(nextRequest: NextRequest): Promise<Response> {
       .map((turn) => turn.content);
     const seat = prompt.persona !== null && playingId !== null ? [{ id: playingId, name: prompt.persona.name }] : [];
     const people: { id: string; name: string }[] = [];
-    for (const one of [...prompt.characters, ...seat, ...presentPeople(world, playingId, storyTurns, fields.vox_ids, fields.character_ids)])
+    for (const one of [
+      ...prompt.characters,
+      ...seat,
+      ...presentPeople(world, playingId, storyTurns, fields.vox_ids, fields.character_ids),
+    ])
       if (!people.some((other) => other.id === one.id)) people.push({ id: one.id, name: one.name });
     const deciding = await decider(owner.id);
     let answers: Record<string, { choice?: unknown } | null> | null = null;

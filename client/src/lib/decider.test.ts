@@ -28,7 +28,9 @@ describe('completionContent', () => {
 describe('askDecider', () => {
   it('asks once, with the protocol body, and reads only answers among the options', async () => {
     const fetchMock = vi.fn(async () =>
-      completion(JSON.stringify({ answers: { expression: { type: 'choice', choice: 'angry', probabilities: { angry: 0.9 } } } })),
+      completion(
+        JSON.stringify({ answers: { expression: { type: 'choice', choice: 'angry', probabilities: { angry: 0.9 } } } }),
+      ),
     );
     vi.stubGlobal('fetch', fetchMock);
     const answers = await askDecider(ROW, 'I will tear you apart', QUESTIONS);
@@ -42,14 +44,23 @@ describe('askDecider', () => {
   });
 
   it('gives null when the model cannot be reached or refuses, so the caller falls back', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => new Response('busy', { status: 503 })));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response('busy', { status: 503 })),
+    );
     expect(await askDecider(ROW, 'x', QUESTIONS)).toBeNull();
-    vi.stubGlobal('fetch', vi.fn(async () => Promise.reject(new Error('down'))));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => Promise.reject(new Error('down'))),
+    );
     expect(await askDecider(ROW, 'x', QUESTIONS)).toBeNull();
   });
 
   it('refuses a choice outside the options', async () => {
-    vi.stubGlobal('fetch', vi.fn(async () => completion('{"answers": {"expression": {"type": "choice", "choice": "smug"}}}')));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => completion('{"answers": {"expression": {"type": "choice", "choice": "smug"}}}')),
+    );
     expect(await askDecider(ROW, 'x', QUESTIONS)).toEqual({ expression: null });
   });
 });
