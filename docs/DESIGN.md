@@ -488,6 +488,20 @@ _Places and the map_
   or generated top-down with the picture model until then. _Generator in progress (Parity); the
   illustration fallback is being removed (VTT)._
 
+_Maps on the fly: the on-prem cartography agent (Self Hosted AI's recommendation, 2026-11-23)_
+- Not a free-form agent loop: a constrained pipeline in which a model fills only the judgement steps.
+  (1) Brief: an LLM writes the composer's brief as JSON against its schema (validated, retried).
+  (2) Compose and render with the zephyr-cartography composer as is. (3) The hard-fault checker
+  (judge-map's code) and up to 2-3 retries with the faults fed back. (4) A visual judge on render crops,
+  returning pass/fail as JSON. On failure, an SDXL top-down render (Parity's generator).
+- Candidate models: 72gb/qwen3.8-27b:q8 (tools, JSON, 256K context, vision) for brief and judge, but
+  the 72gb tier holds one model at a time, so a map build mid-play evicts the narrator (25-70 s each
+  way). Option: run cydonia at ~32K context instead of 131K to keep both resident (needs a fit test).
+  Smaller: 24gb/qwen3-vl-8b:q6 as the visual judge. The 970 farm suits typed choices only.
+- Before choosing: a 10-20 brief eval against the fault checker and operator spot checks.
+- **Open, the operator's decisions:** where the composer runs per scene, which tier hosts the brief and
+  judge model (and 72gb's context and loaded-model settings), and the orchestration service.
+
 _Characters_
 - **AI-assisted character creation modes,** beside the builder and the freeform character.
 
