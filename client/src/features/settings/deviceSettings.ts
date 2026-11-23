@@ -14,14 +14,21 @@ export const CHAT_LAYOUTS = ['flat', 'bubbles', 'document'] as const;
 export type ChatLayout = (typeof CHAT_LAYOUTS)[number];
 export const TEXT_SIZES = ['small', 'normal', 'large', 'larger'] as const;
 export type TextSize = (typeof TEXT_SIZES)[number];
+/**
+ * Voice (the operator, 2026-11-23: "an option to pregenerate voice clips as soon as the canonical text is
+ * ready and/or autoplay"): off; prepare, each reply's audio made as soon as it is final, played on a tap
+ * with no wait; autoplay, prepared and played in turn.
+ */
+export const VOICE_MODES = ['off', 'prepare', 'autoplay'] as const;
+export type VoiceMode = (typeof VOICE_MODES)[number];
 
 export interface DeviceSettings {
   tier: TierChoice;
   showTableTalk: boolean;
   chatLayout: ChatLayout;
   textSize: TextSize;
-  /** Read each character's reply aloud when it is written (A29). */
-  readAloud: boolean;
+  /** Each reply's voice clips: none ahead, prepared when final, or prepared and played (A29). */
+  voiceMode: VoiceMode;
   /** Show the speaker's expression sprite on a stage above the composer (A4). */
   showExpressions: boolean;
   /** Translate each reply into this device's language as it is written (A43). */
@@ -45,7 +52,7 @@ export const DEFAULT_DEVICE_SETTINGS: DeviceSettings = {
   showTableTalk: true,
   chatLayout: 'flat',
   textSize: 'normal',
-  readAloud: false,
+  voiceMode: 'off',
   showExpressions: true,
   autoTranslate: false,
   customCss: '',
@@ -73,7 +80,12 @@ export function parseDeviceSettings(text: string | null): DeviceSettings {
     showTableTalk: typeof showTableTalk === 'boolean' ? showTableTalk : DEFAULT_DEVICE_SETTINGS.showTableTalk,
     chatLayout: oneOf(CHAT_LAYOUTS, Reflect.get(Object(stored), 'chatLayout'), DEFAULT_DEVICE_SETTINGS.chatLayout),
     textSize: oneOf(TEXT_SIZES, Reflect.get(Object(stored), 'textSize'), DEFAULT_DEVICE_SETTINGS.textSize),
-    readAloud: Reflect.get(Object(stored), 'readAloud') === true,
+    // The old switch (read each reply aloud) is autoplay.
+    voiceMode: oneOf(
+      VOICE_MODES,
+      Reflect.get(Object(stored), 'voiceMode'),
+      Reflect.get(Object(stored), 'readAloud') === true ? 'autoplay' : DEFAULT_DEVICE_SETTINGS.voiceMode,
+    ),
     autoTranslate: Reflect.get(Object(stored), 'autoTranslate') === true,
     showExpressions: Reflect.get(Object(stored), 'showExpressions') !== false,
     customCss: customCssOf(Reflect.get(Object(stored), 'customCss')),

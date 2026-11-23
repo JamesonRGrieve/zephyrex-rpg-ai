@@ -72,4 +72,10 @@ describe('device settings', () => {
     expect(effectiveTier('auto', 'standard')).toBe('standard');
     expect(effectiveTier('light', 'strong')).toBe('light');
   });
+  it('voice: off, prepare or autoplay; the old read-aloud switch is autoplay', () => {
+    expect(parseDeviceSettings(null).voiceMode).toBe('off');
+    expect(parseDeviceSettings(JSON.stringify({ readAloud: true })).voiceMode).toBe('autoplay');
+    expect(parseDeviceSettings(JSON.stringify({ voiceMode: 'prepare', readAloud: true })).voiceMode).toBe('prepare');
+    expect(parseDeviceSettings(JSON.stringify({ voiceMode: 'loud' })).voiceMode).toBe('off');
+  });
 });

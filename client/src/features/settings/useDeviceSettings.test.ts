@@ -15,10 +15,10 @@ describe('useDeviceSettings', () => {
     const first = renderHook(() => useDeviceSettings());
     const second = renderHook(() => useDeviceSettings());
     expect(first.result.current.settings.textSize).toBe('large');
-    act(() => first.result.current.change({ readAloud: true }));
-    expect(second.result.current.settings.readAloud).toBe(true);
+    act(() => first.result.current.change({ voiceMode: 'autoplay' }));
+    expect(second.result.current.settings.voiceMode).toBe('autoplay');
     deviceSettingsStore.reset();
-    expect(deviceSettingsStore.snapshot()).toMatchObject({ textSize: 'large', readAloud: true });
+    expect(deviceSettingsStore.snapshot()).toMatchObject({ textSize: 'large', voiceMode: 'autoplay' });
   });
 
   it('follows a change made in another tab', () => {

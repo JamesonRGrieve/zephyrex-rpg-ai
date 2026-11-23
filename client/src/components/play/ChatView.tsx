@@ -531,7 +531,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       swipes: [thought(result, stored(withoutSpeakerPrefix(result.text, castById.get(speakerId)?.name ?? ''), 'ai_output'))],
       revision: (Reflect.get(result, 'revision') as Revision | null | undefined) ?? null,
     });
-    if (settings.readAloud) readAloud(speakerId, saved.swipes[0] ?? '');
     labelSaved(saved.id);
     const replyCanon = Reflect.get(result, 'canon') as CanonNoticeValue | null | undefined;
     if (replyCanon) setCanonNotices((current) => new Map(current).set(saved.id, replyCanon));
@@ -617,17 +616,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * in the chat or an NPC of the running scenario. A quote with no one named is the speaker's own:
    * the character whose reply it is, or the narrator for the GM's lines.
    */
-  const readAloud = (characterId: string | null, text: string, onDone?: () => void) => {
-    reading.current += 1;
-    const run = reading.current;
-    // The stage shows the speaker talking while the line is read (A54).
-    const speaker = characterId ?? '';
-    const finished = () => {
-      if (reading.current !== run) return;
-      speakingStore.end(speaker);
-      onDone?.();
-    };
-    speakingStore.start(speaker);
+  /** A line's parts as read aloud, and each part's voice. */
+  const voicePlan = (characterId: string | null, text: string) => {
     const npcs = running?.cast ?? [];
     const members = chat.character_ids.flatMap((id) => castById.get(id) ?? []);
     const own = characterId === null ? null : (castById.get(characterId)?.name ?? null);
@@ -641,6 +631,27 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const npc = npcs.find((one) => one.name === name);
       return npc?.voice === undefined ? settings.narratorVoice : voiceFrom(npc.voice);
     };
+    return { parts, voiceFor };
+  };
+  /** Every part's audio made now, so a tap plays it without a wait (the server's voices only). */
+  const prepareAloud = (characterId: string | null, text: string) => {
+    if (!hasVoiceModel(endpointList.data)) return;
+    const { parts, voiceFor } = voicePlan(characterId, text);
+    for (const part of parts) prefetchSpeech(part.text, voiceFor(part.speaker));
+  };
+
+  const readAloud = (characterId: string | null, text: string, onDone?: () => void) => {
+    reading.current += 1;
+    const run = reading.current;
+    // The stage shows the speaker talking while the line is read (A54).
+    const speaker = characterId ?? '';
+    const finished = () => {
+      if (reading.current !== run) return;
+      speakingStore.end(speaker);
+      onDone?.();
+    };
+    speakingStore.start(speaker);
+    const { parts, voiceFor } = voicePlan(characterId, text);
     const next = (index: number) => {
       const part = parts[index];
       if (reading.current !== run) return;
@@ -673,9 +684,50 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     };
     step(0);
   };
+  /**
+   * Voice as each reply is final (the operator, 2026-11-23: "pregenerate voice clips as soon as the canonical
+   * text is ready and/or autoplay"): with nothing being written, each story reply not yet handled is prepared,
+   * and with autoplay read in turn. What the chat held when it opened is never played.
+   */
+  const voicedIds = useRef<Set<string> | null>(null);
+  const autoplayQueue = useRef<{ characterId: string | null; text: string }[]>([]);
+  const autoplaying = useRef(false);
+  const playQueued = () => {
+    const line = autoplayQueue.current.shift();
+    if (line === undefined) {
+      autoplaying.current = false;
+      return;
+    }
+    autoplaying.current = true;
+    readAloud(line.characterId, line.text, playQueued);
+  };
+  useEffect(() => {
+    const story = branch.filter((one) => one.channel === 'ic' && one.role !== 'user' && !one.x_carded && !one.hidden);
+    if (voicedIds.current === null) {
+      voicedIds.current = new Set(story.map((one) => one.id));
+      return;
+    }
+    if (writing || settings.voiceMode === 'off') return;
+    for (const line of story) {
+      if (voicedIds.current.has(line.id)) continue;
+      voicedIds.current.add(line.id);
+      const text = line.swipes[line.swipe_index ?? 0] ?? '';
+      if (text.trim() === '') continue;
+      if (settings.voiceMode === 'prepare') prepareAloud(line.speaker_character_id, text);
+      else {
+        prepareAloud(line.speaker_character_id, text);
+        autoplayQueue.current.push({ characterId: line.speaker_character_id, text });
+      }
+    }
+    if (settings.voiceMode === 'autoplay' && !autoplaying.current) playQueued();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the story or the writing changes; the handlers read the latest state.
+  }, [branch, writing, settings.voiceMode]);
+
   /** Stops whatever is being read (the operator, 2026-11-23: "There's no stop button for the voice"). */
   const stopReading = () => {
     reading.current += 1;
+    autoplayQueue.current = [];
+    autoplaying.current = false;
     stopSpeaking();
     stopServerSpeech();
     const now = speakingStore.snapshot();
@@ -1179,7 +1231,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const last = lines.at(-1);
     const saved = (fresh ?? []).find((one) => one.id === last?.id) ?? null;
     if (last !== undefined) setLeafId(last.id);
-    for (const line of lines) if (settings.readAloud) readAloud(line.speaker_character_id, line.text);
     const banner = play.isCampaign && last !== undefined ? await followOnMap(last.id) : null;
     return banner ?? saved;
   };
@@ -1355,7 +1406,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         revision: index === 0 ? ((Reflect.get(result, 'revision') as Revision | null | undefined) ?? null) : null,
       });
       labelSaved(line.id);
-      if (settings.readAloud) readAloud(part.speaker_id, line.swipes[0] ?? '');
       if (index === 0) noteCost(line.id, result);
       autoTranslate(line.id, line.swipes[0] ?? '');
       parent = line.id;

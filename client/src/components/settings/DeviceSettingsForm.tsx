@@ -15,6 +15,8 @@ import {
   type ChatLayout,
   type DeviceSettings,
   TEXT_SIZES,
+  VOICE_MODES,
+  type VoiceMode,
   type TextSize,
   type TierChoice,
 } from '~/features/settings/deviceSettings';
@@ -22,6 +24,7 @@ import { chipGroup } from 'zephyrex/hooks/chipKeys';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 
 const LAYOUT_LABELS: Record<ChatLayout, string> = { flat: 'Flat', bubbles: 'Bubbles', document: 'Document' };
+const VOICE_LABELS: Record<VoiceMode, string> = { off: 'Off', prepare: 'Prepare clips', autoplay: 'Prepare and autoplay' };
 const SIZE_LABELS: Record<TextSize, string> = { small: 'Small', normal: 'Normal', large: 'Large', larger: 'Larger' };
 const CHIP = 'h-11 px-4';
 
@@ -133,21 +136,28 @@ export function DeviceSettingsForm({
           onCheckedChange={(checked) => onChange({ autoTranslate: checked })}
         />
       </div>
-      <div className='flex min-h-11 items-center justify-between gap-3'>
-        <div>
-          <Label htmlFor={`${tableTalkId}-read`}>Read replies aloud</Label>
-          <p className='text-xs text-muted-foreground'>
-            Each character in their own voice, by your speech model if one is set, otherwise by this device. The GM’s lines
-            are voice-acted: each NPC in the voice set on the scenario’s cast, the rest in the narrator’s.
-          </p>
+      <div className='grid gap-2'>
+        <span id={`${tableTalkId}-voice`} className='text-sm font-medium'>
+          Voice
+        </span>
+        <p className='text-xs text-muted-foreground'>
+          Each character in their own voice, by your speech model if one is set, otherwise by this device. Prepare makes each
+          reply&apos;s audio as soon as it is final, so a tap plays it at once; Autoplay also plays each new reply.
+        </p>
+        <div ref={chipGroup} role='radiogroup' aria-labelledby={`${tableTalkId}-voice`} className='flex flex-wrap gap-2'>
+          {VOICE_MODES.map((mode) => (
+            <ChoiceChip
+              key={mode}
+              checked={settings.voiceMode === mode}
+              className={CHIP}
+              onClick={() => onChange({ voiceMode: mode })}
+            >
+              {VOICE_LABELS[mode]}
+            </ChoiceChip>
+          ))}
         </div>
-        <Switch
-          id={`${tableTalkId}-read`}
-          checked={settings.readAloud}
-          onCheckedChange={(checked) => onChange({ readAloud: checked })}
-        />
       </div>
-      {settings.readAloud && (
+      {settings.voiceMode !== 'off' && (
         <VoicePicker
           name='The narrator'
           value={settings.narratorVoice}
