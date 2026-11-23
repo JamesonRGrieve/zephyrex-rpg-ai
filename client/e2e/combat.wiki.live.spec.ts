@@ -134,12 +134,12 @@ test('a fight: the AI-run Guard takes its turn in the VTT order, its attack reso
   );
   const vell = afterAuthoring.persons.find((one) => one.name === 'Sergeant Vell');
   expect(vell, 'Sergeant Vell is a person of the playthrough').toBeDefined();
-  const sheet = await api<{ person_traits: { id: string }[] }>(
-    page,
-    'GET',
-    `person_trait?person_id=${vell?.id ?? ''}&limit=100`,
-  );
-  expect(sheet.person_traits.length, 'his sheet is built from a stat block').toBeGreaterThan(0);
+  // The VTT's own sheet read (the GM's, access-checked), which sees every row of a built sheet.
+  const sheet = await api<{ sheet: { has_sheet: boolean; characteristics: unknown[] } }>(page, 'POST', 'dice/sheet', {
+    sheet: { person_id: vell?.id ?? '' },
+  });
+  expect(sheet.sheet.has_sheet, 'his sheet is built from a stat block').toBe(true);
+  expect(sheet.sheet.characteristics.length).toBeGreaterThan(0);
   const calls = await api<{ decision_calls: { purpose: string; answers: unknown }[] }>(
     page,
     'GET',
