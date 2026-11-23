@@ -1274,6 +1274,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       if (revision === null && result !== null)
         revision = { original: (Reflect.get(result, 'raw') as string | undefined) ?? result.text, reason, kind };
     };
+    // A turn that rolled dice or settled a test itself (the live prod test, 2026-11-23: "Tam Quickfoot rolls
+    // Initiative: [roll=1d20+6]") is written once more with that named: mechanics are the VTT's, never the
+    // model's (Parity's invented_rolls guard ends the stream and keeps nothing).
+    if (result.mechanicsProblem !== undefined) {
+      revise('meta', `It rolled dice itself: ${result.mechanicsProblem}`);
+      const again = await storyPart({
+        ...request,
+        forbid: { names: [], span: '', reason: 'mechanics', note: result.mechanicsProblem },
+      });
+      if (again !== null) result = again;
+    }
     // An empty answer (a soft refusal, a stream that ended with nothing) never vanishes silently
     // (the operator, 2026-11-21: "I also didn't get a response"): one more try, then a notice.
     if (completeText(result.text).trim() === '') {

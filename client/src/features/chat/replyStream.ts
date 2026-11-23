@@ -47,6 +47,8 @@ export type ReplyEvent =
   | { type: 'heartbeat' }
   /** The table GM answered in someone else's voice or as an assistant (Parity's table_voice guard). */
   | { type: 'voice_problem'; kind: string; note: string }
+  /** The story turn wrote a roll or a test's result itself (Parity's invented_rolls guard); not saved. */
+  | { type: 'mechanics_problem'; note: string }
   | { type: 'error'; detail: string }
   | { type: 'item_start'; item: Omit<LiveItem, 'text' | 'done'> }
   | { type: 'item_text'; index: number; delta: string }
@@ -80,6 +82,7 @@ export function parseEventBlock(block: string): ReplyEvent | null {
       dropped: typeof field('dropped') === 'number' ? (field('dropped') as number) : 0,
       stopped: field('stopped') === true,
     };
+  if (name === 'mechanics_problem') return { type: 'mechanics_problem', note: text(field('note')) ?? '' };
   if (name === 'voice_problem')
     return { type: 'voice_problem', kind: text(field('kind')) ?? '', note: text(field('note')) ?? '' };
   if (name === 'reformat') {

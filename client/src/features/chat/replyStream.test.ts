@@ -14,6 +14,12 @@ describe('reply stream', () => {
     // A keepalive is the stream alive, saying nothing.
     expect(parseEventBlock(': keepalive')).toEqual({ type: 'heartbeat' });
     expect(
+      parseEventBlock('event: mechanics_problem\ndata: {"spans":["[roll=1d20+6]"],"note":"rolled initiative itself"}'),
+    ).toEqual({
+      type: 'mechanics_problem',
+      note: 'rolled initiative itself',
+    });
+    expect(
       parseEventBlock(
         'event: voice_problem\ndata: {"kind":"npc","name":"Sergeant Horvec","note":"spoke as Sergeant Horvec"}',
       ),

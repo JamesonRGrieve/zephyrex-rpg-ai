@@ -35,7 +35,13 @@ export interface ReplyRequest {
   /** AP4: this turn asked of another of the person's models, to compare. */
   endpoint_id?: string;
   /** A second try after the voice guard caught a span (features/chat/voiceGuard.ts): it's forbidden. */
-  forbid?: { names: string[]; span: string; spans?: string[]; reason?: 'canon' | 'table_voice'; note?: string };
+  forbid?: {
+    names: string[];
+    span: string;
+    spans?: string[];
+    reason?: 'canon' | 'table_voice' | 'mechanics';
+    note?: string;
+  };
   /** A narration that may give the party and the people present their moments (no decision came). */
   narrate_wide?: boolean;
   /** Schema-constrained lines (docs/DESIGN.md, Structured lines): the server splits and saves them. */
@@ -53,6 +59,8 @@ export interface ReplyResult {
   runs?: ReformatRun[];
   /** The table GM's answer was in the wrong voice (the server kept nothing): what to tell it next time. */
   voiceProblem?: string;
+  /** The story turn invented a roll or a test's outcome (the server kept nothing): what to tell it next time. */
+  mechanicsProblem?: string;
 }
 
 export type ReplyState =
@@ -127,6 +135,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
       saved: undefined as SavedLine[] | undefined,
       runs: undefined as ReformatRun[] | undefined,
       voiceProblem: undefined as string | undefined,
+      mechanicsProblem: undefined as string | undefined,
       done: false,
       stopped: false,
     };
@@ -142,6 +151,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         got.stopped = event.stopped;
       } else if (event.type === 'error') got.failure = event.detail;
       else if (event.type === 'voice_problem') got.voiceProblem = event.note || event.kind;
+      else if (event.type === 'mechanics_problem') got.mechanicsProblem = event.note || 'It rolled dice itself.';
       else if (event.type === 'reformat') got.runs = event.reformatted && event.runs.length > 0 ? event.runs : undefined;
       else if (event.type === 'item_start') {
         got.items = [...got.items, { ...event.item, text: '', done: false }];
@@ -205,6 +215,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
       ...(got.saved === undefined ? {} : { saved: got.saved }),
       ...(got.runs === undefined ? {} : { runs: got.runs }),
       ...(got.voiceProblem === undefined ? {} : { voiceProblem: got.voiceProblem }),
+      ...(got.mechanicsProblem === undefined ? {} : { mechanicsProblem: got.mechanicsProblem }),
     };
   };
 
