@@ -109,4 +109,44 @@ test('a fight: the AI-run Guard takes its turn in the VTT order, its attack reso
   });
   const order = await api<{ encounter: { round: number; status: string } }>(page, 'GET', `encounter/${encounter.id}/order`);
   expect(order.encounter.status).toBe('running');
+
+  // A new NPC the story needs is one of the pack's stat blocks, picked by the decision model among the VTT's
+  // npc_sheet_options (the operator, 2026-11-23: "is a new NPC needed, of what level, class and subclass").
+  const authored = await page.evaluate(async (chat) => {
+    const token = document.cookie
+      .split('; ')
+      .find((cookie) => cookie.startsWith('zx_csrf='))
+      ?.slice('zx_csrf='.length);
+    const response = await fetch('/api/v1/ai_chat/author_npc', {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: { 'Content-Type': 'application/json', ...(token === undefined ? {} : { 'X-CSRF-Token': token }) },
+      body: JSON.stringify({ author_npc: { chat_id: chat, leaf_id: null, name: 'Sergeant Vell', role: 'guard captain' } }),
+    });
+    return { status: response.status, text: await response.text() };
+  }, chatId);
+  expect(authored.status).toBe(200);
+  expect(authored.text, 'the authoring stream ends without an error').not.toContain('event: error');
+  const afterAuthoring = await api<{ persons: { id: string; name: string }[] }>(
+    page,
+    'GET',
+    `person?campaign_id=${playthrough}&limit=50`,
+  );
+  const vell = afterAuthoring.persons.find((one) => one.name === 'Sergeant Vell');
+  expect(vell, 'Sergeant Vell is a person of the playthrough').toBeDefined();
+  const sheet = await api<{ person_traits: { id: string }[] }>(
+    page,
+    'GET',
+    `person_trait?person_id=${vell?.id ?? ''}&limit=100`,
+  );
+  expect(sheet.person_traits.length, 'his sheet is built from a stat block').toBeGreaterThan(0);
+  const calls = await api<{ decision_calls: { purpose: string; answers: unknown }[] }>(
+    page,
+    'GET',
+    `decision_call?chat_id=${chatId}&limit=100`,
+  );
+  expect(
+    calls.decision_calls.some((one) => one.purpose === 'npc_sheet' && one.answers !== null),
+    "the stat block was the decision model's pick",
+  ).toBe(true);
 });
