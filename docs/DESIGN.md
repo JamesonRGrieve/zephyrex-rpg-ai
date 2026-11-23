@@ -1189,6 +1189,29 @@ The server extensions this product owns:
   - hosted model pools with quotas;
   - the hosted decision layer, cloud media, plans.
 
+## Instances (the operator, 2026-11-23)
+
+The same code runs as two instances that differ only in configuration and content, never in branches
+(pages never branch on edition; packs and settings arrive as data).
+
+- **rpg.jamesonrgrieve.ca, private:**
+  - every AI provider is configured once at system level and available to all its users (no per-user
+    endpoints needed);
+  - it carries the IP settings and their rules packs (the 40k lines, WFRP, Soulbound, Fallout and the
+    like), from the private zephyrex-rpg-settings repository and `VTT_PACKS_DIRS`, never from the open
+    repositories.
+- **rpg.zephyrex.ai, full SaaS (moved from rpg.zephyrex.ca):**
+  - only SRD and open-licence content, plus the Reality setting (with its eras);
+  - models are reached through the proxy we build, which routes to volunteered devices (see Volunteered
+    VRAM) as well as the operator's tiers;
+  - accounts, quotas and plans as in Editions → SaaS.
+- **What the code needs for this:**
+  - system-level model endpoints: rows owned by the system that every user may use, chosen before (or
+    instead of) the person's own; the person's own still allowed where the instance permits;
+  - the model proxy as a provider (an OpenAI-compatible endpoint), so the server needs nothing special
+    to use it;
+  - content gated by what the instance loads (packs, settings), never by the instance's name.
+
 ## Progress (2026-11-20)
 
 Built in both editions (lite and SaaS), each with unit tests, a story with a play test per
