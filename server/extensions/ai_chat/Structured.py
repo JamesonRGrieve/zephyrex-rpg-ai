@@ -232,6 +232,9 @@ def structured_runs(
         speaker_id = str(person["id"]) if person is not None else None
         speaker_name = said if said is not None and person is None else None
         target_name = str(item["fields"].get("target") or "").strip()
+        # A line aimed at its own speaker (Zephyrex RPG's live test: "Old Hesk (to Old Hesk)") has no target.
+        if target_name and said is not None and _same(target_name, said):
+            target_name = ""
         target = next((one for one in people if _same(str(one["name"]), target_name)), None) if target_name else None
         manner = item["fields"].get("manner")
         line = {

@@ -250,7 +250,9 @@ export function structuredRuns(
     const person = said === null ? undefined : people.find((one) => same(one.name, said));
     const speakerId = person?.id ?? null;
     const speakerName = said !== null && person === undefined ? said : null;
-    const targetName = (item.fields.target ?? '').trim();
+    // A line aimed at its own speaker (Zephyrex RPG's live test: "Old Hesk (to Old Hesk)") has no target.
+    const aimed = (item.fields.target ?? '').trim();
+    const targetName = said !== null && aimed !== '' && same(aimed, said) ? '' : aimed;
     const target = targetName === '' ? undefined : people.find((one) => same(one.name, targetName));
     const manner = item.fields.manner ?? null;
     const line: PlayerLine = {

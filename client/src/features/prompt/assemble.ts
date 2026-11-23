@@ -718,6 +718,9 @@ export function forbidText(forbid: PromptInput['forbid']): string {
   // A canon warning on the last answer (the operator, 2026-11-22: "should be used to correct the AI").
   if (forbid?.reason === 'canon' && (forbid.note ?? '').trim() !== '')
     return PROMPT.canon_prompt.replaceAll('{{note}}', (forbid.note ?? '').trim());
+  // The reply rolled dice itself (lib/mechanics.ts): mechanics are the table's or the VTT's.
+  if (forbid?.reason === 'mechanics' && (forbid.note ?? '').trim() !== '')
+    return PROMPT.mechanics_retry.replaceAll('{{note}}', (forbid.note ?? '').trim());
   // The table GM answered in someone else's voice (lib/tableVoice.ts).
   if (forbid?.reason === 'table_voice' && (forbid.note ?? '').trim() !== '')
     return TABLE.voice.retry_prompt.replaceAll('{{note}}', (forbid.note ?? '').trim());

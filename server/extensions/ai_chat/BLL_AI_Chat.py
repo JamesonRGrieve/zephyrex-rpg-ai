@@ -97,6 +97,7 @@ from zephyrex.extensions.ai_chat.MapStep import (  # type: ignore[import-not-fou
     scene_changed,
     seat_place,
 )
+from zephyrex.extensions.ai_chat.Mechanics import invented_rolls  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Memory import story_lines  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.NarratorStyle import (  # type: ignore[import-not-found]
     NARRATOR_STYLE,
@@ -217,6 +218,7 @@ from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-f
     lore_passages,
     move_person,
     npc_sheet,
+    npc_sheet_options,
     persons_for,
     persons_for_turn,
     place_in_scene,
@@ -4821,6 +4823,35 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             )
         return answer(True, f"{actor}'s line meets {figure['phrase']}", figure)
 
+    async def _npc_option(
+        self, asked: Any, campaign_id: str | None, name: str, role: str, description: str
+    ) -> str | None:
+        """Which of the campaign's pack options (stat blocks; level, class and subclass where the pack has
+        them) a new NPC is, picked by the decision model among the VTT's own list; None to leave it to the
+        VTT's closest match."""
+        options = await npc_sheet_options(self.model_registry, str(self.requester.id), campaign_id)
+        if not options:
+            return None
+        labels: dict[str, str] = {}
+        for option in options:
+            parts = [str(option.get(key)) for key in ("class", "subclass") if option.get(key)]
+            label = " ".join([str(option["name"]), *(f"({part})" for part in parts)])
+            labels[label] = str(option["id"])
+        question = {
+            "type": "choice",
+            "instructions": str(NPC_AUTHOR["sheet_question"])
+            .replace("{{name}}", name)
+            .replace("{{role}}", role)
+            .replace("{{description}}", description.strip()),
+            "criteria": {
+                label: str(next(one for one in options if str(one["id"]) == option_id).get("summary") or "")[:200]
+                for label, option_id in labels.items()
+            },
+        }
+        answers = await self._decide("npc_sheet", asked, f"{name} ({role}): {description.strip()}", {"sheet": question})
+        chosen = ((answers or {}).get("sheet") or {}).get("choice")
+        return labels.get(str(chosen)) if chosen else None
+
     async def _npc_match(
         self,
         asked: Any,
@@ -4937,8 +4968,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             filled |= {key: fields[key] for key in ("personality", "motive", "voice") if fields[key]}
             await update_person(self.model_registry, requester, person_id, {k: v for k, v in filled.items() if v})
             yield step(2, str(steps["sheet"]))
-            # 3. Their sheet from the VTT's compendium for the campaign's system: never a model's numbers.
-            await npc_sheet(self.model_registry, requester, person_id, role, summary)
+            # 3. Their sheet from the VTT's compendium for the campaign's system: never a model's numbers. The
+            # decision model picks which of the pack's options they are (the operator, 2026-11-23: "is a new
+            # NPC needed, of what level, class and subclass"); without one, the VTT's closest match.
+            option_id = await self._npc_option(asked, wiki, name, role, fields["description"] or summary)
+            await npc_sheet(self.model_registry, requester, person_id, role, summary, option_id)
             # On the map beside the seat's character (the VTT's place_person; their wiki location follows).
             from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
                 play_context,
@@ -5682,8 +5716,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                                 ):
                                     yield piece
                     flags["saved"] = outcome["saved"]
+                if body.generate.mode != "table" and str(flags["told"]).strip():
+                    # Mechanics are never a model's (Zephyrex RPG's live test, 2026-11-23: "Tam Quickfoot rolls
+                    # Initiative: [roll=1d20+6]"; Mechanics.py): a reply that rolled dice itself is flagged,
+                    # never reformatted or saved, and asked again by the client.
+                    rolled = invented_rolls(str(flags["told"]))
+                    if rolled:
+                        flags["saved"] = True
+                        yield frame("mechanics_problem", {"spans": rolled, "note": "; ".join(rolled)})
                 reformatted: dict[str, Any] | None = None
-                if not structured and body.generate.mode == "narrate" and str(flags["told"]).strip():
+                if (
+                    not structured
+                    and not flags["saved"]
+                    and body.generate.mode == "narrate"
+                    and str(flags["told"]).strip()
+                ):
                     # Structure without trusting the narrator (the operator, 2026-11-23; Reformat.py): the
                     # finished prose re-sorted by a small model among the people present.
                     reformatting = asyncio.ensure_future(self._reformat(_context, str(flags["told"]), seat_name))

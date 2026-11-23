@@ -1,0 +1,42 @@
+{
+  "$comment": "Dice a model wrote itself (Zephyrex RPG's live test, 2026-11-23, chat 14ea3105: \"Tam Quickfoot rolls Initiative: [roll=1d20+6]\"): spans both twins find (server/extensions/ai_chat/Mechanics.py, client/src/lib/mechanics.ts). Mechanics are never a model's: the stream says mechanics_problem and the client asks again with forbid {reason: mechanics, note}.",
+  "cases": [
+    {
+      "name": "the live test's line",
+      "text": "Tam Quickfoot rolls Initiative: [roll=1d20+6]",
+      "spans": [
+        "[roll=1d20+6]",
+        "Tam Quickfoot rolls Initiative:"
+      ]
+    },
+    {
+      "name": "dice notation in prose",
+      "text": "She swings, 2d6+3 damage to the bandit.",
+      "spans": [
+        "2d6+3"
+      ]
+    },
+    {
+      "name": "a rolled result",
+      "text": "He rolls a 17 and clears the wall.",
+      "spans": [
+        "rolls a 17"
+      ]
+    },
+    {
+      "name": "asking for a test is fine",
+      "text": "Climbing that wall calls for an Athletics test.",
+      "spans": []
+    },
+    {
+      "name": "ordinary dice in the world are fine",
+      "text": "The sailors roll dice by the lantern, laughing.",
+      "spans": []
+    },
+    {
+      "name": "thinking is never read",
+      "text": "<think>[roll=1d20]</think>The gate creaks open.",
+      "spans": []
+    }
+  ]
+}

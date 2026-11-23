@@ -425,6 +425,40 @@
         }
       ],
       "cut": true
+    },
+    {
+      "name": "a line aimed at its own speaker has no target (the live test's \"Old Hesk (to Old Hesk)\")",
+      "latest": "",
+      "items": [
+        {
+          "fields": {
+            "kind": "say",
+            "speaker": "Maelis",
+            "target": "Maelis",
+            "manner": "speak"
+          },
+          "has_text": true,
+          "text": "Three days ago, the miller was there.",
+          "closed": true
+        }
+      ],
+      "runs": [
+        {
+          "speaker_id": "mae",
+          "speaker_name": null,
+          "lines": [
+            {
+              "speaker_id": "mae",
+              "kind": "say",
+              "manner": "speak",
+              "target_id": null,
+              "target_name": null,
+              "text": "Three days ago, the miller was there."
+            }
+          ]
+        }
+      ],
+      "cut": false
     }
   ]
 }

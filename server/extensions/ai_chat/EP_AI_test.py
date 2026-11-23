@@ -157,7 +157,15 @@ class FakeModel(BaseHTTPRequestHandler):
             return
         # A line marked NPCVOICE: gets an answer in a character's voice (the table GM's voice guard).
         npc_voice = "NPCVOICE:" in json.dumps(RECEIVED[-1]["body"].get("messages") or [])
-        pieces = ("Sergeant Horvec: ", "Halt.") if npc_voice else ("“Mind ", "the coolant.”")
+        # A line marked ROLLS: gets a model that rolls dice itself (the mechanics guard).
+        rolls = "ROLLS:" in json.dumps(RECEIVED[-1]["body"].get("messages") or [])
+        pieces = (
+            ("Sergeant Horvec: ", "Halt.")
+            if npc_voice
+            else ("Tam Quickfoot rolls Initiative: ", "[roll=1d20+6]")
+            if rolls
+            else ("“Mind ", "the coolant.”")
+        )
         for index, piece in enumerate(pieces):
             if stall and index == 1:
                 self.wfile.flush()
@@ -1476,6 +1484,24 @@ class TestGenerate:
         retried = {"generate": {**asked["generate"], "forbid": {"reason": "table_voice", "note": "You answered as Sergeant Horvec."}}}
         prompt = server.post("/v1/ai_chat/prompt", json=retried, headers=_headers(user)).json()["prompt"]
         assert "Your last answer was wrong: You answered as Sergeant Horvec." in prompt["messages"][0]["content"]
+
+    def test_a_reply_that_rolls_dice_itself_is_flagged_not_saved(self, model_url: str) -> None:
+        # Zephyrex RPG's live test, 2026-11-23: "Tam Quickfoot rolls Initiative: [roll=1d20+6]".
+        with TestClient(create()) as client:
+            user = create_user(client)
+            tam = _cast(client, user, "character", name="Tam").json()["character"]
+            _create(client, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+            chat = _chat(client, user, "chat", title="Ferry", character_ids=[tam["id"]]).json()["chat"]
+            line = _create(client, user, "chat_message", chat_id=chat["id"], role="user", swipes=["ROLLS: Roll initiative!"]).json()["chat_message"]
+            asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": tam["id"]}}
+            answer = client.post("/v1/ai_chat/generate", json=asked, headers=_headers(user)).text
+            assert "event: mechanics_problem" in answer and "[roll=1d20+6]" in answer
+            client.post("/v1/ai_chat/turn", json=asked, headers=_headers(user))
+            followed = client.get(f"/v1/ai_chat/turn_stream?chat_id={chat['id']}", headers=_headers(user)).text
+            assert "event: mechanics_problem" in followed and "event: saved" not in followed
+            retried = {"generate": {**asked["generate"], "forbid": {"reason": "mechanics", "note": "[roll=1d20+6]"}}}
+            prompt = client.post("/v1/ai_chat/prompt", json=retried, headers=_headers(user)).json()["prompt"]
+            assert "Your last reply rolled or resolved dice itself ([roll=1d20+6])" in prompt["messages"][0]["content"]
 
     def test_a_scene_with_no_picture_gets_a_battlemap(
         self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch

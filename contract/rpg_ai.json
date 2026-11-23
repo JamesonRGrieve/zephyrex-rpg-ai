@@ -118,8 +118,9 @@
     "objective_depth": 2,
     "narrate_prompt": "You are the game master, narrating this story. Describe what happens next: the world, the scene, people outside the cast and what comes of what the characters did, in one to three short paragraphs. Never speak, act, think or feel for {{user}}, and stop where {{user}} would react. When the latest line is a roll, narrate its result as it fell: never change, soften or re-roll it.",
     "cast_heading": "The characters:",
-    "in_character": "Every line of the story is in character: never address the player, apologise, or mention the text, the story, prompts or being cut off. Never use em dashes: use commas, full stops or ellipses, and end a line that breaks off with an ellipsis.",
+    "in_character": "Every line of the story is in character: never address the player, apologise, or mention the text, the story, prompts or being cut off. Never use em dashes: use commas, full stops or ellipses, and end a line that breaks off with an ellipsis. Never roll dice, write dice notation or roll results, or resolve a test yourself: the table or the VTT rolls it. Keep to this story's own world: no gods, oaths, institutions or names from any other setting.",
     "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. Write one item per line: your narration as `Narrator: ...`; another character, when you give them a moment, on a line of their own, in the third person: `Name (to Someone): \"what they say\"` (or to everyone; to X, whispers; to everyone, shouts; vox to X; voxcast) or `Name does something`. Anyone else in the scene who speaks or acts (a barkeep, a guard) gets their own lines the same way, named by what they are: `The Barkeep pauses mid-wipe.`, `The Barkeep (to Someone): \"...\"`. Narrator lines are only for the world: scenery, crowds, events and what comes of things; speech never goes in one. Never put what they say, think or decide in a Narrator line. The characters you may voice: {{names}}.",
+    "mechanics_retry": "Your last reply rolled or resolved dice itself ({{note}}). Never write a roll, dice notation or a roll's result: say which test the moment calls for, if any, and stop there; the table or the VTT rolls it.",
     "narrate_seat": "{{seat_name}} is the player's character: address them as \"you\", in the second person, never by name or as \"he\", \"she\" or \"they\" (the operator, 2026-11-23). Things may happen to you: what hits, grabs or throws you, and what you perceive. Never write what you do by choice, say, think, feel, decide or know (no \"you know her as\", no \"you never quite\"). Begin with what happens or what you perceive, never with what you do; your choices are the player's.",
     "narrate_example": "For example:\nNarrator: Rain hammers the hull plates. Somewhere ahead, boots ring on steel.\n{{example}} (to everyone, whispers): \"Hold.\"\n{{example}} raises a fist and listens.\nThe Watchman steps out of the dark, lamp raised.\nThe Watchman (to {{example}}): \"Who goes there?\"\nNarrator: The footsteps stop. A cogitator flickers awake.\n[screen: Cogitator]\nSEAL BREACH - DECK C\n[/screen]",
     "narrate_length": "Narrate at most three short paragraphs, and end the moment {{seat_name}} would act, speak, think or decide; then stop, without asking what they do.",
@@ -943,6 +944,13 @@
     "nothing_yet": "nothing yet",
     "skip_kinds": ["abilities", "ability_scores", "scores"]
   },
+  "combat_turn": {
+    "$comment": "Decision models in combat (the operator, 2026-11-23: \"in combat, does a character take or save its reaction, whom it targets, which spell or weapon, at what level it casts\"): an AI-run combatant's turn, its questions asked in parallel and each answered only among the VTT's combat_options; the VTT's take_combat_action resolves the picks with its own rolls. Phase 1 (VTT c139a69): weapon attacks and targets; spells and their levels with phase 2; reach is unchecked until phase 3, and the state says so. CombatTurn.py.",
+    "hold": "hold",
+    "action_question": "It is {{name}}'s turn in the fight. {{name}}: {{who}} Which of these does {{name}} do now? Choose only one of the options listed, or {{hold}} to do nothing.",
+    "target_question": "Whom does {{name}} aim at? Choose only one of these.",
+    "reach_unchecked": "(Distance isn't checked: every target listed is in reach.)"
+  },
   "battlemap": {
     "$comment": "A generated battlemap (the operator, 2026-11-23: \"The map is a real map: a top-down battlemap, never a location's illustration\"; a mast painting shown as the map: \"This isn't a fucking map\"): a campaign's current scene with no picture of its own or its place's (the VTT's current_scene background_url null) gets one drawn by the owner's image-role model, kept as an asset and set as the scene's background_url (the VTT's set_scene_background), once per scene and in the background of a turn; POST /v1/ai_chat/battlemap draws it again (the GM's Regenerate map). The place's name and summary come from the wiki.",
     "prompt": "strictly top-down orthographic tabletop RPG battle map, a floor plan seen from directly above, of {{place}}: {{description}}. No perspective, no horizon, no characters, no creatures, no text, no labels, no grid",
@@ -965,6 +973,7 @@
     "match_question": "The line meets {{phrase}}. Is that one of these people of the campaign, not yet met in the story? Pick who it is by their description, or {{someone_new}} if none of them fits.",
     "someone_new": "someone new",
     "match_characters": 300,
+    "sheet_question": "{{name}} ({{role}}) is new to the story: {{description}} Which of these fits them best? Choose only one of the options listed.",
     "author_prompt": "Write a new person for this story: {{name}} ({{role}}), met just now in the scene below. Answer with JSON only: {\"summary\": one line, who they are, \"description\": two or three sentences of how they look and carry themselves, \"personality\": a sentence, \"motive\": what they want right now, a sentence, \"voice\": how they speak, a few words}. Fit the campaign and the scene; invent no game statistics.",
     "steps": {"write": "Writing {{name}}", "person": "Making them a person of the campaign", "sheet": "Building their sheet", "picture": "Painting a portrait"}
   },

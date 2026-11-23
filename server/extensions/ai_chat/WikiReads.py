@@ -299,16 +299,29 @@ async def update_person(
 
 
 async def npc_sheet(
-    model_registry: Any, requester_id: str, person_id: str, role: str, hint: str
+    model_registry: Any, requester_id: str, person_id: str, role: str, hint: str, option_id: str | None = None
 ) -> dict[str, Any] | None:
     """A new NPC's sheet from the VTT's compendium for the campaign's system (rpg_builder's npc_sheet):
-    never a model's numbers. None without the ability, or when the system has no blocks."""
+    never a model's numbers. ``option_id`` names the block to build (npc_sheet_options); without it the
+    VTT's closest match. None without the ability, or when the system has no blocks."""
     build = loaded_ability(model_registry, "rpg_builder", "npc_sheet")
     if build is None:
         return None
     forget_turns()
-    built = await _call(build, requester_id, person_id, role, hint=hint)
+    extra = {"option_id": option_id} if option_id else {}
+    built = await _call(build, requester_id, person_id, role, hint=hint, **extra)
     return dict(built) if isinstance(built, dict) else None
+
+
+async def npc_sheet_options(model_registry: Any, requester_id: str, campaign_id: str | None) -> list[dict[str, Any]]:
+    """What the campaign's pack can build an NPC from (rpg_builder's npc_sheet_options: stat blocks, each
+    {id, name, level_or_cr, class, subclass, summary}); none without the ability or a pack."""
+    options_of = loaded_ability(model_registry, "rpg_builder", "npc_sheet_options") if campaign_id else None
+    if options_of is None:
+        return []
+    found = await _call(options_of, requester_id, campaign_id)
+    options = found.get("options") if isinstance(found, dict) else None
+    return [dict(one) for one in options or [] if isinstance(one, dict) and one.get("id") and one.get("name")]
 
 
 async def character_sheet(model_registry: Any, requester_id: str, person_id: str) -> dict[str, Any] | None:

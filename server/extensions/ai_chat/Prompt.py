@@ -497,6 +497,9 @@ def forbid_text(forbid: Mapping[str, Any] | None) -> str:
     note = str((forbid or {}).get("note") or "").strip()
     if (forbid or {}).get("reason") == "canon" and note:
         return str(PROMPT["canon_prompt"]).replace("{{note}}", note)
+    # The reply rolled dice itself (Mechanics.py): mechanics are the table's or the VTT's.
+    if (forbid or {}).get("reason") == "mechanics" and note:
+        return str(PROMPT["mechanics_retry"]).replace("{{note}}", note)
     # The table GM answered in someone else's voice (TableVoice.py).
     if (forbid or {}).get("reason") == "table_voice" and note:
         return str(TABLE["voice"]["retry_prompt"]).replace("{{note}}", note)
