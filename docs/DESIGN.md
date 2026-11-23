@@ -505,8 +505,26 @@ _Maps on the fly: the on-prem cartography agent (Self Hosted AI's recommendation
 _Characters_
 - **AI-assisted character creation modes,** beside the builder and the freeform character.
 
+_Characters (as built, 2026-11-23)_
+- **Describe them** (e7d8f12) beside New and Freeform: a name and who they are; the decision model
+  makes each builder pick among the VTT builder's own options (`POST /v1/ai_chat/builder_pick`,
+  Parity), in step order, never ability scores; every pick stays the person's to change.
+
 _Other products_
 - **An in-person campaign copilot mode,** integrating with Foundry and Roll20.
+  - _Who it serves:_ a human GM running a table in person or on Foundry/Roll20. The AI never runs
+    the game; it answers the GM, on the GM's screen only (everything is GM-only by default).
+  - _What it does:_ NPC lines in voice on request ("what does Mags say"); rulings looked up, never
+    invented (the VTT's rules, the wiki's lore); a recap and "what do they know" per player; names,
+    places and loot generated into the wiki as drafts the GM accepts; the session log kept from what
+    the GM types or dictates.
+  - _The table's state:_ read from the external VTT where its API allows (Foundry: a module
+    reporting scene, tokens, combat and rolls; Roll20: its API sandbox, Pro only), else typed by the GM.
+    Writes back only on the GM's tap (a journal entry, an NPC actor).
+  - _The same records:_ the campaign is ours (wiki, VTT); the external VTT is a mirror the GM plays on.
+  - **Open, the operator's decisions:** whether the Foundry side is a module in the kanka-foundry
+    family or a new one; Roll20 support at all (API needs Pro); where a module's bridge runs; and
+    whether copilot is a seat ("GM, assisted") in the existing play view or its own view.
 
 **Operations**
 
