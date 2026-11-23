@@ -1588,9 +1588,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         }
         const usable = next.kind === 'character' && next.character_id !== null && aiIds.has(next.character_id);
         // The person's own line always gets an answer: a pause (or a pick outside the AI party)
-        // straight after it becomes the AI GM's narration. Later in the round, it ends the round.
-        if (!usable && next.kind !== 'gm') {
-          if (parent !== start) return;
+        // straight after it becomes the AI GM's narration. Later in the round, it ends the round. When the
+        // person is the GM there is no AI GM to speak over them (the decide contract: the AI GM never
+        // interjects then): a pause is their turn, and the round ends (live test on prod, 2026-11-23).
+        if (!usable && (next.kind !== 'gm' || chat.seat === 'gm')) {
+          if (parent !== start || chat.seat === 'gm') return;
         }
         const saved =
           usable && next.character_id !== null
