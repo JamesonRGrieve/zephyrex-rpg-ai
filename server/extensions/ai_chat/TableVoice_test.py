@@ -9,6 +9,7 @@ from typing import Any
 import pytest
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.TableVoice import (  # type: ignore[import-not-found]
+    story_voice_problem,
     table_voice_note,
     table_voice_problem,
 )
@@ -19,6 +20,11 @@ CASES: dict[str, Any] = json.loads((REPOSITORY_ROOT / "contract" / "table-voice-
 @pytest.mark.parametrize("case", CASES["cases"], ids=lambda case: case["name"])
 def test_voice(case: dict[str, Any]) -> None:
     assert table_voice_problem(case["answer"]) == case["problem"]
+
+
+@pytest.mark.parametrize("case", CASES["story_cases"], ids=lambda case: case["name"])
+def test_story_voice(case: dict[str, Any]) -> None:
+    assert story_voice_problem(case["answer"]) == case["problem"]
 
 
 def test_the_retry_names_the_wrong_voice() -> None:

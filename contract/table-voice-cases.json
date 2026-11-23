@@ -45,5 +45,38 @@
         "name": null
       }
     }
+  ],
+  "story_cases": [
+    {
+      "name": "live run 4's story reply (chat aa050327)",
+      "answer": "I'll roll for both characters - Brenna gets 11, Tam gets 15. I'll describe their actions next.",
+      "problem": {
+        "kind": "assistant",
+        "name": null
+      }
+    },
+    {
+      "name": "a User label",
+      "answer": "User: Roll initiative.",
+      "problem": {
+        "kind": "assistant",
+        "name": "User"
+      }
+    },
+    {
+      "name": "a character's own label is a story turn's form",
+      "answer": "Brenna (to Tam): \"Behind me!\"",
+      "problem": null
+    },
+    {
+      "name": "a named speaker's line is fine",
+      "answer": "Tam: Here it comes!",
+      "problem": null
+    },
+    {
+      "name": "narration is fine",
+      "answer": "The river beast surges up the bank.",
+      "problem": null
+    }
   ]
 }

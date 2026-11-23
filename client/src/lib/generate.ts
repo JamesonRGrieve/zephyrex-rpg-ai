@@ -48,7 +48,7 @@ import { statusMessages } from '~/features/chat/statusLine';
 import { type Dispositions, applyStances, parseStatus, sceneState } from '~/features/chat/dispositions';
 import { paragraphCut } from '~/features/chat/voiceGuard';
 import { inventedRolls } from '~/lib/mechanics';
-import { tableVoiceNote, tableVoiceProblem } from '~/lib/tableVoice';
+import { storyVoiceProblem, tableVoiceNote, tableVoiceProblem } from '~/lib/tableVoice';
 import { thinkSplitter, thinkingFields, thinkingMode, type ThinkingMode } from '~/lib/thinking';
 import { frameFromFraming } from '~/features/prompt/campaignFraming';
 import { frameFor } from '~/lib/frameCopy';
@@ -2152,7 +2152,11 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
       }
       // The table GM's own voice (the operator, 2026-11-23; lib/tableVoice.ts): flagged for the client to ask again.
       const problem = body.mode === 'table' && told.trim() !== '' ? tableVoiceProblem(told) : null;
-      if (problem !== null) yield event('voice_problem', { ...problem, note: tableVoiceNote(problem) });
+      if (problem !== null)
+        yield event('voice_problem', { ...problem, note: tableVoiceNote(problem), reason: 'table_voice' });
+      // A story turn's voice gone out of the story (live run 4; lib/tableVoice.ts storyVoiceProblem).
+      const voiced = body.mode !== 'table' && told.trim() !== '' ? storyVoiceProblem(told) : null;
+      if (voiced !== null) yield event('voice_problem', { ...voiced, note: TABLE.voice.story_note, reason: 'story_voice' });
       // Mechanics are never a model's (lib/mechanics.ts): a reply that rolled dice itself is asked again.
       const rolled = body.mode !== 'table' && told.trim() !== '' ? inventedRolls(told) : [];
       if (rolled.length > 0) yield event('mechanics_problem', { spans: rolled, note: rolled.join('; ') });

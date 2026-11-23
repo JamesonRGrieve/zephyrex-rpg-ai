@@ -501,7 +501,7 @@ def forbid_text(forbid: Mapping[str, Any] | None) -> str:
     if (forbid or {}).get("reason") == "mechanics" and note:
         return str(PROMPT["mechanics_retry"]).replace("{{note}}", note)
     # The table GM answered in someone else's voice (TableVoice.py).
-    if (forbid or {}).get("reason") == "table_voice" and note:
+    if (forbid or {}).get("reason") in ("table_voice", "story_voice") and note:
         return str(TABLE["voice"]["retry_prompt"]).replace("{{note}}", note)
     # What a replay retold (VoiceGuard.py replay_of; the operator, 2026-11-22: "Lots of repetition").
     spans = [str(span).strip() for span in (forbid or {}).get("spans") or [] if str(span).strip()]

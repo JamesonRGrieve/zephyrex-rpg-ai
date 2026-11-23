@@ -187,6 +187,8 @@ from zephyrex.extensions.ai_chat.Structured import (  # type: ignore[import-not-
 )
 from zephyrex.extensions.ai_chat.SystemOrder import systems_before_last_user  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.TableVoice import (  # type: ignore[import-not-found]
+    story_voice_note,
+    story_voice_problem,
     table_voice_note,
     table_voice_problem,
 )
@@ -5724,6 +5726,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     if rolled:
                         flags["saved"] = True
                         yield frame("mechanics_problem", {"spans": rolled, "note": "; ".join(rolled)})
+                    # A story turn's voice gone out of the story (live run 4): flagged, not saved, asked again.
+                    voiced = story_voice_problem(str(flags["told"]))
+                    if voiced is not None:
+                        flags["saved"] = True
+                        yield frame("voice_problem", {**voiced, "note": story_voice_note(), "reason": "story_voice"})
                 reformatted: dict[str, Any] | None = None
                 if (
                     not structured
@@ -5746,7 +5753,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     problem = table_voice_problem(str(flags["told"]))
                     if problem is not None:
                         flags["saved"] = True
-                        yield frame("voice_problem", {**problem, "note": table_voice_note(problem)})
+                        yield frame(
+                            "voice_problem", {**problem, "note": table_voice_note(problem), "reason": "table_voice"}
+                        )
                 if body.generate.server_save and not flags["saved"] and str(flags["told"]).strip():
                     # An asynchronous turn is saved by the server (the operator, 2026-11-23: "on reconnecting the
                     # result is there"): the reformatted runs, else the reply as one line, in the shape a

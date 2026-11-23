@@ -4,7 +4,12 @@
 ``POST /v1/ai_chat/combat_turn`` ``{"combat_turn": {"chat_id", "encounter_id", "person_id"}}``: the VTT's
 combat_options for that combatant, its questions (which action, whom it aims at) put to the decision
 models in parallel and filed under the chat, then the picks resolved by the VTT's take_combat_action with
-its own rolls. A combatant off its turn, with no action left, or whose decision is to hold does nothing.
+its own rolls, then the VTT's next_turn. A combatant off its turn does nothing; one with no action left
+or whose decision is to hold passes the turn.
+
+``POST /v1/ai_chat/combat_check`` ``{"combat_check": {"chat_id", "leaf_id"}}``: whether the story's latest
+line starts a fight (the decision model), and if so the VTT's encounter for everyone on the scene, its
+initiative rolled and round 1 begun (live run 4: "Roll initiative!" had opened nothing).
 """
 
 from __future__ import annotations
@@ -44,6 +49,118 @@ class CombatTurnEnvelope(PlainModel):
     combat_turn: CombatTurn
 
 
+class CombatCheckRequest(PlainModel):
+    chat_id: str = Field(..., min_length=1)
+    leaf_id: str | None = None
+
+
+class CombatCheckRequestEnvelope(PlainModel):
+    combat_check: CombatCheckRequest
+
+
+class CombatCheck(PlainModel):
+    #: True when this call started the fight (false: one was already going, or none starts).
+    started: bool
+    encounter_id: str | None = None
+    #: The VTT's order (round, whose turn, each combatant's initiative), when there's a fight.
+    order: dict[str, Any] | None = None
+    reason: str = ""
+
+
+class CombatCheckEnvelope(PlainModel):
+    combat_check: CombatCheck
+
+
+async def _called(ability: Any, *args: Any, **kwargs: Any) -> Any:
+    answer = ability(*args, **kwargs)
+    return await answer if inspect.isawaitable(answer) else answer
+
+
+class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
+    """Custom routes only: whether the story has started a fight, and the VTT's encounter opened for it."""
+
+    prefix: ClassVar[str | None] = "/v1/ai_chat/combat_check"
+    tags: ClassVar[list[str] | None] = ["AI Chat"]
+    auth_type: ClassVar[AuthType] = AuthType.JWT
+    routes_to_register: ClassVar[list[RouteType] | None] = []
+
+    @custom_route(
+        method="POST",
+        path="",
+        input_model=CombatCheckRequestEnvelope,
+        output_model=CombatCheckEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Whether the story's latest line starts a fight; if so the VTT's encounter, initiative rolled",
+    )
+    async def combat_check_route(self, body: CombatCheckRequestEnvelope) -> CombatCheckEnvelope:
+        """Live run 4 (Zephyrex RPG, 2026-11-23): "Roll initiative!" opened no encounter, so no AI combatant
+        ever got a turn. The decision model says whether the latest line starts a fight; the VTT opens it
+        with everyone on the scene, rolls initiative under its pack and starts round 1."""
+        from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
+        from zephyrex.extensions.ai_campaign.BLL_AI_Campaign import (  # type: ignore[import-not-found]
+            CampaignFrameManager,
+        )
+        from zephyrex.extensions.ai_chat.BLL_AI_Chat import (  # type: ignore[import-not-found]
+            AIChatManager,
+            ChatManager,
+            ChatMessageManager,
+            shown_text,
+            wiki_campaign_for,
+        )
+        from zephyrex.extensions.ai_chat.CombatTurn import COMBAT  # type: ignore[import-not-found]
+        from zephyrex.extensions.ai_chat.WikiReads import scene_now, scene_people  # type: ignore[import-not-found]
+
+        asked = body.combat_check
+        requester = str(self.requester.id)
+        chat = ChatManager(requester_id=requester, model_registry=self.model_registry).get(id=asked.chat_id)
+        wiki = wiki_campaign_for(
+            CampaignFrameManager(requester_id=requester, model_registry=self.model_registry), chat.campaign_id
+        )
+        current = loaded_ability(self.model_registry, "rpg_combat", "current_encounter")
+        start = loaded_ability(self.model_registry, "rpg_combat", "start_encounter")
+        roll = loaded_ability(self.model_registry, "rpg_combat", "roll_initiative")
+        begin = loaded_ability(self.model_registry, "rpg_combat", "start_combat")
+        if not wiki or None in (current, start, roll, begin):
+            return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no combat here"))
+        going = await _called(current, requester, wiki)
+        if isinstance(going, dict) and going.get("id"):
+            return CombatCheckEnvelope(
+                combat_check=CombatCheck(started=False, encounter_id=str(going["id"]), order=going, reason="already")
+            )
+        rows = ChatMessageManager(requester_id=requester, model_registry=self.model_registry).list(chat_id=chat.id)
+        line = next((one for one in rows if asked.leaf_id and str(one.id) == asked.leaf_id), None) or (
+            max(rows, key=lambda one: (str(one.created_at), str(one.id))) if rows else None
+        )
+        if line is None:
+            return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no line"))
+        question = {
+            "type": "choice",
+            "instructions": str(COMBAT["start_question"]),
+            "criteria": [str(COMBAT["start_yes"]), str(COMBAT["start_no"])],
+        }
+        chats = AIChatManager(requester_id=requester, model_registry=self.model_registry)
+        answers = await chats._decide("Combat: start", asked, shown_text(line), {"fight": question})
+        if ((answers or {}).get("fight") or {}).get("choice") != COMBAT["start_yes"]:
+            return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no fight"))
+        scene = await scene_now(self.model_registry, requester, wiki)
+        people = await scene_people(self.model_registry, requester, wiki)
+        if not people:
+            return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no one on the scene"))
+        made = await _called(start, requester, wiki, scene_id=str(scene["id"]) if scene else None, person_ids=people)
+        encounter_id = str(made.get("id") or made.get("encounter_id") or "") if isinstance(made, dict) else ""
+        if not encounter_id:
+            return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="the VTT opened no fight"))
+        await _called(roll, requester, encounter_id)
+        order = await _called(begin, requester, encounter_id)
+        return CombatCheckEnvelope(
+            combat_check=CombatCheck(
+                started=True, encounter_id=encounter_id, order=dict(order) if isinstance(order, dict) else None
+            )
+        )
+
+
 class CombatTurnManager(AbstractBLLManager[Any], RouterMixin):
     """Custom routes only (an action manager)."""
 
@@ -64,9 +181,9 @@ class CombatTurnManager(AbstractBLLManager[Any], RouterMixin):
     )
     async def combat_turn_route(self, body: CombatTurnRequestEnvelope) -> CombatTurnEnvelope:
         from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
-        from zephyrex.extensions.ai_chat.BLL_AI_Chat import AIChatManager, ChatManager  # type: ignore[import-not-found]
-        from zephyrex.extensions.ai_chat.CombatTurn import combat_pick, combat_questions  # type: ignore[import-not-found]
-        from zephyrex.extensions.ai_chat.WikiReads import world_entities_by_id  # type: ignore[import-not-found]
+        from zephyrex.extensions.ai_chat.BLL_AI_Chat import AIChatManager, ChatManager
+        from zephyrex.extensions.ai_chat.CombatTurn import combat_pick, combat_questions
+        from zephyrex.extensions.ai_chat.WikiReads import world_entities_by_id
 
         asked = body.combat_turn
         requester = str(self.requester.id)
@@ -76,9 +193,13 @@ class CombatTurnManager(AbstractBLLManager[Any], RouterMixin):
         if read is None or act is None:
             raise HTTPException(status_code=409, detail={"message": "The VTT has no combat here", "code": "no_combat"})
 
-        async def called(ability: Any, *args: Any, **kwargs: Any) -> Any:
-            answer = ability(*args, **kwargs)
-            return await answer if inspect.isawaitable(answer) else answer
+        called = _called
+        advance = loaded_ability(self.model_registry, "rpg_combat", "next_turn")
+
+        async def passed() -> None:
+            # The turn passes on once this combatant has acted or held (the VTT's next_turn).
+            if advance is not None:
+                await called(advance, requester, asked.encounter_id)
 
         options = await called(read, requester, asked.encounter_id, asked.person_id)
         if not isinstance(options, dict):
@@ -90,6 +211,7 @@ class CombatTurnManager(AbstractBLLManager[Any], RouterMixin):
         name = str(person.get("name") or "They")
         questions, by_action, by_target = combat_questions(options, name, str(person.get("summary") or ""))
         if not questions:
+            await passed()
             return CombatTurnEnvelope(combat_turn=CombatTurn(acted=False, reason="no action"))
         chats = AIChatManager(requester_id=requester, model_registry=self.model_registry)
         state = f"{name}, {options.get('hp')}/{options.get('hp_max')} hit points, in a fight against: " + ", ".join(
@@ -101,10 +223,12 @@ class CombatTurnManager(AbstractBLLManager[Any], RouterMixin):
             return CombatTurnEnvelope(combat_turn=CombatTurn(acted=False, reason="no decision model"))
         pick = combat_pick(answers, options, by_action, by_target)
         if pick is None:
+            await passed()
             return CombatTurnEnvelope(combat_turn=CombatTurn(acted=False, reason="holds"))
         result = await called(
             act, requester, asked.encounter_id, asked.person_id, pick["action_id"], target_ids=pick["target_ids"]
         )
+        await passed()
         return CombatTurnEnvelope(
             combat_turn=CombatTurn(
                 acted=True,

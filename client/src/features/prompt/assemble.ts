@@ -722,7 +722,7 @@ export function forbidText(forbid: PromptInput['forbid']): string {
   if (forbid?.reason === 'mechanics' && (forbid.note ?? '').trim() !== '')
     return PROMPT.mechanics_retry.replaceAll('{{note}}', (forbid.note ?? '').trim());
   // The table GM answered in someone else's voice (lib/tableVoice.ts).
-  if (forbid?.reason === 'table_voice' && (forbid.note ?? '').trim() !== '')
+  if ((forbid?.reason === 'table_voice' || forbid?.reason === 'story_voice') && (forbid.note ?? '').trim() !== '')
     return TABLE.voice.retry_prompt.replaceAll('{{note}}', (forbid.note ?? '').trim());
   // What a replay retold (voiceGuard.ts replayOf; the operator, 2026-11-22: "Lots of repetition").
   const spans = (forbid?.spans ?? []).map((span) => span.trim()).filter((span) => span !== '');

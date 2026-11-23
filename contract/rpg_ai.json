@@ -349,7 +349,10 @@
       "allowed_labels": ["GM", "Note", "OOC", "Table"],
       "npc_note": "You answered as {{name}}, a character in the story. Answer as the GM, in your own voice, never as anyone in the story.",
       "assistant_note": "You answered as an assistant. Answer as the GM running this game, plainly, never as an assistant (no \"Understood\", no offers to help).",
-      "retry_prompt": "Your last answer was wrong: {{note}}"
+      "retry_prompt": "Your last answer was wrong: {{note}}",
+      "agent_openings": ["i'll roll", "i will roll", "let me roll", "i'll describe", "i will describe", "let me describe", "i'll continue", "i will continue", "i'll narrate", "i will narrate"],
+      "story_labels": ["User", "Assistant", "AI", "System"],
+      "story_note": "You answered as an assistant or as the player's helper. Write only the story, in character: never address the player or say what you will do next."
     },
     "note_prompt": "When the players settle a house rule, a pacing or tone choice, or something to remember, end your answer with it on a line of its own: Note (house_rule, pacing, tone or reminder): the note. The players decide whether to keep it.",
     "note_line": "Note ({{kind}}): "
@@ -949,7 +952,10 @@
     "hold": "hold",
     "action_question": "It is {{name}}'s turn in the fight. {{name}}: {{who}} Which of these does {{name}} do now? Choose only one of the options listed, or {{hold}} to do nothing.",
     "target_question": "Whom does {{name}} aim at? Choose only one of these.",
-    "reach_unchecked": "(Distance isn't checked: every target listed is in reach.)"
+    "reach_unchecked": "(Distance isn't checked: every target listed is in reach.)",
+    "start_question": "Does the story's latest line start a fight now (an attack, an ambush, a call to roll initiative)?",
+    "start_yes": "a fight starts",
+    "start_no": "no fight"
   },
   "battlemap": {
     "$comment": "A generated battlemap (the operator, 2026-11-23: \"The map is a real map: a top-down battlemap, never a location's illustration\"; a mast painting shown as the map: \"This isn't a fucking map\"): a campaign's current scene with no picture of its own or its place's (the VTT's current_scene background_url null) gets one drawn by the owner's image-role model, kept as an asset and set as the scene's background_url (the VTT's set_scene_background), once per scene and in the background of a turn; POST /v1/ai_chat/battlemap draws it again (the GM's Regenerate map). The place's name and summary come from the wiki.",

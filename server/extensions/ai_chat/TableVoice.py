@@ -46,3 +46,24 @@ def table_voice_note(problem: Mapping[str, Any]) -> str:
     if problem.get("kind") == "npc":
         return str(VOICE["npc_note"]).replace("{{name}}", str(problem.get("name") or "someone"))
     return str(VOICE["assistant_note"])
+
+
+def story_voice_problem(text: str) -> dict[str, Any] | None:
+    """A story turn's voice gone out of the story (live run 4, chat aa050327: "I'll roll for both
+    characters … I'll describe their actions next.", credited to "User"): a reply that opens as an
+    assistant or as the player's helper, or under a User/Assistant label. A character's ``Name:`` label
+    is a story turn's own form, so it is never flagged here."""
+    answer = _answer(text)
+    first = next((line for line in answer.split("\n") if line.strip()), "")
+    label = _LABEL.match(first)
+    if label is not None and label.group(1).lower() in {str(one).lower() for one in VOICE["story_labels"]}:
+        return {"kind": "assistant", "name": label.group(1)}
+    opening = first.strip().lower()
+    if any(opening.startswith(str(word)) for word in [*VOICE["assistant_openings"], *VOICE["agent_openings"]]):
+        return {"kind": "assistant", "name": None}
+    return None
+
+
+def story_voice_note() -> str:
+    """What a story turn's retry is told."""
+    return str(VOICE["story_note"])

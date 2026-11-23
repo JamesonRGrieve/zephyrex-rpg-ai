@@ -37,6 +37,20 @@
       "name": "thinking is never read",
       "text": "<think>[roll=1d20]</think>The gate creaks open.",
       "spans": []
+    },
+    {
+      "name": "live run 4's line (chat aa050327): a roll announced and its results",
+      "text": "I'll roll for both characters - Brenna gets 11, Tam gets 15. I'll describe their actions next.",
+      "spans": [
+        "I'll roll for both characters - Brenna gets 11, Tam gets 15",
+        "Brenna gets 11",
+        "Tam gets 15"
+      ]
+    },
+    {
+      "name": "a number someone gets, with no roll in the reply, is fine",
+      "text": "Brenna gets 3 silver for the fish.",
+      "spans": []
     }
   ]
 }

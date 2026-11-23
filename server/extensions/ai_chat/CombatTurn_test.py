@@ -100,3 +100,60 @@ def test_the_route_resolves_the_pick_through_the_vtt(server: TestClient, monkeyp
     turn = answer.json()["combat_turn"]
     assert turn["acted"] is True and turn["result"]["damage"] == 7
     assert taken == [("attack:longsword", ["p-wren"])]
+
+
+def test_a_fight_the_story_starts_opens_the_vtts_encounter(server: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Live run 4 (Zephyrex RPG, 2026-11-23): "Roll initiative!" opened no encounter.
+    user = create_user(server)  # type: ignore[no-untyped-call]
+    headers = {"Authorization": f"Bearer {user.jwt}"}
+    world = server.post("/v1/campaign", json={"campaign": {"name": "River"}}, headers=headers).json()["campaign"]["id"]
+    tam = server.post(
+        "/v1/person", json={"person": {"name": "Tam", "kind": "npc", "campaign_id": world}}, headers=headers
+    ).json()["person"]
+    made = {"chat": {"title": "River", "character_ids": [tam["id"]], "campaign_id": world}}
+    chat = server.post("/v1/chat", json=made, headers=headers).json()["chat"]
+    shout = "It heaves itself out at Tam. Roll initiative!"
+    said = {"chat_message": {"chat_id": chat["id"], "role": "user", "swipes": [shout]}}
+    line = server.post("/v1/chat_message", json=said, headers=headers).json()["chat_message"]
+    opened: list[dict[str, Any]] = []
+
+    async def current_encounter(_requester: str, _campaign: str) -> None:
+        return None
+
+    async def start_encounter(_requester: str, campaign_id: str, **fields: Any) -> dict[str, Any]:
+        opened.append({"campaign_id": campaign_id, **fields})
+        return {"id": "e1"}
+
+    async def roll_initiative(_requester: str, _encounter: str) -> dict[str, Any]:
+        return {}
+
+    async def start_combat(_requester: str, _encounter: str) -> dict[str, Any]:
+        return {"round": 1, "current_combatant_id": "x"}
+
+    found = {
+        "current_encounter": current_encounter,
+        "start_encounter": start_encounter,
+        "roll_initiative": roll_initiative,
+        "start_combat": start_combat,
+    }
+    monkeypatch.setattr(AbstractExtensionProvider, "loaded_ability", lambda _registry, _ext, name: found.get(name))
+
+    async def scene(_registry: Any, _requester: str, _campaign: str | None) -> dict[str, Any]:
+        return {"id": "s1"}
+
+    async def people(_registry: Any, _requester: str, _campaign: str | None) -> list[str]:
+        return [tam["id"], "p-beast"]
+
+    monkeypatch.setattr(WikiReads, "scene_now", scene)
+    monkeypatch.setattr(WikiReads, "scene_people", people)
+
+    async def decide(_self: Any, purpose: str, _asked: Any, state: str, _questions: dict[str, Any]) -> dict[str, Any]:
+        assert purpose == "Combat: start" and "Roll initiative" in state
+        return {"fight": {"choice": "a fight starts"}}
+
+    monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decide)
+    asked = {"combat_check": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+    answer = server.post("/v1/ai_chat/combat_check", json=asked, headers=headers)
+    assert answer.status_code == 200, answer.text
+    assert answer.json()["combat_check"]["started"] is True and answer.json()["combat_check"]["encounter_id"] == "e1"
+    assert opened == [{"campaign_id": world, "scene_id": "s1", "person_ids": [tam["id"], "p-beast"]}]

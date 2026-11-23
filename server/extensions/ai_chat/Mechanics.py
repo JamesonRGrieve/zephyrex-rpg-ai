@@ -19,7 +19,11 @@ _PATTERNS = (
     re.compile(r"(?<![\w=\[])\d+d\d+(?:\s*[+-]\s*\d+)?\b"),
     # A rolled number: "rolls a 17", "rolled an 8".
     re.compile(r"\brol(?:ls|led) an? \d+\b", re.IGNORECASE),
+    # A roll announced: "I'll roll for both characters - …" (live run 4, chat aa050327).
+    re.compile(r"\b(?:I'll|I will|let me) roll\b[^.!?]*", re.IGNORECASE),
 )
+#: "Brenna gets 11": a result, but only in a reply that mentions rolling (else a price, a count).
+_RESULT = re.compile(r"\b[A-Z][\w'\u2019-]* gets? (?:a )?\d+\b")
 
 
 def invented_rolls(text: str) -> list[str]:
@@ -28,7 +32,8 @@ def invented_rolls(text: str) -> list[str]:
 
     answer = str(story_text(text))
     found: list[str] = []
-    for pattern in _PATTERNS:
+    patterns = [*_PATTERNS, *([_RESULT] if re.search(r"\broll", answer, re.IGNORECASE) else [])]
+    for pattern in patterns:
         for match in pattern.finditer(answer):
             span = match.group(0).strip()
             if span and span not in found:

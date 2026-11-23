@@ -17,14 +17,19 @@ const PATTERNS: readonly RegExp[] = [
   /(?<![\w=[])\d+d\d+(?:\s*[+-]\s*\d+)?\b/gu,
   // A rolled number: "rolls a 17", "rolled an 8".
   /\brol(?:ls|led) an? \d+\b/giu,
+  // A roll announced: "I'll roll for both characters - …" (live run 4, chat aa050327).
+  /\b(?:I'll|I will|let me) roll\b[^.!?]*/giu,
 ];
+/** "Brenna gets 11": a result, but only in a reply that mentions rolling (else a price, a count). */
+const RESULT = /\b[A-Z][\w'’-]* gets? (?:a )?\d+\b/gu;
 
 /** The spans of dice a model wrote itself, in the order the patterns find them; [] for none. */
 export function inventedRolls(text: string): string[] {
   const thinks = REASONING.pairs.some(([opening]) => text.includes(opening as string));
   const answer = thinks ? splitReasoning(text).reply : text;
   const found: string[] = [];
-  for (const pattern of PATTERNS) {
+  const patterns = /\broll/iu.test(answer) ? [...PATTERNS, RESULT] : PATTERNS;
+  for (const pattern of patterns) {
     for (const match of answer.matchAll(pattern)) {
       const span = match[0].trim();
       if (span !== '' && !found.includes(span)) found.push(span);

@@ -35,3 +35,21 @@ export function tableVoiceNote(problem: TableVoiceProblem): string {
     ? TABLE.voice.npc_note.replaceAll('{{name}}', problem.name ?? 'someone')
     : TABLE.voice.assistant_note;
 }
+
+/**
+ * A story turn's voice gone out of the story (live run 4, chat aa050327: "I'll roll for both characters …
+ * I'll describe their actions next."): opening as an assistant or the player's helper, or under a
+ * User/Assistant label. A character's `Name:` label is a story turn's own form, never flagged here.
+ */
+export function storyVoiceProblem(text: string): TableVoiceProblem | null {
+  const thinks = REASONING.pairs.some(([opening]) => text.includes(opening as string));
+  const answer = (thinks ? splitReasoning(text).reply : text).trim();
+  const first = answer.split('\n').find((line) => line.trim() !== '') ?? '';
+  const label = LABEL.exec(first);
+  const labels = new Set(TABLE.voice.story_labels.map((one) => one.toLowerCase()));
+  if (label?.[1] !== undefined && labels.has(label[1].toLowerCase())) return { kind: 'assistant', name: label[1] };
+  const opening = first.trim().toLowerCase();
+  const openings = [...TABLE.voice.assistant_openings, ...TABLE.voice.agent_openings];
+  if (openings.some((word) => opening.startsWith(word))) return { kind: 'assistant', name: null };
+  return null;
+}
