@@ -187,10 +187,25 @@ export function stripMarkup(text: string): string {
       .split('\n')
       .filter((line) => !/^\s*\[(?:screen:[^\]]*|\/screen)\]\s*$/iu.test(line))
       // A location banner reads as its place (the operator: a scene's move shown as a banner).
-      .map((line) => line.replace(/^\s*\[location:\s*(.+?)\s*\]\s*$/iu, '$1.'))
+      .map((line) =>
+        line.replace(
+          /^\s*\[location:\s*(.+?)\s*\]\s*$/iu,
+          (_whole, inner: string) =>
+            `${inner
+              .split('|')
+              .map((part) => part.trim())
+              .filter((part) => part !== '')
+              .join(', ')}.`,
+        ),
+      )
       .join('\n')
       .replace(new RegExp(`\\[(?:${colours})\\]([\\s\\S]*?)\\[\\/(?:${colours})\\]`, 'giu'), '$1')
   );
+}
+
+/** A banner's place, without where it is (`The Pale Tallow | Transit Levels, Desoleum` → `The Pale Tallow`). */
+function bannerPlace(inner: string): string {
+  return (inner.split('|')[0] ?? '').trim();
 }
 
 /**
@@ -204,11 +219,13 @@ export function locationLine(
   const first = text.split('\n').find((line) => line.trim() !== '') ?? '';
   const banner = /^\s*\[location:\s*(.+?)\s*\]\s*$/iu.exec(first);
   if (banner === null) return null;
-  const said = (banner[1] ?? '').toLowerCase();
+  // `[location: Place | where it is]`: the place is what's matched.
+  const place = bannerPlace(banner[1] ?? '');
+  const said = place.toLowerCase();
   const found = locations.find((location) =>
     [location.name, ...(location.aliases ?? [])].some((name) => name.trim().toLowerCase() === said),
   );
-  return { name: found?.name ?? banner[1] ?? '', location_id: found?.id ?? null };
+  return { name: found?.name ?? place, location_id: found?.id ?? null };
 }
 
 /**
@@ -222,7 +239,7 @@ export function dropStaleLocation(text: string, current: { name: string; aliases
     .split('\n')
     .filter((line) => {
       const banner = /^\s*\[location:\s*(.+?)\s*\]\s*$/iu.exec(line);
-      return banner === null || names.includes((banner[1] ?? '').toLowerCase());
+      return banner === null || names.includes(bannerPlace(banner[1] ?? '').toLowerCase());
     })
     .join('\n')
     .replace(/^\n+/u, '');

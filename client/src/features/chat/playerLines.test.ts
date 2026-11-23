@@ -38,3 +38,19 @@ describe('a stale location line goes at save (the banner is server truth)', () =
     expect(dropStaleLocation(text, current)).toBe(kept);
   });
 });
+
+describe('a banner with where it is', () => {
+  it('matches and keeps the place, and reads as the whole', () => {
+    expect(
+      locationLine('[location: The Pale Tallow | Transit Levels, Desoleum]\nSmoke.', [
+        { id: 'l1', name: 'The Pale Tallow' },
+      ]),
+    ).toEqual({
+      name: 'The Pale Tallow',
+      location_id: 'l1',
+    });
+    expect(dropStaleLocation('[location: The Pale Tallow | Desoleum]\nSmoke.', { name: 'The Pale Tallow' })).toContain(
+      '[location:',
+    );
+  });
+});
