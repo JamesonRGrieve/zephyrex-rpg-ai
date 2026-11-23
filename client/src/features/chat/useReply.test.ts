@@ -51,6 +51,26 @@ describe('useReply', () => {
     expect(reply).toMatchObject({ text: 'Rain falls.', stopped: false });
   });
 
+  it('ends a turn whose stream reports a failure, never following it again', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) => {
+        calls.push(url.split('?')[0] ?? url);
+        if (url === TURN_PATH) return new Response(null, { status: 204 });
+        return sse('event: error\ndata: {"detail":"The speaker must be one of the chat\'s characters"}');
+      }),
+    );
+    const { result } = renderHook(() => useReply());
+    let reply: Awaited<ReturnType<typeof result.current.write>> = null;
+    await act(async () => {
+      reply = await result.current.write({ chat_id: 'c1', leaf_id: null, speaker_id: 'p1' });
+    });
+    expect(calls).toEqual([TURN_PATH, TURN_STREAM_PATH]);
+    expect(reply).toBeNull();
+    expect(result.current.state).toEqual({ status: 'failed', detail: "The speaker must be one of the chat's characters" });
+  });
+
   it('streams directly where the server has no turns (lite, an older build)', async () => {
     const calls: string[] = [];
     vi.stubGlobal(

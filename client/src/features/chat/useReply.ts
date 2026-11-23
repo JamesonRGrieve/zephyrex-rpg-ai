@@ -268,6 +268,8 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         abort.signal.removeEventListener('abort', onStop);
         first = false;
         if (got.done) return finish(got, false);
+        // The turn failed on the server: its stream ends with the error and no done; it's over.
+        if (got.failure !== null) return finish(got, false);
         if (abort.signal.aborted) return finish(got, true);
         // Dropped before the end: the server's turn goes on; follow it again once the tab is back, waiting
         // longer each time the server can't be reached (1 s, 2 s, … 30 s), so a server that's down isn't hammered.

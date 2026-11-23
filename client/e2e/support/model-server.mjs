@@ -22,6 +22,31 @@ createServer((request, response) => {
   request.on('data', (chunk) => chunks.push(chunk));
   request.on('end', () => {
     const body = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+    // With STUB_DECIDE=1, a decision model's question (a non-streamed request whose last message is
+    // {state, questions}) is answered with each question's first option, so a spec can run the flows
+    // that need a decision (an AI combatant's turn) deterministically.
+    if (process.env.STUB_DECIDE === '1' && body.stream === false) {
+      let asked = null;
+      try {
+        asked = JSON.parse(body.messages.at(-1)?.content ?? '');
+      } catch {
+        asked = null;
+      }
+      if (asked !== null && typeof asked === 'object' && asked.questions) {
+        const answers = {};
+        for (const [key, question] of Object.entries(asked.questions)) {
+          const options = Array.isArray(question.criteria) ? question.criteria : Object.keys(question.criteria ?? {});
+          if (question.type === 'choice') answers[key] = { type: 'choice', choice: options[0] };
+          else if (question.type === 'noul') answers[key] = { type: 'noul', noul: 0.5 };
+          else if (question.type === 'score') answers[key] = { type: 'score', score: 0 };
+        }
+        response.writeHead(200, { 'Content-Type': 'application/json' });
+        response.end(
+          JSON.stringify({ choices: [{ message: { role: 'assistant', content: JSON.stringify({ answers }) } }] }),
+        );
+        return;
+      }
+    }
     const words = `*looks up* "Mind the coolant." (${body.messages.length} messages)`.split(' ');
     response.writeHead(200, { 'Content-Type': 'text/event-stream' });
     const send = (index) => {
