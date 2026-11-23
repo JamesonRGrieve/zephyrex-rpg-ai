@@ -121,3 +121,26 @@ export function aiTurn(encounter: Encounter, aiRuns: (personId: string) => boole
   if (now === undefined || now.defeated || now.personId === null || !aiRuns(now.personId)) return null;
   return now;
 }
+
+/**
+ * Whether the story line at `leafId` starts a fight (Parity's combat_check): the decision model judges, and
+ * on yes the VTT starts the encounter with everyone on the scene, rolls initiative and begins round 1.
+ * Null on any failure (an older server has no such route).
+ */
+export async function combatCheck(
+  chatId: string,
+  leafId: string,
+): Promise<{ started: boolean; encounterId: string | null; reason: string } | null> {
+  const answer = Reflect.get(
+    Object(await post('ai_chat/combat_check', { combat_check: { chat_id: chatId, leaf_id: leafId } })),
+    'combat_check',
+  );
+  if (answer === undefined || answer === null) return null;
+  const id = Reflect.get(Object(answer), 'encounter_id');
+  const reason = Reflect.get(Object(answer), 'reason');
+  return {
+    started: Reflect.get(Object(answer), 'started') === true,
+    encounterId: typeof id === 'string' ? id : null,
+    reason: typeof reason === 'string' ? reason : '',
+  };
+}

@@ -46,7 +46,7 @@ export type ReplyEvent =
   | { type: 'reformat'; reformatted: boolean; runs: ReformatRun[] }
   | { type: 'heartbeat' }
   /** The table GM answered in someone else's voice or as an assistant (Parity's table_voice guard). */
-  | { type: 'voice_problem'; kind: string; note: string }
+  | { type: 'voice_problem'; kind: string; note: string; reason: 'table_voice' | 'story_voice' }
   /** The story turn wrote a roll or a test's result itself (Parity's invented_rolls guard); not saved. */
   | { type: 'mechanics_problem'; note: string }
   | { type: 'error'; detail: string }
@@ -84,7 +84,12 @@ export function parseEventBlock(block: string): ReplyEvent | null {
     };
   if (name === 'mechanics_problem') return { type: 'mechanics_problem', note: text(field('note')) ?? '' };
   if (name === 'voice_problem')
-    return { type: 'voice_problem', kind: text(field('kind')) ?? '', note: text(field('note')) ?? '' };
+    return {
+      type: 'voice_problem',
+      kind: text(field('kind')) ?? '',
+      note: text(field('note')) ?? '',
+      reason: field('reason') === 'story_voice' ? 'story_voice' : 'table_voice',
+    };
   if (name === 'reformat') {
     const raw = field('runs');
     const runs = (Array.isArray(raw) ? raw : []).flatMap((run): ReformatRun[] => {

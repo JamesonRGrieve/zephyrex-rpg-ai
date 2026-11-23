@@ -143,7 +143,7 @@ import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
 import { SeatSwitch } from './SeatPicker';
 import { type DecisionCall, readDecisionCall } from './DecisionCalls';
 import { partsOfRuns } from '~/features/chat/reformatRuns';
-import { aiTurn, combatLine, combatTurn, currentEncounter, nextTurn } from '~/features/chat/combat';
+import { aiTurn, combatCheck, combatLine, combatTurn, currentEncounter, nextTurn } from '~/features/chat/combat';
 import { EntityLinksProvider, type LinkedEntity } from './EntityLinks';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -1194,6 +1194,59 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * put the person's character, never the narrator's wording. Saved after the line as the new leaf,
    * so the round goes on from it. Returns the banner, or null.
    */
+  /**
+   * The AI-run combatants' turns in the VTT's initiative order (the operator, 2026-11-23: combat decisions by
+   * the decision model): with `passOwn`, the person's combatant's turn passes on first; then each AI-run
+   * combatant acts by combat_turn, its VTT result kept as a roll line and told by the narrator, until it's
+   * someone the person runs. As the GM the person runs the NPCs and the AI the party. Undefined when no fight
+   * is running; else the last line written (or `after`). One run at a time: a narration inside it that
+   * checks for a fight doesn't start another.
+   */
+  const fighting = useRef(false);
+  const aiCombatTurns = async (after: ChatMessage, passOwn: boolean): Promise<ChatMessage | undefined> => {
+    if (!play.isCampaign || !chat.campaign_id || fighting.current) return undefined;
+    const mine = roundRef.current;
+    let encounter = await during('Checking the fight', currentEncounter(chat.campaign_id));
+    if (encounter === null) return undefined;
+    fighting.current = true;
+    try {
+      const seat = play.playingId;
+      const party = new Set(play.aiIds);
+      const aiRuns = (personId: string) => (chat.seat === 'gm' ? party.has(personId) : personId !== seat);
+      const now = encounter.combatants.find((one) => one.id === encounter?.currentId);
+      if (passOwn && now !== undefined && now.personId !== null && !aiRuns(now.personId))
+        encounter = (await nextTurn(encounter.id)) ?? encounter;
+      let parent = after;
+      for (let step = 0; step < encounter.combatants.length && roundRef.current === mine; step += 1) {
+        const turn = aiTurn(encounter, aiRuns);
+        if (turn === null || turn.personId === null) break;
+        const taken = await during(`${turn.name}'s turn`, combatTurn(chat.id, encounter.id, turn.personId));
+        if (taken !== null && taken.reason !== 'not its turn') {
+          const names = taken.targetIds.map(
+            (id) => encounter?.combatants.find((one) => one.personId === id)?.name ?? castById.get(id)?.name ?? 'someone',
+          );
+          const rolled = await create({
+            chat_id: chat.id,
+            parent_id: parent.id,
+            role: 'system',
+            channel: 'roll',
+            swipes: [combatLine(turn.name, names, taken.acted ? taken.result : null)],
+          });
+          setLeafId(rolled.id);
+          parent = (await narrateAfter(rolled.id)) ?? rolled;
+        }
+        // combat_turn passes the turn itself (Parity); an older server didn't, so it's passed here then.
+        const after2 = await currentEncounter(chat.campaign_id);
+        if (after2 === null) break;
+        encounter = after2.currentId === encounter.currentId ? ((await nextTurn(encounter.id)) ?? after2) : after2;
+      }
+      void globalMutate((key) => typeof key === 'string' && /encounter|combat|token|scene/.test(key));
+      return parent;
+    } finally {
+      fighting.current = false;
+    }
+  };
+
   const followOnMap = async (leaf: string): Promise<ChatMessage | null> => {
     const mine = roundRef.current;
     const change = await during('Following the story on the map', mapStep(chat.id, leaf));
@@ -1212,6 +1265,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         swipes: [stored(`[location: ${change.seatPlace}${within === '' ? '' : ` | ${within}`}]`, 'ai_output')],
       });
       setLeafId(banner.id);
+    }
+    // A story line may start a fight (Parity's combat_check: the decision model judges; the VTT starts the
+    // encounter with everyone on the scene and rolls initiative); its AI-run combatants act at once.
+    if (roundRef.current === mine && play.isCampaign && !fighting.current) {
+      const fight = await during('Checking for a fight', combatCheck(chat.id, banner?.id ?? leaf));
+      if (fight?.started === true) {
+        const from = banner ?? (await list.mutate())?.find((one) => one.id === leaf) ?? null;
+        if (from !== null) await aiCombatTurns(from, false);
+      }
     }
     rounds.current += 1;
     const arrivals =
@@ -1586,50 +1648,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       }
       if (superseded()) return;
       if (!(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
-      // In a fight the VTT's initiative order runs the round (the operator, 2026-11-23: combat decisions by the
-      // decision model): the person's turn passes on, then each AI-run combatant acts by combat_turn, the VTT's
-      // result kept as a roll line and told by the narrator, until it's the person's character again. As the
-      // GM, the person runs the NPCs; the AI runs the party.
+      // In a fight the VTT's initiative order runs the round (aiCombatTurns): the person's turn passes on,
+      // then the AI-run combatants act, until it's the person's character again.
       if (play.isCampaign && chat.campaign_id) {
-        let encounter = await during('Checking the fight', currentEncounter(chat.campaign_id));
-        if (encounter !== null) {
-          const seat = play.playingId;
-          const aiRuns = (personId: string) => (chat.seat === 'gm' ? aiIds.has(personId) : personId !== seat);
-          const now = encounter.combatants.find((one) => one.id === encounter?.currentId);
-          if (now !== undefined && (now.personId === seat || (chat.seat === 'gm' && !aiRuns(now.personId ?? ''))))
-            encounter = (await nextTurn(encounter.id)) ?? encounter;
-          for (let step = 0; step < encounter.combatants.length && !superseded(); step += 1) {
-            const turn = aiTurn(encounter, aiRuns);
-            if (turn === null || turn.personId === null) break;
-            const taken = await during(`${turn.name}'s turn`, combatTurn(chat.id, encounter.id, turn.personId));
-            if (taken !== null && taken.reason !== 'not its turn') {
-              const names = taken.targetIds.map(
-                (id) =>
-                  encounter?.combatants.find((one) => one.personId === id)?.name ?? castById.get(id)?.name ?? 'someone',
-              );
-              const rolled = await create({
-                chat_id: chat.id,
-                parent_id: parent.id,
-                role: 'system',
-                channel: 'roll',
-                swipes: [combatLine(turn.name, names, taken.acted ? taken.result : null)],
-              });
-              setLeafId(rolled.id);
-              current = [...current, rolled];
-              parent = rolled;
-              const told = await narrateAfter(rolled.id);
-              if (told !== null) {
-                parent = told;
-                current = [...current, told];
-              }
-            }
-            const next = await nextTurn(encounter.id);
-            if (next === null) break;
-            encounter = next;
-          }
-          void globalMutate((key) => typeof key === 'string' && /encounter|combat|token|scene/.test(key));
-          return;
-        }
+        const fought = await aiCombatTurns(parent, true);
+        if (fought !== undefined) return;
       }
       let undecided = false;
       for (let step = 0; step < DECIDE_ROUND_LIMIT; step += 1) {
