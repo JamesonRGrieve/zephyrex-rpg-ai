@@ -45,7 +45,10 @@ A failure in any build step stops the run before anything reaches the guest.
   in `frameworks.env` and push that to `main`. Zephyrex RPG AI only builds against framework
   commits that are on GitHub.
 - **The client's settings** (`deploy.env`) are fixed at build time: the public origin
-  (`APP_URI`) and the server the `/api/v1` rewrite reaches (`RPG_AI_SERVER_URI`).
+  (`APP_URI`) and the server the `/api/v1` rewrite reaches (`RPG_AI_SERVER_URI`). A client
+  bundle therefore belongs to one instance. For the private instance (rpg.jamesonrgrieve.ca),
+  source `personal.env` after `deploy.env` (`set -a && . deploy/deploy.env && . deploy/personal.env
+  && set +a`); the server bundle is the same for both.
 
 ## Building it yourself
 
