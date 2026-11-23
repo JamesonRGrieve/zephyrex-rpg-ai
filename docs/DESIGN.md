@@ -1205,9 +1205,18 @@ The same code runs as two instances that differ only in configuration and conten
   - models are reached through the proxy we build, which routes to volunteered devices (see Volunteered
     VRAM) as well as the operator's tiers;
   - accounts, quotas and plans as in Editions → SaaS.
+- **Today's prod (CT 60007, rpg.zephyrex.ca) becomes rpg.zephyrex.ai** (the operator, 2026-11-23): its
+  IP content (the 40k campaigns, their system rows and traits) moves to the private instance and is then
+  removed here. The held deploy (VTT ef356d0, no 40k pack in open code) ships to the private instance with
+  its pack from the private settings repository. The hosts are being stood up already.
 - **What the code needs for this:**
-  - system-level model endpoints: rows owned by the system that every user may use, chosen before (or
-    instead of) the person's own; the person's own still allowed where the instance permits;
+  - providers through the framework, not beside it (the operator: "The zephyrex framework is designed to
+    handle root, system, user, etc providers and rotation"): rpg-ai's model endpoints become the
+    framework's provider instances (`ProviderInstance` with `scope` root, system, team or user) and its
+    `RotationManager` chain, so a private instance's system-scope providers serve every user and the
+    framework decides what a user's own may add. The rotation is failover only; spreading load across
+    equal upstreams is the load balancer's (HAProxy), not ours, except per-conversation stickiness
+    (`RoutingHint.stickiness_key`). rpg-ai's own pools are replaced by this, not kept beside it;
   - the model proxy as a provider (an OpenAI-compatible endpoint), so the server needs nothing special
     to use it;
   - content gated by what the instance loads (packs, settings), never by the instance's name.
