@@ -72,4 +72,20 @@ describe('openingLine', () => {
       ]),
     ).toBe('Fog lies on Sullenmire.');
   });
+  it("a repaired framing: the written opening, its Sources line aside; never the briefing's note to the GM", () => {
+    const framing = JSON.stringify([
+      { type: 'h2', children: [{ text: 'Opening Situation' }] },
+      { type: 'p', children: [{ text: 'An Inquisitor Lord steps off a civilian transport.' }] },
+      { type: 'p', children: [{ text: 'Sources: See Sullenmire — Player Briefing; the event graph is X.' }] },
+    ]);
+    const briefing = JSON.stringify([
+      { type: 'p', children: [{ text: 'Read or share this before play. A solo one-shot for one player.' }] },
+    ]);
+    expect(
+      openingLine({ name: 'Sullenmire', description: null }, [
+        { kind: 'campaign_framing', name: 'Sullenmire: Campaign Framing', entry: framing },
+        { kind: null, name: 'Sullenmire — Player Briefing', entry: briefing },
+      ]),
+    ).toBe('An Inquisitor Lord steps off a civilian transport.');
+  });
 });

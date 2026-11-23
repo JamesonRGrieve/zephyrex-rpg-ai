@@ -66,6 +66,22 @@ export function isPointer(text: string): boolean {
   );
 }
 
+/** A section's text without its "Sources: …" lines. */
+function withoutSources(text: string): string {
+  return text
+    .split('\n')
+    .filter((line) => !/^\s*sources?:/i.test(line))
+    .join('\n')
+    .trim();
+}
+
+/** A paragraph addressed to the reader or the GM, not the story ("Read or share this before play"). */
+export function isMeta(paragraph: string): boolean {
+  return /\b(read (or share )?this|share this|before play|one-shot|for (one|two|three|four|five|\d+) players?|this briefing|the gm\b|game ?master|players? should)/i.test(
+    paragraph,
+  );
+}
+
 /** The opening of a note for the players: its first section's text, or its text, without headings. */
 function briefingText(entry: string | null | undefined): string {
   const nodes = parse(entry);
@@ -77,7 +93,8 @@ function briefingText(entry: string | null | undefined): string {
         if (out.some((one) => one.trim() !== '')) break;
         continue;
       }
-      out.push(line.replace(/[*_`>]/g, '').trim());
+      const plain = line.replace(/[*_`>]/g, '').trim();
+      if (!isMeta(plain)) out.push(plain);
     }
     return out
       .join('\n')
@@ -92,7 +109,7 @@ function briefingText(entry: string | null | undefined): string {
     if (heading && seenText) break;
     if (heading) continue;
     const text = textOf(node).trim();
-    if (text !== '') {
+    if (text !== '' && !isMeta(text)) {
       out.push(text);
       seenText = true;
     }
@@ -111,7 +128,10 @@ export function openingLine(
   journals: readonly { kind: string | null; name: string; entry: string | null }[],
 ): string {
   const framing = journals.find(isFraming);
-  const situation = framing === undefined ? '' : sectionText(framing.entry, 'Opening Situation');
+  // A repaired framing keeps its old pointer below the written opening as "Sources: …": not the opening
+  // (the operator's Sullenmire, 2026-11-23: the good opening was rejected for its Sources line and the
+  // briefing's note to the GM was used instead).
+  const situation = withoutSources(framing === undefined ? '' : sectionText(framing.entry, 'Opening Situation'));
   if (situation !== '' && !isPointer(situation)) return situation;
   const briefing = journals.find((journal) => journal.kind === 'player_briefing' || /player\s+briefing/i.test(journal.name));
   const told = briefing === undefined ? '' : briefingText(briefing.entry);
