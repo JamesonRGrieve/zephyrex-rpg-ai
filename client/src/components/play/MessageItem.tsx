@@ -99,6 +99,8 @@ export interface MessageActions {
   onContinue?: () => void;
   /** Reads the message aloud (A29), where the browser can speak. */
   onSpeak?: () => void;
+  /** Reads on from this message to the end of the story. */
+  onSpeakFrom?: () => void;
   /** Translates the message for display (A43); the label names the language. */
   onTranslate?: { label: string; run: () => void };
 }
@@ -594,6 +596,11 @@ export function MessageItem({
                 {actions.onTranslate !== undefined && (
                   <DropdownMenuItem onSelect={actions.onTranslate.run}>
                     <Languages aria-hidden /> {actions.onTranslate.label}
+                  </DropdownMenuItem>
+                )}
+                {actions.onSpeakFrom !== undefined && (
+                  <DropdownMenuItem onSelect={actions.onSpeakFrom}>
+                    <Volume2 aria-hidden /> Read from here to the end
                   </DropdownMenuItem>
                 )}
                 {actions.onBookmark !== undefined && (

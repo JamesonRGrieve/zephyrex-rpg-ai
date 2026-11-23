@@ -34,6 +34,23 @@ export async function serverSpeech(text: string, voice: CharacterVoice): Promise
 
 let playing: HTMLAudioElement | null = null;
 
+// Audio asked for ahead of time: the next part of a reading is fetched while this one plays, so parts
+// follow each other without a wait between them (the operator, 2026-11-23: "The voice is also choppy").
+const ahead = new Map<string, Promise<string>>();
+const aheadKey = (text: string, voice: CharacterVoice) => `${voice.server ?? ''}|${voice.rate}|${text}`;
+
+/** Starts fetching `text`'s audio now, for a part that plays next. */
+export function prefetchSpeech(text: string, voice: CharacterVoice): void {
+  const spoken = speakableText(text);
+  if (spoken === '') return;
+  const key = aheadKey(spoken, voice);
+  if (!ahead.has(key))
+    ahead.set(
+      key,
+      serverSpeech(spoken, voice).catch(() => ''),
+    );
+}
+
 /** Stops a line the server is reading. */
 export function stopServerSpeech(): void {
   playing?.pause();
@@ -47,7 +64,10 @@ export function stopServerSpeech(): void {
 export async function speakOnServer(text: string, voice: CharacterVoice, onEnd?: () => void): Promise<boolean> {
   const spoken = speakableText(text);
   if (spoken === '') return false;
-  const audio = await serverSpeech(spoken, voice);
+  const key = aheadKey(spoken, voice);
+  const fetched = ahead.get(key);
+  ahead.delete(key);
+  const audio = (fetched !== undefined ? await fetched : '') || (await serverSpeech(spoken, voice));
   stopSpeaking();
   stopServerSpeech();
   playing = new Audio(audio);

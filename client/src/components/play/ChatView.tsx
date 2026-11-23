@@ -26,6 +26,7 @@ import {
   Settings2,
   X,
   RotateCw,
+  Square,
 } from 'lucide-react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { type ReactElement, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
@@ -70,9 +71,9 @@ import { chatToJsonl, chatToText } from '~/features/import/stChat';
 import { applyRegex, type RegexPlacement } from '~/features/chat/regex';
 import { foldersOf } from '~/features/chat/library';
 import { type Command, COMMAND_HELP, parseCommand } from '~/features/chat/commands';
-import { type CharacterVoice, speak, speechSupport, voiceFrom, voiceOf } from '~/features/speech/voice';
+import { type CharacterVoice, speak, speechSupport, stopSpeaking, voiceFrom, voiceOf } from '~/features/speech/voice';
 import { voiceParts } from '~/features/speech/voiceActing';
-import { hasVoiceModel, speakOnServer } from '~/features/speech/serverVoice';
+import { hasVoiceModel, prefetchSpeech, speakOnServer, stopServerSpeech } from '~/features/speech/serverVoice';
 import { DEFAULT_USER_NAME, splitReasoning } from '~/features/prompt/assemble';
 import { expandMacros } from '~/features/prompt/macros';
 import { useReply } from '~/features/chat/useReply';
@@ -558,13 +559,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * in the chat or an NPC of the running scenario. A quote with no one named is the speaker's own:
    * the character whose reply it is, or the narrator for the GM's lines.
    */
-  const readAloud = (characterId: string | null, text: string) => {
+  const readAloud = (characterId: string | null, text: string, onDone?: () => void) => {
     reading.current += 1;
     const run = reading.current;
     // The stage shows the speaker talking while the line is read (A54).
     const speaker = characterId ?? '';
     const finished = () => {
-      if (reading.current === run) speakingStore.end(speaker);
+      if (reading.current !== run) return;
+      speakingStore.end(speaker);
+      onDone?.();
     };
     speakingStore.start(speaker);
     const npcs = running?.cast ?? [];
@@ -585,9 +588,38 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         finished();
         return;
       }
+      // The next part's audio is fetched while this one plays.
+      const following = parts[index + 1];
+      if (following !== undefined && hasVoiceModel(endpointList.data))
+        prefetchSpeech(following.text, voiceFor(following.speaker));
       speakLine(part.text, voiceFor(part.speaker), () => next(index + 1));
     };
     next(0);
+  };
+
+  /**
+   * Reading on from a message to the end of the story (the operator, 2026-11-23: "an option to play a single
+   * message or play through to the end"): each story line in turn, in its speaker's voice.
+   */
+  const readThrough = (fromId: string) => {
+    const start = branch.findIndex((one) => one.id === fromId);
+    const lines = branch
+      .slice(start === -1 ? 0 : start)
+      .filter((one) => one.channel === 'ic' && !one.x_carded && !one.hidden);
+    const step = (index: number) => {
+      const line = lines[index];
+      if (line === undefined) return;
+      readAloud(line.speaker_character_id, line.swipes[line.swipe_index ?? 0] ?? '', () => step(index + 1));
+    };
+    step(0);
+  };
+  /** Stops whatever is being read (the operator, 2026-11-23: "There's no stop button for the voice"). */
+  const stopReading = () => {
+    reading.current += 1;
+    stopSpeaking();
+    stopServerSpeech();
+    const now = speakingStore.snapshot();
+    if (now !== null) speakingStore.end(now);
   };
 
   /** Text as saved, after the regex scripts that change what is stored (A33). */
@@ -2071,6 +2103,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       : undefined
                   }
                   onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
+                  onSpeakFrom={canSpeak ? () => readThrough(message.id) : undefined}
                   onTranslate={
                     chat.character_ids.length > 0
                       ? { label: `Translate into ${language}`, run: () => void translateMessage(message.id, shown.text) }
@@ -2160,6 +2193,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           )}
         </ol>
         <div ref={end} />
+        {speaking !== null && (
+          // While anything is read aloud, a way to stop it.
+          <div className='sticky bottom-2 z-10 mx-auto flex w-full max-w-3xl justify-end px-3'>
+            <Button type='button' variant='secondary' className='h-11 gap-2 shadow-md' onClick={stopReading}>
+              <Square aria-hidden className='size-4' /> Stop reading
+            </Button>
+          </div>
+        )}
         {asking !== null && (
           <ScriptPrompt
             prompt={asking.prompt}

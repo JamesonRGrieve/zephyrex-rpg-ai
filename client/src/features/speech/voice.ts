@@ -8,6 +8,7 @@
  */
 import { SPEECH } from '~/contract';
 import { splitReasoning } from '~/features/prompt/assemble';
+import { stripMarkup } from '~/features/chat/markup';
 
 export const VOICE_EXTENSION = 'zephyrex_rpg_voice';
 
@@ -64,8 +65,13 @@ export function withVoice(extensions: Readonly<Record<string, unknown>>, voice: 
  * asterisks around actions) taken out so the voice does not spell it.
  */
 export function speakableText(text: string): string {
-  return splitReasoning(text)
-    .reply.replace(/\*([^*]+)\*/g, '$1')
+  // What the person sees, never its markup (the operator, 2026-11-23: "Voice mode reads square brackets
+  // and vertical lines instead of reading what the user sees"): banners, screens and colours unwrapped,
+  // any other bracketed tag and bar dropped.
+  return stripMarkup(splitReasoning(text).reply)
+    .replace(/\[\/?[a-z][^\]\n]*\]/gi, '')
+    .replace(/\s*\|\s*/g, ', ')
+    .replace(/\*([^*]+)\*/g, '$1')
     .replace(/[_~`#>]+/g, '')
     .replace(/\s+/g, ' ')
     .trim();

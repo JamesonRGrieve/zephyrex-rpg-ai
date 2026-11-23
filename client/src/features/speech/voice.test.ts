@@ -1,14 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import {
-  DEFAULT_VOICE,
-  serverVoiceName,
-  speakableText,
-  speechSupport,
-  VOICE_EXTENSION,
-  voiceOf,
-  withVoice,
-} from './voice';
+import { DEFAULT_VOICE, serverVoiceName, speakableText, speechSupport, VOICE_EXTENSION, voiceOf, withVoice } from './voice';
 
 describe('character voices', () => {
   it('reads a voice from the card, the defaults for anything missing and numbers kept in range', () => {
@@ -41,6 +33,11 @@ describe('character voices', () => {
 });
 
 describe('speakableText', () => {
+  it('reads what is shown: a banner as its place, no brackets or bars', () => {
+    expect(
+      speakableText('[location: The Leaning Lantern | Harrowgate]\n\nRain falls. [screen: Auspex]\nWARNING\n[/screen]'),
+    ).toBe('The Leaning Lantern. Harrowgate. Rain falls. WARNING');
+  });
   it('reads the reply without reasoning or markup', () => {
     expect(speakableText('<think>plan</think>*wipes her hands* "Welcome   aboard," she says.')).toBe(
       'wipes her hands "Welcome aboard," she says.',

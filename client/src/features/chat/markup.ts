@@ -78,9 +78,19 @@ export function colourSpans(text: string): Span[] {
 
 /** The text with the markup taken out, for speech and summaries. */
 export function stripMarkup(text: string): string {
-  return text
-    .replace(/^\s*\[location:\s*([^\]\n]+)\]\s*$/gim, '$1.')
-    .replace(/\[screen(?::[^\]\n]*)?\]\n?/gi, '')
-    .replace(/\n?\[\/screen\]/gi, '')
-    .replace(COLOUR, '$2');
+  return (
+    text
+      // A banner reads as its place, then where it is: "The Leaning Lantern. Harrowgate." (never a bar).
+      .replace(/^\s*\[location:\s*([^\]\n]+)\]\s*$/gim, (_whole, inner: string) =>
+        inner
+          .split('|')
+          .map((part) => part.trim())
+          .filter((part) => part !== '')
+          .join('. ')
+          .concat('.'),
+      )
+      .replace(/\[screen(?::[^\]\n]*)?\]\n?/gi, '')
+      .replace(/\n?\[\/screen\]/gi, '')
+      .replace(COLOUR, '$2')
+  );
 }
