@@ -1276,7 +1276,17 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // A story line may start a fight (Parity's combat_check: the decision model judges; the VTT starts the
     // encounter with everyone on the scene and rolls initiative); its AI-run combatants act at once.
     if (roundRef.current === mine && play.isCampaign && !fighting.current) {
-      const fight = await during('Checking for a fight', combatCheck(chat.id, banner?.id ?? leaf));
+      const asked = () => combatCheck(chat.id, banner?.id ?? leaf);
+      let fight = await during('Checking for a fight', asked());
+      // The decision model gave nothing (busy or failed): asked once more, while this round is still current, so
+      // a fight the story started isn't lost to a busy model, and a round moved past is never asked about.
+      if (fight?.reason === 'no decision' && roundRef.current === mine)
+        fight = await during('Checking for a fight', asked());
+      if (fight?.reason === 'no decision')
+        notify(
+          'Could not tell whether a fight started',
+          'The decision model gave no answer. Start one from the Combat order if it did.',
+        );
       if (fight?.started === true) {
         const from = banner ?? (await list.mutate())?.find((one) => one.id === leaf) ?? null;
         if (from !== null) await aiCombatTurns(from, false);
