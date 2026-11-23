@@ -233,5 +233,112 @@
         "seat_moved": false
       }
     }
+  ],
+  "scene_people": [
+    {
+      "id": "hesk",
+      "name": "Old Hesk",
+      "aliases": [
+        "Hesk"
+      ]
+    },
+    {
+      "id": "mags",
+      "name": "Mags",
+      "aliases": []
+    },
+    {
+      "id": "tam",
+      "name": "Tam",
+      "aliases": []
+    }
+  ],
+  "scene_cases": [
+    {
+      "name": "the GM narrates a departure (live chat ebff200f): asked, and the token comes off",
+      "text": "Old Hesk pockets his coin and poles the ferry back across the river into the rain, leaving the party alone on the mill steps.",
+      "on_scene": [
+        "hesk",
+        "tam"
+      ],
+      "seat": "tam",
+      "questions": [
+        "scene_hesk"
+      ],
+      "answers": {
+        "scene_hesk": {
+          "choice": "has left"
+        }
+      },
+      "changes": [
+        {
+          "person_id": "hesk",
+          "change": "left"
+        }
+      ]
+    },
+    {
+      "name": "an NPC arrives: asked, and they get a token",
+      "text": "Mags pushes through the door, dripping.",
+      "on_scene": [
+        "tam"
+      ],
+      "seat": "tam",
+      "questions": [
+        "scene_mags"
+      ],
+      "answers": {
+        "scene_mags": {
+          "choice": "has arrived"
+        }
+      },
+      "changes": [
+        {
+          "person_id": "mags",
+          "change": "arrived"
+        }
+      ]
+    },
+    {
+      "name": "no one named: no question, no model call",
+      "text": "Rain drums on the roof.",
+      "on_scene": [
+        "hesk",
+        "tam"
+      ],
+      "seat": "tam",
+      "questions": [],
+      "answers": {},
+      "changes": []
+    },
+    {
+      "name": "named but staying: no change",
+      "text": "Hesk spits into the river.",
+      "on_scene": [
+        "hesk",
+        "tam"
+      ],
+      "seat": "tam",
+      "questions": [
+        "scene_hesk"
+      ],
+      "answers": {
+        "scene_hesk": {
+          "choice": "still here"
+        }
+      },
+      "changes": []
+    },
+    {
+      "name": "the seat's own character is never asked (the player moves them)",
+      "text": "Tam walks down to the water.",
+      "on_scene": [
+        "tam"
+      ],
+      "seat": "tam",
+      "questions": [],
+      "answers": {},
+      "changes": []
+    }
   ]
 }

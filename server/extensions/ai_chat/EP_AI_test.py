@@ -1503,6 +1503,53 @@ class TestGenerate:
             prompt = client.post("/v1/ai_chat/prompt", json=retried, headers=_headers(user)).json()["prompt"]
             assert "Your last reply rolled or resolved dice itself ([roll=1d20+6])" in prompt["messages"][0]["content"]
 
+    def test_the_gms_narration_takes_someone_off_the_scene(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The operator, 2026-11-23: "the DM correctly moves people on the map, triggering their presence
+        # updates". Live chat ebff200f: the GM's line sent Old Hesk away and he stayed on the scene.
+        from zephyrex.extensions.ai_chat import BLL_AI_Chat  # type: ignore[import-not-found]
+
+        user = create_user(server)
+        hesk = _cast(server, user, "character", name="Old Hesk").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Ferry", character_ids=[hesk["id"]]).json()["chat"]
+        said = "Old Hesk pockets his coin and poles the ferry back across the river into the rain."
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=[said]).json()["chat_message"]
+        removed: list[tuple[str, str]] = []
+
+        async def scene(_registry: Any, _requester: str, _campaign: str | None) -> dict[str, Any]:
+            return {"id": "s1", "name": "Mill steps"}
+
+        async def tokens(_self: Any, _chat: Any) -> list[str]:
+            return [hesk["id"]]
+
+        async def decide(_self: Any, purpose: str, _asked: Any, _state: str, questions: dict[str, Any]) -> Any:
+            return {key: {"choice": "has left"} for key in questions} if purpose == "map_step: scene" else None
+
+        def remove_person_from_scene(_requester: str, scene_id: str, person_id: str) -> dict[str, bool]:
+            removed.append((scene_id, person_id))
+            return {"removed": True}
+
+        original = BLL_AI_Chat.loaded_ability
+        monkeypatch.setattr(
+            BLL_AI_Chat,
+            "loaded_ability",
+            lambda registry, ext, name: remove_person_from_scene
+            if name == "remove_person_from_scene"
+            else original(registry, ext, name),
+        )
+        monkeypatch.setattr(BLL_AI_Chat, "scene_now", scene)
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_scene_tokens", tokens)
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decide)
+        answer = server.post(
+            "/v1/ai_chat/map_step", json={"map_step": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)
+        )
+        assert answer.status_code == 200, answer.text
+        moves = answer.json()["map_step"]["scene_moves"]
+        assert moves == [{"person_id": hesk["id"], "change": "left", "name": "Old Hesk", "applied": True}]
+        assert removed == [("s1", hesk["id"])]
+
     def test_a_scene_with_no_picture_gets_a_battlemap(
         self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:

@@ -117,3 +117,49 @@ def scene_changed(previous: str | None, current: Mapping[str, Any] | None) -> bo
     if current is None or not current.get("id"):
         return False
     return previous != str(current["id"])
+
+
+SCENE: dict[str, Any] = MAP_STEP["scene"]
+
+
+def _named(text: str, person: Mapping[str, Any]) -> bool:
+    lowered = text.lower()
+    names = [str(person.get("name") or ""), *(str(alias) for alias in person.get("aliases") or [])]
+    return any(
+        name.strip() and re.search(rf"(?<![\w']){re.escape(name.strip().lower())}(?![\w'])", lowered) for name in names
+    )
+
+
+def scene_questions(
+    text: str, people: Sequence[Mapping[str, Any]], on_scene: Sequence[str], seat: str | None
+) -> dict[str, dict[str, Any]]:
+    """One question per person the round's lines name (the seat's own character aside: the player moves
+    them): on the scene, whether they're still here; off it, whether they've arrived. None named, none."""
+    here = set(on_scene)
+    questions: dict[str, dict[str, Any]] = {}
+    for person in people:
+        if str(person["id"]) == seat or not _named(text, person):
+            continue
+        present = str(person["id"]) in here
+        template = SCENE["stay_question"] if present else SCENE["arrive_question"]
+        options = [SCENE["stays"], SCENE["leaves"]] if present else [SCENE["arrives"], SCENE["absent"]]
+        questions[f"scene_{person['id']}"] = {
+            "type": "choice",
+            "instructions": str(template).replace("{{name}}", str(person["name"])),
+            "criteria": [str(option) for option in options],
+        }
+    return questions
+
+
+def scene_changes(answers: Mapping[str, Any] | None, questions: Mapping[str, Any]) -> list[dict[str, str]]:
+    """The scene moves the answers make: {person_id, change: "left" | "arrived"}; staying is none."""
+    changes: list[dict[str, str]] = []
+    for key in questions:
+        answer = (answers or {}).get(key)
+        choice = answer.get("choice") if isinstance(answer, Mapping) else None
+        person_id = key.removeprefix("scene_")
+        if choice == SCENE["leaves"]:
+            changes.append({"person_id": person_id, "change": "left"})
+        elif choice == SCENE["arrives"]:
+            changes.append({"person_id": person_id, "change": "arrived"})
+    return changes

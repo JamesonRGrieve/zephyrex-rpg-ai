@@ -921,6 +921,15 @@
   "map_step": {
     "$comment": "The map follows the story (the operator, 2026-11-21: \"The GM needs to update the map based on what I say in narrative mode\"). Free first: only the latest round's do lines with a movement word make anyone a mover. Each mover's options are real places only (stay, around where they are, and any place the line names; world_tick's options), one decide question each; the GM's account applies the moves (the VTT's pilot_token when loaded, else the wiki's move_person). features/world/mapStep.ts, ai_chat/MapStep.py, contract/map-step-cases.json.",
     "instructions": "After this, where is {{name}}? {{action}} Pick the place the story now puts them, or stay.",
+    "scene": {
+      "$comment": "Who the round's lines take off the scene or bring onto it (the operator, 2026-11-23: \"the DM correctly moves people on the map, triggering their presence updates\"; live chat ebff200f: \"Old Hesk … poles the ferry back across the river into the rain\" from the GM's seat moved no one). Everyone the lines name, whoever wrote them: on the scene, asked whether they're still here; off it, whether they've arrived. The decision model picks only these; the VTT moves the tokens (place_person, remove_person_from_scene). No one named, no call.",
+      "stay_question": "After these lines, is {{name}} still in this scene, or have they left it?",
+      "arrive_question": "After these lines, has {{name}} arrived in this scene?",
+      "stays": "still here",
+      "leaves": "has left",
+      "arrives": "has arrived",
+      "absent": "not here"
+    },
     "movement_words": ["walk", "walks", "run", "runs", "charge", "charges", "climb", "climbs", "enter", "enters", "leave", "leaves", "head", "heads", "go", "goes", "move", "moves", "step", "steps", "follow", "follows", "cross", "crosses", "retreat", "retreats", "flee", "flees", "descend", "descends", "ascend", "ascends", "sprint", "sprints", "crawl", "crawls", "return", "returns", "approach", "approaches", "rush", "rushes", "dash", "dashes", "slip", "slips", "duck", "ducks", "jump", "jumps", "drop", "drops"]
   },
   "status_line": {

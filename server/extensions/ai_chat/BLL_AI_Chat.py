@@ -95,6 +95,8 @@ from zephyrex.extensions.ai_chat.MapStep import (  # type: ignore[import-not-fou
     map_questions,
     movers,
     scene_changed,
+    scene_changes,
+    scene_questions,
     seat_place,
 )
 from zephyrex.extensions.ai_chat.Mechanics import invented_rolls  # type: ignore[import-not-found]
@@ -217,6 +219,7 @@ from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-f
     campaign_framing,
     character_sheet,
     ensure_person,
+    forget_turns,
     lore_passages,
     move_person,
     npc_sheet,
@@ -2302,6 +2305,9 @@ class MapStep(PlainModel):
     scene_changed: bool = False
     #: The VTT's current scene ({id, name}), when there is one.
     scene: dict[str, Any] | None = None
+    #: Who the round's lines took off the scene or brought onto it: {person_id, name, change: "left" |
+    #: "arrived", applied: whether the VTT moved the token} (the operator, 2026-11-23).
+    scene_moves: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MapStepEnvelope(PlainModel):
@@ -4354,10 +4360,19 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             changed = scene_changed(scene_before, scene)
             if scene is not None:
                 _SEEN_SCENES[seen_key] = str(scene["id"])
+            # Who the round's lines took off the scene or brought onto it, whoever wrote them (the operator,
+            # 2026-11-23: "the DM correctly moves people on the map, triggering their presence updates").
+            scene_moves = await self._scene_moves(asked, chat, scene, round_turns, context["world"], playing_id)
             shown = {"id": str(scene["id"]), "name": scene.get("name")} if scene is not None else None
             return MapStepEnvelope(
                 map_step=MapStep(
-                    skipped=reason is not None, reason=reason, moves=moves, scene_changed=changed, scene=shown, **place
+                    skipped=reason is not None,
+                    reason=reason,
+                    moves=moves,
+                    scene_changed=changed,
+                    scene=shown,
+                    scene_moves=scene_moves,
+                    **place,
                 )
             )
 
@@ -4507,6 +4522,52 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             return {"reformatted": False, "reason": "it rewrote the prose", "runs": [], "cut": False}
         result = structured_runs(items, people, seat_name)
         return {"reformatted": True, "reason": "", **result}
+
+    async def _scene_moves(
+        self,
+        asked: Any,
+        chat: Any,
+        scene: Mapping[str, Any] | None,
+        round_turns: Sequence[Mapping[str, Any]],
+        world: Sequence[Mapping[str, Any]],
+        seat: str | None,
+    ) -> list[dict[str, Any]]:
+        """The scene moves a round's lines make (MapStep.scene_questions): each person they name, asked
+        whether they left or arrived, the VTT's tokens moved to match. No scene, or no one named, nothing."""
+        if scene is None:
+            return []
+        text = "\n".join(str(turn["content"]) for turn in round_turns)
+        people = [
+            {"id": str(entity["id"]), "name": str(entity["name"]), "aliases": list(entity.get("aliases") or [])}
+            for entity in world
+            if entity.get("kind") == "person" and not entity.get("deleted") and not entity.get("canon")
+        ]
+        on_scene = await self._scene_tokens(chat) or []
+        questions = scene_questions(text, people, on_scene, seat)
+        if not questions:
+            return []
+        answers = await self._decide("map_step: scene", asked, text, questions)
+        requester = str(self.requester.id)
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        names = {one["id"]: one["name"] for one in people}
+        remove = loaded_ability(self.model_registry, "rpg_scene", "remove_person_from_scene")
+        moved: list[dict[str, Any]] = []
+        for change in scene_changes(answers, questions):
+            person_id = change["person_id"]
+            applied = False
+            if change["change"] == "arrived":
+                applied = await place_in_scene(self.model_registry, requester, wiki, person_id, seat) is not None
+            elif remove is not None:
+                try:
+                    done = remove(requester, str(scene["id"]), person_id)
+                    done = await done if inspect.isawaitable(done) else done
+                    applied = bool(done.get("removed")) if isinstance(done, dict) else False
+                except HTTPException:
+                    applied = False
+            moved.append({**change, "name": names.get(person_id, ""), "applied": applied})
+        if moved:
+            forget_turns()
+        return moved
 
     async def _scene_tokens(self, chat: Any) -> list[str] | None:
         """The persons on the chat's current VTT scene (presence from the VTT), or None without one."""

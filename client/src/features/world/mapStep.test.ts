@@ -3,7 +3,7 @@
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/map-step-cases.json';
 import type { PlayerLine } from '~/features/chat/playerLines';
-import { mapQuestions, movers, seatPlace } from './mapStep';
+import { mapQuestions, movers, sceneChanges, sceneQuestions, seatPlace } from './mapStep';
 
 describe('the map step cases both twins run', () => {
   it('finds who moved: do lines with a movement word, never speech or narration', () => {
@@ -22,5 +22,13 @@ describe('the map step cases both twins run', () => {
 describe('where the seat is: the banner, server truth', () => {
   it.each(cases.seat_cases)('$name', ({ seat, moves, place }) => {
     expect(seatPlace(seat, cases.persons, cases.locations, moves)).toEqual(place);
+  });
+});
+
+describe('scene moves (the operator, 2026-11-23: "the DM correctly moves people on the map")', () => {
+  it.each(cases.scene_cases)('$name', ({ text, on_scene, seat, questions, answers, changes }) => {
+    const asked = sceneQuestions(text, cases.scene_people, on_scene, seat);
+    expect(Object.keys(asked)).toEqual(questions);
+    expect(sceneChanges(answers, asked)).toEqual(changes);
   });
 });

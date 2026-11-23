@@ -101,3 +101,55 @@ export function placeChain(
   }
   return chain;
 }
+
+const SCENE = MAP_STEP.scene;
+
+function named(text: string, person: { name: string; aliases?: readonly string[] }): boolean {
+  const lowered = text.toLowerCase();
+  return [person.name, ...(person.aliases ?? [])].some((name) => {
+    const bare = name.trim().toLowerCase();
+    if (bare === '') return false;
+    const escaped = bare.replace(/[.*+?^${}()|[\]\\]/gu, '\\$&');
+    return new RegExp(`(?<![\\w'])${escaped}(?![\\w'])`, 'u').test(lowered);
+  });
+}
+
+/**
+ * One question per person the round's lines name (the seat's own character aside: the player moves them):
+ * on the scene, whether they're still here; off it, whether they've arrived (the operator, 2026-11-23:
+ * "the DM correctly moves people on the map"). None named, none.
+ */
+export function sceneQuestions(
+  text: string,
+  people: readonly { id: string; name: string; aliases?: readonly string[] }[],
+  onScene: readonly string[],
+  seat: string | null,
+): Record<string, { type: 'choice'; instructions: string; criteria: string[] }> {
+  const here = new Set(onScene);
+  const questions: Record<string, { type: 'choice'; instructions: string; criteria: string[] }> = {};
+  for (const person of people) {
+    if (person.id === seat || !named(text, person)) continue;
+    const present = here.has(person.id);
+    questions[`scene_${person.id}`] = {
+      type: 'choice',
+      instructions: (present ? SCENE.stay_question : SCENE.arrive_question).replaceAll('{{name}}', person.name),
+      criteria: present ? [SCENE.stays, SCENE.leaves] : [SCENE.arrives, SCENE.absent],
+    };
+  }
+  return questions;
+}
+
+/** The scene moves the answers make: {person_id, change: "left" | "arrived"}; staying is none. */
+export function sceneChanges(
+  answers: Readonly<Record<string, unknown>> | null,
+  questions: Readonly<Record<string, unknown>>,
+): { person_id: string; change: 'left' | 'arrived' }[] {
+  const changes: { person_id: string; change: 'left' | 'arrived' }[] = [];
+  for (const key of Object.keys(questions)) {
+    const choice: unknown = Reflect.get(Object(answers?.[key]), 'choice');
+    const personId = key.replace(/^scene_/u, '');
+    if (choice === SCENE.leaves) changes.push({ person_id: personId, change: 'left' });
+    else if (choice === SCENE.arrives) changes.push({ person_id: personId, change: 'arrived' });
+  }
+  return changes;
+}
