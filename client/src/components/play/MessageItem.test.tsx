@@ -37,6 +37,19 @@ describe('MessageItem', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Add a model endpoint first');
   });
 
+  it('flags a reply for review with an optional note, or marks it good', async () => {
+    const send = vi.fn();
+    render(<MessageItem message={ADA_REPLY} onFeedback={{ given: null, send }} />);
+    await userEvent.click(screen.getByRole('button', { name: "More for Ada Vance's message" }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Flag this reply' }));
+    await userEvent.type(screen.getByLabelText(/What went wrong/), 'three NPCs spoke as one');
+    await userEvent.click(screen.getByRole('button', { name: 'Flag' }));
+    expect(send).toHaveBeenCalledWith('bad', 'three NPCs spoke as one');
+    await userEvent.click(screen.getByRole('button', { name: "More for Ada Vance's message" }));
+    await userEvent.click(await screen.findByRole('menuitem', { name: 'Good reply' }));
+    expect(send).toHaveBeenCalledWith('good', '');
+  });
+
   it('X-cards from the menu, and shows an X-carded message as out of the story with a way back', async () => {
     const onXCard = vi.fn();
     const { rerender } = render(<MessageItem message={ADA_REPLY} onXCard={onXCard} />);

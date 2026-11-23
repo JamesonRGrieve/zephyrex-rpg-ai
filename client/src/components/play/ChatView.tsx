@@ -141,6 +141,7 @@ import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
 import { SeatSwitch } from './SeatPicker';
+import { useCapabilities } from '~/features/capabilities';
 import { EntityLinksProvider, type LinkedEntity } from './EntityLinks';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -408,6 +409,31 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const rows = Reflect.get(Object(page), 'world_entities');
     return Array.isArray(rows) ? rows : [];
   });
+  // Feedback on messages for manual review, when the server keeps it (ai_feedback).
+  const feedbackOn = useCapabilities().feedback;
+  const feedbackList = useSWR(feedbackOn ? ['rpg-ai', 'message-feedback', chat.id] : null, async () => {
+    const page = await client.get('/v1/message_feedback', { chat_id: chat.id });
+    const rows = Reflect.get(Object(page), 'message_feedback');
+    return Array.isArray(rows) ? rows : [];
+  });
+  const feedbackGiven = useMemo(() => {
+    const given = new Map<string, 'good' | 'bad'>();
+    for (const row of feedbackList.data ?? []) {
+      const id = Reflect.get(Object(row), 'message_id');
+      const verdict = Reflect.get(Object(row), 'verdict');
+      if (typeof id === 'string' && (verdict === 'good' || verdict === 'bad')) given.set(id, verdict);
+    }
+    return given;
+  }, [feedbackList.data]);
+  const sendFeedback = async (messageId: string, verdict: 'good' | 'bad', note: string) => {
+    try {
+      await client.post('/v1/message_feedback', { message_id: messageId, verdict, ...(note === '' ? {} : { note }) });
+      notify(verdict === 'bad' ? 'Flagged for review' : 'Marked good');
+      void feedbackList.mutate();
+    } catch (error) {
+      notify('Feedback not saved', error instanceof Error ? error.message : undefined);
+    }
+  };
   const linkable = useMemo(
     () =>
       (worldList.data ?? []).flatMap((row): LinkedEntity[] => {
@@ -2149,6 +2175,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                     }
                     onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
                     onSpeakFrom={canSpeak ? () => readThrough(message.id) : undefined}
+                    onFeedback={
+                      feedbackOn && message.role !== 'user'
+                        ? {
+                            given: feedbackGiven.get(message.id) ?? null,
+                            send: (verdict, note) => void sendFeedback(message.id, verdict, note),
+                          }
+                        : undefined
+                    }
                     translation={translationOf(message.id)}
                     canon={canonNotices.get(message.id)}
                     revision={message.revision ?? null}

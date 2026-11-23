@@ -15,6 +15,7 @@ describe('capabilitiesOf', () => {
       accounts: false,
       world: false,
       table: false,
+      feedback: false,
     });
   });
 

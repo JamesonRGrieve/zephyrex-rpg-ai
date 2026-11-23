@@ -20,6 +20,8 @@ import {
   Brain,
   Languages,
   Volume2,
+  ThumbsDown,
+  ThumbsUp,
   X,
   ChevronLeft,
   ChevronRight,
@@ -95,6 +97,11 @@ export interface MessageActions {
   onForkCampaign?: () => void;
   onDelete?: () => void;
   /** The X-card (A25): takes the message out of the story, or puts it back. */
+  /**
+   * Feedback for manual review (the operator, 2026-11-23: "per message feedback… the context behind every
+   * instance of stupidity"): the server keeps the message's whole context with it.
+   */
+  onFeedback?: { given: 'good' | 'bad' | null; send: (verdict: 'good' | 'bad', note: string) => void };
   /** The X-card on this message, with an optional reason (the operator, 2026-11-23). */
   onXCard?: (reason: string) => void;
   /** Hides the message from the model, or shows it to the model again (gap 10). */
@@ -347,6 +354,8 @@ export function MessageItem({
   const [editing, setEditing] = useState<string | null>(null);
   // The X-card's optional reason, while its box is open.
   const [carding, setCarding] = useState<string | null>(null);
+  // The note for a flagged reply, while its box is open.
+  const [flagging, setFlagging] = useState<string | null>(null);
   const editId = useId();
   const label = CHANNEL_LABEL[message.channel];
   const tableTalk = message.channel === 'ooc' || message.channel === 'gm';
@@ -536,6 +545,35 @@ export function MessageItem({
             </div>
           </form>
         )}
+        {flagging !== null && (
+          <form
+            className='mt-2 grid gap-2 rounded-md border p-3'
+            onSubmit={(event) => {
+              event.preventDefault();
+              actions.onFeedback?.send('bad', flagging.trim());
+              setFlagging(null);
+            }}
+          >
+            <label htmlFor={`${editId}-flag`} className='text-sm font-medium'>
+              What went wrong? (optional; the reply&apos;s whole context is kept for review)
+            </label>
+            <Textarea
+              id={`${editId}-flag`}
+              rows={2}
+              value={flagging}
+              autoFocus
+              onChange={(event) => setFlagging(event.target.value)}
+            />
+            <div className='flex gap-2'>
+              <Button type='submit' size='sm' className='h-10'>
+                Flag
+              </Button>
+              <Button type='button' size='sm' variant='ghost' className='h-10' onClick={() => setFlagging(null)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
         {carding !== null && (
           <form
             className='mt-2 grid gap-2 rounded-md border p-3'
@@ -648,6 +686,17 @@ export function MessageItem({
                   <DropdownMenuItem onSelect={actions.onTranslate.run}>
                     <Languages aria-hidden /> {actions.onTranslate.label}
                   </DropdownMenuItem>
+                )}
+                {actions.onFeedback !== undefined && (
+                  <>
+                    <DropdownMenuItem onSelect={() => actions.onFeedback?.send('good', '')}>
+                      <ThumbsUp aria-hidden /> {actions.onFeedback.given === 'good' ? 'Marked good' : 'Good reply'}
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onSelect={() => setFlagging('')}>
+                      <ThumbsDown aria-hidden />{' '}
+                      {actions.onFeedback.given === 'bad' ? 'Flagged; flag again' : 'Flag this reply'}
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {actions.onSpeakFrom !== undefined && (
                   <DropdownMenuItem onSelect={actions.onSpeakFrom}>
