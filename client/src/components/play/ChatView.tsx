@@ -141,6 +141,7 @@ import { mutate as globalMutate } from 'swr';
 import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
 import { SeatSwitch } from './SeatPicker';
+import { type DecisionCall, readDecisionCall } from './DecisionCalls';
 import { EntityLinksProvider, type LinkedEntity } from './EntityLinks';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -963,6 +964,26 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * story while the table thinks, so a quiet round says where it is.
    */
   const [roundStep, setRoundStep] = useState<string | null>(null);
+  // The decision models' calls, kept, grouped under the message each was about (GET /v1/decision_call);
+  // read again when a turn ends, and while one runs.
+  const decisionList = useSWR(
+    ['rpg-ai', 'decision-calls', chat.id],
+    async () => {
+      const page = await client.get('/v1/decision_call', { chat_id: chat.id });
+      const rows = Reflect.get(Object(page), 'decision_call');
+      return Array.isArray(rows) ? rows : [];
+    },
+    { shouldRetryOnError: false, refreshInterval: writing || roundStep !== null ? 2000 : 0 },
+  );
+  const decisionsByMessage = useMemo(() => {
+    const by = new Map<string, DecisionCall[]>();
+    for (const row of decisionList.data ?? []) {
+      const call = readDecisionCall(row);
+      if (call === null || call.messageId === null) continue;
+      by.set(call.messageId, [...(by.get(call.messageId) ?? []), call]);
+    }
+    return by;
+  }, [decisionList.data]);
   const during = async <T,>(label: string, work: Promise<T>): Promise<T> => {
     setRoundStep(label);
     try {
@@ -2197,6 +2218,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                     canon={canonNotices.get(message.id)}
                     revision={message.revision ?? null}
                     labels={readLabels(Reflect.get(message, 'line_labels'))}
+                    decisions={decisionsByMessage.get(message.id)}
                   />
                 </li>
               );

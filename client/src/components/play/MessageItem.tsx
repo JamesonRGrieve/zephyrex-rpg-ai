@@ -11,6 +11,7 @@
 import { type ReplyStats, statsLabel } from '~/features/chat/replyStats';
 import { type Revision, RevisionButton } from './RevisionButton';
 import { Linked } from './EntityLinks';
+import { type DecisionCall, DecisionCalls } from './DecisionCalls';
 import { type LineLabel, labelledLines } from '~/features/chat/labelLines';
 import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
 import {
@@ -341,6 +342,7 @@ export function MessageItem({
   canon,
   revision = null,
   labels = null,
+  decisions = [],
   names = [],
   ...actions
 }: {
@@ -362,6 +364,8 @@ export function MessageItem({
   revision?: Revision | null;
   /** Who does and says what, line by line, as the decision model labelled it (line_labels). */
   labels?: readonly LineLabel[] | null;
+  /** The decision models' calls about this message, side by side under it. */
+  decisions?: readonly DecisionCall[];
 } & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
   // The X-card's optional reason, while its box is open.
@@ -633,6 +637,7 @@ export function MessageItem({
             </div>
           </form>
         )}
+        <DecisionCalls calls={decisions} />
         {writing && message.text === '' && (
           <p className='animate-pulse text-muted-foreground motion-reduce:animate-none'>Writing…</p>
         )}
