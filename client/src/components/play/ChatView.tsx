@@ -1665,6 +1665,29 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       }
       if (superseded()) return;
       if (!(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
+      if (play.isCampaign && chat.campaign_id) {
+        // The GM's own line can bring someone onto the scene (Old Hesk poles his ferry to the bank): the map
+        // follows it before anyone is picked, so whoever it names is present and may answer this round
+        // (Parity, 2026-11-23: map_step's scene step places a named NPC who has arrived).
+        if (chat.seat === 'gm') {
+          const arrived = await during('Following the story on the map', mapStep(chat.id, start.id));
+          if (arrived !== null)
+            await globalMutate((key) => JSON.stringify(key ?? '').match(/scene|token|person|cast|chat/) !== null);
+        }
+        if (superseded()) return;
+        // Whether the line starts a fight is settled before anyone answers it, so an attack is resolved by the
+        // VTT's order, never by the narrator (live test, 2026-11-23: the narrator wrote "the blade bites deep"
+        // while the fight check waited). A check the decision model couldn't answer is asked once more.
+        let fight = await during('Checking for a fight', combatCheck(chat.id, start.id));
+        if (fight?.reason === 'no decision' && !superseded())
+          fight = await during('Checking for a fight', combatCheck(chat.id, start.id));
+        if (superseded()) return;
+        if (fight?.reason === 'no decision')
+          notify(
+            'Could not tell whether a fight started',
+            'The decision model gave no answer. Start one from the Combat order if it did.',
+          );
+      }
       // In a fight the VTT's initiative order runs the round (aiCombatTurns): the person's turn passes on,
       // then the AI-run combatants act, until it's the person's character again.
       if (play.isCampaign && chat.campaign_id) {
