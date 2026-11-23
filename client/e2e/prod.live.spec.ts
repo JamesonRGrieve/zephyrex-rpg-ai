@@ -12,6 +12,8 @@ import { expect, type Page, test } from '@playwright/test';
 import { api, post } from './support/seed';
 
 const SESSION = process.env.PROD_SESSION ?? '';
+/** The instance's host (pw.prod.config.ts's LIVE_ORIGIN): prod unless another is named. */
+const HOST = new URL(process.env.LIVE_ORIGIN ?? 'https://rpg.zephyrex.ca').hostname;
 /** One model turn: a cold load of the 72 GB narrator can take minutes. */
 const TURN = 420_000;
 
@@ -147,7 +149,7 @@ test('live on prod: a one-shot with the party, an NPC, a fight with a VTT roll, 
     {
       name: 'zx_session',
       value: SESSION,
-      domain: 'rpg.zephyrex.ca',
+      domain: HOST,
       path: '/',
       secure: true,
       httpOnly: true,
@@ -157,7 +159,7 @@ test('live on prod: a one-shot with the party, an NPC, a fight with a VTT roll, 
     {
       name: 'zx_csrf',
       value: randomBytes(24).toString('base64url'),
-      domain: 'rpg.zephyrex.ca',
+      domain: HOST,
       path: '/',
       secure: true,
       httpOnly: false,
