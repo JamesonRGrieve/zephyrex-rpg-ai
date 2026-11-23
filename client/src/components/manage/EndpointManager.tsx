@@ -46,6 +46,7 @@ const ROLE_LABELS: Record<EndpointRole, string> = {
   search: 'Web search',
   embed: 'Memory (recall by meaning)',
   decide: 'Decisions (expressions, picks)',
+  reformat: 'Reformatting the narration into lines',
 };
 
 /** Common local servers' addresses, to fill in with one tap. */

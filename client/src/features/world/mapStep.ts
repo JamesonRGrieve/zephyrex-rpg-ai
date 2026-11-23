@@ -69,16 +69,35 @@ export function mapQuestions(
 export function seatPlace(
   seatId: string | null,
   persons: readonly { id: string; location_id: string | null }[],
-  locations: readonly { id: string; name: string }[],
+  locations: readonly { id: string; name: string; parent_id?: string | null }[],
   moves: readonly { person_id: string; from: string | null; to: string }[],
-): { seat_location: { id: string; name: string } | null; seat_moved: boolean } {
+): { seat_location: { id: string; name: string; chain: string[] } | null; seat_moved: boolean } {
   if (seatId === null) return { seat_location: null, seat_moved: false };
   const own = moves.filter((move) => move.person_id === seatId);
   const last = own.at(-1);
   const at = last?.to ?? persons.find((person) => person.id === seatId)?.location_id ?? null;
   const place = at === null ? undefined : locations.find((location) => location.id === at);
   return {
-    seat_location: place === undefined ? null : { id: place.id, name: place.name },
+    seat_location: place === undefined ? null : { id: place.id, name: place.name, chain: placeChain(place, locations) },
     seat_moved: own.some((move) => move.from !== move.to),
   };
+}
+
+/** A place's chain up to its top (the operator, 2026-11-23: fully qualified locations), nearest first. */
+export function placeChain(
+  place: { id: string; parent_id?: string | null },
+  locations: readonly { id: string; name: string; parent_id?: string | null }[],
+): string[] {
+  const byId = new Map(locations.map((location) => [location.id, location]));
+  const chain: string[] = [];
+  const seen = new Set([place.id]);
+  let parent = place.parent_id ?? null;
+  while (parent !== null && byId.has(parent) && !seen.has(parent)) {
+    seen.add(parent);
+    const above = byId.get(parent);
+    if (above === undefined) break;
+    chain.push(above.name);
+    parent = above.parent_id ?? null;
+  }
+  return chain;
 }

@@ -112,6 +112,18 @@ class FakeModel(BaseHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
+        sent_messages = RECEIVED[-1]["body"].get("messages") or []
+        if RECEIVED[-1]["body"].get("stream") is False and "Rewrite it as items" in str(sent_messages[:1]):
+            # The reformat model (Reformat.py): the prose re-sorted, credited to Ada when she's present.
+            speaker = "Ada" if '"Ada"' in json.dumps(RECEIVED[-1]["body"]["response_format"]) else None
+            items = {"items": [{"kind": "say" if speaker else "narrate", "speaker": speaker, "target": None, "manner": "speak", "text": "Mind the coolant."}]}
+            body = json.dumps({"choices": [{"message": {"role": "assistant", "content": json.dumps(items)}}]}).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
         if RECEIVED[-1]["body"].get("response_format"):
             # A schema-constrained turn (Structured.py): JSON items, streamed in pieces. A line marked
             # ECHO: is first echoed back (no answer to it), SLOW: makes the model wait before answering.
@@ -1350,6 +1362,90 @@ class TestGenerate:
         assert verdict.json()["canon_check"] == {
             "level": "none", "fact": None, "reason": "", "checked": False, "record_name": None, "record_id": None
         }
+
+    def test_a_narration_ends_reformatted_among_the_people_present(self, server: TestClient, model_url: str) -> None:
+        # The operator, 2026-11-23: "A second, small model reformats the narrator's prose into the structured
+        # line form ... once the reply is done."
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I wait."]).json()["chat_message"]
+        asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "mode": "narrate"}}
+        without = server.post("/v1/ai_chat/generate", json=asked, headers=_headers(user)).text
+        assert '"reformatted": false' in without and "no reformat model" in without
+        _create(server, user, "model_endpoint", name="Sorter", base_url=model_url, model="small", roles=["reformat"])
+        answer = server.post("/v1/ai_chat/generate", json=asked, headers=_headers(user)).text
+        reformat = next(
+            json.loads(row[len("data:") :])
+            for row in answer.split("event: reformat\n", 1)[1].splitlines()
+            if row.startswith("data:")
+        )
+        assert reformat["reformatted"] is True and reformat["runs"][0]["speaker_id"] == ada["id"]
+        assert answer.index("event: reformat") < answer.index("event: done")
+
+    def test_a_turn_runs_on_the_server_and_its_stream_can_be_followed_again(self, model_url: str) -> None:
+        # The operator, 2026-11-23: Send posts the turn (204) and subscribes apart; a dropped subscription
+        # changes nothing and a reconnect finds the reply. One client held open keeps the server's loop.
+        with TestClient(create()) as client:
+            user = create_user(client)
+            ada = _cast(client, user, "character", name="Ada").json()["character"]
+            _create(client, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+            chat = _chat(client, user, "chat", title="Chat", character_ids=[ada["id"]]).json()["chat"]
+            line = _create(client, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ada?"]).json()["chat_message"]
+            missing = client.get(f"/v1/ai_chat/turn_stream?chat_id={chat['id']}", headers=_headers(user))
+            assert missing.status_code == 404, missing.text
+            asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": ada["id"]}}
+            started = client.post("/v1/ai_chat/turn", json=asked, headers=_headers(user))
+            assert started.status_code == 204, started.text
+            first = client.get(f"/v1/ai_chat/turn_stream?chat_id={chat['id']}", headers=_headers(user))
+            assert first.status_code == 200 and "the coolant" in first.text and "event: done" in first.text
+            again = client.get(f"/v1/ai_chat/turn_stream?chat_id={chat['id']}", headers=_headers(user))
+            assert again.text.replace(": keepalive\n\n", "") == first.text.replace(": keepalive\n\n", "")
+            stopped = client.post("/v1/ai_chat/turn_stop", json={"turn_stop": {"chat_id": chat["id"]}}, headers=_headers(user))
+            assert stopped.json()["turn_stop"] == {"chat_id": chat["id"], "stopped": False}
+
+    def test_a_scene_with_no_picture_gets_a_battlemap(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Zephyrex RPG for the operator, 2026-11-22: a default scene with no art gets a drawn top-down map.
+        from zephyrex.extensions.ai_chat import Battlemap, BLL_AI_Chat
+
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Inn", character_ids=[ada["id"]]).json()["chat"]
+        none = server.post("/v1/ai_chat/battlemap", json={"battlemap": {"chat_id": chat["id"]}}, headers=_headers(user))
+        assert none.status_code == 200, none.text
+        # Nothing drawn without an image model (or, without the VTT, without a scene).
+        assert none.json()["battlemap"]["background_url"] is None and none.json()["battlemap"]["reason"]
+        _create(server, user, "model_endpoint", name="Painter", base_url=model_url, model="tiny", roles=["image"])
+        drawn: list[str] = []
+        set_to: list[tuple[str, str]] = []
+
+        async def scene(*_args: Any) -> dict[str, Any]:
+            return {"id": "s1", "name": "The Split Antler", "location_id": None, "background_url": None}
+
+        async def draw(_self: Any, prompt: str) -> str:
+            drawn.append(prompt)
+            return "data:image/png;base64,iVBORw0KGgo="
+
+        async def store(*_args: Any) -> str:
+            return "a1"
+
+        async def put(_registry: Any, _requester: str, scene_id: str, link: str) -> bool:
+            set_to.append((scene_id, link))
+            return True
+
+        monkeypatch.setattr(Battlemap, "_DRAWN", set())
+        monkeypatch.setattr(BLL_AI_Chat, "scene_now", scene)
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_draw", draw)
+        monkeypatch.setattr(BLL_AI_Chat, "store_picture", store)
+        monkeypatch.setattr(BLL_AI_Chat, "set_scene_background", put)
+        made = server.post("/v1/ai_chat/battlemap", json={"battlemap": {"chat_id": chat["id"]}}, headers=_headers(user))
+        assert made.json()["battlemap"] == {"scene_id": "s1", "background_url": "/v1/asset/a1/content", "reason": ""}
+        assert drawn[0].startswith("strictly top-down orthographic") and "of The Split Antler. No perspective" in drawn[0]
+        assert set_to == [("s1", "/v1/asset/a1/content")]
 
     def test_a_canon_notice_says_why_or_isnt_given(
         self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch

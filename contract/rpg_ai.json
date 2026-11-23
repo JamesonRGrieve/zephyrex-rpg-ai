@@ -120,7 +120,7 @@
     "cast_heading": "The characters:",
     "in_character": "Every line of the story is in character: never address the player, apologise, or mention the text, the story, prompts or being cut off. Never use em dashes: use commas, full stops or ellipses, and end a line that breaks off with an ellipsis.",
     "narrate_cast": "You never write dialogue, thoughts, decisions or actions for {{seat}}: describe {{seat_name}} only as others see them, and stop the moment {{seat_name}} would act or speak. Write one item per line: your narration as `Narrator: ...`; another character, when you give them a moment, on a line of their own, in the third person: `Name (to Someone): \"what they say\"` (or to everyone; to X, whispers; to everyone, shouts; vox to X; voxcast) or `Name does something`. Anyone else in the scene who speaks or acts (a barkeep, a guard) gets their own lines the same way, named by what they are: `The Barkeep pauses mid-wipe.`, `The Barkeep (to Someone): \"...\"`. Narrator lines are only for the world: scenery, crowds, events and what comes of things; speech never goes in one. Never put what they say, think or decide in a Narrator line. The characters you may voice: {{names}}.",
-    "narrate_seat": "Things may happen to {{seat_name}}: what hits, grabs or throws them, and what they perceive. Never write what {{seat_name}} does by choice, says, thinks, feels, decides or knows (no \"you know her as\", no \"you never quite\"). Begin with what happens or what {{seat_name}} perceives, never with what {{seat_name}} does; {{seat_name}}'s choices are the player's.",
+    "narrate_seat": "{{seat_name}} is the player's character: address them as \"you\", in the second person, never by name or as \"he\", \"she\" or \"they\" (the operator, 2026-11-23). Things may happen to you: what hits, grabs or throws you, and what you perceive. Never write what you do by choice, say, think, feel, decide or know (no \"you know her as\", no \"you never quite\"). Begin with what happens or what you perceive, never with what you do; your choices are the player's.",
     "narrate_example": "For example:\nNarrator: Rain hammers the hull plates. Somewhere ahead, boots ring on steel.\n{{example}} (to everyone, whispers): \"Hold.\"\n{{example}} raises a fist and listens.\nThe Watchman steps out of the dark, lamp raised.\nThe Watchman (to {{example}}): \"Who goes there?\"\nNarrator: The footsteps stop. A cogitator flickers awake.\n[screen: Cogitator]\nSEAL BREACH - DECK C\n[/screen]",
     "narrate_length": "Narrate at most three short paragraphs, and end the moment {{seat_name}} would act, speak, think or decide; then stop, without asking what they do.",
     "voice_grounding": "Act only on what {{char}} knows and feels: their home, their stance toward each person present, and what just happened. Never ask what {{char}} would know; never be friendly to someone {{char}} would resent without a reason.",
@@ -338,7 +338,7 @@
       "reminder": "Reminder"
     },
     "notes_heading": "Table notes (always follow):",
-    "gm_prompt": "You are the game master, talking with the players out of character, as the person running the game. Answer plainly and helpfully, in a few sentences. Never reveal what the story has not revealed, and never invent rules: say when a rule has to be checked. Never continue the story here.",
+    "gm_prompt": "You are the game master, talking with the players out of character, as the person running the game. Answer plainly and helpfully, in a few sentences, in your own voice as the GM: never in the voice of anyone in the story, and never as an assistant (no \"Understood\", no \"I'll pause here\", no offers to help). When a player asks what someone in the scene is doing, answer with what that person is doing in the story right now, as the GM would tell it. Never reveal what the story has not revealed, and never invent rules: say when a rule has to be checked. Never continue the story here.",
     "recent_story_turns": 6,
     "recent_story_heading": "The story so far, most recent last:",
     "gm_name": "GM",
@@ -408,7 +408,7 @@
     "search",
     "embed",
     "decide"
-  ],
+  , "reformat"],
   "samplers": {
     "$comment": "SillyTavern's samplers beyond the four every preset has (audit gap 2). A preset keeps only the ones set, in its `samplers` object. One is sent upstream only when it's set away from `neutral`, only to the API families in `apis` (chat, text, horde), and only when the sampler it `requires` is itself set away from neutral; it is sent under every name in `wire`, so llama.cpp, KoboldCpp, Ooba and TabbyAPI each find theirs. A `strings` sampler's range is how many items it may hold, each at most `string_characters`. Cases in contract/sampler-cases.json.",
     "string_characters": 200,
@@ -919,6 +919,26 @@
     "prompt": "Answer with JSON only: {\"status_line\": one sentence of at most 100 characters for a list of campaigns (what the party has done and where things stand, only what the players have seen), \"dispositions\": [{\"who\": a name, \"toward\": a name, \"stance\": one of furious, hostile, wary, neutral, friendly, devoted, \"reason\": a few words}] for any stance the latest lines changed}.",
     "summary_heading": "The story so far:",
     "lines_heading": "Latest:"
+  },
+  "reformat": {
+    "$comment": "Structure without trusting the narrator (the operator, 2026-11-23: \"A second, small model reformats the narrator's prose into the structured line form (who says, who does, narration) once the reply is done\"): the narrator writes and streams freely; then the person's reformat-role model (else their summary model) rewrites the finished prose as items under a JSON schema whose speaker and target can only be someone present (from the VTT scene) or null, so attribution is the model's, constrained, never a pattern's. One person, one voice. The stream ends with a reformat frame {runs, cut}; with no model or no usable answer, it says so and the prose stands. Reformat.py, contract/reformat-cases.json.",
+    "roles": ["reformat", "summary"],
+    "instruction": "Below is a narrator's reply in a roleplay. Rewrite it as items, in order, keeping every word of it and adding none: a \"say\" item for each spoken line (its words only, without quotation marks), a \"do\" item for what one person does, and a \"narrate\" item for everything else. speaker is who says or does it, and can only be one of these people: {{names}}; anyone else, an unnamed stranger or a crowd, is narration (speaker null), their words kept in quotation marks. target is whom a line is aimed at, from the same people, or null. One person is always the same speaker. Answer with JSON only.",
+    "timeout_seconds": 90,
+    "min_kept": 0.9,
+    "max_added": 0.1
+  },
+  "builder_pick": {
+    "$comment": "AI-assisted character creation (the operator, 2026-11-23: \"AI-assisted character creation modes, beside the builder and the freeform character\"): each unchosen choice of the VTT builder's steps, in step order (later options depend on earlier picks), put to the decision model as a choice among its options, the state the person's concept and the picks so far; recorded through the builder's choose. Never invented: an answer outside the options, or none, leaves that choice to the person. Ability scores are never picked (a rules method the person rolls or assigns). BuilderPick.py.",
+    "instruction": "Which {{kind}} fits this character best? Choose only one of the options listed.",
+    "state": "The character: {{concept}}\nChosen so far: {{picks}}",
+    "nothing_yet": "nothing yet",
+    "skip_kinds": ["abilities", "ability_scores", "scores"]
+  },
+  "battlemap": {
+    "$comment": "A generated battlemap (the operator, 2026-11-23: \"The map is a real map: a top-down battlemap, never a location's illustration\"; a mast painting shown as the map: \"This isn't a fucking map\"): a campaign's current scene with no picture of its own or its place's (the VTT's current_scene background_url null) gets one drawn by the owner's image-role model, kept as an asset and set as the scene's background_url (the VTT's set_scene_background), once per scene and in the background of a turn; POST /v1/ai_chat/battlemap draws it again (the GM's Regenerate map). The place's name and summary come from the wiki.",
+    "prompt": "strictly top-down orthographic tabletop RPG battle map, a floor plan seen from directly above, of {{place}}: {{description}}. No perspective, no horizon, no characters, no creatures, no text, no labels, no grid",
+    "asset_path": "/v1/asset/{{id}}/content"
   },
   "freeform": {
     "$comment": "A freeform character, developed during play (the operator, 2026-11-22: \"a 'Freeform Character' that lets the character be developed during play (narrative mode only)\"): the GM fills in the seat's person from what the story has established, never a backstory of its own, after a session ends and when the client asks (every few rounds). A person is freeform when the wiki marks them so (freeform, or a Freeform tag), or by the summary the start screen gives them.",

@@ -92,3 +92,24 @@ def test_a_turns_lore_is_searched_once(monkeypatch: pytest.MonkeyPatch) -> None:
     first = WikiReads.lore_passages(None, "u1", "chat1", "line1", "c1", "an owlbear")
     again = WikiReads.lore_passages(None, "u1", "chat1", "line1", "c1", "an owlbear, and more")
     assert first == again and searched == ["an owlbear"]
+
+
+def test_presence_is_who_has_a_token_on_the_current_scene(monkeypatch: pytest.MonkeyPatch) -> None:
+    # The operator, 2026-11-23: "Presence comes from the VTT: who is present is who is in the current scene."
+    import asyncio
+
+    async def current_scene(_requester: str, _campaign: str) -> dict[str, Any]:
+        return {"id": "s1", "background_url": None}
+
+    tokens: list[dict[str, Any]] = [{"token_id": "t1", "entity_id": "mags"}, {"token_id": "t2", "entity_id": None}]
+
+    async def scene_tokens(_requester: str, _scene: str) -> list[dict[str, Any]]:
+        return tokens
+
+    found = {"current_scene": current_scene, "scene_tokens": scene_tokens}
+    monkeypatch.setattr(WikiReads, "loaded_ability", lambda _registry, _ext, name: found.get(name))
+    assert asyncio.run(WikiReads.scene_people(None, "u1", "c1")) == ["mags"]
+    tokens.clear()
+    assert asyncio.run(WikiReads.scene_people(None, "u1", "c1")) is None
+    monkeypatch.setattr(WikiReads, "loaded_ability", lambda _registry, _ext, _name: None)
+    assert asyncio.run(WikiReads.scene_people(None, "u1", "c1")) is None

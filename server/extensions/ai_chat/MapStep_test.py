@@ -7,7 +7,12 @@ import json
 from typing import Any
 
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.MapStep import map_questions, movers, seat_place  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.MapStep import (  # type: ignore[import-not-found]
+    map_questions,
+    movers,
+    scene_changed,
+    seat_place,
+)
 
 CASES: dict[str, Any] = json.loads((REPOSITORY_ROOT / "contract" / "map-step-cases.json").read_text())
 
@@ -26,3 +31,11 @@ def test_where_the_seat_is() -> None:
     for case in CASES["seat_cases"]:
         place = seat_place(case["seat"], CASES["persons"], CASES["locations"], case["moves"])
         assert place == case["place"], case["name"]
+
+
+def test_the_banner_marks_a_scene_change_only() -> None:
+    # The operator, 2026-11-23: "The location banner marks a scene change in the VTT only".
+    assert scene_changed(None, {"id": "s1"})
+    assert not scene_changed("s1", {"id": "s1"})
+    assert scene_changed("s1", {"id": "s2"})
+    assert not scene_changed("s1", None)

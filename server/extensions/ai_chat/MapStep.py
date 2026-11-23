@@ -86,6 +86,34 @@ def seat_place(
     at = own[-1]["to"] if own else listed
     place = next((location for location in locations if location["id"] == at), None) if at is not None else None
     return {
-        "seat_location": {"id": place["id"], "name": place["name"]} if place is not None else None,
+        "seat_location": (
+            {"id": place["id"], "name": place["name"], "chain": place_chain(place, locations)}
+            if place is not None
+            else None
+        ),
         "seat_moved": any(move["from"] != move["to"] for move in own),
     }
+
+
+def place_chain(place: Mapping[str, Any], locations: Sequence[Mapping[str, Any]]) -> list[str]:
+    """A place's chain up to its top (the operator, 2026-11-23: "Locations are fully qualified": the
+    banner's subtitle, up to the planet or system in 40k and the region in D&D), nearest first."""
+    by_id = {str(location["id"]): location for location in locations}
+    chain: list[str] = []
+    seen = {str(place["id"])}
+    parent = place.get("parent_id")
+    while parent is not None and str(parent) in by_id and str(parent) not in seen:
+        seen.add(str(parent))
+        above = by_id[str(parent)]
+        chain.append(str(above["name"]))
+        parent = above.get("parent_id")
+    return chain
+
+
+def scene_changed(previous: str | None, current: Mapping[str, Any] | None) -> bool:
+    """Whether the banner shows (the operator, 2026-11-23: "The location banner marks a scene change in
+    the VTT only (a new map, including another level), never moving within a scene"): the current
+    scene isn't the one the chat last saw."""
+    if current is None or not current.get("id"):
+        return False
+    return previous != str(current["id"])

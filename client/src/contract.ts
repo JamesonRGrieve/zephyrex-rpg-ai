@@ -175,6 +175,7 @@ export const ENDPOINT_ROLES = contract.endpoint_roles as unknown as readonly [
   'search',
   'embed',
   'decide',
+  'reformat',
 ];
 /** Web search sources (A42), kept as endpoints serving only the search role (cases in contract/search-cases.json). */
 export const SEARCH_APIS = contract.search_apis as unknown as readonly ['searxng', 'brave'];

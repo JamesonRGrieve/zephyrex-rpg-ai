@@ -164,7 +164,10 @@
       "place": {
         "seat_location": {
           "id": "galley",
-          "name": "Galley"
+          "name": "Galley",
+          "chain": [
+            "The Ship"
+          ]
         },
         "seat_moved": true
       }
@@ -182,9 +185,34 @@
       "place": {
         "seat_location": {
           "id": "bridge",
-          "name": "the Bridge"
+          "name": "the Bridge",
+          "chain": [
+            "The Ship"
+          ]
         },
         "seat_moved": false
+      }
+    },
+    {
+      "name": "a place's chain up to its top, nearest first (the operator, 2026-11-23: fully qualified locations)",
+      "seat": "wren",
+      "moves": [
+        {
+          "person_id": "wren",
+          "from": "bridge",
+          "to": "bay2"
+        }
+      ],
+      "place": {
+        "seat_location": {
+          "id": "bay2",
+          "name": "Bay Two",
+          "chain": [
+            "Enginarium",
+            "The Ship"
+          ]
+        },
+        "seat_moved": true
       }
     },
     {

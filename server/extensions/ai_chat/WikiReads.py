@@ -321,6 +321,49 @@ async def character_sheet(model_registry: Any, requester_id: str, person_id: str
     return dict(sheet) if isinstance(sheet, dict) else None
 
 
+async def scene_now(model_registry: Any, requester_id: str, campaign_id: str | None) -> dict[str, Any] | None:
+    """The campaign's current scene from the VTT (current_scene: id, location_id, background_url…), or None."""
+    scene_of = loaded_ability(model_registry, "rpg_scene", "current_scene") if campaign_id else None
+    if scene_of is None:
+        return None
+    try:
+        scene = await _call(scene_of, requester_id, campaign_id)
+    except HTTPException:
+        return None
+    return dict(scene) if isinstance(scene, dict) and scene.get("id") else None
+
+
+async def scene_people(model_registry: Any, requester_id: str, campaign_id: str | None) -> list[str] | None:
+    """Who is present (the operator, 2026-11-23: "who is present is who is in the current scene"): the
+    wiki persons with a token on the campaign's current VTT scene; None without the VTT, a scene or anyone
+    on it, so presence falls back to places and the recent lines."""
+    tokens_of = loaded_ability(model_registry, "rpg_scene", "scene_tokens")
+    scene = await scene_now(model_registry, requester_id, campaign_id) if tokens_of is not None else None
+    if scene is None or tokens_of is None:
+        return None
+    try:
+        tokens = await _call(tokens_of, requester_id, str(scene["id"]))
+    except HTTPException:
+        return None
+    if not isinstance(tokens, list):
+        return None
+    people = [str(token["entity_id"]) for token in tokens if isinstance(token, dict) and token.get("entity_id")]
+    # A scene with no one linked on it isn't set up yet: presence falls back rather than empty the room.
+    return people or None
+
+
+async def set_scene_background(model_registry: Any, requester_id: str, scene_id: str, link: str) -> bool:
+    """A scene's map picture set (the VTT's set_scene_background, as the campaign's GM); False without it."""
+    setting = loaded_ability(model_registry, "rpg_scene", "set_scene_background")
+    if setting is None:
+        return False
+    try:
+        await _call(setting, requester_id, scene_id, link)
+    except HTTPException:
+        return False
+    return True
+
+
 async def place_in_scene(
     model_registry: Any, requester_id: str, campaign_id: str | None, person_id: str, near_person_id: str | None
 ) -> dict[str, Any] | None:
