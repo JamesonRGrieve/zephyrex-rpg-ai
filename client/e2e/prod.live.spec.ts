@@ -197,6 +197,11 @@ test('live on prod: a one-shot with the party, an NPC, a fight with a VTT roll, 
   await settled(page);
   record('Opening', await lines(page));
   record('Chat', [{ speaker: 'url', text: page.url() }]);
+  // LIVE_PLACE_CAST=1: the GM puts everyone on the scene's map before play, as a GM sets a table up. Off by
+  // default, so a fresh campaign's own presence (who may speak with no map set up) is what's tested.
+  const castPlaced = process.env.LIVE_PLACE_CAST === '1';
+  if (castPlaced)
+    for (const name of ['Brenna Ashdown', 'Tam Quickfoot', 'Old Hesk']) await placeOnScene(page, campaignChat(page), name);
 
   await act(
     page,
@@ -218,7 +223,7 @@ test('live on prod: a one-shot with the party, an NPC, a fight with a VTT roll, 
   // The GM moves people as the story says, and who is present follows (the operator, 2026-11-23): Hesk
   // leaves; afterwards he is neither on the current scene with the party nor where the party is.
   // Before he leaves he has a token on the current scene, so the check after can't pass on an empty map.
-  await placeOnScene(page, campaignChat(page), 'Old Hesk');
+  if (!castPlaced) await placeOnScene(page, campaignChat(page), 'Old Hesk');
   const hereBefore = await presence(page, campaignChat(page));
   record('Presence before Hesk leaves', [{ speaker: 'presence', text: JSON.stringify(hereBefore) }]);
   expect(hereBefore.onScene, 'Hesk has a token on the current scene before he leaves').toContain('Old Hesk');
