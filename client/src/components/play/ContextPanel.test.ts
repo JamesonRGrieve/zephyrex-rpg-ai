@@ -2,7 +2,13 @@
 // @vitest-environment node
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@zephyrex/vtt-play', () => ({ CampaignSeats: () => null, CharacterSheet: () => null, CurrentSceneTokens: () => null, DiceTray: () => null, SceneList: () => null }));
+vi.mock('@zephyrex/vtt-play', () => ({
+  CampaignSeats: () => null,
+  CharacterSheet: () => null,
+  CurrentSceneTokens: () => null,
+  DiceTray: () => null,
+  SceneList: () => null,
+}));
 
 const { whereabouts } = await import('./ContextPanel');
 
@@ -29,5 +35,10 @@ describe('whereabouts', () => {
   it('with no places known, the story decides who is here', () => {
     const { here } = whereabouts(cast, 'seat', [], [{ speaker_id: 'rask', text: 'Up, both of you.' }]);
     expect(here.map((one) => one.id)).toEqual(['seat', 'rask']);
+  });
+  it("the VTT scene's tokens decide who is here, over the records and the story", () => {
+    const { here, away } = whereabouts(cast, 'seat', entities, [], ['seat', 'rask']);
+    expect(here.map((one) => one.id)).toEqual(['seat', 'rask']);
+    expect(away.map((one) => one.member.id)).toEqual(['osk']);
   });
 });

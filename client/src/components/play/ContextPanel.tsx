@@ -49,12 +49,14 @@ export function whereabouts(
   seatId: string | null,
   entities: readonly Entity[],
   recent: Presence['recent'],
+  /** The people with a token on the VTT's current scene: who is present, as the GM's turn reads it. */
+  tokens: readonly string[] | null = null,
 ): { here: PanelMember[]; away: { member: PanelMember; place: string | null }[] } {
   const places = new Map(entities.filter((one) => one.kind === 'location').map((one) => [one.id, one]));
   const located = new Map(entities.filter((one) => one.kind === 'person').map((one) => [one.id, one.location_id ?? null]));
   const sceneLocation = seatId === null ? null : (located.get(seatId) ?? null);
   const presence: Presence = {
-    tokens: null,
+    tokens,
     vox: [],
     scene_location: sceneLocation,
     location_parents: Object.fromEntries([...places.values()].map((one) => [one.id, one.parent_id ?? null])),
@@ -229,9 +231,30 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
     const rows = Reflect.get(Object(page), 'world_entities');
     return Array.isArray(rows) ? (rows as Entity[]) : [];
   });
+  // Who is here is who has a token on the VTT's current scene (the operator, 2026-11-23: "Tracking who is in
+  // the scene is completely broken"; the server's turns read the same), else the story's reading. The key
+  // names the scene's tokens, so the map step's refresh reads it again.
+  const sceneTokens = useSWR(
+    campaignId !== null ? `rpg-ai:scene-tokens:${campaignId}` : null,
+    async () => {
+      const answer = await client.post('/v1/scene/current', { current: { campaign_id: campaignId ?? '' } });
+      const found = Reflect.get(Object(answer), 'scene') ?? Reflect.get(Object(answer), 'current') ?? answer;
+      const sceneId = Reflect.get(Object(found), 'id');
+      if (typeof sceneId !== 'string') return null;
+      const page = await client.get('/v1/scene_token', { scene_id: sceneId, limit: '200' });
+      const rows = Reflect.get(Object(page), 'scene_tokens');
+      return (Array.isArray(rows) ? rows : []).flatMap((row) => {
+        const person = Reflect.get(Object(row), 'person_id');
+        return typeof person === 'string' ? [person] : [];
+      });
+    },
+    { shouldRetryOnError: false },
+  );
+  const tokens =
+    sceneTokens.data !== undefined && sceneTokens.data !== null && sceneTokens.data.length > 0 ? sceneTokens.data : null;
   const { here, away } = useMemo(
-    () => whereabouts(cast, seatId, entities.data ?? [], recent),
-    [cast, seatId, entities.data, recent],
+    () => whereabouts(cast, seatId, entities.data ?? [], recent, tokens),
+    [cast, seatId, entities.data, recent, tokens],
   );
   const sheetFor = seatId ?? cast[0]?.id ?? null;
   return (
