@@ -24,9 +24,27 @@ export interface SavedLine {
   text: string;
 }
 
+/**
+ * The reformat model's runs (the server's structured_runs shape): the narrator's finished prose re-sorted
+ * among the people present (the operator, 2026-11-23: a second small model formats the prose after it streams).
+ */
+export interface ReformatRun {
+  speaker_id: string | null;
+  speaker_name: string | null;
+  lines: {
+    kind: 'say' | 'do' | 'narrate';
+    manner: string | null;
+    target_id: string | null;
+    target_name: string | null;
+    text: string;
+  }[];
+}
+
 export type ReplyEvent =
   | { type: 'delta'; text: string }
-  | { type: 'done'; dropped: number }
+  | { type: 'done'; dropped: number; stopped: boolean }
+  | { type: 'reformat'; reformatted: boolean; runs: ReformatRun[] }
+  | { type: 'heartbeat' }
   | { type: 'error'; detail: string }
   | { type: 'item_start'; item: Omit<LiveItem, 'text' | 'done'> }
   | { type: 'item_text'; index: number; delta: string }
@@ -38,6 +56,8 @@ const text = (value: unknown): string | null => (typeof value === 'string' ? val
 
 /** One event block (`event:` and `data:` lines); null when it is not one of ours. */
 export function parseEventBlock(block: string): ReplyEvent | null {
+  // A keepalive comment (`: keepalive`): the stream is alive, though nothing was said.
+  if (block.split(/\r?\n/).every((line) => line.startsWith(':') || line.trim() === '')) return { type: 'heartbeat' };
   let name = '';
   const data: string[] = [];
   for (const line of block.split(/\r?\n/)) {
@@ -53,7 +73,40 @@ export function parseEventBlock(block: string): ReplyEvent | null {
   const field = (key: string): unknown => Reflect.get(Object(body), key);
   if (name === 'delta' && typeof field('text') === 'string') return { type: 'delta', text: field('text') as string };
   if (name === 'done')
-    return { type: 'done', dropped: typeof field('dropped') === 'number' ? (field('dropped') as number) : 0 };
+    return {
+      type: 'done',
+      dropped: typeof field('dropped') === 'number' ? (field('dropped') as number) : 0,
+      stopped: field('stopped') === true,
+    };
+  if (name === 'reformat') {
+    const raw = field('runs');
+    const runs = (Array.isArray(raw) ? raw : []).flatMap((run): ReformatRun[] => {
+      const at = (key: string): unknown => Reflect.get(Object(run), key);
+      const lines = Array.isArray(at('lines')) ? (at('lines') as unknown[]) : [];
+      return [
+        {
+          speaker_id: text(at('speaker_id')),
+          speaker_name: text(at('speaker_name')),
+          lines: lines.flatMap((line): ReformatRun['lines'] => {
+            const of = (key: string): unknown => Reflect.get(Object(line), key);
+            const kind = of('kind');
+            const said = text(of('text'));
+            if ((kind !== 'say' && kind !== 'do' && kind !== 'narrate') || said === null) return [];
+            return [
+              {
+                kind,
+                manner: text(of('manner')),
+                target_id: text(of('target_id')),
+                target_name: text(of('target_name')),
+                text: said,
+              },
+            ];
+          }),
+        },
+      ];
+    });
+    return { type: 'reformat', reformatted: field('reformatted') === true, runs };
+  }
   if (name === 'error')
     return { type: 'error', detail: text(field('detail')) ?? text(field('message')) ?? 'The reply failed' };
   if (name === 'item_start') {

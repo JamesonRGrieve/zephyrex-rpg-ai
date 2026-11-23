@@ -142,6 +142,7 @@ import { createPortal } from 'react-dom';
 import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
 import { SeatSwitch } from './SeatPicker';
 import { type DecisionCall, readDecisionCall } from './DecisionCalls';
+import { partsOfRuns } from '~/features/chat/reformatRuns';
 import { EntityLinksProvider, type LinkedEntity } from './EntityLinks';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -1360,7 +1361,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // person's own character is never voiced; their name ends the narration there.
     const seatName = play.playingId === null ? '' : (castById.get(play.playingId)?.name ?? '');
     const castList = voicedCast;
-    const parts = narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== '');
+    // The reformat model's runs when it sorted the prose (the operator, 2026-11-23: a second small model
+    // formats the narration into lines, its speakers only people present); the reader's split otherwise.
+    const parts =
+      result.runs !== undefined
+        ? partsOfRuns(result.runs, castList)
+        : narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== '');
     let parent = parentId;
     let saved: ChatMessage | null = null;
     // A line is saved only as someone in the chat's cast (the server refuses anyone else, and the

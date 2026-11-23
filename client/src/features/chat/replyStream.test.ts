@@ -5,7 +5,29 @@ import { parseEventBlock, takeBlocks } from './replyStream';
 describe('reply stream', () => {
   it('reads deltas, the end and errors', () => {
     expect(parseEventBlock('event: delta\ndata: {"text":"Hi"}')).toEqual({ type: 'delta', text: 'Hi' });
-    expect(parseEventBlock('event: done\ndata: {"dropped":3}')).toEqual({ type: 'done', dropped: 3 });
+    expect(parseEventBlock('event: done\ndata: {"dropped":3}')).toEqual({ type: 'done', dropped: 3, stopped: false });
+    expect(parseEventBlock('event: done\ndata: {"stopped":true,"dropped":0}')).toEqual({
+      type: 'done',
+      dropped: 0,
+      stopped: true,
+    });
+    // A keepalive is the stream alive, saying nothing.
+    expect(parseEventBlock(': keepalive')).toEqual({ type: 'heartbeat' });
+    expect(
+      parseEventBlock(
+        'event: reformat\ndata: {"reformatted":true,"reason":"","cut":false,"runs":[{"speaker_id":"y1","speaker_name":null,"lines":[{"kind":"say","manner":"speak","target_id":null,"target_name":null,"text":"Sit."}]}]}',
+      ),
+    ).toEqual({
+      type: 'reformat',
+      reformatted: true,
+      runs: [
+        {
+          speaker_id: 'y1',
+          speaker_name: null,
+          lines: [{ kind: 'say', manner: 'speak', target_id: null, target_name: null, text: 'Sit.' }],
+        },
+      ],
+    });
     expect(parseEventBlock('event: error\ndata: {"detail":"stopped"}')).toEqual({ type: 'error', detail: 'stopped' });
   });
 

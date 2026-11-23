@@ -7,9 +7,24 @@
  */
 import { csrfHeaders } from '@zephyrex/auth/lib/session';
 import { useCallback, useRef, useState } from 'react';
-import { type LiveItem, parseEventBlock, type ReplyEvent, type SavedLine, takeBlocks } from './replyStream';
+import {
+  type LiveItem,
+  parseEventBlock,
+  type ReformatRun,
+  type ReplyEvent,
+  type SavedLine,
+  takeBlocks,
+} from './replyStream';
 
 export const GENERATE_PATH = '/api/v1/ai_chat/generate';
+/**
+ * Fully asynchronous turns (the operator, 2026-11-23: "Send makes two requests… dropping that subscription
+ * has no effect on the server's work… Stop is its own request"): the turn is posted (204) and runs on the
+ * server; its stream is a separate subscription, taken again from the start whenever it drops.
+ */
+export const TURN_PATH = '/api/v1/ai_chat/turn';
+export const TURN_STREAM_PATH = '/api/v1/ai_chat/turn_stream';
+export const TURN_STOP_PATH = '/api/v1/ai_chat/turn_stop';
 
 export interface ReplyRequest {
   chat_id: string;
@@ -34,6 +49,8 @@ export interface ReplyResult {
   stopped: boolean;
   /** A structured turn: the messages the server saved, each speaker's run its own (else undefined). */
   saved?: SavedLine[];
+  /** The reformat model's runs for a narration, when it sorted the prose (else undefined). */
+  runs?: ReformatRun[];
 }
 
 export type ReplyState =
@@ -85,9 +102,175 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
   const [state, setState] = useState<ReplyState>({ status: 'idle' });
   const controller = useRef<AbortController | null>(null);
 
-  const stop = useCallback(() => controller.current?.abort(), []);
+  // The chat whose turn runs on the server now, for Stop (its own request).
+  const serverTurn = useRef<string | null>(null);
+  const stop = useCallback(() => {
+    const chatId = serverTurn.current;
+    if (chatId !== null)
+      void fetch(TURN_STOP_PATH, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+        body: JSON.stringify({ turn_stop: { chat_id: chatId } }),
+      }).catch(() => undefined);
+    controller.current?.abort();
+  }, []);
+
+  /** What a reply's events add up to, read from the start each time (a new subscription replays all). */
+  function tally() {
+    const got = {
+      text: '',
+      dropped: 0,
+      failure: null as string | null,
+      items: [] as LiveItem[],
+      saved: undefined as SavedLine[] | undefined,
+      runs: undefined as ReformatRun[] | undefined,
+      done: false,
+      stopped: false,
+    };
+    const show = () => setState({ status: 'writing', text: got.text, items: got.items });
+    const take = (event: ReplyEvent) => {
+      if (event.type === 'heartbeat') return;
+      if (event.type === 'delta') {
+        got.text += event.text;
+        setState({ status: 'writing', text: got.text });
+      } else if (event.type === 'done') {
+        got.dropped = event.dropped;
+        got.done = true;
+        got.stopped = event.stopped;
+      } else if (event.type === 'error') got.failure = event.detail;
+      else if (event.type === 'reformat') got.runs = event.reformatted && event.runs.length > 0 ? event.runs : undefined;
+      else if (event.type === 'item_start') {
+        got.items = [...got.items, { ...event.item, text: '', done: false }];
+        show();
+      } else if (event.type === 'item_text') {
+        got.items = got.items.map((item) =>
+          item.index === event.index ? { ...item, text: item.text + event.delta } : item,
+        );
+        got.text += event.delta;
+        show();
+      } else if (event.type === 'item_end') {
+        // An item cut to nothing (the seat's) is dropped.
+        got.items = got.items.flatMap((item) =>
+          item.index !== event.index ? [item] : event.text === '' ? [] : [{ ...item, text: event.text, done: true }],
+        );
+        show();
+      } else if (event.type === 'person')
+        got.items = got.items.map((item) => (item.speaker === event.name ? { ...item, speaker_id: event.id } : item));
+      else got.saved = event.messages;
+    };
+    return { got, take };
+  }
+
+  /** A stream's events into `take`, every block (a keepalive too) counted as heard. */
+  async function follow(
+    response: Response,
+    abort: AbortController,
+    first: boolean,
+    take: (event: ReplyEvent) => void,
+  ): Promise<void> {
+    // A stream that goes quiet without closing (the local RC run, 2026-11-22: a reply stopped mid-sentence
+    // and stayed "writing" for four minutes) is dropped. The first token may take a while on a long
+    // prompt; after it, silence is a stall. With the server's keepalives, silence means the line is down.
+    let quiet: ReturnType<typeof setTimeout> | undefined;
+    const heard = (initial: boolean) => {
+      clearTimeout(quiet);
+      quiet = setTimeout(() => abort.abort(), initial ? FIRST_TOKEN_MS : STALL_MS);
+    };
+    heard(first);
+    try {
+      if (response.body === null) return;
+      await readEvents(response.body.pipeThrough(new TextDecoderStream()).getReader(), '', (event) => {
+        heard(false);
+        take(event);
+      });
+    } finally {
+      clearTimeout(quiet);
+    }
+  }
+
+  const finish = (got: ReturnType<typeof tally>['got'], stopped: boolean): ReplyResult | null => {
+    if (got.failure !== null && got.text === '' && got.saved === undefined) {
+      setState({ status: 'failed', detail: got.failure });
+      return null;
+    }
+    setState({ status: 'idle' });
+    return {
+      text: got.text,
+      dropped: got.dropped,
+      stopped: stopped || got.stopped,
+      ...(got.saved === undefined ? {} : { saved: got.saved }),
+      ...(got.runs === undefined ? {} : { runs: got.runs }),
+    };
+  };
+
+  /**
+   * The turn on the server: posted, then followed; a subscription that drops (a phone leaving the tab, a
+   * network blip, a stall) is taken again from the start once the tab is back. Null when this server has
+   * no turns (lite, or an older build): the caller streams it directly instead.
+   */
+  async function serverTurnOf(request: ReplyRequest): Promise<ReplyResult | null | 'unsupported'> {
+    controller.current?.abort();
+    const abort = new AbortController();
+    controller.current = abort;
+    setState({ status: 'writing', text: '' });
+    const posted = await fetch(TURN_PATH, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
+      body: JSON.stringify({ generate: request }),
+      signal: abort.signal,
+    }).catch(() => null);
+    if (posted === null) {
+      if (abort.signal.aborted) return finish(tally().got, true);
+      setState({ status: 'failed', detail: 'The reply could not start' });
+      return null;
+    }
+    if (posted.status === 404 || posted.status === 405) return 'unsupported';
+    // 409: a turn already runs on this chat (sent from another tab, or before a reload): follow that one.
+    if (!posted.ok && posted.status !== 409) {
+      setState({ status: 'failed', detail: await refusal(posted) });
+      return null;
+    }
+    serverTurn.current = request.chat_id;
+    try {
+      let first = true;
+      let drops = 0;
+      for (;;) {
+        const { got, take } = tally();
+        const sub = new AbortController();
+        const onStop = () => sub.abort();
+        abort.signal.addEventListener('abort', onStop, { once: true });
+        const query = new URLSearchParams({ chat_id: request.chat_id, start: '0' });
+        const response = await fetch(`${TURN_STREAM_PATH}?${query.toString()}`, {
+          headers: { Accept: 'text/event-stream' },
+          signal: sub.signal,
+        }).catch(() => null);
+        if (response !== null && response.status === 404) {
+          // The turn is gone (finished long ago, or the server restarted): what the chat saved stands.
+          return finish(got, false);
+        }
+        if (response !== null && response.ok) await follow(response, sub, first, take).catch(() => undefined);
+        abort.signal.removeEventListener('abort', onStop);
+        first = false;
+        if (got.done) return finish(got, false);
+        if (abort.signal.aborted) return finish(got, true);
+        // Dropped before the end: the server's turn goes on; follow it again once the tab is back, waiting
+        // longer each time the server can't be reached (1 s, 2 s, … 30 s), so a server that's down isn't hammered.
+        await backInView();
+        const wait = Math.min(30_000, 1000 * 2 ** drops);
+        drops += 1;
+        await new Promise((resolve) => setTimeout(resolve, wait));
+        if (abort.signal.aborted) return finish(got, true);
+      }
+    } finally {
+      serverTurn.current = null;
+    }
+  }
 
   async function attempt(request: ReplyRequest, again: boolean): Promise<ReplyResult | null> {
+    if (again) {
+      const turned = await serverTurnOf(request);
+      if (turned !== 'unsupported') return turned;
+    }
     controller.current?.abort();
     // A phone that leaves the tab suspends it and the stream dies with it (the operator, 2026-11-22: "When
     // I switch tabs and come back to chat in progress I get a NetworkError"): noted, so the reply is asked
@@ -99,22 +282,8 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
     if (typeof document !== 'undefined') document.addEventListener('visibilitychange', onHide);
     const abort = new AbortController();
     controller.current = abort;
-    let text = '';
-    let dropped = 0;
-    let failure: string | null = null;
-    let items: LiveItem[] = [];
-    let saved: SavedLine[] | undefined;
-    setState({ status: 'writing', text });
-    const show = () => setState({ status: 'writing', text, items });
-    // A stream that goes quiet without closing (the local RC run, 2026-11-22: a reply stopped mid-sentence
-    // and stayed "writing" for four minutes) ends with what it has: the round keeps its last complete
-    // sentence and goes on. The first token may take a while on a long prompt; after it, silence is a stall.
-    let quiet: ReturnType<typeof setTimeout> | undefined;
-    const heard = (first: boolean) => {
-      clearTimeout(quiet);
-      quiet = setTimeout(() => abort.abort(), first ? FIRST_TOKEN_MS : STALL_MS);
-    };
-    heard(true);
+    const { got, take } = tally();
+    setState({ status: 'writing', text: '' });
     try {
       const response = await fetch(GENERATE_PATH, {
         method: 'POST',
@@ -126,30 +295,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         setState({ status: 'failed', detail: await refusal(response) });
         return null;
       }
-      await readEvents(response.body.pipeThrough(new TextDecoderStream()).getReader(), '', (event) => {
-        heard(false);
-        if (event.type === 'delta') {
-          text += event.text;
-          setState({ status: 'writing', text });
-        } else if (event.type === 'done') dropped = event.dropped;
-        else if (event.type === 'error') failure = event.detail;
-        else if (event.type === 'item_start') {
-          items = [...items, { ...event.item, text: '', done: false }];
-          show();
-        } else if (event.type === 'item_text') {
-          items = items.map((item) => (item.index === event.index ? { ...item, text: item.text + event.delta } : item));
-          text += event.delta;
-          show();
-        } else if (event.type === 'item_end') {
-          // An item cut to nothing (the seat's) is dropped.
-          items = items.flatMap((item) =>
-            item.index !== event.index ? [item] : event.text === '' ? [] : [{ ...item, text: event.text, done: true }],
-          );
-          show();
-        } else if (event.type === 'person')
-          items = items.map((item) => (item.speaker === event.name ? { ...item, speaker_id: event.id } : item));
-        else saved = event.messages;
-      });
+      await follow(response, abort, true, take);
     } catch {
       if (!abort.signal.aborted) {
         document.removeEventListener('visibilitychange', onHide);
@@ -161,15 +307,9 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         return null;
       }
     } finally {
-      clearTimeout(quiet);
       if (typeof document !== 'undefined') document.removeEventListener('visibilitychange', onHide);
     }
-    if (failure !== null && text === '' && saved === undefined) {
-      setState({ status: 'failed', detail: failure });
-      return null;
-    }
-    setState({ status: 'idle' });
-    return { text, dropped, stopped: abort.signal.aborted, ...(saved === undefined ? {} : { saved }) };
+    return finish(got, abort.signal.aborted);
   }
 
   // attempt reads only setState and the controller ref, both stable: write keeps one identity.
