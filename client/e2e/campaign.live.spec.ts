@@ -200,8 +200,11 @@ test('a full campaign session: GM, party, an NPC, a fight, the session ended, a 
   record('AI GM narrates', (await lines(page)).slice(before));
 
   // End the session: its summary is written and Session 2 begins.
-  await page.getByRole('button', { name: 'More for this chat' }).click();
-  await page.getByRole('menuitem', { name: 'End session' }).click();
+  // The chat's actions live in the Context panel's This chat section (cdd198f).
+  await page.getByRole('button', { name: 'Context', exact: true }).click();
+  await page.getByRole('button', { name: 'This chat' }).click();
+  await page.getByRole('button', { name: 'End session' }).click();
+  await page.keyboard.press('Escape');
   await expect(page.getByText('Session 2').first()).toBeVisible({ timeout: TURN });
   const chatId = page.url().split('/').pop() ?? '';
   const sessions = await (await page.request.get(`/api/v1/chat_session?chat_id=${chatId}`)).json();

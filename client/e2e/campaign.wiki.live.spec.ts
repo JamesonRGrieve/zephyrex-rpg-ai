@@ -198,8 +198,24 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   await settled(page);
   record('AI GM narrates', (await lines(page)).slice(before));
 
-  await page.getByRole('button', { name: 'More for this chat' }).click();
-  await page.getByRole('menuitem', { name: 'End session' }).click();
+  // The X-card is on the message, with an optional reason (the operator, 2026-11-23); it can be put back.
+  const latest = page.getByRole('article').filter({ has: page.getByRole('button', { name: /^More for / }) }).last();
+  const who = ((await latest.getAttribute('aria-label')) ?? '').split(',')[0] ?? '';
+  await latest.getByRole('button', { name: /^More for / }).click();
+  await page.getByRole('menuitem', { name: 'X-card' }).click();
+  await page.getByLabel(/What should the story stay away from/).fill('the crew being eaten');
+  await page.getByRole('button', { name: 'X-card', exact: true }).click();
+  const carded = page.getByRole('article', { name: `${who}, X-carded` }).last();
+  await expect(carded).toBeVisible();
+  await carded.getByRole('button', { name: 'Put it back' }).click();
+  await expect(page.getByRole('article', { name: `${who}, X-carded` })).toHaveCount(0);
+  record('X-card and back', [{ speaker: who, text: 'X-carded with a reason, then put back' }]);
+
+  // The chat's actions live in the Context panel's This chat section (cdd198f).
+  await page.getByRole('button', { name: 'Context', exact: true }).click();
+  await page.getByRole('button', { name: 'This chat' }).click();
+  await page.getByRole('button', { name: 'End session' }).click();
+  await page.keyboard.press('Escape');
   await expect(page.getByText('Session 2').first()).toBeVisible({ timeout: TURN });
 
   writeFileSync(testInfo.outputPath('transcript.json'), JSON.stringify(transcript, null, 2));

@@ -77,8 +77,11 @@ test('a campaign: started from its scenario, seats swapped, a session ended, a f
   await expect(page.getByRole('list', { name: 'In this chat' })).not.toContainText('Massen');
 
   // End the session: Session 2 starts at its marker.
-  await page.getByRole('button', { name: 'More for this chat' }).click();
-  await page.getByRole('menuitem', { name: 'End session' }).click();
+  // The chat's actions live in the Context panel's This chat section (cdd198f).
+  await page.getByRole('button', { name: 'Context', exact: true }).click();
+  await page.getByRole('button', { name: 'This chat' }).click();
+  await page.getByRole('button', { name: 'End session' }).click();
+  await page.keyboard.press('Escape');
   await expect(page.getByText('Session 2').first()).toBeVisible();
 
   // Fork a new campaign from Massen's line: his line is copied though he has left the party,
