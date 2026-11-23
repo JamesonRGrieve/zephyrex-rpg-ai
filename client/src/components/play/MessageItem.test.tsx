@@ -42,7 +42,10 @@ describe('MessageItem', () => {
     const { rerender } = render(<MessageItem message={ADA_REPLY} onXCard={onXCard} />);
     await userEvent.click(screen.getByRole('button', { name: "More for Ada Vance's message" }));
     await userEvent.click(await screen.findByRole('menuitem', { name: 'X-card' }));
-    expect(onXCard).toHaveBeenCalledOnce();
+    // An optional reason, then X-card.
+    await userEvent.type(screen.getByLabelText(/What should the story stay away from/), 'spiders');
+    await userEvent.click(screen.getByRole('button', { name: 'X-card' }));
+    expect(onXCard).toHaveBeenCalledWith('spiders');
     rerender(<MessageItem message={{ ...ADA_REPLY, xCarded: true }} onXCard={onXCard} />);
     expect(screen.getByRole('article', { name: 'Ada Vance, X-carded' })).toBeInTheDocument();
     expect(screen.queryByText('wipes her hands on a rag')).not.toBeInTheDocument();

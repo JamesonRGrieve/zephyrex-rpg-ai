@@ -80,6 +80,8 @@ export interface MessageActions {
   onRegenerateWith?: { models: readonly { id: string; name: string }[]; run: (endpointId: string) => void };
   onFork?: (step: -1 | 1) => void;
   onEdit?: (text: string) => void;
+  /** Saves the edit as a new alternative and runs on from it (the operator, 2026-11-23: edit, fork and regenerate). */
+  onEditFork?: (text: string) => void;
   onBookmark?: () => void;
   /** Moves it up its branch, swapping with the message above (A9); offered where that has no other reply. */
   onMoveUp?: () => void;
@@ -92,7 +94,8 @@ export interface MessageActions {
   onForkCampaign?: () => void;
   onDelete?: () => void;
   /** The X-card (A25): takes the message out of the story, or puts it back. */
-  onXCard?: () => void;
+  /** The X-card on this message, with an optional reason (the operator, 2026-11-23). */
+  onXCard?: (reason: string) => void;
   /** Hides the message from the model, or shows it to the model again (gap 10). */
   onHide?: () => void;
   /** Carries on the shown alternative where it stopped (offered on a character's last message). */
@@ -339,6 +342,8 @@ export function MessageItem({
   labels?: readonly LineLabel[] | null;
 } & MessageActions): ReactElement {
   const [editing, setEditing] = useState<string | null>(null);
+  // The X-card's optional reason, while its box is open.
+  const [carding, setCarding] = useState<string | null>(null);
   const editId = useId();
   const label = CHANNEL_LABEL[message.channel];
   const tableTalk = message.channel === 'ooc' || message.channel === 'gm';
@@ -354,7 +359,7 @@ export function MessageItem({
           {message.speaker}’s message was X-carded: it is out of the story.
         </span>
         {actions.onXCard !== undefined && (
-          <Button type='button' variant='ghost' className='h-11 shrink-0' onClick={actions.onXCard}>
+          <Button type='button' variant='ghost' className='h-11 shrink-0' onClick={() => actions.onXCard?.('')}>
             Put it back
           </Button>
         )}
@@ -508,7 +513,50 @@ export function MessageItem({
               <Button type='submit' size='sm' className='h-10'>
                 Save
               </Button>
+              {actions.onEditFork !== undefined && (
+                <Button
+                  type='button'
+                  size='sm'
+                  variant='outline'
+                  className='h-10'
+                  onClick={() => {
+                    actions.onEditFork?.(editing);
+                    setEditing(null);
+                  }}
+                >
+                  Save and redo from here
+                </Button>
+              )}
               <Button type='button' size='sm' variant='ghost' className='h-10' onClick={() => setEditing(null)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
+        {carding !== null && (
+          <form
+            className='mt-2 grid gap-2 rounded-md border p-3'
+            onSubmit={(event) => {
+              event.preventDefault();
+              actions.onXCard?.(carding.trim());
+              setCarding(null);
+            }}
+          >
+            <label htmlFor={`${editId}-card`} className='text-sm font-medium'>
+              X-card this. What should the story stay away from? (optional)
+            </label>
+            <Textarea
+              id={`${editId}-card`}
+              rows={2}
+              value={carding}
+              autoFocus
+              onChange={(event) => setCarding(event.target.value)}
+            />
+            <div className='flex gap-2'>
+              <Button type='submit' size='sm' className='h-10'>
+                X-card
+              </Button>
+              <Button type='button' size='sm' variant='ghost' className='h-10' onClick={() => setCarding(null)}>
                 Cancel
               </Button>
             </div>
@@ -609,7 +657,7 @@ export function MessageItem({
                   </DropdownMenuItem>
                 )}
                 {actions.onXCard !== undefined && (
-                  <DropdownMenuItem onSelect={actions.onXCard}>
+                  <DropdownMenuItem onSelect={() => setCarding('')}>
                     <X aria-hidden /> X-card
                   </DropdownMenuItem>
                 )}

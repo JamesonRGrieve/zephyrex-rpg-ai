@@ -24,7 +24,6 @@ import {
   Play,
   ScanText,
   Settings2,
-  X,
   RotateCw,
   Square,
 } from 'lucide-react';
@@ -1553,6 +1552,30 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     else if (channel === 'ic' && !chat.paused) await playRound(saved, [...branch, saved]);
   };
 
+  /**
+   * Edit, fork and regenerate (the operator, 2026-11-23): the edited line becomes a new alternative beside the
+   * old one, and play runs on from it: the round for the person's own line, the GM's narration after any other.
+   */
+  const editFork = async (message: ChatMessage, text: string) => {
+    roundRef.current += 1;
+    if (writing) reply.stop();
+    const copy = await create({
+      chat_id: chat.id,
+      parent_id: message.parent_id,
+      role: message.role,
+      channel: message.channel,
+      ...(message.speaker_character_id === null ? {} : { speaker_character_id: message.speaker_character_id }),
+      swipes: [text],
+    });
+    setLeafId(copy.id);
+    const at = branch.findIndex((one) => one.id === message.id);
+    const own =
+      message.role === 'user' ||
+      (play.isCampaign && message.speaker_character_id !== null && message.speaker_character_id === play.playingId);
+    if (own) await playRound(copy, [...(at === -1 ? branch : branch.slice(0, at)), copy]);
+    else if (message.channel === 'ic') await narrateAfter(copy.id);
+  };
+
   /** Another alternative for a reply; with `endpointId`, from that model (AP4), to compare them side by side. */
   const regenerate = async (message: ChatMessage, endpointId?: string) => {
     // The person's own line is never rewritten by the model (the operator, 2026-11-22: "The regenerate
@@ -1814,7 +1837,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       label: 'Play',
       actions: (
         [
-          { label: 'X-card the latest reply', icon: X, run: () => void xCardLatest() },
           {
             label: chat.paused ? 'Resume' : 'Pause',
             icon: chat.paused ? Play : Pause,
@@ -1950,15 +1972,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   ))}
                 </div>
               )}
-              <Button
-                type='button'
-                variant='outline'
-                className='h-11 max-sm:hidden'
-                onClick={() => void xCardLatest()}
-                aria-label='X-card the latest reply'
-              >
-                <X aria-hidden /> <span className='max-sm:sr-only'>X-card</span>
-              </Button>
               {play.isCampaign && (
                 // Every piece of context lives in the right-hand panel (the operator, 2026-11-21); its button is
                 // the rightmost in the bar, beside the panel it opens (the operator, 2026-11-22).
@@ -2058,6 +2071,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       swipes: message.swipes.map((old, index) => (index === message.swipe_index ? text : old)),
                     })
                   }
+                  onEditFork={!writing && roundStep === null ? (text) => void editFork(message, text) : undefined}
                   onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
                   onMoveUp={
                     message.parent_id !== null && onlyReply(message.parent_id) !== undefined && !writing
@@ -2095,7 +2109,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       : undefined
                   }
                   onDelete={() => deleteMessage(message)}
-                  onXCard={() => void update(message, { x_carded: !message.x_carded })}
+                  onXCard={(reason) => {
+                    void update(message, { x_carded: !message.x_carded });
+                    // A reason given is kept for the GM as a table note, so the story stays away from it.
+                    if (!message.x_carded && reason !== '')
+                      void addNote({ kind: 'tone', text: `X-card: keep away from ${reason}` });
+                  }}
                   onHide={() => void update(message, { hidden: !message.hidden })}
                   onContinue={
                     message.role === 'character' && message.id === leaf && !writing
@@ -2104,11 +2123,6 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   }
                   onSpeak={canSpeak ? () => readAloud(message.speaker_character_id, shown.text) : undefined}
                   onSpeakFrom={canSpeak ? () => readThrough(message.id) : undefined}
-                  onTranslate={
-                    chat.character_ids.length > 0
-                      ? { label: `Translate into ${language}`, run: () => void translateMessage(message.id, shown.text) }
-                      : undefined
-                  }
                   translation={translationOf(message.id)}
                   canon={canonNotices.get(message.id)}
                   revision={message.revision ?? null}
