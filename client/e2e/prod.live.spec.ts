@@ -198,6 +198,12 @@ test('live on prod: a one-shot with the party, an NPC, a fight with a VTT roll, 
   await seat(page, null);
   // The GM moves people as the story says, and who is present follows (the operator, 2026-11-23): Hesk
   // leaves; afterwards he is neither on the current scene with the party nor where the party is.
+  // Before he leaves: where Hesk stands, so the check after can't pass on an empty map.
+  const before = await presence(page, campaignChat(page));
+  record('Presence before Hesk leaves', [{ speaker: 'presence', text: JSON.stringify(before) }]);
+  expect
+    .soft([...before.onScene, ...before.withParty], 'Hesk is on the map or with the party before he leaves')
+    .toContain('Old Hesk');
   await act(
     page,
     'GM sends Hesk away',
