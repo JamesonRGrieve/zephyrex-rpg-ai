@@ -69,7 +69,11 @@ from zephyrex.extensions.ai_chat.Clarify import (  # type: ignore[import-not-fou
     should_ask,
 )
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text, wiki_document_texts  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Decide import ask_decider, ask_decider_detailed  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Decide import (  # type: ignore[import-not-found]
+    DECIDE_BACKGROUND,
+    ask_decider,
+    ask_decider_detailed,
+)
 from zephyrex.extensions.ai_chat.Dispositions import (  # type: ignore[import-not-found]
     apply_stances,
     parse_status,
@@ -3710,6 +3714,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 state,
                 asked_here,
                 getattr(row, "extra_body", None),
+                purpose in DECIDE_BACKGROUND,
             )
             if chat_id:
                 try:
@@ -4033,7 +4038,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         }
         reach = present_cast(cast, presence)
         # After the person's own line someone answers: no pause.
-        after_person = bool(story_turns) and by_person(story_turns[-1], playing_id)
+        # In the GM's seat the person's lines are the narration (Zephyrex RPG's live run, chat 608b169c: the
+        # GM set the scene, the round paused, and the two present PCs never answered).
+        after_person = bool(story_turns) and (
+            by_person(story_turns[-1], playing_id) or (seat == "gm" and story_turns[-1]["role"] == "narrator")
+        )
         question, picks = turn_question(
             cast,
             chat.muted_ids or [],

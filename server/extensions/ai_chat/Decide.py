@@ -130,9 +130,16 @@ DECIDE_RETRY_SECONDS = (0.3, 0.6)
 #: At most this many requests in flight to the decision models at once, the rest queued here (Self Hosted
 #: AI, 2026-11-23: d1-2b serves 4 slots; 44-64 calls a minute backed its queue up past 120 s).
 DECIDE_IN_FLIGHT = 4
+#: Of those, at most this many for background work (labelling lines), so a turn's own decisions (a fight
+#: starting, who speaks, a scene move) always find a slot (Zephyrex RPG's live run, chat 3a9a44cd: label
+#: calls of 8-24 questions held all 4, and 5 of 6 fight checks timed out behind them).
+DECIDE_BACKGROUND_IN_FLIGHT = 2
+#: The purposes that are background work.
+DECIDE_BACKGROUND = frozenset({"label_lines"})
 
 #: Per event loop: the in-flight slots, and identical requests already in flight (asked once, shared).
 _SLOTS: dict[int, Any] = {}
+_BACKGROUND_SLOTS: dict[int, Any] = {}
 _IN_FLIGHT: dict[tuple[int, str], Any] = {}
 
 
@@ -173,16 +180,18 @@ async def ask_decider_detailed(
     state: str,
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None = None,
+    background: bool = False,
 ) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
     """The questions' answers, and why there are none ({kind, detail}; None when it answered). An identical
-    request already in flight is shared, never sent twice."""
+    request already in flight is shared, never sent twice; ``background`` work keeps to its share of the
+    slots."""
     import asyncio
 
     loop = id(asyncio.get_running_loop())
     key = (loop, json.dumps([base_url, model, state, questions, extra], sort_keys=True, default=str))
     running = _IN_FLIGHT.get(key)
     if running is None:
-        running = asyncio.ensure_future(_ask_tries(base_url, model, api_key, state, questions, extra))
+        running = asyncio.ensure_future(_ask_tries(base_url, model, api_key, state, questions, extra, background))
         _IN_FLIGHT[key] = running
         running.add_done_callback(lambda _done: _IN_FLIGHT.pop(key, None))
     answers, error = await asyncio.shield(running)
@@ -196,6 +205,7 @@ async def _ask_tries(
     state: str,
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None,
+    background: bool = False,
 ) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
     """Asked up to three times (the operator, 2026-11-22: "Give the decision model 3 tries if it chokes").
     A timeout isn't tried again: the model is busy, and another request only lengthens its queue."""
@@ -205,7 +215,7 @@ async def _ask_tries(
     answers: dict[str, dict[str, Any] | None] | None = None
     error: dict[str, str] | None = None
     for attempt in range(len(tries) + 1):
-        answers, error = await _ask_once(base_url, model, api_key, state, questions, extra)
+        answers, error = await _ask_once(base_url, model, api_key, state, questions, extra, background)
         if answers is not None and any(value is not None for value in answers.values()):
             return answers, None
         if answers is not None and error is None:
@@ -226,16 +236,25 @@ async def _ask_once(
     state: str,
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None,
+    background: bool = False,
 ) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
-    """One ask of the decision model, waiting for one of the in-flight slots: its answers, or None and why."""
+    """One ask of the decision model, waiting for one of the in-flight slots (background work first for one
+    of its share): its answers, or None and why."""
     import asyncio
+    import contextlib
 
     import httpx
 
-    slots = _SLOTS.setdefault(id(asyncio.get_running_loop()), asyncio.Semaphore(DECIDE_IN_FLIGHT))
+    loop = id(asyncio.get_running_loop())
+    slots = _SLOTS.setdefault(loop, asyncio.Semaphore(DECIDE_IN_FLIGHT))
+    share = (
+        _BACKGROUND_SLOTS.setdefault(loop, asyncio.Semaphore(DECIDE_BACKGROUND_IN_FLIGHT))
+        if background
+        else contextlib.nullcontext()
+    )
     headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
     timeout = decide_timeout(questions)
-    async with slots:
+    async with share, slots:
         # Where a turn's seconds go (the operator, 2026-11-22: about two minutes before the first token).
         started = time.monotonic()
         try:

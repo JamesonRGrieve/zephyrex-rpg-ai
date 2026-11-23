@@ -1261,7 +1261,9 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
     });
     // After the person's own line someone answers: no pause.
     const lastTurn = storyTurns.at(-1);
-    const afterPerson = lastTurn !== undefined && byPerson(lastTurn, playingId);
+    // In the GM's seat the person's lines are the narration (Zephyrex RPG's live run, chat 608b169c).
+    const afterPerson =
+      lastTurn !== undefined && (byPerson(lastTurn, playingId) || (seat === 'gm' && lastTurn.role === 'narrator'));
     const { question, picks } = turnQuestion(
       prompt.characters,
       fields.muted_ids,

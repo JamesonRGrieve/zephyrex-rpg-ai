@@ -43,7 +43,7 @@ def test_decision_calls_are_kept_under_the_message_and_feedback_snapshots_them(
     asked: list[tuple[str, list[str]]] = []
 
     async def decide(
-        _url: str, model: str, _key: str, _state: str, questions: dict[str, Any], _extra: Any = None
+        _url: str, model: str, _key: str, _state: str, questions: dict[str, Any], *_rest: Any
     ) -> tuple[dict[str, Any], None]:
         asked.append((model, list(questions)))
         return {key: {"choice": "yes"} for key in questions}, None

@@ -165,3 +165,46 @@ def test_identical_requests_in_flight_are_asked_once(monkeypatch: Any) -> None:
         )
 
     assert asyncio.run(both()) == [{"next": {"choice": "Ada"}}] * 2 and len(asked) == 1
+
+
+def test_background_work_keeps_to_its_share_of_the_slots(monkeypatch: Any) -> None:
+    # Zephyrex RPG's live run, chat 3a9a44cd: label calls held every slot and the fight checks timed out.
+    import asyncio
+
+    from zephyrex.extensions.ai_chat import Decide
+
+    busy = {"now": 0, "most": 0}
+
+    async def run() -> int:
+        gate = asyncio.Event()
+
+        class Client:
+            def __init__(self, **_kwargs: Any) -> None:
+                pass
+
+            async def __aenter__(self) -> Client:
+                return self
+
+            async def __aexit__(self, *_exc: Any) -> None:
+                return None
+
+            async def post(self, *_args: Any, **_kwargs: Any) -> Any:
+                busy["now"] += 1
+                busy["most"] = max(busy["most"], busy["now"])
+                await gate.wait()
+                busy["now"] -= 1
+                return httpx.Response(503, text="busy")
+
+        monkeypatch.setattr(httpx, "AsyncClient", Client)
+        question = {"next": {"type": "choice", "instructions": "Who speaks?", "criteria": ["Ada"]}}
+        labels = [
+            asyncio.ensure_future(Decide._ask_once("http://x", "m", "", f"s{n}", question, None, True))
+            for n in range(4)
+        ]
+        await asyncio.sleep(0.05)
+        held = busy["most"]
+        gate.set()
+        await asyncio.gather(*labels)
+        return held
+
+    assert asyncio.run(run()) == Decide.DECIDE_BACKGROUND_IN_FLIGHT
