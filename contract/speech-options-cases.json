@@ -195,7 +195,7 @@
     },
     {
       "name": "5e knowing Message: those in the same place or one beside it",
-      "system": "dnd-5e",
+      "system": "srd-5e",
       "speaker": {
         "id": "fen",
         "name": "Fennick Quill",
@@ -246,7 +246,7 @@
     },
     {
       "name": "5e without Message: only the voice",
-      "system": "dnd-5e",
+      "system": "srd-5e",
       "speaker": {
         "id": "fen",
         "name": "Fennick Quill",

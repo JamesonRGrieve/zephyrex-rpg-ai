@@ -1067,7 +1067,7 @@ class TestGenerate:
         async def options(_registry: Any, _requester: str, person_id: str) -> dict[str, Any]:
             return {
                 "person_id": person_id,
-                "system": "dnd-5e",
+                "system": "srd-5e",
                 "characteristics": [{"slug": "dex", "name": "Dexterity", "short": "DEX"}],
                 "skills": [],
                 "difficulties": [{"slug": "medium", "modifier": 0, "dc": 15}],
@@ -1117,6 +1117,38 @@ class TestGenerate:
         RECEIVED.clear()
         assert needed("I walk up to the barkeeper.")["needed"] is False  # this fake judge answers no JSON
         assert "the barkeeper" in json.dumps(RECEIVED[-1]["body"])
+
+    def test_a_figure_the_scenario_already_has_is_matched_not_authored(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # The operator, 2026-11-23: the hooded woman was Ysolde Varrin all along, never a new person.
+        from zephyrex.extensions.ai_chat import BLL_AI_Chat  # type: ignore[import-not-found]
+
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        ysolde = _cast(
+            server, user, "character", name="Ysolde Varrin", description="A composed woman in a good grey cloak, with a heron ring."
+        ).json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        chat = _chat(server, user, "chat", title="Tavern", character_ids=[ada["id"]]).json()["chat"]
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I walk up to the hooded woman."]).json()["chat_message"]
+        asked_of: list[dict[str, Any]] = []
+
+        async def decide(_url: str, _model: str, _key: str, _state: str, questions: dict[str, Any], _extra: Any = None) -> dict[str, Any]:
+            asked_of.append(questions)
+            if "who" in questions:
+                return {"who": {"choice": "Ysolde Varrin"}}
+            return {"npc": {"choice": list(questions["npc"]["criteria"])[0]}}
+
+        monkeypatch.setattr(BLL_AI_Chat, "ask_decider", decide)
+        answer = server.post(
+            "/v1/ai_chat/npc_needed", json={"npc_needed": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)
+        ).json()["npc_needed"]
+        assert answer["needed"] is False and answer["matched_id"] == ysolde["id"]
+        assert "A composed woman" in json.dumps(asked_of[-1]["who"]["criteria"])
+        cast = server.get(f"/v1/chat/{chat['id']}", headers=_headers(user)).json()["chat"]["character_ids"]
+        assert ysolde["id"] in cast
 
     def test_authoring_an_npc_makes_them_a_person_of_the_campaign(self, server: TestClient, model_url: str) -> None:
         user = create_user(server)
@@ -1404,6 +1436,27 @@ class TestGenerate:
             assert again.text.replace(": keepalive\n\n", "") == first.text.replace(": keepalive\n\n", "")
             stopped = client.post("/v1/ai_chat/turn_stop", json={"turn_stop": {"chat_id": chat["id"]}}, headers=_headers(user))
             assert stopped.json()["turn_stop"] == {"chat_id": chat["id"], "stopped": False}
+            # The server saved the reply itself (a dropped subscriber loses nothing), as a structured turn does.
+            assert "event: saved" in first.text and first.text.index("event: saved") < first.text.index("event: done")
+            lines = client.get(f"/v1/chat_message?chat_id={chat['id']}", headers=_headers(user)).json()["chat_messages"]
+            reply = next(one for one in lines if one.get("parent_id") == line["id"])
+            assert reply["role"] == "character" and reply["speaker_character_id"] == ada["id"]
+            assert "the coolant" in reply["swipes"][0]
+            # The synchronous route leaves saving to the client, as before.
+            server_lines = len(lines)
+            client.post("/v1/ai_chat/generate", json=asked, headers=_headers(user))
+            assert len(client.get(f"/v1/chat_message?chat_id={chat['id']}", headers=_headers(user)).json()["chat_messages"]) == server_lines
+
+    def test_who_is_present_is_what_the_gms_context_holds(self, server: TestClient, model_url: str) -> None:
+        user = create_user(server)
+        ada = _cast(server, user, "character", name="Ada").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Bridge", character_ids=[ada["id"]]).json()["chat"]
+        _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["Ada, report."])
+        here = server.get(f"/v1/ai_chat/present?chat_id={chat['id']}", headers=_headers(user))
+        assert here.status_code == 200, here.text
+        assert here.json()["present"]["source"] in ("vtt", "story")
+        assert isinstance(here.json()["present"]["person_ids"], list)
 
     def test_a_scene_with_no_picture_gets_a_battlemap(
         self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
@@ -1871,6 +1924,10 @@ class TestGenerate:
         assert spoken.json() == {"speech": {"audio": "data:audio/mpeg;base64,SUQz"}}
         assert RECEIVED[-1]["path"].endswith("/audio/speech") and RECEIVED[-1]["authorization"] == "Bearer k-9"
         assert RECEIVED[-1]["body"] == {"model": "kokoro", "input": "Mind the coolant.", "voice": "af_bella", "speed": 1.5, "response_format": "mp3"}
+        # A voice per character (the operator, 2026-11-23): no voice given, the speaker's own reads it.
+        mags = _create(server, user, "person", name="Mags", kind="npc", campaign_id=_campaign(server, user), tts_voice="onyx").json()["person"]
+        server.post("/v1/ai_chat/speech", json={"speech": {"text": "Drink or leave.", "speaker_id": mags["id"]}}, headers=_headers(user))
+        assert RECEIVED[-1]["body"]["voice"] == "onyx"
         for bad in ({"text": "   "}, {"text": "x" * (CONTRACT["speech"]["text_characters"] + 1)}, {"text": "Hi.", "speed": 9}, {"text": "Hi.", "voice": ""}):
             answer = server.post("/v1/ai_chat/speech", json={"speech": bad}, headers=_headers(user))
             assert answer.status_code == 422, (bad, answer.text)

@@ -202,6 +202,7 @@ from zephyrex.extensions.ai_chat.VoiceGuard import (  # type: ignore[import-not-
     VOICE_GUARD,
     paragraph_cut,
     plain_dashes,
+    seat_cut,
 )
 from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
     advance_clock,
@@ -1849,6 +1850,8 @@ class GenerateRequest(PlainModel):
     leaf_id: str | None = None
     speaker_id: str | None = None
     mode: str = "reply"
+    #: Set by POST /turn: the server saves the finished reply itself (a dropped subscriber loses nothing).
+    server_save: bool = False
     # AP4: this turn asked of another of the person's models, to compare (kept as another swipe).
     endpoint_id: str | None = None
     # A regeneration after the voice guard (VoiceGuard.py) caught a span: {names, span}, forbidden.
@@ -2081,6 +2084,9 @@ class NpcNeeded(PlainModel):
     name: str | None = None
     role: str | None = None
     reason: str = ""
+    #: The campaign's existing person the figure turned out to be (not authored; now in the chat's cast).
+    matched_id: str | None = None
+    matched_name: str | None = None
 
 
 class NpcNeededEnvelope(PlainModel):
@@ -2122,6 +2128,45 @@ def is_freeform(entity: Mapping[str, Any] | None) -> bool:
         or str(CONTRACT["freeform"]["tag"]).lower() in tags
         or str(entity.get("summary") or "").strip().lower().startswith(mark)
     )
+
+
+class BuilderPickRequest(PlainModel):
+    """AI-assisted character creation (the operator, 2026-11-23; BuilderPick.py): the builder's open choices
+    picked by the decision model from the person's concept."""
+
+    person_id: str = Field(..., min_length=1)
+    concept: str = Field(..., min_length=1, max_length=2000)
+    #: The chat the calls are filed under (decision_calls), when there is one.
+    chat_id: str | None = None
+
+
+class BuilderPickRequestEnvelope(PlainModel):
+    builder_pick: BuilderPickRequest
+
+
+class BuilderPicked(PlainModel):
+    #: Each choice made: {kind, trait_id, name}.
+    picked: list[dict[str, str]] = Field(default_factory=list)
+    #: The kinds left to the person (no answer, or one outside the options).
+    left: list[str] = Field(default_factory=list)
+
+
+class BuilderPickedEnvelope(PlainModel):
+    builder_pick: BuilderPicked
+
+
+class Present(PlainModel):
+    """Who the GM's context holds present in a chat's scene (the Context panel's Here)."""
+
+    person_ids: list[str] = Field(default_factory=list)
+    #: The VTT's current scene ({id, name}), when there is one.
+    scene: dict[str, Any] | None = None
+    #: "vtt" when presence is the scene's tokens, "story" when it fell back to places and the recent lines.
+    source: str = "story"
+
+
+class PresentEnvelope(PlainModel):
+    present: Present
 
 
 class TurnStopRequest(PlainModel):
@@ -2398,6 +2443,9 @@ class SearchEnvelope(PlainModel):
 class SpeechRequest(PlainModel):
     text: str = Field(..., min_length=1, max_length=SPEECH["text_characters"])
     voice: str | None = Field(None, min_length=1, max_length=SPEECH["voice_characters"])
+    #: Who says it (a wiki person): their tts_voice reads it when no voice is given (the operator,
+    #: 2026-11-23: "A voice per character").
+    speaker_id: str | None = Field(None, min_length=1)
     speed: float = Field(1.0, ge=SPEECH["speed_range"][0], le=SPEECH["speed_range"][1])
 
     @field_validator("text")
@@ -3803,12 +3851,17 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 status_code=409, detail={"message": "Set a model to speak first", "code": "no_voice_model"}
             )
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
+        voice = asked.voice
+        if voice is None and asked.speaker_id:
+            rows = world_entities_by_id(self.model_registry, str(self.requester.id), [asked.speaker_id])
+            speaker = next(iter(rows), None)
+            voice = str((speaker or {}).get("tts_voice") or "").strip() or None
         try:
             async with httpx.AsyncClient(timeout=UPSTREAM_TIMEOUT_SECONDS) as client:
                 answer = await client.post(
                     speech_url(endpoint.base_url),
                     headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-                    json=speech_body(endpoint.model, asked.text, asked.voice, asked.speed),
+                    json=speech_body(endpoint.model, asked.text, voice, asked.speed),
                 )
         except httpx.HTTPError as error:
             raise HTTPException(
@@ -4749,7 +4802,73 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         figure = next((one for one in figures if one["phrase"] == picked), None)
         if figure is None:
             return answer(False, "the decision model chose no one new")
+        matched = await self._npc_match(asked, chat, context, story_turns, latest, figure, playing_id)
+        if matched is not None:
+            return NpcNeededEnvelope(
+                npc_needed=NpcNeeded(
+                    needed=False,
+                    name=figure["name"],
+                    role=figure["role"],
+                    reason=f"{figure['phrase']} is {matched['name']}, already a person of the campaign",
+                    matched_id=str(matched["id"]),
+                    matched_name=str(matched["name"]),
+                )
+            )
         return answer(True, f"{actor}'s line meets {figure['phrase']}", figure)
+
+    async def _npc_match(
+        self,
+        asked: Any,
+        chat: Any,
+        context: Mapping[str, Any],
+        story_turns: Sequence[Mapping[str, Any]],
+        latest: Mapping[str, Any],
+        figure: Mapping[str, str],
+        playing_id: str | None,
+    ) -> Mapping[str, Any] | None:
+        """The campaign's existing person a newly met figure is (the operator, 2026-11-23: "an NPC the opening
+        names (the hooded woman at the tavern) is a person of the scenario, never authored again"): the
+        people not yet met in the story, put to the decision model by their descriptions, or someone new
+        (None). A match joins the chat's cast and stands beside the seat on the map, so lines credit them."""
+        told = " ".join(str(turn["content"]) for turn in story_turns).lower()
+        met = {str(one["id"]) for one in context["cast"]} | ({str(playing_id)} if playing_id else set())
+        unmet = [
+            entity
+            for entity in context["world"]
+            if entity.get("kind") == "person"
+            and not entity.get("deleted")
+            and not entity.get("canon")
+            and str(entity["id"]) not in met
+            and str(entity["name"]).lower() not in told
+        ]
+        if not unmet:
+            return None
+        limit = int(NPC_AUTHOR["match_characters"])
+        someone_new = str(NPC_AUTHOR["someone_new"])
+        described = {
+            str(entity["name"]): " ".join(
+                str(entity.get(key) or "").strip() for key in ("summary", "description") if entity.get(key)
+            )[:limit]
+            for entity in unmet
+        }
+        question = {
+            "type": "choice",
+            "instructions": str(NPC_AUTHOR["match_question"])
+            .replace("{{phrase}}", figure["phrase"])
+            .replace("{{someone_new}}", someone_new),
+            "criteria": {**described, someone_new: ""},
+        }
+        found = await self._decide("npc_match", asked, str(latest["content"]), {"who": question})
+        chosen = ((found or {}).get("who") or {}).get("choice")
+        person: Mapping[str, Any] | None = next((entity for entity in unmet if str(entity["name"]) == chosen), None)
+        if person is None:
+            return None
+        cast = list(chat.character_ids or [])
+        if str(person["id"]) not in cast:
+            self._manager(ChatManager).update(chat.id, character_ids=[*cast, str(person["id"])])
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        await place_in_scene(self.model_registry, str(self.requester.id), wiki, str(person["id"]), playing_id)
+        return person
 
     @custom_route(
         method="POST",
@@ -4914,12 +5033,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         return CutEnvelope(cut=CutRequest(message_ids=ids))
 
     async def _ask(self, context: dict[str, Any], sampler: dict[str, Any], messages: list[dict[str, str]]) -> str:
-        """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502."""
+        """The chat's model's whole answer to ``messages`` (read from its stream), or the framework's 502;
+        never its thinking (Zephyrex RPG, 2026-11-23: an authored NPC's description began "<think>Thinking
+        Process: …"): a thinking model is asked not to think, and any thinking it sends is taken out."""
         endpoint, key = context["endpoint"], context["key"]
+        traits = traits_of({"model": endpoint.model, "traits": dict(getattr(endpoint, "traits", None) or {})})
+        if traits.get("reasoning_effort"):
+            sampler = {**sampler, "thinking": "off", "thinking_effort": traits.get("reasoning_effort")}
         if endpoint.api == "horde":
-            return (
-                await horde_text(
-                    endpoint, key, upstream_body(endpoint, sampler, messages, "reply", template=context.get("template"))
+            return str(
+                story_text(
+                    await horde_text(
+                        endpoint,
+                        key,
+                        upstream_body(endpoint, sampler, messages, "reply", template=context.get("template")),
+                    )
                 )
             ).strip()
         request = upstream_request(
@@ -4959,7 +5087,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 status_code=502,
                 detail={"message": "The model endpoint could not be reached", "code": "model_unreachable"},
             ) from error
-        return "".join(pieces).strip()
+        return str(story_text("".join(pieces))).strip()
 
     async def _save_structured(
         self,
@@ -4985,7 +5113,45 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         if asked.mode != "narrate":
             # A voice writes for itself alone (the operator: no character writes for the others).
             result = {**result, "runs": [run for run in result["runs"] if run["speaker_id"] == context["speaker_id"]]}
-        if not result["runs"]:
+        async for piece in self._save_runs(asked, context, result["runs"], people, outcome):
+            yield piece
+
+    def _save_plain(self, asked: GenerateRequest, context: dict[str, Any], text: str, seat_name: str) -> str:
+        """A plain reply saved as one line under the turn's leaf (the narrator's, or the speaker's), cut where
+        it would have the seat act (seat_cut), then `saved {messages}` as a structured turn's."""
+        narrating = asked.mode == "narrate" or context.get("speaker_id") is None
+        thinking, reply = split_reasoning(text)
+        kept = seat_cut(reply, seat_name).strip() if narrating and seat_name else reply.strip()
+        if not kept:
+            return frame("saved", {"messages": []})
+        whole = plain_dashes(f"<think>{thinking}</think>{kept}" if thinking else kept)
+        role = "narrator" if narrating else "character"
+        speaker = None if narrating else str(context["speaker_id"])
+        created = self._manager(ChatMessageManager).create(
+            chat_id=context["chat"].id,
+            parent_id=asked.leaf_id,
+            role=role,
+            channel="ic",
+            speaker_character_id=speaker,
+            swipes=[whole],
+        )
+        return frame(
+            "saved",
+            {"messages": [{"id": str(created.id), "role": role, "speaker_character_id": speaker, "text": whole}]},
+        )
+
+    async def _save_runs(
+        self,
+        asked: GenerateRequest,
+        context: dict[str, Any],
+        runs: list[dict[str, Any]],
+        people: list[dict[str, str]],
+        outcome: dict[str, bool] | None = None,
+        thinking: str = "",
+    ) -> AsyncIterator[str]:
+        """Runs saved as messages under the turn's leaf, one per run (someone unnamed made a person of the
+        campaign first), then `saved {messages}`; the turn's thinking kept on the first."""
+        if not runs:
             return
         chat = context["chat"]
         chats = self._manager(ChatManager)
@@ -4997,7 +5163,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         made: dict[str, str] = {}
         parent = asked.leaf_id
         saved: list[dict[str, Any]] = []
-        for found in result["runs"]:
+        for index, found in enumerate(runs):
             run = found
             name = run["speaker_name"]
             if name is not None:
@@ -5018,6 +5184,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 cast = [*cast, str(run["speaker_id"])]
                 chats.update(chat.id, character_ids=cast)
             text = plain_dashes(run_text(run, known))
+            text = f"{thinking}{text}" if index == 0 and thinking else text
             created = messages.create(
                 chat_id=chat.id,
                 parent_id=parent,
@@ -5058,6 +5225,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         chat_id = body.generate.chat_id
         self._manager(ChatManager).get(id=chat_id)  # an unknown chat is refused here, as for every route
 
+        body = GenerateEnvelope(generate=body.generate.model_copy(update={"server_save": True}))
+
         async def run() -> AsyncIterator[str]:
             response = await self.generate_route(body)
             return (
@@ -5078,6 +5247,111 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 status_code=409, detail={"message": "A turn is already running on this chat", "code": "turn_running"}
             )
         return Response(status_code=204)
+
+    @custom_route(
+        method="POST",
+        path="/builder_pick",
+        input_model=BuilderPickRequestEnvelope,
+        output_model=BuilderPickedEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="A character's open creation choices picked from a concept, only among the builder's own options",
+    )
+    async def builder_pick_route(self, body: BuilderPickRequestEnvelope) -> BuilderPickedEnvelope:
+        from zephyrex.extensions.ai_chat.BuilderPick import (  # type: ignore[import-not-found]
+            open_choices,
+            pick_question,
+            pick_state,
+            picked_option,
+        )
+
+        asked = body.builder_pick
+        requester = str(self.requester.id)
+        read = loaded_ability(self.model_registry, "rpg_builder", "builder_choices")
+        choose = loaded_ability(self.model_registry, "rpg_builder", "choose")
+        if read is None or choose is None:
+            raise HTTPException(
+                status_code=422, detail={"message": "This game has no character builder", "code": "no_builder"}
+            )
+
+        async def called(ability: Any, *args: Any) -> Any:
+            answer = ability(*args)
+            return await answer if inspect.isawaitable(answer) else answer
+
+        builder = await called(read, requester, asked.person_id)
+        if not isinstance(builder, Mapping):
+            raise HTTPException(
+                status_code=422, detail={"message": "This game has no character builder", "code": "no_builder"}
+            )
+        picked: list[dict[str, str]] = []
+        left: list[str] = []
+        # In step order, one choice at a time: a later choice's options can depend on an earlier pick.
+        while True:
+            tried = {*left, *(pick["kind"] for pick in picked)}
+            choice = next((one for one in open_choices(builder) if str(one["kind"]) not in tried), None)
+            if choice is None:
+                break
+            kind = str(choice["kind"])
+            answers = await self._decide(
+                f"Builder: {kind}", asked, pick_state(asked.concept, picked), {"pick": pick_question(choice)}
+            )
+            option = picked_option(choice, (answers or {}).get("pick"))
+            if option is None:
+                left.append(kind)
+                continue
+            try:
+                await called(choose, requester, asked.person_id, kind, str(option["trait_id"]))
+            except HTTPException:
+                left.append(kind)
+                continue
+            picked.append({"kind": kind, "trait_id": str(option["trait_id"]), "name": str(option["name"])})
+            builder = await called(read, requester, asked.person_id)
+            if not isinstance(builder, Mapping):
+                break
+        return BuilderPickedEnvelope(builder_pick=BuilderPicked(picked=picked, left=left))
+
+    @custom_route(
+        method="GET",
+        path="/present",
+        output_model=PresentEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Who the GM's context holds present in the chat's scene, from the same reading a turn uses",
+    )
+    async def present_route(self, chat_id: str) -> PresentEnvelope:
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import (  # type: ignore[import-not-found,unused-ignore]
+            play_context,
+        )
+
+        chat = self._manager(ChatManager).get(id=chat_id)
+        rows = self._manager(ChatMessageManager).list(chat_id=chat.id)
+        leaf = max(rows, key=lambda message: (str(message.created_at), str(message.id))) if rows else None
+        playing_id, _marks = play_context(str(self.requester.id), self.model_registry, chat.id)
+        _assembled, _request, _sampler, _active, context = await asyncio.to_thread(
+            self._inputs,
+            GenerateRequest(chat_id=chat.id, leaf_id=str(leaf.id) if leaf else None, mode="narrate"),
+            False,
+            "summary",
+        )
+        story = set(PROMPT["story_channels"])
+        story_turns = [
+            turn
+            for turn in context["history"]
+            if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
+        ]
+        wiki = wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
+        scene = await scene_now(self.model_registry, str(self.requester.id), wiki)
+        tokens = await self._scene_tokens(chat)
+        present = present_people(chat, playing_id, context["world"], story_turns, tokens)
+        return PresentEnvelope(
+            present=Present(
+                person_ids=[str(one["id"]) for one in present],
+                scene={"id": str(scene["id"]), "name": scene.get("name")} if scene is not None else None,
+                source="vtt" if tokens is not None else "story",
+            )
+        )
 
     @custom_route(
         method="GET",
@@ -5246,7 +5520,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             "",
         )
 
-        flags: dict[str, Any] = {"stalled": False, "overthought": False, "told": ""}
+        flags: dict[str, Any] = {"stalled": False, "overthought": False, "told": "", "thought": "", "saved": False}
 
         async def answer(upstream: Any, items: ItemStream | None, budget: bool = True) -> AsyncIterator[str]:
             """One pass over the model's stream: deltas or item events, heartbeats in any pause, stopped
@@ -5299,7 +5573,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             def parts(pieces: list[tuple[str, str]]) -> list[str]:
                 out: list[str] = []
                 for kind, text in pieces:
-                    out += [frame("delta", {"text": text})] if kind == "think" else shown(text)
+                    if kind == "think":
+                        flags["thought"] = str(flags["thought"]) + text
+                        out.append(frame("delta", {"text": text}))
+                    else:
+                        out += shown(text)
                 return out
 
             async for line in heartbeat_lines(upstream, HEARTBEAT_SECONDS):
@@ -5398,6 +5676,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                                     body.generate, _context, retried, people, seat_name, latest, outcome
                                 ):
                                     yield piece
+                    flags["saved"] = outcome["saved"]
+                reformatted: dict[str, Any] | None = None
                 if not structured and body.generate.mode == "narrate" and str(flags["told"]).strip():
                     # Structure without trusting the narrator (the operator, 2026-11-23; Reformat.py): the
                     # finished prose re-sorted by a small model among the people present.
@@ -5406,7 +5686,21 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         if got is None:
                             yield HEARTBEAT
                         else:
+                            reformatted = got
                             yield frame("reformat", got)
+                if body.generate.server_save and not flags["saved"] and str(flags["told"]).strip():
+                    # An asynchronous turn is saved by the server (the operator, 2026-11-23: "on reconnecting the
+                    # result is there"): the reformatted runs, else the reply as one line, in the shape a
+                    # structured turn's `saved` has.
+                    if reformatted is not None and reformatted.get("reformatted") and reformatted.get("runs"):
+                        async for piece in self._save_runs(
+                            body.generate, _context, list(reformatted["runs"]), people, None, str(flags["thought"])
+                        ):
+                            yield piece
+                    else:
+                        yield self._save_plain(
+                            body.generate, _context, str(flags["thought"]) + str(flags["told"]), seat_name
+                        )
                 yield frame("done", {"dropped": assembled.dropped, **({"stalled": True} if flags["stalled"] else {})})
             except httpx.HTTPError:
                 yield frame("error", {"detail": "The model stopped mid-reply"})

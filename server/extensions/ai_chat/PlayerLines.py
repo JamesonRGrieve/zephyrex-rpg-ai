@@ -180,13 +180,23 @@ def strip_markup(text: str) -> str:
     colours = "|".join(re.escape(colour) for colour in PROMPT["markup"]["colours"])
     screen = re.compile(r"\s*\[(?:screen:[^\]]*|/screen)\]\s*", re.IGNORECASE)
     banner = re.compile(r"\s*\[location:\s*(.+?)\s*\]\s*", re.IGNORECASE)
+
     # A location banner reads as its place (the operator: a scene's move shown as a banner).
+    # `[location: Place | where it is]` reads as its parts joined ("Place, where it is.").
+    def joined(found: re.Match[str]) -> str:
+        return ", ".join(part.strip() for part in found.group(1).split("|") if part.strip()) + "."
+
     kept = [
-        banner.sub(r"\1.", line) if banner.fullmatch(line) else line
+        banner.sub(joined, line) if banner.fullmatch(line) else line
         for line in text.split("\n")
         if not screen.fullmatch(line)
     ]
     return re.sub(rf"\[(?:{colours})\](.*?)\[/(?:{colours})\]", r"\1", "\n".join(kept), flags=re.IGNORECASE | re.DOTALL)
+
+
+def banner_place(inner: str) -> str:
+    """A banner's place, without where it is (``The Pale Tallow | Transit Levels, Desoleum`` → the first)."""
+    return inner.split("|")[0].strip()
 
 
 def location_line(text: str, locations: Sequence[Mapping[str, Any]]) -> dict[str, str | None] | None:
@@ -196,7 +206,9 @@ def location_line(text: str, locations: Sequence[Mapping[str, Any]]) -> dict[str
     banner = re.fullmatch(r"\s*\[location:\s*(.+?)\s*\]\s*", first, re.IGNORECASE)
     if banner is None:
         return None
-    said = banner.group(1).lower()
+    # `[location: Place | where it is]`: the place is what's matched.
+    place = banner_place(banner.group(1))
+    said = place.lower()
     found = next(
         (
             location
@@ -206,7 +218,7 @@ def location_line(text: str, locations: Sequence[Mapping[str, Any]]) -> dict[str
         None,
     )
     if found is None:
-        return {"name": banner.group(1), "location_id": None}
+        return {"name": place, "location_id": None}
     return {"name": str(found["name"]), "location_id": str(found["id"])}
 
 
@@ -221,6 +233,6 @@ def drop_stale_location(text: str, current: Mapping[str, Any] | None) -> str:
     kept = []
     for line in text.split("\n"):
         banner = re.fullmatch(r"\s*\[location:\s*(.+?)\s*\]\s*", line, re.IGNORECASE)
-        if banner is None or banner.group(1).lower() in names:
+        if banner is None or banner_place(banner.group(1)).lower() in names:
             kept.append(line)
     return re.sub(r"^\n+", "", "\n".join(kept))

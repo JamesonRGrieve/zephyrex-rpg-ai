@@ -301,6 +301,11 @@
       "name": "a location banner reads as its place",
       "text": "[location: The Gull Tower]\nNarrator: Wind howls.",
       "plain": "The Gull Tower.\nNarrator: Wind howls."
+    },
+    {
+      "name": "a banner with where it is reads as its parts joined",
+      "text": "[location: Galley | Deck Four, the Kestrel]\nSteam rises.",
+      "plain": "Galley, Deck Four, the Kestrel.\nSteam rises."
     }
   ],
   "target_format_case": {
@@ -367,6 +372,22 @@
         "name": "no banner on the first line: none",
         "text": "Narrator: Wind.\n[location: Bay Two]",
         "line": null
+      },
+      {
+        "name": "a banner with where it is matches by the place before the bar (the operator, 2026-11-23: fully qualified locations)",
+        "text": "[location: The Gull Tower | Harbour District, Saltmere]\nGulls wheel.",
+        "line": {
+          "name": "The Gull Tower",
+          "location_id": "gull"
+        }
+      },
+      {
+        "name": "an unknown place with where it is keeps only the place",
+        "text": "[location: The Pale Tallow | Transit Levels]\nSmoke.",
+        "line": {
+          "name": "The Pale Tallow",
+          "location_id": null
+        }
       }
     ]
   },
@@ -409,6 +430,17 @@
         ]
       },
       "kept": "Steam rises."
+    },
+    {
+      "name": "the current place with where it is stays",
+      "text": "[location: Galley | Deck Four, the Kestrel]\nSteam rises.",
+      "current": {
+        "name": "Galley",
+        "aliases": [
+          "the mess"
+        ]
+      },
+      "kept": "[location: Galley | Deck Four, the Kestrel]\nSteam rises."
     }
   ]
 }

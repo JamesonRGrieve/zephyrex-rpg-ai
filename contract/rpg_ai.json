@@ -954,6 +954,9 @@
     "places": ["at", "by", "behind", "near", "from", "of", "in"],
     "question": "Does {{actor}}'s latest line address or approach someone who is not yet a person in the story? Present: {{present}}. Pick the figure who must be written as a new person, or none (someone present already, or no one).",
     "none": "none",
+    "match_question": "The line meets {{phrase}}. Is that one of these people of the campaign, not yet met in the story? Pick who it is by their description, or {{someone_new}} if none of them fits.",
+    "someone_new": "someone new",
+    "match_characters": 300,
     "author_prompt": "Write a new person for this story: {{name}} ({{role}}), met just now in the scene below. Answer with JSON only: {\"summary\": one line, who they are, \"description\": two or three sentences of how they look and carry themselves, \"personality\": a sentence, \"motive\": what they want right now, a sentence, \"voice\": how they speak, a few words}. Fit the campaign and the scene; invent no game statistics.",
     "steps": {"write": "Writing {{name}}", "person": "Making them a person of the campaign", "sheet": "Building their sheet", "picture": "Painting a portrait"}
   },
@@ -987,7 +990,7 @@
   "speech_options": {
     "$comment": "How a speaker may speak and to whom (the operator, 2026-11-22: \"The additional speech modes should be setting dependent (vox / vox caster in 40k only if one is in possession and message etc in DnD only if spell is known)\"). Always speak, whisper and shout to those present; a system's further manners only when the speaker's sheet (the VTT's character_sheet: gear, abilities) holds what each needs, matched by name. Nothing on the sheet, no manner. remote: who each such manner reaches (carriers: known people carrying the item too; nearby: the same place or one beside it; known: anyone known). features/chat/speechManners.ts, ai_chat/SpeechOptions.py, contract/speech-options-cases.json.",
     "base": [{"id": "speak", "label": "says"}, {"id": "whisper", "label": "whispers"}, {"id": "shout", "label": "shouts"}],
-    "families": {"dark-heresy-1e": "40k", "dark-heresy-2e": "40k", "rogue-trader": "40k", "only-war": "40k", "black-crusade": "40k", "deathwatch": "40k", "dnd-5e": "5e"},
+    "families": {"dark-heresy-1e": "40k", "dark-heresy-2e": "40k", "rogue-trader": "40k", "only-war": "40k", "black-crusade": "40k", "deathwatch": "40k", "dnd-5e": "5e", "srd-5e": "5e"},
     "manners": {
       "40k": [
         {"id": "vox", "label": "vox", "item": ["vox", "micro-bead", "micro bead", "comm-bead", "comm bead"], "reaches": "remote", "to": "carriers"},
