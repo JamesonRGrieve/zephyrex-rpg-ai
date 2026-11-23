@@ -65,7 +65,7 @@ async function settled(page: Page): Promise<void> {
 async function say(page: Page, step: string, text: string, replies = 1): Promise<void> {
   const before = await page.getByRole('article').count();
   // A campaign's turn is queued (docs/DESIGN.md, Structured lines): one Do item carries the line.
-  await page.getByRole('button', { name: 'Do' }).click();
+  await page.getByRole('button', { name: 'Do', exact: true }).click();
   await page.getByLabel('What is done').last().fill(text);
   await page.getByRole('button', { name: /^Send/ }).click();
   await expect.poll(() => page.getByRole('article').count(), { timeout: TURN }).toBeGreaterThanOrEqual(before + 1 + replies);
@@ -148,7 +148,7 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   await expect(page).toHaveURL(/\/play\/[\w-]+$/, { timeout: 30_000 });
   await expect(page.getByRole('button', { name: 'Your seat: the GM' })).toBeVisible();
   // The session's name left the header with the app bar (6bc56a4); the composer says the chat is open.
-  await expect(page.getByRole('button', { name: 'Say' })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Say', exact: true })).toBeVisible();
 
   await say(
     page,
@@ -199,7 +199,10 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   record('AI GM narrates', (await lines(page)).slice(before));
 
   // The X-card is on the message, with an optional reason (the operator, 2026-11-23); it can be put back.
-  const latest = page.getByRole('article').filter({ has: page.getByRole('button', { name: /^More for / }) }).last();
+  const latest = page
+    .getByRole('article')
+    .filter({ has: page.getByRole('button', { name: /^More for / }) })
+    .last();
   const who = ((await latest.getAttribute('aria-label')) ?? '').split(',')[0] ?? '';
   await latest.getByRole('button', { name: /^More for / }).click();
   await page.getByRole('menuitem', { name: 'X-card' }).click();

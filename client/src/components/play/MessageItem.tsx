@@ -428,7 +428,7 @@ export function MessageItem({
       )}
       <div className='min-w-0 flex-1'>
         <header className='flex flex-wrap items-center gap-x-2'>
-          <span className={cn('font-semibold', tableTalk && 'text-xs')}>
+          <span className={cn('min-w-0 font-semibold [overflow-wrap:anywhere]', tableTalk && 'text-xs')}>
             {tableTalk ? (mine ? 'You' : 'GM') : message.speaker}
           </span>
           {message.hidden === true && (

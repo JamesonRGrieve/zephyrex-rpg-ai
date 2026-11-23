@@ -8,6 +8,7 @@ import { type APIRequestContext, expect, type Page, test } from '@playwright/tes
 import { isHosted, signIn } from './support/people';
 
 const CSRF_COOKIE = 'zx_csrf';
+const SESSION_COOKIE = 'zx_session';
 const CSRF_HEADER = 'X-CSRF-Token';
 
 test.beforeEach(async ({ page }, testInfo) => {
@@ -17,7 +18,13 @@ test.beforeEach(async ({ page }, testInfo) => {
 /** The page's own request context and the headers a write needs (the CSRF token, when signed in). */
 async function api(page: Page): Promise<{ request: APIRequestContext; write: Record<string, string> }> {
   if (page.url() === 'about:blank') await page.goto('/play');
-  const csrf = (await page.context().cookies()).find((cookie) => cookie.name === CSRF_COOKIE);
+  const cookies = await page.context().cookies();
+  const csrf = cookies.find((cookie) => cookie.name === CSRF_COOKIE);
+  // The session cookie is Secure, and a test's request context doesn't send it over plain http (the
+  // browser does, for localhost): the session goes as an explicit credential instead, which needs no
+  // CSRF token (Zephyrex Server, 2026-11-23).
+  const session = cookies.find((cookie) => cookie.name === SESSION_COOKIE);
+  if (session !== undefined) await page.context().setExtraHTTPHeaders({ Authorization: `Bearer ${session.value}` });
   return { request: page.request, write: csrf === undefined ? {} : { [CSRF_HEADER]: csrf.value } };
 }
 

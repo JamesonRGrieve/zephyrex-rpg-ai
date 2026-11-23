@@ -71,13 +71,30 @@ test('no page is wider than a phone @phone', async ({ page }, testInfo) => {
     keys: [LONG, UNBROKEN.slice(0, 60)],
     content: NARRATION,
   });
+  // In the composed suite a chat's cast are wiki persons in its campaign (Parity, 79cc3de); the lite
+  // edition casts the cards themselves.
+  let cast = [character.id, npc.id];
   const chat = await post(page, 'chat', {
     title: `Voidship Escapade: Run 1 — ${LONG}`,
     mode: 'group',
-    character_ids: [character.id, npc.id],
+    character_ids: cast,
     seat: 'gm',
     campaign_id: frame.id,
     folder: 'Voidship Escapade',
+  }).catch(async (error: unknown) => {
+    if (!String(error).includes('character_ids')) throw error;
+    const world = await post(page, 'campaign', { name: `Voidship Escapade: ${LONG}`, is_scenario: false });
+    const person = (name: string, kind: string) =>
+      post(page, 'person', { name, kind, description: NARRATION, campaign_id: world.id });
+    cast = [(await person(`Tessaly Kord ${UNBROKEN.slice(0, 40)}`, 'pc')).id, (await person('Confessor Ruhl', 'npc')).id];
+    return post(page, 'chat', {
+      title: `Voidship Escapade: Run 1 — ${LONG}`,
+      mode: 'group',
+      character_ids: cast,
+      seat: 'gm',
+      campaign_id: world.id,
+      folder: 'Voidship Escapade',
+    });
   });
   await post(page, 'campaign_play', { chat_id: chat.id, playing_id: null });
   const first = await post(page, 'chat_message', {
@@ -92,7 +109,7 @@ test('no page is wider than a phone @phone', async ({ page }, testInfo) => {
     parent_id: first.id,
     role: 'character',
     channel: 'ic',
-    speaker_character_id: character.id,
+    speaker_character_id: cast[0],
     swipes: [NARRATION],
   });
   await post(page, 'chat_session', { chat_id: chat.id, number: 1, start_message_id: first.id });
