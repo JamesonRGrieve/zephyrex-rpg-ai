@@ -33,6 +33,29 @@ export async function post(page: Page, resource: string, fields: Record<string, 
   return (JSON.parse(answer.text) as Record<string, { id: string }>)[resource] as { id: string };
 }
 
+/** A JSON request as the signed-in page makes it (its session and CSRF token); throws on a refusal. */
+export async function api<T>(page: Page, method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+  if (!page.url().startsWith('http')) await page.goto('/play');
+  const answer = await page.evaluate(
+    async ({ method, path, body }) => {
+      const token = document.cookie
+        .split('; ')
+        .find((cookie) => cookie.startsWith('zx_csrf='))
+        ?.slice('zx_csrf='.length);
+      const response = await fetch(`/api/v1/${path}`, {
+        method,
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json', ...(token === undefined ? {} : { 'X-CSRF-Token': token }) },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      return { status: response.status, text: await response.text() };
+    },
+    { method, path, body },
+  );
+  if (answer.status >= 400) throw new Error(`${method} ${path} answered ${answer.status}: ${answer.text}`);
+  return JSON.parse(answer.text) as T;
+}
+
 export interface Seeded {
   characterId: string;
   chatId: string;

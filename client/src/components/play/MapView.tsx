@@ -8,7 +8,7 @@ import { SceneCanvas, SceneList, useSceneView, type ViewToken } from '@zephyrex/
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { useId, useState } from 'react';
 import type { ReactElement } from 'react';
-import useSWR from 'swr';
+import useSWR, { useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
 import { Button } from 'zephyrex/ui/button';
@@ -122,6 +122,7 @@ function MoveToScene({
   onMoved: (name: string) => void;
 }): ReactElement | null {
   const client = useClient();
+  const { mutate } = useSWRConfig();
   const ids = { who: useId(), where: useId() };
   const scenes = useSWR(['rpg-ai', 'campaign-scenes', campaignId], async () => {
     const answer = await client.get('/v1/scene', { campaign_id: campaignId });
@@ -147,6 +148,8 @@ function MoveToScene({
       setProblem(null);
       setWho('');
       onMoved(token.name ?? 'Token');
+      // Who is here follows the tokens: the Context panel and the cast read them again.
+      void mutate((key) => JSON.stringify(key ?? '').match(/scene|token|person|world_entity/) !== null);
     } catch (error) {
       setProblem(error instanceof Error ? error.message : 'They could not be moved.');
     }

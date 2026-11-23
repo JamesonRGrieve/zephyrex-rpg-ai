@@ -273,7 +273,7 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
           <AccordionItem value='here'>
             <AccordionTrigger>Here ({here.length})</AccordionTrigger>
             <AccordionContent>
-              <ul className='grid gap-2'>
+              <ul aria-label='Here' className='grid gap-2'>
                 {here.map((member) => (
                   <Member key={member.id} member={member} voiced={campaignId !== null} />
                 ))}
@@ -283,7 +283,7 @@ export function ContextPanel({ campaignId, cast, seatId, recent, lastRoll = null
           <AccordionItem value='away'>
             <AccordionTrigger>Elsewhere ({away.length})</AccordionTrigger>
             <AccordionContent>
-              <ul className='grid gap-2'>
+              <ul aria-label='Elsewhere' className='grid gap-2'>
                 {away.map(({ member, place }) => (
                   <Member key={member.id} member={member} note={place ?? 'unknown'} voiced={campaignId !== null} />
                 ))}

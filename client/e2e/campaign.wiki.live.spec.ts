@@ -17,7 +17,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
 import { isHosted, signIn } from './support/people';
-import { post } from './support/seed';
+import { api, post } from './support/seed';
 
 const LIVE = process.env.LIVE_MODEL_URL ?? '';
 const STORY = process.env.LIVE_STORY_MODEL ?? '';
@@ -197,6 +197,51 @@ test('a campaign of a wiki scenario: GM, party, an NPC, a fight with a VTT roll,
   await expect.poll(() => page.getByRole('article').count(), { timeout: TURN }).toBeGreaterThanOrEqual(before + 1);
   await settled(page);
   record('AI GM narrates', (await lines(page)).slice(before));
+
+  // The GM moves people on the map, and who is present follows (the operator, 2026-11-23: "confirm that the
+  // DM correctly moves people on the map, triggering their presence updates"). Rask is given a token on the
+  // current scene, so he is here; moved to another scene from the map, he is elsewhere.
+  const chatId = page.url().split('/').pop() ?? '';
+  const playthrough = await api<{ chat: { campaign_id: string } }>(page, 'GET', `chat/${chatId}`);
+  const campaignId = playthrough.chat.campaign_id;
+  const current = await api<{ scene: { id: string } | null }>(page, 'POST', 'scene/current', {
+    current: { campaign_id: campaignId },
+  });
+  const sceneId = current.scene?.id ?? '';
+  expect(sceneId, 'the campaign has a current scene').not.toBe('');
+  const people = await api<{ persons: { id: string; name: string }[] }>(
+    page,
+    'GET',
+    `person?campaign_id=${campaignId}&limit=100`,
+  );
+  const rask = people.persons.find((one) => one.name === 'Chief Petty Officer Rask');
+  expect(rask, "Rask is the playthrough's person").toBeDefined();
+  await post(page, 'scene_token', { scene_id: sceneId, person_id: rask?.id ?? '', name: 'Chief Petty Officer Rask' });
+  await post(page, 'scene', { name: 'The Vent Shaft', campaign_id: campaignId });
+  await page.reload();
+  await page.getByRole('button', { name: 'Context', exact: true }).click();
+  await expect(page.getByRole('list', { name: 'Here' })).toContainText('Chief Petty Officer Rask', { timeout: 30_000 });
+  await page.keyboard.press('Escape');
+  await page
+    .getByRole('tab', { name: 'Map' })
+    .or(page.getByRole('button', { name: 'Map' }))
+    .first()
+    .click();
+  const move = page.getByRole('form', { name: 'Move to another scene' });
+  await move.getByLabel('Move').selectOption({ label: 'Chief Petty Officer Rask' });
+  await move.getByLabel('To').selectOption({ label: 'The Vent Shaft' });
+  await move.getByRole('button', { name: 'Move' }).click();
+  await page
+    .getByRole('tab', { name: 'Chat' })
+    .or(page.getByRole('button', { name: 'Chat' }))
+    .first()
+    .click();
+  await page.getByRole('button', { name: 'Context', exact: true }).click();
+  await expect(page.getByRole('list', { name: 'Here' })).not.toContainText('Chief Petty Officer Rask', { timeout: 30_000 });
+  await page.getByRole('button', { name: /^Elsewhere/ }).click();
+  await expect(page.getByRole('list', { name: 'Elsewhere' })).toContainText('Chief Petty Officer Rask');
+  record('The GM moves Rask to another scene', [{ speaker: 'map', text: 'Here, then Elsewhere after the move' }]);
+  await page.keyboard.press('Escape');
 
   // The X-card is on the message, with an optional reason (the operator, 2026-11-23); it can be put back.
   const latest = page
