@@ -414,7 +414,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     ['rpg-ai', 'message-feedback', chat.id],
     async () => {
       const page = await client.get('/v1/message_feedback', { chat_id: chat.id });
-      const rows = Reflect.get(Object(page), 'message_feedback');
+      const rows = Reflect.get(Object(page), 'message_feedbacks');
       return Array.isArray(rows) ? rows : [];
     },
     { shouldRetryOnError: false },
@@ -972,7 +972,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     ['rpg-ai', 'decision-calls', chat.id],
     async () => {
       const page = await client.get('/v1/decision_call', { chat_id: chat.id });
-      const rows = Reflect.get(Object(page), 'decision_call');
+      const rows = Reflect.get(Object(page), 'decision_calls');
       return Array.isArray(rows) ? rows : [];
     },
     { shouldRetryOnError: false, refreshInterval: writing || roundStep !== null ? 2000 : 0 },
