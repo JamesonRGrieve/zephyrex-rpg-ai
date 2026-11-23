@@ -15,6 +15,11 @@ export interface NpcNeeded {
   role: string;
 }
 
+/** A figure the line meets who is one of the campaign's people already (the hooded woman is Ysolde). */
+export interface NpcMatched {
+  matched: { id: string; name: string };
+}
+
 export interface AuthoringStep {
   label: string;
   done: number;
@@ -22,7 +27,7 @@ export interface AuthoringStep {
 }
 
 /** Whether the person's latest line needs a new NPC: who, or null (none, or any failure). */
-export async function npcNeeded(chatId: string, leafId: string): Promise<NpcNeeded | null> {
+export async function npcNeeded(chatId: string, leafId: string): Promise<NpcNeeded | NpcMatched | null> {
   const response = await fetch('/api/v1/ai_chat/npc_needed', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', ...csrfHeaders('POST') },
@@ -31,6 +36,12 @@ export async function npcNeeded(chatId: string, leafId: string): Promise<NpcNeed
   if (response === null || !response.ok) return null;
   const answer = Object(Reflect.get(Object(await response.json().catch(() => null)), 'npc_needed'));
   const name = Reflect.get(answer, 'name');
+  // Matched to someone the campaign already has (Parity's npc_needed match): they join the cast, no one is
+  // authored (the operator, 2026-11-23: "The hooded woman should already have been an NPC").
+  const matchedId = Reflect.get(answer, 'matched_id');
+  const matchedName = Reflect.get(answer, 'matched_name');
+  if (typeof matchedId === 'string' && matchedId !== '')
+    return { matched: { id: matchedId, name: typeof matchedName === 'string' ? matchedName : '' } };
   if (Reflect.get(answer, 'needed') !== true || typeof name !== 'string' || name === '') return null;
   const role = Reflect.get(answer, 'role');
   return { name, role: typeof role === 'string' ? role : '' };

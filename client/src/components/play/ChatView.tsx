@@ -1559,7 +1559,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           current = current.map((one) => (one.id === start.id ? { ...one, swipes } : one));
         }
       }
-      const npc = await during('Checking who you meet', npcAsked);
+      const met = await during('Checking who you meet', npcAsked);
+      if (met !== null && 'matched' in met)
+        // One of the campaign's people, met: the server put them in the cast beside the seat.
+        await globalMutate((key) => JSON.stringify(key ?? '').match(/person|cast|world_entity|chat|token/) !== null);
+      const npc = met !== null && !('matched' in met) ? met : null;
       if (npc !== null) {
         setAuthoring({ name: npc.name, step: { label: `Authoring new NPC (${npc.name})`, done: 0, total: 1 } });
         const made = await authorNpc(chat.id, start.id, npc, (step) => setAuthoring({ name: npc.name, step }));
