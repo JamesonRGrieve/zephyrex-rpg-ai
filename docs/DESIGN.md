@@ -417,6 +417,83 @@ done yet). The owner is named where it isn't rpg-ai's client.
 - **The dice tray rolls in 3D** (the server's values, never the renderer's), looks designed rather than a
   form, and defaults to the system's die (d20 for 5e), never d100. _In progress (VTT)._
 
+**The operator's rulings of 2026-11-23** (all _open_ unless marked)
+
+_Review and control_
+- **Per-message feedback** for manual review, not RLHF: on any message the person marks what went wrong
+  (a reason and a note). It is stored with the full context that produced the line (the prompt as sent,
+  the model, the sampler, the decision calls and their answers), so each instance of stupidity can be
+  examined in context and the injection protocol corrected.
+- **An explicit model override** per chat (and per campaign), beside the preference sliders. The
+  sliders (verbosity, spice, darkness, adherence…) shape the **prompt** too, not only the model choice.
+- **Edit has two saves:** edit in place, or edit, fork and regenerate from it.
+- **X-card is on the message only** (not a chat-wide "latest reply" action), with an optional reason or
+  subject box for specifics.
+- **Translation is a global setting,** never an action on every message.
+- **Pass your turn** asks for confirmation. _Live._
+
+_Voice_
+- **Read aloud reads what the person sees:** never square brackets, vertical bars or other markup.
+  Smooth, not choppy (whole sentences buffered, no gaps between chunks).
+- **A stop button** for the voice; **play one message** or **play through to the end**.
+- **A voice per character** (picked on the character, the narrator its own).
+
+_Narration_
+- **The person's character is "you"** in narration, never described in the third person.
+- **Names are links:** characters, places and items in the story link to their wiki pages, opened in
+  the bottom drawer.
+- **Characters present come from the scene:** an NPC the opening names (the hooded woman at the
+  tavern) is a person of the scenario, never authored again. One person, one voice: no three NPCs
+  speaking as the same character.
+- **The GM answers out-of-game questions in game where fitting:** "what is X doing?" is answered with
+  X's action.
+
+_Structure without trusting the narrator_
+- **A second, small model reformats** the narrator's prose into the structured line form (who says,
+  who does, narration) once the reply is done. The narrative model writes freely and streams; the
+  streamed prose shows inside a **pending** box, then is replaced by the structured lines when the
+  reformat is done, so the person can read and think meanwhile.
+
+_Decision models everywhere, in parallel_
+- **Structured questions go to decision models, not the story LLM,** and run in parallel with context:
+  is a roll needed, which skill, what DC; does an existing NPC fit the description of who is addressed
+  (the hooded lady); is a new NPC needed, of what level, class and subclass; in combat, does a
+  character take or save its reaction, whom it targets, which spell or weapon, at what level it casts.
+- **The decision calls are shown:** each stacks horizontally under the message that caused it and
+  stays, so the person can open what was asked and what came back.
+- **Capacity:** the operator is building a server of many GTX 970s: tier 1 decision models in fast VRAM
+  and more tier 2 ones spilling into the slow 500 MB. Calls are routed across them.
+- **Volunteered VRAM** (separate product): a desktop utility that lets people lend their GPU to others
+  for priority use in return. It authenticates to the server with their account, reports the system's
+  capabilities, and receives jobs securely.
+
+_Rounds that survive anything_
+- **Fully asynchronous turns:** Send makes two requests. One posts the turn and returns at once (204);
+  the server processes it entirely on its own. The other subscribes to its stream; dropping that
+  subscription (a tab switch, lost internet) has no effect on the server's work, and on reconnecting the
+  result is there. **Stop is its own request** that interrupts the server.
+- **No falling back to "Narrator is typing…"** after text has started streaming, and no reply that
+  vanishes: a streamed reply always arrives (the asynchronous turn fixes this at the root).
+
+_Places and the map_
+- **The location banner marks a scene change** in the VTT only (a new map, including another level),
+  never moving within a scene.
+- **Locations are fully qualified:** the title is the place, the subtitle its chain up to the planet in
+  40k (or the system when several systems are in play) and the region in D&D, e.g. "Processing Yard
+  Alpha-7" over "The Bastion, District 14, Sullenmire".
+- **Presence comes from the VTT:** who is present is who is in the current scene. The GM (and the GM
+  agent) moves people within a scene and between scenes, and presence follows.
+- **The map is a real map:** a top-down battlemap, never a location's illustration. Maps are built on
+  the fly by a self-hosted agent doing the Cartography agent's job (which one can is to be determined),
+  or generated top-down with the picture model until then. _Generator in progress (Parity); the
+  illustration fallback is being removed (VTT)._
+
+_Characters_
+- **AI-assisted character creation modes,** beside the builder and the freeform character.
+
+_Other products_
+- **An in-person campaign copilot mode,** integrating with Foundry and Roll20.
+
 **Operations**
 
 - **Dev and release-candidate tests never use the prod model tier** (gigabyte); they use the desktop.
