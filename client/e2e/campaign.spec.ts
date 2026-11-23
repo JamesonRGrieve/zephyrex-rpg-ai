@@ -30,7 +30,10 @@ async function seat(page: Page, name: string | null): Promise<void> {
   await expect(page.getByRole('button', { name: `Your seat: ${name ?? 'the GM'}` })).toBeVisible();
 }
 
-test('a campaign: started from its scenario, seats swapped, a session ended, a fork', async ({ page }) => {
+test('a campaign: started from its scenario, seats swapped, a session ended, a fork', async ({ page }, testInfo) => {
+  // Campaign frames and card casts are the lite edition's; the hosted suite starts campaigns from wiki
+  // scenarios with wiki persons, played end to end by campaign.wiki.live.spec.ts.
+  test.skip(isHosted(testInfo), 'lite only: the composed suite is campaign.wiki.live.spec.ts');
   await page.goto('/play');
   await post(page, 'model_endpoint', {
     name: 'Stub',
