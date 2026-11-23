@@ -15,6 +15,15 @@ describe('reply stream', () => {
     expect(parseEventBlock(': keepalive')).toEqual({ type: 'heartbeat' });
     expect(
       parseEventBlock(
+        'event: voice_problem\ndata: {"kind":"npc","name":"Sergeant Horvec","note":"spoke as Sergeant Horvec"}',
+      ),
+    ).toEqual({
+      type: 'voice_problem',
+      kind: 'npc',
+      note: 'spoke as Sergeant Horvec',
+    });
+    expect(
+      parseEventBlock(
         'event: reformat\ndata: {"reformatted":true,"reason":"","cut":false,"runs":[{"speaker_id":"y1","speaker_name":null,"lines":[{"kind":"say","manner":"speak","target_id":null,"target_name":null,"text":"Sit."}]}]}',
       ),
     ).toEqual({

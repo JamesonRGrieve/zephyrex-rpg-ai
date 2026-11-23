@@ -35,7 +35,7 @@ export interface ReplyRequest {
   /** AP4: this turn asked of another of the person's models, to compare. */
   endpoint_id?: string;
   /** A second try after the voice guard caught a span (features/chat/voiceGuard.ts): it's forbidden. */
-  forbid?: { names: string[]; span: string; spans?: string[]; reason?: 'canon'; note?: string };
+  forbid?: { names: string[]; span: string; spans?: string[]; reason?: 'canon' | 'table_voice'; note?: string };
   /** A narration that may give the party and the people present their moments (no decision came). */
   narrate_wide?: boolean;
   /** Schema-constrained lines (docs/DESIGN.md, Structured lines): the server splits and saves them. */
@@ -51,6 +51,8 @@ export interface ReplyResult {
   saved?: SavedLine[];
   /** The reformat model's runs for a narration, when it sorted the prose (else undefined). */
   runs?: ReformatRun[];
+  /** The table GM's answer was in the wrong voice (the server kept nothing): what to tell it next time. */
+  voiceProblem?: string;
 }
 
 export type ReplyState =
@@ -124,6 +126,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
       items: [] as LiveItem[],
       saved: undefined as SavedLine[] | undefined,
       runs: undefined as ReformatRun[] | undefined,
+      voiceProblem: undefined as string | undefined,
       done: false,
       stopped: false,
     };
@@ -138,6 +141,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         got.done = true;
         got.stopped = event.stopped;
       } else if (event.type === 'error') got.failure = event.detail;
+      else if (event.type === 'voice_problem') got.voiceProblem = event.note || event.kind;
       else if (event.type === 'reformat') got.runs = event.reformatted && event.runs.length > 0 ? event.runs : undefined;
       else if (event.type === 'item_start') {
         got.items = [...got.items, { ...event.item, text: '', done: false }];
@@ -200,6 +204,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
       stopped: stopped || got.stopped,
       ...(got.saved === undefined ? {} : { saved: got.saved }),
       ...(got.runs === undefined ? {} : { runs: got.runs }),
+      ...(got.voiceProblem === undefined ? {} : { voiceProblem: got.voiceProblem }),
     };
   };
 

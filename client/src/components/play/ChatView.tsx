@@ -1657,7 +1657,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   /** The table GM's answer to a question on the `gm` channel (A11, A20): out of character, never in the story. */
   const askGm = async (question: ChatMessage) => {
     setWritingAfter({ parentId: question.id, speakerId: '' });
-    const result = await timedWrite({ chat_id: chat.id, leaf_id: question.id, speaker_id: null, mode: 'table' });
+    const ask = { chat_id: chat.id, leaf_id: question.id, speaker_id: null, mode: 'table' as const };
+    let result = await timedWrite(ask);
+    // An answer in an NPC's voice or as an assistant (prod b93b668e: "Sergeant Horvec: …", "Understood. I'll
+    // pause here…") is asked once more with what was wrong; the second answer stands, whatever it is.
+    if (result?.voiceProblem !== undefined)
+      result = await timedWrite({
+        ...ask,
+        forbid: { names: [], span: '', reason: 'table_voice', note: result.voiceProblem },
+      });
     setWritingAfter(null);
     // Never nothing back (the operator, 2026-11-22: "Do out of game messages not trigger an out of game GM
     // response? Wtf? I got nothing back"): a refused or empty answer says so.
