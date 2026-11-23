@@ -321,6 +321,15 @@ export function ChatSettings({
           </section>
           <section className='grid gap-4'>
             <h3 className='border-b pb-1 text-sm font-semibold'>The narrator</h3>
+            {/* An explicit model, beside the sliders, never hidden under Advanced (the operator, 2026-11-23:
+                "We also need an explicit model override not just the preference sliders"). */}
+            <Choice
+              label='Model'
+              value={draft.endpoint_id}
+              options={endpoints}
+              noneLabel='Picked by the style below'
+              onChange={(next) => set('endpoint_id', next)}
+            />
             <fieldset className='grid gap-3 rounded-lg border p-3'>
               <legend className='px-1 text-sm font-medium'>Narrator style</legend>
               <p className='text-xs text-muted-foreground'>
@@ -564,13 +573,6 @@ export function ChatSettings({
                 options={presets}
                 noneLabel='Default settings'
                 onChange={(next) => set('preset_id', next)}
-              />
-              <Choice
-                label='Model'
-                value={draft.endpoint_id}
-                options={endpoints}
-                noneLabel='Your default model'
-                onChange={(next) => set('endpoint_id', next)}
               />
               <div className='grid gap-1.5'>
                 <Label htmlFor={ids.system}>System prompt</Label>
