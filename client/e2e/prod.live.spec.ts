@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
-import { post } from './support/seed';
+import { api, post } from './support/seed';
 
 const SESSION = process.env.PROD_SESSION ?? '';
 /** One model turn: a cold load of the 72 GB narrator can take minutes. */
@@ -73,6 +73,23 @@ async function seat(page: Page, name: string | null): Promise<void> {
       .click();
   }
   await expect(page.getByRole('button', { name: `Your seat: ${name ?? 'the GM'}` })).toBeVisible({ timeout: 60_000 });
+}
+
+/** `name` (a person of the campaign) given a token on the campaign's current scene, as the GM places one. */
+async function placeOnScene(page: Page, chatId: string, name: string): Promise<void> {
+  const campaign = (await api<{ chat: { campaign_id: string } }>(page, 'GET', `chat/${chatId}`)).chat.campaign_id;
+  const scene = (
+    await api<{ scene: { id: string } | null }>(page, 'POST', 'scene/current', { current: { campaign_id: campaign } })
+  ).scene;
+  expect(scene, 'the campaign has a current scene').not.toBeNull();
+  const people = await api<{ persons: { id: string; name: string }[] }>(
+    page,
+    'GET',
+    `person?campaign_id=${campaign}&limit=100`,
+  );
+  const who = people.persons.find((one) => one.name === name);
+  expect(who, `${name} is a person of the campaign`).toBeDefined();
+  await post(page, 'scene_token', { scene_id: scene?.id ?? '', person_id: who?.id ?? '', name });
 }
 
 function campaignChat(page: Page): string {
@@ -198,12 +215,11 @@ test('live on prod: a one-shot with the party, an NPC, a fight with a VTT roll, 
   await seat(page, null);
   // The GM moves people as the story says, and who is present follows (the operator, 2026-11-23): Hesk
   // leaves; afterwards he is neither on the current scene with the party nor where the party is.
-  // Before he leaves: where Hesk stands, so the check after can't pass on an empty map.
+  // Before he leaves he has a token on the current scene, so the check after can't pass on an empty map.
+  await placeOnScene(page, campaignChat(page), 'Old Hesk');
   const hereBefore = await presence(page, campaignChat(page));
   record('Presence before Hesk leaves', [{ speaker: 'presence', text: JSON.stringify(hereBefore) }]);
-  expect
-    .soft([...hereBefore.onScene, ...hereBefore.withParty], 'Hesk is on the map or with the party before he leaves')
-    .toContain('Old Hesk');
+  expect(hereBefore.onScene, 'Hesk has a token on the current scene before he leaves').toContain('Old Hesk');
   await act(
     page,
     'GM sends Hesk away',
