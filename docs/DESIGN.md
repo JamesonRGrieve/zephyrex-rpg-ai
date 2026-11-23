@@ -478,8 +478,15 @@ _Decision models everywhere, in parallel_
   - _Trust:_ any answer outside the supplied options is refused (the decide protocol already does);
     a sample of jobs is re-asked on the operator's tiers and a device that disagrees too often is
     dropped.
-  - **Open, the operator's decisions:** which repo and product owns it; the job broker's placement;
-    the privacy line for scene text sent to volunteers; platforms first (Windows, Linux, macOS).
+  - **Leverage the AI Horde** (the operator, 2026-11-23: "Can we leverage horde for this?"): the Horde
+    server is AGPL-3.0 and documents a private deployment (its own workers; Postgres, Redis, S3). Its
+    workers already do what the utility was to do: KoboldCpp's built-in worker, or any
+    OpenAI-compatible backend, signs in with an account's key, offers its model and context, and takes
+    jobs; kudos earned by serving buy queue priority. Its OpenAI-compatible front (`/v1/chat/completions`,
+    streamed) is a provider like any other, so rpg.zephyrex.ai's proxy can be a self-hosted Horde, with
+    the public Horde as one more provider (kept, the operator ruled, as a provider users can pick).
+  - **Still the operator's:** where the private Horde runs; the privacy line for scene text sent to
+    volunteers' devices.
 
 _Rounds that survive anything_
 - **Fully asynchronous turns:** Send makes two requests. One posts the turn and returns at once (204);
@@ -512,7 +519,7 @@ _Maps on the fly: the on-prem cartography agent (Self Hosted AI's recommendation
   the 72gb tier holds one model at a time, so a map build mid-play evicts the narrator (25-70 s each
   way). Option: run cydonia at ~32K context instead of 131K to keep both resident (needs a fit test).
   Smaller: 24gb/qwen3-vl-8b:q6 as the visual judge. The 970 farm suits typed choices only.
-- Before choosing: a 10-20 brief eval against the fault checker and operator spot checks.
+- Before choosing: a 10-20 brief eval against the fault checker and operator spot checks. **Ruled: eval first, then decide** (the operator, 2026-11-23).
 - **Open, the operator's decisions:** where the composer runs per scene, which tier hosts the brief and
   judge model (and 72gb's context and loaded-model settings), and the orchestration service.
 
@@ -536,9 +543,9 @@ _Other products_
     reporting scene, tokens, combat and rolls; Roll20: its API sandbox, Pro only), else typed by the GM.
     Writes back only on the GM's tap (a journal entry, an NPC actor).
   - _The same records:_ the campaign is ours (wiki, VTT); the external VTT is a mirror the GM plays on.
-  - **Open, the operator's decisions:** whether the Foundry side is a module in the kanka-foundry
-    family or a new one; Roll20 support at all (API needs Pro); where a module's bridge runs; and
-    whether copilot is a seat ("GM, assisted") in the existing play view or its own view.
+  - **Ruled (the operator, 2026-11-23):** the external VTTs are reached through a VTT extension in the
+    zephyrex framework with both providers, Foundry and Roll20 ("Build a vtt extension in zephyrex with
+    both providers then leverage that"); the copilot has its own view, not a seat in play.
 
 **Operations**
 
