@@ -626,6 +626,116 @@
       "vox": [
         "var"
       ]
+    },
+    {
+      "name": "a fresh campaign, no tokens or places (live chat a2807c9b): the party is present, and whoever the line names",
+      "cast": [
+        {
+          "id": "brenna",
+          "name": "Brenna"
+        },
+        {
+          "id": "tam",
+          "name": "Tam"
+        },
+        {
+          "id": "hesk",
+          "name": "Old Hesk"
+        }
+      ],
+      "presence": {
+        "tokens": [],
+        "scene_location": null,
+        "location_parents": {},
+        "person_locations": {},
+        "recent": [
+          {
+            "speaker_id": null,
+            "text": "Old Hesk poles his ferry to the bank."
+          }
+        ],
+        "vox": [],
+        "party": [
+          "brenna",
+          "tam"
+        ]
+      },
+      "present": [
+        "brenna",
+        "tam",
+        "hesk"
+      ],
+      "vox": []
+    },
+    {
+      "name": "a scene with tokens decides: a party member without one is away",
+      "cast": [
+        {
+          "id": "brenna",
+          "name": "Brenna"
+        },
+        {
+          "id": "tam",
+          "name": "Tam"
+        },
+        {
+          "id": "hesk",
+          "name": "Old Hesk"
+        }
+      ],
+      "presence": {
+        "tokens": [
+          "tam"
+        ],
+        "scene_location": null,
+        "location_parents": {},
+        "person_locations": {},
+        "recent": [],
+        "vox": [],
+        "party": [
+          "brenna",
+          "tam"
+        ]
+      },
+      "present": [
+        "tam"
+      ],
+      "vox": []
+    },
+    {
+      "name": "a party member placed elsewhere is away",
+      "cast": [
+        {
+          "id": "brenna",
+          "name": "Brenna"
+        },
+        {
+          "id": "tam",
+          "name": "Tam"
+        },
+        {
+          "id": "hesk",
+          "name": "Old Hesk"
+        }
+      ],
+      "presence": {
+        "tokens": null,
+        "scene_location": "mill",
+        "location_parents": {},
+        "person_locations": {
+          "brenna": "ferry"
+        },
+        "recent": [],
+        "vox": [],
+        "party": [
+          "brenna",
+          "tam"
+        ]
+      },
+      "present": [
+        "tam"
+      ],
+      "vox": []
     }
   ],
   "scene_state_case": {

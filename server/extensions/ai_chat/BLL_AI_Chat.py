@@ -69,7 +69,7 @@ from zephyrex.extensions.ai_chat.Clarify import (  # type: ignore[import-not-fou
     should_ask,
 )
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text, wiki_document_texts  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.Decide import ask_decider, ask_decider_detailed  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Dispositions import (  # type: ignore[import-not-found]
     apply_stances,
     parse_status,
@@ -2853,9 +2853,31 @@ def present_people(
                 for turn in story_turns
             ],
             "vox": chat.vox_ids or [],
+            "party": [str(one) for one in getattr(chat, "character_ids", None) or []],
         },
     )
     return [person for person in persons if person["id"] in reach["present"]]
+
+
+def scene_joiners(
+    cast: Sequence[Mapping[str, Any]],
+    world: Sequence[Mapping[str, Any]],
+    tokens: Sequence[str] | None,
+    playing_id: str | None,
+) -> list[dict[str, str]]:
+    """The campaign's people with a token on the current scene who aren't in the chat's cast (nor the
+    seat's own character): pickable to speak, joining the cast when picked. A setting's canon never is."""
+    known = {str(one["id"]) for one in cast} | ({playing_id} if playing_id else set())
+    here = set(tokens or [])
+    return [
+        {"id": str(entity["id"]), "name": str(entity["name"])}
+        for entity in world
+        if entity.get("kind") == "person"
+        and not entity.get("deleted")
+        and not entity.get("canon")
+        and str(entity["id"]) in here
+        and str(entity["id"]) not in known
+    ]
 
 
 def shown_text(message: Any) -> str:
@@ -3681,7 +3703,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         async def one(row: Any, group: list[str]) -> dict[str, dict[str, Any] | None] | None:
             started = time.monotonic()
             asked_here = {key: questions[key] for key in group}
-            answers = await ask_decider(
+            answers, error = await ask_decider_detailed(
                 row.base_url,
                 row.model,
                 decrypt_secret(row.api_key) if row.api_key else "",
@@ -3703,6 +3725,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         answers=dict(answers) if answers is not None else {key: None for key in group},
                         model=str(row.model),
                         ms=int((time.monotonic() - started) * 1000),
+                        # Why it gave nothing, never silent nulls (Zephyrex RPG's live fault, 2026-11-23).
+                        error=error,
                     )
                 except HTTPException:
                     pass  # a chat that isn't the person's keeps no record; the answer still stands
@@ -3973,6 +3997,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         ]
         # Only those in the scene, or reached by vox, can be picked (the operator, 2026-11-21).
         world = context["world"]
+        tokens = await self._scene_tokens(chat)
+        # A person of the campaign with a token on the scene can be picked though not yet in the chat's cast
+        # (Zephyrex RPG's live blocker, 2026-11-23: Old Hesk, on the scene, was never an option); picked,
+        # they join it.
+        on_scene = scene_joiners(context["cast"], world, tokens, playing_id)
+        cast = [*context["cast"], *on_scene]
+        names |= {one["id"]: one["name"] for one in on_scene}
         locations = [
             {**entity, "aliases": list(entity.get("aliases") or [])}
             for entity in world
@@ -3980,7 +4011,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         ]
         at = scene_location([{"text": turn["content"], "channel": "story"} for turn in story_turns], locations)
         presence = {
-            "tokens": await self._scene_tokens(chat),
+            "tokens": tokens,
             "scene_location": at,
             "location_parents": {location["id"]: location.get("parent_id") for location in locations},
             "person_locations": {
@@ -3998,12 +4029,13 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 for turn in story_turns
             ],
             "vox": chat.vox_ids or [],
+            "party": [str(one) for one in chat.character_ids or []],
         }
-        reach = present_cast(context["cast"], presence)
+        reach = present_cast(cast, presence)
         # After the person's own line someone answers: no pause.
         after_person = bool(story_turns) and by_person(story_turns[-1], playing_id)
         question, picks = turn_question(
-            context["cast"],
+            cast,
             chat.muted_ids or [],
             playing_id,
             seat,
@@ -4039,6 +4071,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         pick = turn_pick((answers or {}).get("next"), picks)
         if pick is None:
             return undecided
+        if pick.get("id") in {one["id"] for one in on_scene}:
+            self._manager(ChatManager).update(chat.id, character_ids=[*(chat.character_ids or []), pick["id"]])
         return NextTurnEnvelope(next_turn=NextTurn(decided=True, kind=pick["kind"], character_id=pick.get("id")))
 
     @custom_route(
@@ -4696,6 +4730,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         for one in [*context["cast"], *seat, *present_people(chat, playing_id, context["world"], story_turns, tokens)]:
             if all(other["id"] != str(one["id"]) for other in people):
                 people.append({"id": str(one["id"]), "name": str(one["name"])})
+        # Labels already kept for these very lines are the answer: asked once per saved turn, never again on
+        # a reload or a repeat call (Self Hosted AI, 2026-11-23: label calls were most of 44-64 a minute).
+        kept = list(message.line_labels or [])
+        if kept and [one.get("text") for one in kept] == [one["text"] for one in read_labels(lines, None, people)]:
+            return LabelLinesEnvelope(label_lines={"labels": kept})
         deciding = self._decider()
         answers = None
         if deciding is not None:

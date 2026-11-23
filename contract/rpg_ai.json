@@ -928,7 +928,14 @@
       "stays": "still here",
       "leaves": "has left",
       "arrives": "has arrived",
-      "absent": "not here"
+      "absent": "not here",
+      "$meanings": "What each option means, sent with it: the decide protocol takes a choice's options as {label: description} (Self Hosted AI, 2026-11-23: bare labels reached the wire as empty criteria and were refused, HTTP 400).",
+      "meanings": {
+        "still here": "the lines leave them in this scene",
+        "has left": "the lines take them out of this scene",
+        "has arrived": "the lines bring them into this scene",
+        "not here": "they are still somewhere else"
+      }
     },
     "movement_words": ["walk", "walks", "run", "runs", "charge", "charges", "climb", "climbs", "enter", "enters", "leave", "leaves", "head", "heads", "go", "goes", "move", "moves", "step", "steps", "follow", "follows", "cross", "crosses", "retreat", "retreats", "flee", "flees", "descend", "descends", "ascend", "ascends", "sprint", "sprints", "crawl", "crawls", "return", "returns", "approach", "approaches", "rush", "rushes", "dash", "dashes", "slip", "slips", "duck", "ducks", "jump", "jumps", "drop", "drops"]
   },

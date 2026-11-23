@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment node
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { askDecider, completionContent } from './decider';
+import { askDecider, completionContent, decideTimeoutMs } from './decider';
 
 // Asking a model needs no records: the records layer (Prisma) is stubbed out.
 vi.mock('~/lib/rpgRecords', () => ({ endpoints: {} }));
@@ -51,5 +51,12 @@ describe('askDecider', () => {
   it('refuses a choice outside the options', async () => {
     vi.stubGlobal('fetch', vi.fn(async () => completion('{"answers": {"expression": {"type": "choice", "choice": "smug"}}}')));
     expect(await askDecider(ROW, 'x', QUESTIONS)).toEqual({ expression: null });
+  });
+});
+
+describe('a request sized to its questions (Zephyrex RPG, 2026-11-23: a flat 8 s expired every 20-question call)', () => {
+  it('waits a base and a share per question', () => {
+    expect(decideTimeoutMs({})).toBe(8000);
+    expect(decideTimeoutMs({ a: 1, b: 2 })).toBe(16000);
   });
 });

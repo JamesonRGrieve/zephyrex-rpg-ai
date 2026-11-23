@@ -44,11 +44,11 @@ def test_decision_calls_are_kept_under_the_message_and_feedback_snapshots_them(
 
     async def decide(
         _url: str, model: str, _key: str, _state: str, questions: dict[str, Any], _extra: Any = None
-    ) -> dict[str, Any]:
+    ) -> tuple[dict[str, Any], None]:
         asked.append((model, list(questions)))
-        return {key: {"choice": "yes"} for key in questions}
+        return {key: {"choice": "yes"} for key in questions}, None
 
-    monkeypatch.setattr(BLL_AI_Chat, "ask_decider", decide)
+    monkeypatch.setattr(BLL_AI_Chat, "ask_decider_detailed", decide)
 
     class Asked:
         chat_id = chat["id"]

@@ -146,7 +146,7 @@ def scene_questions(
         questions[f"scene_{person['id']}"] = {
             "type": "choice",
             "instructions": str(template).replace("{{name}}", str(person["name"])),
-            "criteria": [str(option) for option in options],
+            "criteria": {str(option): str(SCENE["meanings"][option]) for option in options},
         }
     return questions
 

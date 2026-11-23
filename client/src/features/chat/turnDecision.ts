@@ -33,6 +33,8 @@ export interface Presence {
   recent: readonly { speaker_id: string | null; text: string }[];
   /** The cast on vox (the chat's vox_ids). */
   vox: readonly string[];
+  /** The party (the chat's cast): present while nothing places them anywhere. */
+  party?: readonly string[];
 }
 
 const PRESENCE = DECIDE_TURN.presence;
@@ -63,20 +65,24 @@ function inside(location: string, scene: string, parents: Readonly<Record<string
 
 /**
  * Who is in the scene and who a line reaches by vox (the operator, 2026-11-21). Present: a token in
- * the VTT scene when one is set; else a wiki location at or inside the scene's; else they spoke or
- * were named in the recent lines. Away but on vox: reached when the last line names them or a vox word.
+ * the VTT scene when it has any; else a wiki location at or inside the scene's; else they spoke or
+ * were named in the recent lines, or are of the party with nowhere known. Away but on vox: reached when the last line names them or a vox word.
  */
 export function presentCast(
   cast: readonly { id: string; name: string }[],
   presence: Presence,
 ): { present: string[]; vox: string[] } {
   const recent = presence.recent.slice(-PRESENCE.recent);
+  // A scene with no tokens on it says nothing about who is there (Zephyrex RPG's live blocker, 2026-11-23).
+  const tokens = presence.tokens !== null && presence.tokens.length > 0 ? presence.tokens : null;
+  const party = presence.party ?? [];
   const here = (member: { id: string; name: string }): boolean => {
-    if (presence.tokens !== null) return presence.tokens.includes(member.id);
+    if (tokens !== null) return tokens.includes(member.id);
     const location = presence.person_locations[member.id] ?? null;
     if (presence.scene_location !== null && location !== null)
       return inside(location, presence.scene_location, presence.location_parents);
-    return recent.some((line) => line.speaker_id === member.id || names(line.text, member.name));
+    if (recent.some((line) => line.speaker_id === member.id || names(line.text, member.name))) return true;
+    return party.includes(member.id) && location === null;
   };
   const last = recent.at(-1)?.text ?? '';
   const voxCalled = PRESENCE.vox_words.some((word) => names(last, word));

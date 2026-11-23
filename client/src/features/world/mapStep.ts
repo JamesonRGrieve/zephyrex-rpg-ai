@@ -124,16 +124,21 @@ export function sceneQuestions(
   people: readonly { id: string; name: string; aliases?: readonly string[] }[],
   onScene: readonly string[],
   seat: string | null,
-): Record<string, { type: 'choice'; instructions: string; criteria: string[] }> {
+): Record<string, { type: 'choice'; instructions: string; criteria: Record<string, string> }> {
   const here = new Set(onScene);
-  const questions: Record<string, { type: 'choice'; instructions: string; criteria: string[] }> = {};
+  const questions: Record<string, { type: 'choice'; instructions: string; criteria: Record<string, string> }> = {};
   for (const person of people) {
     if (person.id === seat || !named(text, person)) continue;
     const present = here.has(person.id);
     questions[`scene_${person.id}`] = {
       type: 'choice',
       instructions: (present ? SCENE.stay_question : SCENE.arrive_question).replaceAll('{{name}}', person.name),
-      criteria: present ? [SCENE.stays, SCENE.leaves] : [SCENE.arrives, SCENE.absent],
+      criteria: Object.fromEntries(
+        (present ? [SCENE.stays, SCENE.leaves] : [SCENE.arrives, SCENE.absent]).map((option) => [
+          option,
+          SCENE.meanings[option as keyof typeof SCENE.meanings],
+        ]),
+      ),
     };
   }
   return questions;

@@ -120,10 +120,25 @@ def batch_questions(state_characters: int, question_characters: Sequence[int], b
     return batches
 
 
-# A decision model answers in about a second; past this, the caller falls back.
+# A one-question call is answered in about half a second when the model is free; past these, the call
+# is a timeout. A request waits for its own size (Zephyrex RPG's measurement, 2026-11-23: 20 label
+# questions over 600 characters took 23.8 to 82.1 s alone, where a flat 8 s expired every one).
 DECIDE_TIMEOUT_SECONDS = 8.0
+DECIDE_SECONDS_PER_QUESTION = 4.0
 #: The pauses before a second and a third try (the operator, 2026-11-22: "Give the decision model 3 tries").
 DECIDE_RETRY_SECONDS = (0.3, 0.6)
+#: At most this many requests in flight to the decision models at once, the rest queued here (Self Hosted
+#: AI, 2026-11-23: d1-2b serves 4 slots; 44-64 calls a minute backed its queue up past 120 s).
+DECIDE_IN_FLIGHT = 4
+
+#: Per event loop: the in-flight slots, and identical requests already in flight (asked once, shared).
+_SLOTS: dict[int, Any] = {}
+_IN_FLIGHT: dict[tuple[int, str], Any] = {}
+
+
+def decide_timeout(questions: Mapping[str, Any]) -> float:
+    """How long a request may take: a base, and a share for each question it asks."""
+    return DECIDE_TIMEOUT_SECONDS + DECIDE_SECONDS_PER_QUESTION * len(questions)
 
 
 def completion_content(body: Any) -> str | None:
@@ -146,22 +161,62 @@ async def ask_decider(
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None = None,
 ) -> dict[str, dict[str, Any] | None] | None:
-    """The questions' answers from the decision model at ``base_url``, asked up to three times (the operator,
-    2026-11-22: "Give the decision model 3 tries if it chokes"); None when every try failed (unreachable,
-    refused, not a completion, or nothing usable), so the caller does what it did before."""
+    """The questions' answers from the decision model at ``base_url`` (ask_decider_detailed's answers)."""
+    answers, _error = await ask_decider_detailed(base_url, model, api_key, state, questions, extra)
+    return answers
+
+
+async def ask_decider_detailed(
+    base_url: str,
+    model: str,
+    api_key: str,
+    state: str,
+    questions: Mapping[str, Mapping[str, Any]],
+    extra: Mapping[str, Any] | None = None,
+) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
+    """The questions' answers, and why there are none ({kind, detail}; None when it answered). An identical
+    request already in flight is shared, never sent twice."""
+    import asyncio
+
+    loop = id(asyncio.get_running_loop())
+    key = (loop, json.dumps([base_url, model, state, questions, extra], sort_keys=True, default=str))
+    running = _IN_FLIGHT.get(key)
+    if running is None:
+        running = asyncio.ensure_future(_ask_tries(base_url, model, api_key, state, questions, extra))
+        _IN_FLIGHT[key] = running
+        running.add_done_callback(lambda _done: _IN_FLIGHT.pop(key, None))
+    answers, error = await asyncio.shield(running)
+    return answers, error
+
+
+async def _ask_tries(
+    base_url: str,
+    model: str,
+    api_key: str,
+    state: str,
+    questions: Mapping[str, Mapping[str, Any]],
+    extra: Mapping[str, Any] | None,
+) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
+    """Asked up to three times (the operator, 2026-11-22: "Give the decision model 3 tries if it chokes").
+    A timeout isn't tried again: the model is busy, and another request only lengthens its queue."""
     import asyncio
 
     tries = list(DECIDE_RETRY_SECONDS)
     answers: dict[str, dict[str, Any] | None] | None = None
+    error: dict[str, str] | None = None
     for attempt in range(len(tries) + 1):
-        answers = await _ask_once(base_url, model, api_key, state, questions, extra)
+        answers, error = await _ask_once(base_url, model, api_key, state, questions, extra)
         if answers is not None and any(value is not None for value in answers.values()):
-            return answers
-        if attempt < len(tries):
+            return answers, None
+        if answers is not None and error is None:
+            error = {"kind": "empty", "detail": "no answer within the options"}
+        if attempt < len(tries) and (error or {}).get("kind") != "timeout":
             logger.info("decide %s: try %s gave nothing usable; again in %.1fs", model, attempt + 1, tries[attempt])
             await asyncio.sleep(tries[attempt])
+            continue
+        break
     # The last try's answer: nothing usable in it (each question None), or None when it couldn't be asked.
-    return answers
+    return answers, error
 
 
 async def _ask_once(
@@ -171,24 +226,32 @@ async def _ask_once(
     state: str,
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None,
-) -> dict[str, dict[str, Any] | None] | None:
-    """One ask of the decision model: its answers, or None when it couldn't be asked or read."""
+) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
+    """One ask of the decision model, waiting for one of the in-flight slots: its answers, or None and why."""
+    import asyncio
+
     import httpx
 
+    slots = _SLOTS.setdefault(id(asyncio.get_running_loop()), asyncio.Semaphore(DECIDE_IN_FLIGHT))
     headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
-    # Where a turn's seconds go (the operator, 2026-11-22: about two minutes before the first token).
-    started = time.monotonic()
-    try:
-        async with httpx.AsyncClient(timeout=DECIDE_TIMEOUT_SECONDS) as client:
-            answer = await client.post(
-                f"{base_url.rstrip('/')}/chat/completions",
-                headers=headers,
-                # The endpoint's extra request fields, never over the conversation's own (ExtraBody.py).
-                json=with_extra_body(decide_request(model, state, questions), extra),
-            )
-    except httpx.HTTPError:
-        logger.info("decide %s: unreachable after %.1fs", model, time.monotonic() - started)
-        return None
+    timeout = decide_timeout(questions)
+    async with slots:
+        # Where a turn's seconds go (the operator, 2026-11-22: about two minutes before the first token).
+        started = time.monotonic()
+        try:
+            async with httpx.AsyncClient(timeout=timeout) as client:
+                answer = await client.post(
+                    f"{base_url.rstrip('/')}/chat/completions",
+                    headers=headers,
+                    # The endpoint's extra request fields, never over the conversation's own (ExtraBody.py).
+                    json=with_extra_body(decide_request(model, state, questions), extra),
+                )
+        except httpx.TimeoutException:
+            logger.info("decide %s: no answer in %.1fs", model, time.monotonic() - started)
+            return None, {"kind": "timeout", "detail": f"no answer in {timeout:.0f} s ({len(questions)} questions)"}
+        except httpx.HTTPError as failed:
+            logger.info("decide %s: unreachable after %.1fs", model, time.monotonic() - started)
+            return None, {"kind": "unreachable", "detail": type(failed).__name__}
     logger.info(
         "decide %s: %s questions, HTTP %s in %.1fs",
         model,
@@ -197,9 +260,11 @@ async def _ask_once(
         time.monotonic() - started,
     )
     if answer.status_code >= 400:
-        return None
+        return None, {"kind": "http", "detail": f"HTTP {answer.status_code}: {answer.text[:500]}"}
     try:
         content = completion_content(answer.json())
     except ValueError:
-        return None
-    return None if content is None else read_answers(questions, content)
+        return None, {"kind": "parse", "detail": "the reply isn't JSON"}
+    if content is None:
+        return None, {"kind": "parse", "detail": "the reply isn't a completion"}
+    return read_answers(questions, content), None

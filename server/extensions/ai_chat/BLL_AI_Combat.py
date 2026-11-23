@@ -142,6 +142,9 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
         }
         chats = AIChatManager(requester_id=requester, model_registry=self.model_registry)
         answers = await chats._decide("Combat: start", asked, shown_text(line), {"fight": question})
+        if not (answers or {}).get("fight"):
+            # Not "no": the decision model gave nothing (its DecisionCall says why), so the caller may ask again.
+            return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no decision"))
         if ((answers or {}).get("fight") or {}).get("choice") != COMBAT["start_yes"]:
             return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no fight"))
         scene = await scene_now(self.model_registry, requester, wiki)

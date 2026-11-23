@@ -67,6 +67,9 @@ class DecisionCallModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta)
     answers: dict[str, Any] = Field(default_factory=dict, description="What came back, per question (null: refused)")
     model: str = Field("", description="The decision model asked")
     ms: int = Field(0, description="How long the call took, in milliseconds")
+    error: dict[str, Any] | None = Field(
+        None, description="Why the call gave nothing: kind (timeout, unreachable, http, parse, empty) and detail"
+    )
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI decision model calls"
 
@@ -79,6 +82,7 @@ class DecisionCallModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta)
         answers: dict[str, Any] = Field(default_factory=dict)
         model: str = Field("", max_length=200)
         ms: int = Field(0, ge=0)
+        error: dict[str, Any] | None = None
 
     class Update(BaseModel):
         message_id: str | None = None

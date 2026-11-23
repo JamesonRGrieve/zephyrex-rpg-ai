@@ -11,10 +11,39 @@ import { storedExtraBody, withExtraBody } from '~/features/models/extraBody';
 
 const NO_QUERY = new URLSearchParams();
 
-/** A decision model answers in about a second; past this, the caller falls back. */
+/**
+ * A one-question call is answered in about half a second when the model is free; a request waits for its
+ * own size (Zephyrex RPG's measurement, 2026-11-23: 20 label questions took 23.8 to 82.1 s alone, where a
+ * flat 8 s expired every one). The server's twin: Decide.py decide_timeout.
+ */
 const DECIDE_TIMEOUT_MS = 8000;
+const DECIDE_MS_PER_QUESTION = 4000;
 /** The pauses before a second and a third try (the operator, 2026-11-22: "Give the decision model 3 tries"). */
 const DECIDE_RETRY_MS = [300, 600] as const;
+/** At most this many requests in flight at once, the rest queued here (Self Hosted AI: d1-2b serves 4 slots). */
+const DECIDE_IN_FLIGHT = 4;
+
+/** How long a request may take: a base, and a share for each question it asks. */
+export function decideTimeoutMs(questions: Readonly<Record<string, unknown>>): number {
+  return DECIDE_TIMEOUT_MS + DECIDE_MS_PER_QUESTION * Object.keys(questions).length;
+}
+
+let inFlight = 0;
+const waiting: (() => void)[] = [];
+
+async function slot<T>(work: () => Promise<T>): Promise<T> {
+  if (inFlight >= DECIDE_IN_FLIGHT) await new Promise<void>((resolve) => waiting.push(resolve));
+  inFlight += 1;
+  try {
+    return await work();
+  } finally {
+    inFlight -= 1;
+    waiting.shift()?.();
+  }
+}
+
+/** Identical requests already in flight: asked once, shared. */
+const sharing = new Map<string, Promise<Record<string, DecideAnswer | null> | null>>();
 
 interface DeciderRow {
   baseUrl: string;
@@ -53,11 +82,33 @@ export async function askDecider(
   questions: Readonly<Record<string, DecideQuestion>>,
   signal?: AbortSignal,
 ): Promise<Record<string, DecideAnswer | null> | null> {
+  if (signal !== undefined) return askTries(row, state, questions, signal);
+  const key = JSON.stringify([row.baseUrl, row.model, state, questions, row.extraBody ?? null]);
+  const running = sharing.get(key) ?? askTries(row, state, questions);
+  if (!sharing.has(key)) {
+    sharing.set(key, running);
+    void running.finally(() => sharing.delete(key));
+  }
+  return running;
+}
+
+async function askTries(
+  row: DeciderRow,
+  state: string,
+  questions: Readonly<Record<string, DecideQuestion>>,
+  signal?: AbortSignal,
+): Promise<Record<string, DecideAnswer | null> | null> {
   let answers: Record<string, DecideAnswer | null> | null = null;
   for (let attempt = 0; attempt <= DECIDE_RETRY_MS.length; attempt += 1) {
-    answers = await askOnce(row, state, questions, signal);
+    let timedOut = false;
+    answers = await slot(() =>
+      askOnce(row, state, questions, signal, () => {
+        timedOut = true;
+      }),
+    );
     if (answers !== null && Object.values(answers).some((value) => value !== null)) return answers;
-    if (signal?.aborted === true) return answers;
+    // A timeout isn't tried again: the model is busy, and another request only lengthens its queue.
+    if (signal?.aborted === true || timedOut) return answers;
     const pause = DECIDE_RETRY_MS[attempt];
     if (pause !== undefined) await new Promise((resolve) => setTimeout(resolve, pause));
   }
@@ -71,8 +122,9 @@ async function askOnce(
   state: string,
   questions: Readonly<Record<string, DecideQuestion>>,
   signal?: AbortSignal,
+  onTimeout?: () => void,
 ): Promise<Record<string, DecideAnswer | null> | null> {
-  const timeout = AbortSignal.timeout(DECIDE_TIMEOUT_MS);
+  const timeout = AbortSignal.timeout(decideTimeoutMs(questions));
   const answer = await fetch(`${row.baseUrl.replace(/\/+$/, '')}/chat/completions`, {
     method: 'POST',
     headers: {
@@ -81,7 +133,10 @@ async function askOnce(
     },
     body: JSON.stringify(withExtraBody(decideRequest(row.model, state, questions), storedExtraBody(row.extraBody))),
     signal: signal === undefined ? timeout : AbortSignal.any([signal, timeout]),
-  }).catch(() => null);
+  }).catch(() => {
+    if (timeout.aborted) onTimeout?.();
+    return null;
+  });
   if (answer === null || !answer.ok) return null;
   const content = completionContent(await answer.json().catch(() => null));
   return content === null ? null : readAnswers(questions, content);

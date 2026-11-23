@@ -110,10 +110,58 @@ def test_the_decision_model_gets_three_tries(monkeypatch: Any) -> None:
 
     async def once(*_args: Any) -> Any:
         asked.append(1)
-        return answers[len(asked) - 1]
+        found = answers[len(asked) - 1]
+        return found, None if found is not None else {"kind": "http", "detail": "HTTP 500"}
 
     monkeypatch.setattr(Decide, "_ask_once", once)
     monkeypatch.setattr(Decide, "DECIDE_RETRY_SECONDS", (0.0, 0.0))
     question = {"next": {"type": "choice", "criteria": ["Ada"]}}
     got = asyncio.run(Decide.ask_decider("http://x", "m", "", "state", question))
     assert got == {"next": {"choice": "Ada"}} and len(asked) == 3
+
+
+def test_a_timeout_is_said_and_not_tried_again(monkeypatch: Any) -> None:
+    # Zephyrex RPG's live fault, 2026-11-23: a busy decision model's timeouts were kept as silent nulls,
+    # and each was tried twice more, lengthening its queue.
+    import asyncio
+
+    from zephyrex.extensions.ai_chat import Decide
+
+    asked: list[int] = []
+
+    async def once(*_args: Any) -> Any:
+        asked.append(1)
+        return None, {"kind": "timeout", "detail": "no answer in 12 s (1 questions)"}
+
+    monkeypatch.setattr(Decide, "_ask_once", once)
+    question = {"next": {"type": "choice", "criteria": ["Ada"]}}
+    got = asyncio.run(Decide.ask_decider_detailed("http://x", "m", "", "state", question))
+    assert got == (None, {"kind": "timeout", "detail": "no answer in 12 s (1 questions)"}) and len(asked) == 1
+    sized = Decide.DECIDE_TIMEOUT_SECONDS + 2 * Decide.DECIDE_SECONDS_PER_QUESTION
+    assert Decide.decide_timeout({"a": 1, "b": 2}) == sized
+
+
+def test_identical_requests_in_flight_are_asked_once(monkeypatch: Any) -> None:
+    import asyncio
+
+    from zephyrex.extensions.ai_chat import Decide
+
+    asked: list[int] = []
+
+    async def once(*_args: Any) -> Any:
+        asked.append(1)
+        await asyncio.sleep(0.01)
+        return {"next": {"choice": "Ada"}}, None
+
+    monkeypatch.setattr(Decide, "_ask_once", once)
+    question = {"next": {"type": "choice", "criteria": ["Ada"]}}
+
+    async def both() -> list[Any]:
+        return list(
+            await asyncio.gather(
+                Decide.ask_decider("http://x", "m", "", "state", question),
+                Decide.ask_decider("http://x", "m", "", "state", question),
+            )
+        )
+
+    assert asyncio.run(both()) == [{"next": {"choice": "Ada"}}] * 2 and len(asked) == 1

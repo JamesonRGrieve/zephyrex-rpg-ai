@@ -1049,6 +1049,40 @@ class TestGenerate:
         assert answer.status_code == 200, answer.text
         assert answer.json()["next_turn"] == undecided
 
+    def test_someone_on_the_scene_can_be_picked_and_joins_the_cast(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Zephyrex RPG's live blocker, 2026-11-23 (chat fec79a25): Old Hesk had a token on the scene but
+        # wasn't in the chat's cast, so he was never an option and the round paused.
+        from zephyrex.extensions.ai_chat import BLL_AI_Chat  # type: ignore[import-not-found]
+
+        user = create_user(server)
+        brenna = _cast(server, user, "character", name="Brenna").json()["character"]
+        hesk = _cast(server, user, "character", name="Old Hesk").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        chat = _chat(server, user, "chat", title="Ferry", character_ids=[brenna["id"]]).json()["chat"]
+        said = "Old Hesk poles his ferry to the bank."
+        line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=[said]).json()["chat_message"]
+        offered: list[list[str]] = []
+
+        async def tokens(_self: Any, _chat: Any) -> list[str]:
+            return [brenna["id"], hesk["id"]]
+
+        async def decide(_self: Any, _purpose: str, _asked: Any, _state: str, questions: dict[str, Any]) -> Any:
+            offered.append(list(questions["next"]["criteria"]))
+            return {"next": {"choice": "Old Hesk"}}
+
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_scene_tokens", tokens)
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decide)
+        asked = {"next_turn": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+        answer = server.post("/v1/ai_chat/next_turn", json=asked, headers=_headers(user))
+        assert answer.status_code == 200, answer.text
+        assert answer.json()["next_turn"] == {"decided": True, "kind": "character", "character_id": hesk["id"]}
+        assert "Old Hesk" in offered[0] and "Brenna" in offered[0]
+        now = server.get(f"/v1/chat/{chat['id']}", headers=_headers(user)).json()["chat"]
+        assert now["character_ids"] == [brenna["id"], hesk["id"]]
+
     def test_needs_roll_is_undecided_without_a_usable_decision(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: after a character's line the decision model says whether it needs a
         # roll; without one, or without a usable answer, there's no roll step.
@@ -1146,13 +1180,13 @@ class TestGenerate:
         line = _create(server, user, "chat_message", chat_id=chat["id"], role="user", swipes=["I walk up to the hooded woman."]).json()["chat_message"]
         asked_of: list[dict[str, Any]] = []
 
-        async def decide(_url: str, _model: str, _key: str, _state: str, questions: dict[str, Any], _extra: Any = None) -> dict[str, Any]:
+        async def decide(_url: str, _model: str, _key: str, _state: str, questions: dict[str, Any], _extra: Any = None) -> tuple[dict[str, Any], None]:
             asked_of.append(questions)
             if "who" in questions:
-                return {"who": {"choice": "Ysolde Varrin"}}
-            return {"npc": {"choice": list(questions["npc"]["criteria"])[0]}}
+                return {"who": {"choice": "Ysolde Varrin"}}, None
+            return {"npc": {"choice": list(questions["npc"]["criteria"])[0]}}, None
 
-        monkeypatch.setattr(BLL_AI_Chat, "ask_decider", decide)
+        monkeypatch.setattr(BLL_AI_Chat, "ask_decider_detailed", decide)
         answer = server.post(
             "/v1/ai_chat/npc_needed", json={"npc_needed": {"chat_id": chat["id"], "leaf_id": line["id"]}}, headers=_headers(user)
         ).json()["npc_needed"]

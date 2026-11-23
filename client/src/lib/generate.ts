@@ -1211,7 +1211,12 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
     if (deciding === null) return undecided;
     const chat = await chats.find(asked.chat_id, owner.id);
     if (chat === null) throw notFound(chats.modelName);
-    const fields = chats.fields(chat) as { seat: string | null; muted_ids: string[]; vox_ids: string[] };
+    const fields = chats.fields(chat) as {
+      seat: string | null;
+      muted_ids: string[];
+      vox_ids: string[];
+      character_ids: string[];
+    };
     const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
     const playingId = play?.playingId ?? null;
     const { prompt, world } = await generationInputs(
@@ -1252,6 +1257,7 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
         text: turn.content,
       })),
       vox: fields.vox_ids,
+      party: fields.character_ids,
     });
     // After the person's own line someone answers: no pause.
     const lastTurn = storyTurns.at(-1);
@@ -1471,6 +1477,7 @@ export async function worldTick(nextRequest: NextRequest): Promise<Response> {
         text: turn.content,
       })),
       vox: fields.vox_ids,
+      party: fields.character_ids,
     });
     // The party travels with the person; those in the scene stay; the seat is the person's.
     const still = [
@@ -1526,7 +1533,7 @@ export async function clarify(nextRequest: NextRequest): Promise<Response> {
     const asked = parsed.data;
     const chat = await chats.find(asked.chat_id, owner.id);
     if (chat === null) throw notFound(chats.modelName);
-    const fields = chats.fields(chat) as { vox_ids: string[] };
+    const fields = chats.fields(chat) as { vox_ids: string[]; character_ids: string[] };
     const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
     const playingId = play?.playingId ?? null;
     if (playingId === null) return none;
@@ -1545,7 +1552,7 @@ export async function clarify(nextRequest: NextRequest): Promise<Response> {
     if (last === undefined || !byPerson(last, playingId)) return none;
     const actor = prompt.persona?.name ?? DEFAULT_USER_NAME;
     const people = [...prompt.characters, { id: playingId, name: actor }];
-    const candidates = presentPeople(world, playingId, storyTurns, fields.vox_ids);
+    const candidates = presentPeople(world, playingId, storyTurns, fields.vox_ids, fields.character_ids);
     const need = clarifyNeed(parsePlayerLines(last.content, people), playingId, candidates);
     if (need === null) return none;
     const deciding = await decider(owner.id);
@@ -1659,6 +1666,7 @@ export function presentPeople(
   playingId: string | null,
   storyTurns: readonly PromptTurn[],
   voxIds: readonly string[],
+  partyIds: readonly string[] = [],
 ): { id: string; name: string }[] {
   const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
   const locations = world
@@ -1691,6 +1699,7 @@ export function presentPeople(
       text: turn.content,
     })),
     vox: [...voxIds],
+    party: [...partyIds],
   });
   return persons.filter((person) => present.includes(person.id));
 }
@@ -1724,7 +1733,7 @@ export async function labelLines(nextRequest: NextRequest): Promise<Response> {
     const swipes = JSON.parse(message.swipes) as string[];
     const lines = messageLines(swipes[message.swipeIndex] ?? '');
     if (lines.length === 0) return Response.json({ label_lines: { labels: [] } });
-    const fields = chats.fields(chat) as { vox_ids: string[] };
+    const fields = chats.fields(chat) as { vox_ids: string[]; character_ids: string[] };
     const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
     const playingId = play?.playingId ?? null;
     const { prompt, world } = await generationInputs(
@@ -1744,7 +1753,7 @@ export async function labelLines(nextRequest: NextRequest): Promise<Response> {
       .map((turn) => turn.content);
     const seat = prompt.persona !== null && playingId !== null ? [{ id: playingId, name: prompt.persona.name }] : [];
     const people: { id: string; name: string }[] = [];
-    for (const one of [...prompt.characters, ...seat, ...presentPeople(world, playingId, storyTurns, fields.vox_ids)])
+    for (const one of [...prompt.characters, ...seat, ...presentPeople(world, playingId, storyTurns, fields.vox_ids, fields.character_ids)])
       if (!people.some((other) => other.id === one.id)) people.push({ id: one.id, name: one.name });
     const deciding = await decider(owner.id);
     let answers: Record<string, { choice?: unknown } | null> | null = null;
@@ -1793,7 +1802,7 @@ export async function speechOptions(nextRequest: NextRequest): Promise<Response>
     const asked = parsed.data;
     const chat = await chats.find(asked.chat_id, owner.id);
     if (chat === null) throw notFound(chats.modelName);
-    const fields = chats.fields(chat) as { vox_ids: string[] };
+    const fields = chats.fields(chat) as { vox_ids: string[]; character_ids: string[] };
     const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
     const playingId = play?.playingId ?? null;
     const { prompt, world } = await generationInputs(
@@ -1807,7 +1816,7 @@ export async function speechOptions(nextRequest: NextRequest): Promise<Response>
     const storyTurns = prompt.history.filter(
       (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
     );
-    const present = presentPeople(world, playingId, storyTurns, fields.vox_ids).filter(
+    const present = presentPeople(world, playingId, storyTurns, fields.vox_ids, fields.character_ids).filter(
       (person) => person.id !== asked.speaker_id,
     );
     const speaker = world.find((entity) => entity.id === asked.speaker_id);

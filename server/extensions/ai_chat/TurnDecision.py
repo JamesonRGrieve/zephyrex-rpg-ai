@@ -43,12 +43,17 @@ def _inside(location: str, scene: str, parents: Mapping[str, str | None]) -> boo
 
 
 def present_cast(cast: Sequence[Mapping[str, Any]], presence: Mapping[str, Any]) -> dict[str, list[str]]:
-    """Who is in the scene and who a line reaches by vox: a token in the VTT scene when one is set;
-    else a wiki location at or inside the scene's; else they spoke or were named in the recent lines.
-    Away but on vox: reached when the last line names them or a vox word."""
+    """Who is in the scene and who a line reaches by vox: a token in the VTT scene when it has any;
+    else a wiki location at or inside the scene's; else they spoke or were named in the recent lines, or
+    are of the party (the chat's cast) with nowhere known. Away but on vox: reached when the last line
+    names them or a vox word.
+
+    A scene with no tokens on it says nothing about who is there (Zephyrex RPG's live blocker,
+    2026-11-23: a campaign just started had no tokens, so no one was present and no one could speak)."""
     recent = list(presence["recent"])[-int(PRESENCE["recent"]) :]
-    tokens = presence["tokens"]
+    tokens = presence["tokens"] or None
     scene = presence["scene_location"]
+    party = set(presence.get("party") or [])
 
     def here(member: Mapping[str, Any]) -> bool:
         if tokens is not None:
@@ -56,7 +61,9 @@ def present_cast(cast: Sequence[Mapping[str, Any]], presence: Mapping[str, Any])
         location = presence["person_locations"].get(member["id"])
         if scene is not None and location is not None:
             return _inside(location, scene, presence["location_parents"])
-        return any(line["speaker_id"] == member["id"] or _names(line["text"], member["name"]) for line in recent)
+        if any(line["speaker_id"] == member["id"] or _names(line["text"], member["name"]) for line in recent):
+            return True
+        return member["id"] in party and location is None
 
     last = recent[-1]["text"] if recent else ""
     vox_called = any(_names(last, word) for word in PRESENCE["vox_words"])
