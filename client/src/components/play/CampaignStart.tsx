@@ -632,7 +632,14 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
         made.current.opening !== undefined || bannerLine === null
           ? null
           : await stalls(
-              createMessage({ chat_id: chat.id, parent_id: null, role: 'narrator', channel: 'ic', swipes: [bannerLine] }),
+              createMessage({
+                chat_id: chat.id,
+                parent_id: null,
+                role: 'narrator',
+                channel: 'ic',
+                swipes: [bannerLine],
+                generated: true,
+              }),
             );
       const opening =
         made.current.opening ??
@@ -643,6 +650,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
             role: 'narrator',
             channel: 'ic',
             swipes: [story],
+            generated: true,
           }),
         ));
       made.current.opening = opening;

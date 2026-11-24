@@ -145,6 +145,8 @@ export const messageSchema = z.object({
   images: z.array(z.string()),
   x_carded: z.boolean(),
   hidden: z.boolean().optional(),
+  /** Written by a model, not typed by a person. */
+  generated: z.boolean().optional(),
   /** A line written again: its first answer, why, and how (null: written once). */
   revision: z
     .object({ original: z.string(), reason: z.string(), kind: z.enum(['canon', 'voice', 'meta']) })

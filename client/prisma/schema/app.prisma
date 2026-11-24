@@ -132,6 +132,8 @@ model ChatMessage {
   images             String   @default("[]")
   xCarded            Boolean  @default(false)
   hidden             Boolean  @default(false)
+  /// Written by a model, not typed by a person (server chat_message.generated).
+  generated          Boolean  @default(false)
   /// A line written again: {original, reason, kind} as JSON text, null for a line written once.
   revision           String?
   /// Each line labelled by the decision model (label_lines): JSON text, null until labelled.

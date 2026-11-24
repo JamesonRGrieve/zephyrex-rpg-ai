@@ -511,6 +511,7 @@ const MESSAGE_COLUMNS: Columns = {
   images: jsonList('images'),
   x_carded: plain('xCarded'),
   hidden: plain('hidden'),
+  generated: plain('generated'),
   revision: jsonOrNull('revision'),
   line_labels: jsonListOrNull('lineLabels'),
 };
@@ -540,6 +541,9 @@ const messageCreate = z
     bookmarked: z.boolean().default(false),
     images: images.default([]),
     revision: revision.default(null),
+    /** Written by a model, not typed by a person (Parity's GM-seat loop fix: the GM's own lines are the narrator
+     *  lines without it). */
+    generated: z.boolean().default(false),
   })
   .refine((message) => message.swipe_index < message.swipes.length, {
     message: 'swipe_index must name one of the swipes',

@@ -563,6 +563,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (result === null || result.text.trim() === '') return null;
     const saved = await create({
       chat_id: chat.id,
+      generated: true,
       parent_id: parentId,
       role: 'character',
       speaker_character_id: speakerId,
@@ -1457,6 +1458,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const within = change.seatChain.join(', ');
       banner = await create({
         chat_id: chat.id,
+        generated: true,
         parent_id: leaf,
         role: 'narrator',
         channel: 'ic',
@@ -1695,6 +1697,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         void globalMutate((key) => JSON.stringify(key ?? '').match(/person|cast|world_entity|chat/) !== null);
       const line: ChatMessage = await create({
         chat_id: chat.id,
+        generated: true,
         parent_id: parent,
         ...(part.speaker_id === null
           ? { role: 'narrator' as const }
@@ -1974,6 +1977,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const drawn = await pictureOfScene(chat.id, leaf);
       const saved = await create({
         chat_id: chat.id,
+        generated: true,
         parent_id: leaf,
         role: 'system',
         channel: 'system',
@@ -2009,6 +2013,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     }
     const saved = await create({
       chat_id: chat.id,
+      generated: true,
       parent_id: question.id,
       role: 'narrator',
       channel: 'gm',
