@@ -120,16 +120,43 @@ def action_lines(
                     last = actor
                 continue
             if kind == "do":
-                actor, rest = _who(text, people, str(speaker))
-                own = rest if actor == str(speaker) else text
-                fixed = _action(own)
-                if fixed != text:
-                    wrong.append(f"{names.get(str(speaker), '')} {text}".strip())
-                lines.append({**line, "speaker_id": speaker, "text": fixed})
+                # A sentence of it that opens on the world ("The ferry bumps against the post", live run 2026-11-24,
+                # in Old Hesk's own turn) is narration, never the actor's action; the rest stay one action line.
+                sentences = [one for one in _SENTENCE.split(text) if one.strip()] or [text]
+                own_part: list[str] = []
+                for sentence in sentences:
+                    first = re.match(r"\W*(\w+)", sentence)
+                    world = first is not None and first.group(1).lower() in ACTIONS["world_openers"]
+                    if world and _who(sentence, people, None)[0] is None:
+                        if own_part:
+                            lines.append(_own_line(line, speaker, " ".join(own_part), people, names, wrong))
+                            own_part = []
+                        wrong.append(f"{names.get(str(speaker), '')} {sentence}".strip())
+                        lines.append({**line, "speaker_id": None, "kind": "narrate", "text": sentence})
+                    else:
+                        own_part.append(sentence)
+                if own_part:
+                    lines.append(_own_line(line, speaker, " ".join(own_part), people, names, wrong))
             else:
                 lines.append({**line, "speaker_id": speaker})
             last = str(speaker)
     return _grouped(lines, names), wrong
+
+
+def _own_line(
+    line: Mapping[str, Any],
+    speaker: Any,
+    text: str,
+    people: Sequence[Mapping[str, Any]],
+    names: Mapping[str, str],
+    wrong: list[str],
+) -> dict[str, Any]:
+    """An action line of the speaker's, its own subject taken off and its first verb in the present."""
+    actor, rest = _who(text, people, str(speaker))
+    fixed = _action(rest if actor == str(speaker) else text)
+    if fixed != text:
+        wrong.append(f"{names.get(str(speaker), '')} {text}".strip())
+    return {**line, "speaker_id": speaker, "text": fixed}
 
 
 def _grouped(lines: Sequence[Mapping[str, Any]], names: Mapping[str, str]) -> list[dict[str, Any]]:

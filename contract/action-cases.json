@@ -15,6 +15,11 @@
       "id": "bren",
       "name": "Brenna",
       "aliases": []
+    },
+    {
+      "id": "hesk",
+      "name": "Old Hesk",
+      "aliases": []
     }
   ],
   "tenses": {
@@ -225,6 +230,58 @@
           ],
           [
             "Rain drums on the roof. The lamps gutter."
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "\"The ferry bumps against the post\" in Hesk's own turn is the world, narration, never his action (live run, 2026-11-24)",
+      "runs": [
+        {
+          "speaker_id": "hesk",
+          "speaker_name": "Old Hesk",
+          "lines": [
+            {
+              "kind": "do",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Shifts on his crate. The ferry bumps against the post with a hollow thunk."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "hesk",
+          [
+            "do"
+          ],
+          [
+            "Shifts on his crate."
+          ]
+        ],
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "The ferry bumps against the post with a hollow thunk."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Old Hesk The ferry bumps against the post with a hollow thunk."
+      ],
+      "solo": [
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "The ferry bumps against the post with a hollow thunk."
           ]
         ]
       ]
