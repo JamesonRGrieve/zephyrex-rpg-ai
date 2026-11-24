@@ -133,8 +133,11 @@ test('live from a seat: party and NPC talk, the AI GM, a fight in the VTT order,
     'GET',
     `person?campaign_id=${campaign}&limit=100`,
   );
+  // Start already put the party on the map (place_party): only those not yet on it get a token, one each.
+  const placed = await api<{ scene_tokens: { entity_id: string | null }[] }>(page, 'GET', `scene/${scene?.id ?? ''}/tokens`);
   for (const one of people.persons)
-    await post(page, 'scene_token', { scene_id: scene?.id ?? '', person_id: one.id, name: one.name });
+    if (!placed.scene_tokens.some((token) => token.entity_id === one.id))
+      await post(page, 'scene_token', { scene_id: scene?.id ?? '', person_id: one.id, name: one.name });
 
   await page.reload();
   await page.getByRole('button', { name: /^Your seat:/ }).click();
