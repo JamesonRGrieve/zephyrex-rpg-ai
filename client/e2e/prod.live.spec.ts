@@ -52,7 +52,12 @@ async function settled(page: Page): Promise<void> {
   throw new Error('The round never settled');
 }
 
-async function act(page: Page, step: string, text: string): Promise<void> {
+/**
+ * The GM's line, and at least `atLeast` new lines in all (the line itself and a reply, by default). The fight's
+ * opening line needs only itself: when the VTT's initiative puts an NPC first, it is the GM's own turn, and
+ * the round rightly waits for them (build60 live run, 2026-11-24: the drowned thing went first).
+ */
+async function act(page: Page, step: string, text: string, atLeast = 2): Promise<void> {
   const before = await page.getByRole('article').count();
   await page.getByRole('button', { name: 'Do', exact: true }).click();
   await page.getByLabel('What is done').last().fill(text);
@@ -68,7 +73,7 @@ async function act(page: Page, step: string, text: string): Promise<void> {
       },
       { timeout: TURN, intervals: [2000] },
     )
-    .toBeGreaterThanOrEqual(before + 2);
+    .toBeGreaterThanOrEqual(before + atLeast);
   await settled(page);
   record(step, (await lines(page)).slice(before));
 }
@@ -257,6 +262,7 @@ test('live on prod: a one-shot with the party, an NPC, a fight with a VTT roll, 
     page,
     'GM starts a fight',
     'As the ferry bumps the mill steps, a bloated drowned thing heaves itself out of the water at Tam. Roll initiative!',
+    1,
   );
 
   await page.getByRole('button', { name: 'Context', exact: true }).click();
