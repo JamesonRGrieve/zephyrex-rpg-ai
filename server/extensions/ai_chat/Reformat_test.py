@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import json
+from typing import Any
 
 from zephyrex.extensions.ai_chat.Reformat import (  # type: ignore[import-not-found]
     faithful,
@@ -128,8 +129,14 @@ def test_a_characters_turn_never_keeps_anothers_line() -> None:
         ("mira", ["folds her arms."]),
         ("del", ["I want him off my property."]),
     ]
-    # A reply of nothing but its own words stays as it is.
+    # A character's own action line, already in its form, is saved as written.
     assert credited_runs("Mira folds her arms.", people, "mira") == []
+    # One left in the past tense, or under a pronoun, is put in its form (live run, 2026-11-24).
+    own = credited_runs("She folded her arms.", people, "mira")
+    texts = [(run["speaker_id"], [line["text"] for line in run["lines"]]) for run in own]
+    assert texts == [("mira", ["folds her arms."])]
+    # A reply with nothing to move is saved as it is.
+    assert credited_runs("Mind the coolant, it bites.", people, "mira") == []
     # Narration that only looks like a label stays the turn's own.
     later = credited_runs('Later: they left.\nDelphine Halloway (to Mira Kettle): "Go."', people, "mira")
     assert [line["text"] for line in later[0]["lines"]] == ["Later: they left."]
@@ -196,3 +203,30 @@ def test_a_reply_in_markdown_is_made_runs_with_its_action_an_action_line() -> No
     words = " ".join(str(line["text"]) for run in runs for line in run["lines"])
     assert "`" not in words and "*" not in words
     assert all(run["speaker_id"] == "hesk" for run in runs)
+
+
+def test_tonights_live_replies_are_saved_in_their_lines() -> None:
+    # Live runs on build56, 2026-11-24 (player.live, chat 3bb5e978): the narrator left "Old Hesk shifts his
+    # weight..." as narration, Tam's reply kept its raw "(to you)" prefix, and "The ferry bumps..." stayed Hesk's.
+    from zephyrex.extensions.ai_chat.BLL_AI_Chat import credited_runs
+
+    people = [
+        {"id": "hesk", "name": "Old Hesk"},
+        {"id": "tam", "name": "Tam Quickfoot"},
+        {"id": "bren", "name": "Brenna Ashdown"},
+    ]
+
+    def shape(runs: list[dict[str, Any]]) -> list[tuple[Any, list[str]]]:
+        return [(run["speaker_id"], [line["kind"] for line in run["lines"]]) for run in runs]
+
+    narrated = credited_runs(
+        "The rain drums against your shields. Old Hesk shifts his weight from foot to foot.", people, None, True, "bren"
+    )
+    assert shape(narrated) == [(None, ["narrate"]), ("hesk", ["do"])]
+    # Tam's own line "to you" is said to the seat's character, by name (the page couldn't read "to you").
+    tam = credited_runs('Tam Quickfoot (to you): "Maybe he found a chest of gold."', people, "tam", True, "bren")
+    assert shape(tam) == [("tam", ["say"])] and tam[0]["lines"][0]["target_id"] == "bren"
+    hesk = credited_runs("Hesk spits. The ferry bumps against the post with a hollow thunk.", people, "hesk", False)
+    assert shape(hesk) == [("hesk", ["do"]), (None, ["narrate"])]
+    # A narration of the world alone is saved as it is.
+    assert credited_runs("Rain on the quay.", people, None, True, "bren") == []

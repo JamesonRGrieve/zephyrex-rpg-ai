@@ -32,6 +32,14 @@ def test_presence_follows_where_the_wiki_says_a_person_is() -> None:
     cast = ["brenna", "delphine", "orrin", "quentin"]
     assert party_to_place(cast, "brenna", [], rows, "saltmere") == ["brenna", "delphine"]
     assert party_to_place(cast, "brenna", [], rows, None) == ["brenna"]
+    # A PC as the wiki holds one: kind "person" with the PC tag (live run, 2026-11-24).
+    from zephyrex.extensions.ai_chat.Party import PARTY  # type: ignore[import-not-found]
+
+    tagged = {**rows, "tam": {"id": "tam", "kind": "person", "tags": [PARTY["tag"]], "location_id": None}}
+    assert party_to_place(["brenna", "tam", "orrin"], "brenna", [], tagged, None) == ["brenna", "tam"]
+    # Or by the wiki's person_kind (requested of the wiki, 2026-11-24).
+    kinded = {**rows, "tam": {"id": "tam", "kind": "person", "person_kind": "pc", "tags": [], "location_id": None}}
+    assert party_to_place(["brenna", "tam", "orrin"], "brenna", [], kinded, None) == ["brenna", "tam"]
 
 
 @pytest.fixture(scope="module")

@@ -20,6 +20,11 @@
       "id": "hesk",
       "name": "Old Hesk",
       "aliases": []
+    },
+    {
+      "id": "hesk",
+      "name": "Old Hesk",
+      "aliases": []
     }
   ],
   "tenses": {
@@ -273,6 +278,62 @@
       ],
       "wrong": [
         "Old Hesk The ferry bumps against the post with a hollow thunk."
+      ],
+      "solo": [
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "The ferry bumps against the post with a hollow thunk."
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a bare surname ('Hesk spits') is Old Hesk, never the title; the ferry stays narration (live run, build56)",
+      "runs": [
+        {
+          "speaker_id": "hesk",
+          "speaker_name": "Old Hesk",
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Hesk spits. He mutters a prayer. The ferry bumps against the post with a hollow thunk."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "hesk",
+          [
+            "do",
+            "do"
+          ],
+          [
+            "spits.",
+            "mutters a prayer."
+          ]
+        ],
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "The ferry bumps against the post with a hollow thunk."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Hesk spits.",
+        "He mutters a prayer.",
+        "The ferry bumps against the post with a hollow thunk."
       ],
       "solo": [
         [

@@ -70,6 +70,7 @@ class LearnedManager(AbstractBLLManager[Any], RouterMixin):
             wiki_campaign_for,
         )
         from zephyrex.extensions.ai_chat.LearnedFacts import learn_questions, learned  # type: ignore[import-not-found]
+        from zephyrex.extensions.ai_chat.Party import PARTY  # type: ignore[import-not-found]
         from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
             scene_people,
             world_entities_by_id,
@@ -94,7 +95,9 @@ class LearnedManager(AbstractBLLManager[Any], RouterMixin):
         pcs = [
             {"id": str(row["id"]), "name": str(row.get("name") or "")}
             for row in world_entities_by_id(self.model_registry, requester, list(here))
-            if row.get("kind") == "pc" and row.get("name")
+            # A PC is the wiki's PC tag (Party.py), or kind "pc".
+            if ("pc" in (row.get("kind"), row.get("person_kind")) or PARTY["tag"] in (row.get("tags") or []))
+            and row.get("name")
         ]
         entities = [
             {**row, "aliases": list(row.get("aliases") or [])}

@@ -16,6 +16,7 @@ from typing import Any, ClassVar
 
 from pydantic import BaseModel as PlainModel
 from pydantic import Field
+from zephyrex.extensions.ai_chat.Party import PARTY  # type: ignore[import-not-found]
 from zephyrex.lib.CustomRoute import ExposeIn, custom_route
 from zephyrex.logic.AbstractLogicManager import AbstractBLLManager
 from zephyrex.pydantic2.fastapi import AuthType, RouterMixin, RouteType
@@ -58,7 +59,10 @@ def party_to_place(
         row = known.get(one)
         if row is None:
             return False
-        if row.get("kind") == "pc":
+        # A PC: the wiki's person_kind or kind "pc", or the PC tag (Party.py). Live run, 2026-11-24: wiki persons
+        # are kind "person", so a kind check alone placed only the seat. No other cast member is placed unless the
+        # wiki puts them here (the missing merchant stays missing).
+        if "pc" in (row.get("kind"), row.get("person_kind")) or PARTY["tag"] in (row.get("tags") or []):
             return True
         return scene_location is not None and str(row.get("location_id") or "") == str(scene_location)
 

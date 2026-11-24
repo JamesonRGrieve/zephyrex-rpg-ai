@@ -2914,14 +2914,22 @@ _CREDITED = re.compile(r"^\s*[A-Z][\w'\u2019.-]*(?:\s+[A-Z][\w'\u2019.-]*){0,3}\
 
 
 def credited_runs(
-    text: str, people: Sequence[Mapping[str, Any]], own: str | None = None, split: bool = True
+    text: str,
+    people: Sequence[Mapping[str, Any]],
+    own: str | None = None,
+    split: bool = True,
+    seat: str | None = None,
 ) -> list[dict[str, Any]]:
     """A reply's lines as runs when it credits someone present other than its own speaker (parse_player_lines):
     each run one speaker's consecutive lines; an uncredited line is the turn's own (``own``: a character's
     turn) or the narrator's. A line credited to someone not present is cut. None when it credits no one else
     (then it's saved as it is). The operator's test-play, 2026-11-24: Mira's turn wrote Delphine's line, and
     it was saved as Mira's. Without ``split`` (the chat's multi_actor off: each speaks on their own turn), a
-    line credited to anyone else is cut, never made theirs."""
+    line credited to anyone else is cut, never made theirs.
+
+    Any reply is made runs whenever the action pass moves something (live run, 2026-11-24: "Old Hesk shifts his
+    weight..." left as narration; "The ferry bumps..." kept as Old Hesk's), so its actions are tagged and the
+    world is narration; one with nothing to move is saved as it is. "To you" is the seat's character (``seat``)."""
     _thinking, reply = split_reasoning(text)
     told = story_reply(reply)
     # Markdown the story model wrapped its lines in (live run, 2026-11-24, multi_actor off: "`Old Hesk:` *He
@@ -2929,10 +2937,10 @@ def credited_runs(
     # runs, so its actions become action lines like any other's.
     plain = _MARKDOWN.sub("", told)
     items = parse_player_lines(plain, people)
-    if plain == told and not any(item.get("speaker_id") and str(item["speaker_id"]) != own for item in items):
-        return []
+    credits_others = any(item.get("speaker_id") and str(item["speaker_id"]) != own for item in items)
     names = {str(one["id"]): str(one["name"]) for one in people}
     runs: list[dict[str, Any]] = []
+    retargeted = False
     for item in items:
         # A line in a credited form for someone who isn't here ("Orrin Halloway (to Mira Kettle): ...") is
         # theirs, not the turn's: cut.
@@ -2941,12 +2949,14 @@ def credited_runs(
         speaker = str(item["speaker_id"]) if item.get("speaker_id") else own
         if speaker is not None and speaker != own and (not split or speaker not in names):
             continue
+        to_you = str(item.get("target_name") or "").strip().lower() == "you"
+        retargeted = retargeted or bool(to_you and seat)
         line = {
             "speaker_id": speaker,
             "kind": "narrate" if speaker is None else item["kind"],
             "manner": item.get("manner") if item["kind"] == "say" else None,
-            "target_id": item.get("target_id"),
-            "target_name": item.get("target_name"),
+            "target_id": seat if to_you and seat else item.get("target_id"),
+            "target_name": None if to_you and seat else item.get("target_name"),
             "text": item["text"],
         }
         if runs and runs[-1]["speaker_id"] == speaker:
@@ -2954,8 +2964,12 @@ def credited_runs(
         else:
             runs.append({"speaker_id": speaker, "speaker_name": names.get(speaker or ""), "lines": [line]})
     kept = [run for run in runs if any(str(line["text"]).strip() for line in run["lines"])]
-    # Every action an action line of its actor's, in present tense (ActionLines.py).
-    return action_lines(kept, people)[0] if kept else kept
+    if not kept:
+        return []
+    # Every action an action line of its actor's, in present tense (ActionLines.py); a reply with nothing to move
+    # is saved as it is.
+    fixed, moved = action_lines(kept, people)
+    return fixed if plain != told or credits_others or moved or retargeted else []
 
 
 def shown_text(message: Any) -> str:
@@ -6114,7 +6128,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         # you): ...") is still that person's own line, never narration (the operator's test-play,
                         # 2026-11-24, chat 64e11be8).
                         own = None if body.generate.mode == "narrate" else _context.get("speaker_id")
-                        voiced = credited_runs(str(flags["told"]), people, str(own) if own else None, multi)
+                        voiced = credited_runs(
+                            str(flags["told"]), people, str(own) if own else None, multi, _context.get("playing_id")
+                        )
                         if voiced:
                             async for piece in self._save_runs(
                                 body.generate, _context, voiced, people, None, str(flags["thought"])

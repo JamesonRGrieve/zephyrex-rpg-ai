@@ -51,13 +51,20 @@ def _cvc(word: str) -> bool:
     return len(word) >= 3 and word[-1] not in _VOWELS + "wxy" and word[-2] in _VOWELS and word[-3] not in _VOWELS
 
 
+def short_names(name: str) -> list[str]:
+    """What a person may be called besides their whole name: their first name and their last, never a title
+    ("Old Hesk" is Hesk, never Old; "Inspector Mira Kettle" is Mira or Kettle)."""
+    words = [word for word in name.split() if word.lower() not in ACTIONS["titles"]]
+    return list(dict.fromkeys([*words[:1], *words[-1:]])) if len(name.split()) > 1 else []
+
+
 def _who(sentence: str, people: Sequence[Mapping[str, Any]], last: str | None) -> tuple[str | None, str]:
     """Whose action a sentence is, and its words after the subject: a present person's name (whole, first
     name or alias) opening it, or a subject pronoun meaning ``last``; (None, sentence) when neither."""
     stripped = sentence.lstrip()
     for person in sorted(people, key=lambda one: -len(str(one["name"]))):
         names = [str(person["name"]), *(str(alias) for alias in person.get("aliases") or [])]
-        names += [str(person["name"]).split()[0]] if " " in str(person["name"]) else []
+        names += short_names(str(person["name"]))
         for name in sorted({one.strip() for one in names if one.strip()}, key=len, reverse=True):
             match = re.match(rf"{re.escape(name)}(?:'s)?\b\s+(.*)", stripped, re.DOTALL)
             if match is not None and not stripped[len(name) :].startswith("'s"):
@@ -66,6 +73,12 @@ def _who(sentence: str, people: Sequence[Mapping[str, Any]], last: str | None) -
     if pronoun is not None and pronoun.group(1).lower() in ACTIONS["subject_pronouns"] and last is not None:
         return last, pronoun.group(2)
     return None, sentence
+
+
+def _opens_on_world(sentence: str) -> bool:
+    """Whether a sentence opens on the world, not a person (contract action_lines.world_openers)."""
+    first = re.match(r"\W*(\w+)", sentence)
+    return first is not None and first.group(1).lower() in ACTIONS["world_openers"]
 
 
 def _action(rest: str) -> str:
@@ -78,7 +91,7 @@ def _named(text: str, people: Sequence[Mapping[str, Any]]) -> str | None:
     """The last present person a text names, or None."""
     at, found = -1, None
     for person in people:
-        for name in [str(person["name"]), str(person["name"]).split()[0], *(person.get("aliases") or [])]:
+        for name in [str(person["name"]), *short_names(str(person["name"])), *(person.get("aliases") or [])]:
             for match in re.finditer(rf"\b{re.escape(str(name))}\b", text):
                 if match.start() > at:
                     at, found = match.start(), str(person["id"])
@@ -95,6 +108,9 @@ def action_lines(
     wrong: list[str] = []
     last: str | None = None
     for run in runs:
+        # In a character's own run, "he" or "she" first means that character.
+        if run.get("speaker_id") is not None:
+            last = str(run["speaker_id"])
         for line in run.get("lines") or []:
             kind = line.get("kind")
             text = str(line.get("text") or "")
@@ -103,6 +119,13 @@ def action_lines(
                 for sentence in [one for one in _SENTENCE.split(text) if one.strip()]:
                     actor, rest = _who(sentence, people, last)
                     if actor is None or not re.match(r"\w", rest) or rest[:1] in ('"', "\u201c"):
+                        # In a character's own run, a sentence without a person as subject stays theirs unless it
+                        # opens on the world ("The ferry bumps...", live run 2026-11-24): then it's narration.
+                        if speaker is not None and not _opens_on_world(sentence):
+                            lines.append({**line, "speaker_id": speaker, "text": sentence})
+                            continue
+                        if speaker is not None:
+                            wrong.append(sentence.strip())
                         lines.append({**line, "speaker_id": None, "kind": "narrate", "text": sentence})
                         last = _named(sentence, people) or last
                         continue
