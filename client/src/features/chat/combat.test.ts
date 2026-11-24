@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
-import { aiTurn, combatLine, readEncounter } from './combat';
+import { aiTurn, combatLine, fightRefusal, readEncounter } from './combat';
 
 const RAW = {
   id: 'e1',
@@ -30,5 +30,17 @@ describe('combat', () => {
       'Drowned Thing attacks Tam Quickfoot (rolled 4): miss.',
     );
     expect(combatLine('Drowned Thing', [], null)).toBe('Drowned Thing holds.');
+  });
+});
+
+describe('fightRefusal', () => {
+  it("is the VTT's reason when a called fight didn't start, and nothing otherwise", () => {
+    expect(fightRefusal({ started: false, reason: "the VTT couldn't start the fight: Roll or set initiative first" })).toBe(
+      "the VTT couldn't start the fight: Roll or set initiative first",
+    );
+    for (const reason of ['no fight', 'already', 'no decision', ''])
+      expect(fightRefusal({ started: false, reason })).toBeNull();
+    expect(fightRefusal({ started: true, reason: '' })).toBeNull();
+    expect(fightRefusal(null)).toBeNull();
   });
 });

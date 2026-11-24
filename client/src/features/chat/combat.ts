@@ -127,6 +127,18 @@ export function aiTurn(encounter: Encounter, aiRuns: (personId: string) => boole
  * on yes the VTT starts the encounter with everyone on the scene, rolls initiative and begins round 1.
  * Null on any failure (an older server has no such route).
  */
+/**
+ * Why a fight the story started didn't start (the VTT's own reason, e.g. "No character to roll for"), for the
+ * person; null when nothing needs saying (it started, no fight was called for, one is already running, or the
+ * decision model gave nothing, which is said on its own).
+ */
+export function fightRefusal(check: { started: boolean; reason: string } | null): string | null {
+  if (check === null || check.started) return null;
+  return ['', 'no fight', 'already', 'no decision', 'no combat here', 'no line'].includes(check.reason)
+    ? null
+    : check.reason;
+}
+
 export async function combatCheck(
   chatId: string,
   leafId: string,

@@ -143,7 +143,15 @@ import { APP_BAR_ACTIONS } from '~/components/common/AppPage';
 import { SeatSwitch } from './SeatPicker';
 import { type DecisionCall, readDecisionCall } from './DecisionCalls';
 import { partsOfRuns } from '~/features/chat/reformatRuns';
-import { aiTurn, combatCheck, combatLine, combatTurn, currentEncounter, nextTurn } from '~/features/chat/combat';
+import {
+  aiTurn,
+  combatCheck,
+  combatLine,
+  combatTurn,
+  currentEncounter,
+  fightRefusal,
+  nextTurn,
+} from '~/features/chat/combat';
 import { EntityLinksProvider, type LinkedEntity } from './EntityLinks';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
@@ -1282,6 +1290,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       // a fight the story started isn't lost to a busy model, and a round moved past is never asked about.
       if (fight?.reason === 'no decision' && roundRef.current === mine)
         fight = await during('Checking for a fight', asked());
+      if (fightRefusal(fight) !== null) notify('The fight could not start', fightRefusal(fight) ?? undefined);
       if (fight?.reason === 'no decision')
         notify(
           'Could not tell whether a fight started',
@@ -1683,6 +1692,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           fight = await during('Checking for a fight', combatCheck(chat.id, start.id));
         if (superseded()) return;
         if (fight?.started === true) fightStarted = true;
+        if (fightRefusal(fight) !== null) notify('The fight could not start', fightRefusal(fight) ?? undefined);
         if (fight?.reason === 'no decision')
           notify(
             'Could not tell whether a fight started',
