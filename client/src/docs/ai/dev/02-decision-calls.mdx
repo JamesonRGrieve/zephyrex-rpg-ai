@@ -1,0 +1,18 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title='AI/Developers/2. Decision calls' />
+
+# Decision calls
+
+Every decision goes through `ai_chat`'s `_decide`, which writes a `decision_call` row per try, with the chat
+(and the message, where there is one), the purpose, the questions with the options offered, the answers with
+each option's score, the model, the time, and the error when it failed. A try is written `running` when it
+starts and finished `done` or `failed`.
+
+The client reads every row for a chat (`GET /v1/decision_call`, page by page) and shows each as an icon
+(`components/play/DecisionCalls.tsx`). Each purpose has its own icon in `ICONS`; a new purpose needs one there.
+
+Purposes include `next_turn`, `label_lines`, `map_step`, `map_step: scene`, `clarify`, `npc_needed`,
+`npc_match`, `npc_sheet`, `needs_roll`, `Combat: start`, `Combat: disposition`, `Combat: turn`,
+`Combat: person's turn`, `builder_pick`, `canon`, `expression`, `format_check`, `learned_facts`, `summary`,
+`translate`, `status_line` and `world_tick`.

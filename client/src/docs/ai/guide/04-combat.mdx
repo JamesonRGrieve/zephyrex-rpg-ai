@@ -1,0 +1,22 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title='AI/Guide/4. Combat' />
+
+# Combat
+
+A fight starts when the story starts one: the fight check reads the line, and the VTT starts the encounter
+and rolls initiative. From then the VTT's order runs the round: your turn, then each AI-run combatant's.
+
+## Who fights whom
+
+Sides come from each character's disposition, never two fixed teams. Everyone in the fight has their own
+stance (hostile, neutral or friendly) and who they are hostile to, read from the wiki's attitudes and the
+story so far. Someone with no quarrel stays neutral; three-way fights and turncoats work; a surrender or a
+betrayal changes a stance mid-fight. Where a stance is unknown, the decision model chooses among the VTT's
+options.
+
+## Your turn
+
+Say what your character does. The decision model matches your line to the actions open to you; the VTT rolls
+it, the result is a roll line, and the narrator tells what happened, never changing the result. A line that
+names no action open to you is answered with a reminder of what you can do.

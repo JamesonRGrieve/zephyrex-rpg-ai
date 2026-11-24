@@ -28,11 +28,11 @@ describe('the narrator markup', () => {
   it('strips for speech and summaries', () => {
     expect(stripMarkup('[screen: Auspex]\n[amber]CONTACT[/amber]\n[/screen]')).toBe('CONTACT');
   });
-  it('a change of place is a block of its own, marked or as a heading', () => {
+  it('a banner is only its own record: one written inside the story is dropped (the VTT scene change makes them)', () => {
     expect(locationBlocks('[location: The Rusty Tankard]\nSmoke hangs low.')).toEqual([
-      { kind: 'location', name: 'The Rusty Tankard' },
       { kind: 'text', text: 'Smoke hangs low.' },
     ]);
+    expect(locationBlocks('[location: The Rusty Tankard]')).toEqual([{ kind: 'location', name: 'The Rusty Tankard' }]);
     // A model's own heading is no change of place: the map step decides that.
     expect(locationBlocks('## The Cellar\nDark.')).toEqual([{ kind: 'text', text: 'Dark.' }]);
     expect(locationBlocks('She says **no** to him.')).toEqual([{ kind: 'text', text: 'She says **no** to him.' }]);

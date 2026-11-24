@@ -28,6 +28,10 @@ const LOCATION = /^\s*\[location:\s*([^\]\n]+)\]\s*$/i;
 const HEADING = /^\s*(?:#{1,6}\s+[^\n]+?|\*\*[^*\n]{2,80}\*\*)\s*$/;
 
 export function locationBlocks(text: string): Block[] {
+  // A banner is a record of its own, made when the VTT's scene changes (the operator, 2026-11-24: "The banner
+  // shouldn't be part of the narrative stream it should trigger as a result of the GM transitioning scenes in
+  // the vtt only"): a message that is only the banner shows it; one written inside the story is dropped.
+  const own = text.trim().split('\n').length === 1 && LOCATION.test(text.trim());
   const blocks: Block[] = [];
   let buffer: string[] = [];
   const flush = () => {
@@ -41,6 +45,7 @@ export function locationBlocks(text: string): Block[] {
       buffer.push(line);
       continue;
     }
+    if (!own) continue;
     flush();
     // `[location: The Leaning Lantern | Harrowgate, the Saltmarsh Reach]`: the place, then where it is.
     const [place = '', within = ''] = (found[1] ?? '').split('|').map((part) => part.trim());

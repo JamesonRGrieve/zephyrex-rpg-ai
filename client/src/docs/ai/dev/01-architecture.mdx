@@ -1,0 +1,37 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title='AI/Developers/1. Architecture' />
+
+# Architecture
+
+rpg-ai is a Zephyrex app: a Python server (`server/`, the `zephyrex` server framework with this product's
+extensions in `server/extensions/`) and a Next.js client (`client/`, the `zephyrex` client framework). It
+composes the wiki's and the VTT's server extensions and client packages at pinned commits
+(`deploy/frameworks.env`), and reaches them only through their APIs and abilities, never their internals.
+
+## Who does what
+
+| Concern | Where |
+| --- | --- |
+| The world (people, places, items, attitudes, known facts) | the wiki's `rpg_core` and world extensions |
+| Mechanics (scenes, tokens, dice, sheets, the fight) | the VTT's `rpg_*` extensions |
+| Voices, the round, decisions, formatting | rpg-ai's `ai_chat` and friends |
+| Pool dispatch, `decide`, providers, room sync | the server framework |
+
+## A round
+
+A reply is a **server turn**: `POST /v1/ai_chat/turn` starts it (204), `GET /v1/ai_chat/turn_stream` follows it
+(it can be taken again from the start after a drop), `POST /v1/ai_chat/turn_stop` stops it. The turn writes,
+reformats, checks the format with the decision model, and saves.
+
+The round around it (the GM's question, the fight check, the roll, who speaks next) is run by the page, each
+step a call to an `ai_chat` route that asks the decision model. `GET /v1/ai_chat/processing` answers whether the
+conversation is being processed, and at what stage; the page shows Stop and its status from it.
+
+## Rules that hold everywhere
+
+- Mechanics are never invented by a model; decision models choose only among supplied options.
+- Out-of-character talk never enters the story's context; every message carries its channel.
+- Pages never branch on edition or on which suite products are loaded: a feature shows when
+  `GET /v1/extension` lists the extension that serves it.
+- No reply is capped or truncated to hide a fault.

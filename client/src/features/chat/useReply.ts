@@ -224,7 +224,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
    * network blip, a stall) is taken again from the start once the tab is back. Null when this server has
    * no turns (lite, or an older build): the caller streams it directly instead.
    */
-  async function serverTurnOf(request: ReplyRequest): Promise<ReplyResult | null | 'unsupported'> {
+  async function serverTurnOf(request: ReplyRequest, again = true): Promise<ReplyResult | null | 'unsupported'> {
     controller.current?.abort();
     const abort = new AbortController();
     controller.current = abort;
@@ -242,6 +242,7 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
     }
     if (posted.status === 404 || posted.status === 405) return 'unsupported';
     // 409: a turn already runs on this chat (sent from another tab, or before a reload): follow that one.
+    const followingAnother = posted.status === 409;
     if (!posted.ok && posted.status !== 409) {
       setState({ status: 'failed', detail: await refusal(posted) });
       return null;
@@ -267,6 +268,13 @@ export function useReply(): { state: ReplyState; write(request: ReplyRequest): P
         if (response !== null && response.ok) await follow(response, sub, first, take).catch(() => undefined);
         abort.signal.removeEventListener('abort', onStop);
         first = false;
+        // The turn followed after a 409 was one being stopped (the round this line replaced, still winding down
+        // on the server): it ends stopped and says nothing of this line, so this line's turn is posted again,
+        // once (the operator, 2026-11-24: "My latest message got no reply").
+        if (got.done && got.stopped && followingAnother && again && !abort.signal.aborted) {
+          serverTurn.current = null;
+          return serverTurnOf(request, false);
+        }
         if (got.done) return finish(got, false);
         // The turn failed on the server: its stream ends with the error and no done; it's over.
         if (got.failure !== null) return finish(got, false);

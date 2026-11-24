@@ -114,6 +114,8 @@ model Person {
   pictureUrl  String?
   /// S4c: how the AI plays them (JSON text: personality, speech, first_message, examples); GM-facing.
   voice       String?
+  /// "A voice per character" (2026-11-23): the TTS model's voice id for their lines; null is the default.
+  ttsVoice    String?
   /// The world tick: their schedule and motivations (JSON text, GM-facing).
   routine     String?
   motivations String?
@@ -587,4 +589,22 @@ model PersonMove {
   updatedById    String?
 
   @@index([personId])
+}
+
+/// What a person has learned about a record, or with no text that they know of it (rpg_core 020).
+model KnownFact {
+  id                 String   @id @default(uuid())
+  createdById        String
+  personId           String
+  targetEntityType   String
+  targetEntityId     String
+  text               String?
+  learnedInJournalId String?
+  campaignId         String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime
+  updatedById        String?
+
+  @@index([personId])
+  @@index([targetEntityId])
 }

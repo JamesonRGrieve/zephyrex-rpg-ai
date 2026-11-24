@@ -1,0 +1,17 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title='AI/Developers/3. Testing' />
+
+# Testing
+
+Heavy work runs on the build runner, never the desktop, and only what a change touches: full suites belong to
+the release candidate's CI.
+
+- **Server:** `cd server && python -m pytest extensions/<extension>`, plus ruff, format and mypy on the files
+  changed.
+- **Client unit tests:** `vitest related --run <changed files>`.
+- **Stories:** every component has a Storybook story with a `play` test; `pnpm storybook-test` runs them
+  against a running Storybook.
+- **Live sessions:** `client/e2e/player.live.spec.ts` and `prod.live.spec.ts` play a whole session against a
+  live instance (`LIVE_ORIGIN`, `PROD_SESSION` for the test user): party and NPC talk, a fight, the end of a
+  session.

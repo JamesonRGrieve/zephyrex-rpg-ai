@@ -1,0 +1,24 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title='AI/Guide/3. Decision calls' />
+
+# Decision calls
+
+A small, fast decision model makes the table's choices: who speaks next, whether a line needs a roll, whether
+a fight starts, who someone is, whether the formatter's output meets the format rules. It only ever chooses
+among options it is given, and every call is kept.
+
+## The icons
+
+Each call is an icon under the message it followed, left to right in the order made. Each kind of question
+has its own icon: dice for a roll, swords for a fight starting, footprints for a scene move, a checklist for
+the format check, and so on.
+
+- A **spinning** icon is a call still running.
+- A **red** icon failed: the model gave no usable answer, or the call errored. A retry is its own call, and
+  stands beside the failure it retried ("try 2").
+
+## The detail
+
+Tap an icon to see the question asked, every option it offered with the model's score for it (best first,
+the chosen one marked), the model and how long it took. The exact answer is kept under **Exact answer**.

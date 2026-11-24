@@ -10,7 +10,7 @@ type Story = StoryObj<typeof Linked>;
 /** Outside the app wrapper (no drawer) the text reads as written; inside it, each name is a link. */
 export const PlainOutsideTheWrapper: Story = {
   render: () => (
-    <EntityLinksProvider campaignId='c1' entities={[{ id: 'p1', name: 'Mags Thornbury', kind: 'person' }]}>
+    <EntityLinksProvider campaignId='c1' entities={[{ id: 'p1', name: 'Mags Thornbury', kind: 'person' }]} viewer='gm'>
       <p>
         <Linked text='Mags Thornbury wipes the bar of the Leaning Lantern.' />
       </p>

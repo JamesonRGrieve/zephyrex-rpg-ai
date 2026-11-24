@@ -1,0 +1,40 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title='AI/Guide/2. Playing a session' />
+
+# Playing a session
+
+## Saying something
+
+The composer at the bottom has three channels.
+
+- **In character**: what your character says or does. Speech goes in quotes; actions are written as what
+  your character does. The formatter sets each into its own block, credited to its speaker.
+- **Out of character**: table talk. It never enters the story.
+- **To the GM**: a question for the game master. The GM answers as commentary; a question about what someone
+  in the scene is doing is answered by that person acting in the story.
+
+## A round
+
+After your line, the round runs on its own:
+
+1. If your line is ambiguous (which one do you punch?), the GM asks, with the choices.
+2. Anyone the line approaches who isn't in the world yet is authored first.
+3. The fight check runs: if your line starts a fight, the VTT starts it.
+4. If your line calls for a roll, the VTT rolls it and the narrator tells what happened.
+5. The decision model picks who acts next: someone in the party, someone present, the GM, or you. It keeps
+   going until it's your turn again.
+
+While any of this runs, a line at the bottom says who is writing, or what is being worked on (generating,
+formatting, deciding), and **Stop** is offered. Stop ends the whole round, not just the reply being written.
+A reply stays on screen until its saved, formatted version replaces it.
+
+## Banners
+
+A banner marks a scene change in the VTT, and only that: when the GM moves the table to a new map or level.
+It is its own record, never part of the narration.
+
+## Turns that run on the server
+
+A reply is written on the server. Leaving the tab, a dropped network or a reload doesn't lose it: the page
+follows it again when it comes back, and the processing state tells the page what is still running.

@@ -9,7 +9,7 @@ vi.mock('@zephyrex-rpg/wiki/features/data/records', () => ({}));
 vi.mock('zephyrex', () => ({ useClient: () => ({}) }));
 vi.mock('../characters/CharacterTile', () => ({ initials: () => '' }));
 
-const { defaultParty, remapChoice, startTitle, PARTY_TAG } = await import('./CampaignStart');
+const { defaultParty, remapChoice, splitBanner, startTitle, PARTY_TAG } = await import('./CampaignStart');
 
 const CAST = [
   { id: 'a', tags: [PARTY_TAG] },
@@ -44,5 +44,12 @@ describe('remapChoice', () => {
       party: ['b2', 'c'],
     });
     expect(remapChoice({ seat: 'gm', playing: null, party: [] }, map)).toEqual({ seat: 'gm', playing: null, party: [] });
+  });
+});
+
+describe('splitBanner', () => {
+  it("parts the opening's banner from its story, so the banner is its own record", () => {
+    expect(splitBanner('[location: Saltmere]\n\nFog rolls in.')).toEqual(['[location: Saltmere]', 'Fog rolls in.']);
+    expect(splitBanner('Fog rolls in.')).toEqual([null, 'Fog rolls in.']);
   });
 });

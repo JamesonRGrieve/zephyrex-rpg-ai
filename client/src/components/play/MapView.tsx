@@ -4,7 +4,7 @@
  * The campaign's map (the operator, 2026-11-21: "Quick swap between chat and map"): the VTT's view of
  * the campaign's current scene, as the person may see it. A campaign with no scene says so.
  */
-import { SceneCanvas, SceneList, useSceneView, type ViewToken } from '@zephyrex/vtt-play';
+import { SceneCanvas, SceneList, ScopeMap, useSceneView, type ViewToken } from '@zephyrex/vtt-play';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { useId, useState } from 'react';
 import type { ReactElement } from 'react';
@@ -16,15 +16,22 @@ import { Button } from 'zephyrex/ui/button';
 export function MapView({
   campaignId,
   gm = false,
+  onOpenRecord,
 }: {
   campaignId: string | null;
   personHref?: (id: string) => string | null;
+  /** A person named in the area view: their record, in the drawer, as the seat may see it. */
+  onOpenRecord?: (personId: string) => void;
   /**
    * The GM's seat: the campaign's scenes, to make one current (the operator, 2026-11-22: "Is full map
    * functionality with GM and player control in as well?"). Placing, fog and measuring follow from the VTT.
    */
   gm?: boolean;
 }): ReactElement {
+  // The scene's map, or the area around it (the operator, 2026-11-24: "a scope-out mode that shows, for example,
+  // the town instead of the house, with a group token for each group of notable NPCs if multiple occupy the same
+  // building"): the VTT's scopes, a group token per building.
+  const [view, setView] = useState<'scene' | 'area'>('scene');
   const client = useClient();
   // The GM's Make current (in the VTT's scene list) shows here within seconds.
   const scene = useSWR(
@@ -38,6 +45,33 @@ export function MapView({
     gm ? { refreshInterval: 5000 } : undefined,
   );
   if (campaignId === null) return <p className='p-4 text-sm text-muted-foreground'>This chat has no campaign map.</p>;
+  const views = (
+    <div role='radiogroup' aria-label='Map view' className='flex gap-1 rounded-lg border p-1 text-sm'>
+      {(['scene', 'area'] as const).map((one) => (
+        <button
+          key={one}
+          type='button'
+          role='radio'
+          aria-checked={view === one}
+          onClick={() => setView(one)}
+          className={view === one ? 'flex-1 rounded-md bg-primary/10 px-3 py-1.5 font-medium' : 'flex-1 rounded-md px-3 py-1.5'}
+        >
+          {one === 'scene' ? 'Scene' : 'Area'}
+        </button>
+      ))}
+    </div>
+  );
+  if (view === 'area')
+    return (
+      <div className='mx-auto grid w-full max-w-5xl flex-1 content-start gap-3 px-3 pt-3 pb-4'>
+        {views}
+        <ScopeMap
+          campaignId={campaignId}
+          onOpenRecord={(personId) => onOpenRecord?.(personId)}
+          onOpenScene={() => setView('scene')}
+        />
+      </div>
+    );
   if (scene.data === undefined && scene.error === undefined) return <SkeletonRows rows={3} />;
   const scenes = gm ? (
     <details className='rounded-lg border px-3 py-2'>
@@ -49,15 +83,17 @@ export function MapView({
   ) : null;
   if (scene.error !== undefined || scene.data === null)
     return (
-      <div className='mx-auto grid w-full max-w-5xl gap-3 px-3 pb-4'>
-        <p className='pt-4 text-sm text-muted-foreground'>
+      <div className='mx-auto grid w-full max-w-5xl gap-3 px-3 pt-3 pb-4'>
+        {views}
+        <p className='text-sm text-muted-foreground'>
           {gm ? 'No scene is current. Make one current below.' : 'No map yet: the GM hasn’t set a scene.'}
         </p>
         {scenes}
       </div>
     );
   return (
-    <div className='mx-auto grid w-full max-w-5xl flex-1 gap-3 px-3 pb-4'>
+    <div className='mx-auto grid w-full max-w-5xl flex-1 gap-3 px-3 pt-3 pb-4'>
+      {views}
       {scenes}
       <PlayScene sceneId={scene.data ?? ''} campaignId={campaignId} gm={gm} />
     </div>

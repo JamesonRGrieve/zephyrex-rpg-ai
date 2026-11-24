@@ -1,0 +1,18 @@
+import { Meta } from '@storybook/addon-docs/blocks';
+
+<Meta title='AI/Guide/7. Models' />
+
+# Models
+
+Each kind of work has its own model endpoint, set in **App settings → Models**:
+
+| Role | What it does |
+| --- | --- |
+| **Story** and **GM** | Writes the replies, the narration and the GM's answers. |
+| **Decide** | The decision model: small and fast, choosing among given options. |
+| **Summaries** and **Translate** | Summaries of the story so far, and translation. |
+| **Voice** | Reads messages aloud. |
+
+No reply is ever cut short to fit a limit: a reply ends where the model ends it.
+
+A chat's settings can override the model for that chat, and the narrator's style sliders shape the prompt.

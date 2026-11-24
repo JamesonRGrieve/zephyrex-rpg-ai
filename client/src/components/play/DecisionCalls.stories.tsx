@@ -7,7 +7,12 @@ const meta: Meta<typeof DecisionCalls> = { title: 'Play/Decision calls', compone
 export default meta;
 type Story = StoryObj<typeof DecisionCalls>;
 
-const call: Pick<DecisionCall, 'questions' | 'model' | 'error'> = { questions: [], model: 'd1-2b', error: null };
+const call: Pick<DecisionCall, 'questions' | 'model' | 'error' | 'attempt'> = {
+  questions: [{ key: 'next', type: 'choice', instructions: 'Who speaks next?', options: ['Old Hesk', 'Delphine Halloway', 'nobody'] }],
+  model: 'd1-2b',
+  error: null,
+  attempt: 1,
+};
 
 /** The calls after a message, left to right in the order made: one done, a failure in red with its retry
  * beside it, and one still running. */
@@ -37,6 +42,7 @@ export const Stacked: Story = {
         ...call,
         id: '3',
         purpose: 'next_turn',
+        attempt: 2,
         state: 'done',
         answers: { next: { choice: 'Old Hesk' } },
         ms: 900,
@@ -60,6 +66,6 @@ export const Stacked: Story = {
     await expect(buttons).toHaveLength(4);
     // The failure is said, and its retry stands beside it.
     await expect(buttons[1]).toHaveAccessibleName('next_turn, failed');
-    await expect(buttons[2]).toHaveAccessibleName('next_turn');
+    await expect(buttons[2]).toHaveAccessibleName('next_turn, try 2');
   },
 };

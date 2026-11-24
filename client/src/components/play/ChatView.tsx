@@ -117,13 +117,17 @@ import { useCampaign } from './useCampaign';
 import { useEndSession } from './useEndSession';
 import type { CanonNoticeValue } from './CanonNotice';
 import { PARTY_TAG, useCast } from '~/features/data/cast';
-import { CanonOff } from './CanonNotice';
+import { CanonOff, useDrawer } from './CanonNotice';
+import { RecordPage } from '@zephyrex-rpg/wiki/pages/RecordPage';
 import { RollSheet } from './RollSheet';
 import type { NarratorStyle } from '~/features/models/narratorStyle';
 import { SheetPanel } from './SheetPanel';
 import { type ActionGroup, type ChatAction, ContextSidebar, setContextActions, setContextPanel } from './ContextPanel';
 import { SidebarContent } from 'zephyrex/components/appwrapper/src/SidebarContentManager';
 import { useSidebar } from 'zephyrex/ui/sidebar';
+
+/** One part of a reply as it streams: under its speaker when known. */
+type StreamPart = { speaker_id: string | null; text: string; name?: string };
 
 /** A page of a chat's rows (the framework's largest; a list answers 100 when not told). */
 const ROW_PAGE = 1000;
@@ -172,6 +176,7 @@ import {
   nextTurn,
 } from '~/features/chat/combat';
 import { EntityLinksProvider, type LinkedEntity } from './EntityLinks';
+import type { Viewer } from '@zephyrex-rpg/wiki/features/viewer';
 import { useSceneBackground } from './useSceneBackground';
 import { useAutoReply } from './useAutoReply';
 import type { GroupSettings } from '~/features/chat/groupSettings';
@@ -385,6 +390,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const branch = useMemo(() => (leaf === null ? [] : branchTo(all, leaf)), [all, leaf]);
   // A campaign (docs/DESIGN.md, The play model): its seat, sessions, rewind and fork.
   const play = useCampaign(chat, branch);
+  const drawer = useDrawer();
+  // The name drawer's reader: the GM seat (or a chat with no seat) reads the GM's file; a player seat reads
+  // as the character it plays, or as a player with no character yet.
+  const drawerViewer = useMemo<Viewer>(
+    () => (chat.seat === 'gm' || chat.seat === null ? 'gm' : { personId: play.playingId ?? '' }),
+    [chat.seat, play.playingId],
+  );
   // How the seat may speak here and to whom beyond the room (speech_options: setting-dependent).
   const speechOptions = useSWR(
     // Once per seat, not per line or per focus (the server builds it from the sheet: never cheap).
@@ -1034,11 +1046,56 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * made a sibling of the person's line and moved the view to it).
    */
   const roundRef = useRef(0);
+  /**
+   * Whether the conversation is being processed (the operator, 2026-11-24: "There should be an endpoint for
+   * 'conversation processing in progress' that the page calls to determine whether to show the stop button"):
+   * the server's answer (GET /v1/ai_chat/processing, generation, formatting and decisions), or, where it
+   * has none, the round this page runs. Read often while anything runs, and when the page comes back.
+   */
+  const [localBusy, setLocalBusy] = useState(false);
+  const processing = useSWR(
+    ['rpg-ai', 'processing', chat.id],
+    async () => {
+      try {
+        // {processing: {processing, stage, started_at, purpose}} (Parity, 2026-11-24).
+        const answer = Reflect.get(Object(await client.get('/v1/ai_chat/processing', { chat_id: chat.id })), 'processing');
+        const stage = Reflect.get(Object(answer), 'stage');
+        return {
+          processing: answer === true || Reflect.get(Object(answer), 'processing') === true,
+          stage: typeof stage === 'string' ? stage : null,
+        };
+      } catch {
+        return null;
+      }
+    },
+    { refreshInterval: (last) => (localBusy || last?.processing === true ? 1500 : 0), shouldRetryOnError: false },
+  );
   /** The decision model labels a saved story line (who acts, speech or action, its icon), then it re-renders. */
-  const labelSaved = (id: string) =>
+  /**
+   * A line's labels are asked after the round's own decisions have answered, never alongside them: the decision
+   * model's queue is shared, and a long label call held each round's scene step for 38–47 s (Parity, 2026-11-24,
+   * from the operator's chat). While a round runs, the lines wait here, and go when it ends.
+   */
+  const roundsRunning = useRef(0);
+  const labelsWaiting = useRef<string[]>([]);
+  const labelNow = (id: string) =>
     void labelLines(chat.id, id).then((labelled) => {
       if (labelled) void list.mutate();
     });
+  const labelSaved = (id: string) => {
+    if (roundsRunning.current > 0) labelsWaiting.current.push(id);
+    else labelNow(id);
+  };
+  const afterRound = <T,>(work: Promise<T>): Promise<T> => {
+    roundsRunning.current += 1;
+    return work.finally(() => {
+      roundsRunning.current -= 1;
+      if (roundsRunning.current > 0) return;
+      const waiting = labelsWaiting.current;
+      labelsWaiting.current = [];
+      for (const id of waiting) labelNow(id);
+    });
+  };
   /**
    * The step the round is on (the operator, 2026-11-22: "my last message didn't seem to trigger a
    * response. Can we get a progress indicator for the decision model calls etc?"): shown under the
@@ -1091,6 +1148,28 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (roundRef.current !== mine) return null;
     return value === null ? null : { ...value, seconds };
   };
+  /**
+   * What was being written stays on screen until the chat's list holds what it became (the operator,
+   * 2026-11-24: "It can't disappear mid generation or while waiting for formatting"): when the stream
+   * ends, its last parts are held, and let go only once the list changes (the saved, formatted lines have
+   * landed), a new reply starts, or the reply failed (nothing was saved to wait for).
+   */
+  const lastParts = useRef<StreamPart[]>([]);
+  const [held, setHeld] = useState<{ parts: StreamPart[]; list: unknown; speakerId: string } | null>(null);
+  const wasWriting = useRef<{ parentId: string | null; speakerId: string } | null>(null);
+  useEffect(() => {
+    const before = wasWriting.current;
+    wasWriting.current = writingAfter;
+    if (writingAfter !== null) {
+      setHeld(null);
+      return;
+    }
+    if (before !== null && reply.state.status !== 'failed' && lastParts.current.some((part) => part.text.trim() !== ''))
+      setHeld({ parts: lastParts.current, list: list.data, speakerId: before.speakerId });
+  }, [writingAfter, reply.state.status, list.data]);
+  useEffect(() => {
+    if (held !== null && list.data !== held.list) setHeld(null);
+  }, [list.data, held]);
   /**
    * A story reply, kept whole and in character (the operator, 2026-11-21): a reply that steps out of
    * the story ("I apologize… let me continue") is written once more with that span forbidden, and every
@@ -1193,7 +1272,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     if (lines.some(opens)) reply.stop();
   }, [streamText, streamSeat, reply]);
   const streamItems = reply.state.status === 'writing' ? (reply.state.items ?? []) : [];
-  const streamParts: { speaker_id: string | null; text: string; name?: string }[] = (() => {
+  const streamParts: StreamPart[] = (() => {
     // A structured stream (schema-constrained): each item is shown under its speaker as it comes.
     if (streamItems.length > 0) {
       const runs: { speaker_id: string | null; text: string; name?: string }[] = [];
@@ -1201,7 +1280,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         const who = item.kind === 'say' || item.kind === 'do' ? (item.speaker ?? null) : null;
         const line =
           item.kind === 'location'
-            ? `[location: ${item.text}]`
+            ? ''
             : item.kind === 'say'
               ? `${who ?? ''} (${item.manner !== null && item.manner !== 'speak' ? `${item.manner} ` : ''}to ${item.target ?? 'everyone'}): "${item.text}"`
               : item.kind === 'do'
@@ -1220,6 +1299,47 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const parts = narrateSegments(streamText, castList, seatName).filter((part) => part.text.trim() !== '');
     return parts.length === 0 ? [{ speaker_id: null, text: streamText }] : parts;
   })();
+  if (writing && streamParts.some((part) => part.text.trim() !== '')) lastParts.current = streamParts;
+  // While the round goes on (or the list hasn't caught up), the reply shows as it last stood.
+  const shownParts = writingAfter !== null ? streamParts : (held?.parts ?? []);
+  const shownSpeaker = writingAfter?.speakerId ?? held?.speakerId ?? null;
+  const roundRunning = writing || writingAfter !== null || roundStep !== null;
+  useEffect(() => setLocalBusy(roundRunning), [roundRunning]);
+  const busy = roundRunning || processing.data?.processing === true;
+  /**
+   * Always a sign that someone is writing (the operator, 2026-11-24: Mira's turn ran "it just didn't give me any
+   * indication it was writing"): while the conversation is processed and no streamed text shows yet, who is
+   * being written, or what the server is doing (generating, formatting, deciding).
+   */
+  const visibleStream = shownParts.some((part) => part.text.trim() !== '');
+  const writer =
+    shownSpeaker === null || shownSpeaker === NARRATOR_TURN
+      ? NARRATOR
+      : shownSpeaker === ''
+        ? TABLE.gm_name
+        : (castById.get(shownSpeaker)?.name ?? 'Someone');
+  const stageWords: Record<string, string> = {
+    generating: `${writer} is writing`,
+    formatting: 'Formatting the reply',
+    saving: 'Saving the reply',
+    deciding: 'Deciding',
+  };
+  const waitingSign =
+    busy && !visibleStream && roundStep === null
+      ? writingAfter !== null
+        ? `${writer} is writing`
+        : (stageWords[processing.data?.stage ?? ''] ?? 'Working on the story')
+      : null;
+  /** Stop: the whole round, here and on the server (the stream, the formatting, the decisions after it). */
+  const stopAll = () => {
+    roundRef.current += 1;
+    reply.stop();
+    setRoundStep(null);
+    void client
+      .post('/v1/ai_chat/turn_stop', { turn_stop: { chat_id: chat.id } })
+      .catch(() => undefined)
+      .finally(() => void processing.mutate());
+  };
   /**
    * After the narrator's turn the map follows the story, and every 6 rounds the world ticks
    * (docs/DESIGN.md, The world moves): both through the server, both quiet when nothing changed.
@@ -1315,7 +1435,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     // The banner marks a scene change in the VTT only (a new map or level), never a move within a scene
     // (the operator, 2026-11-23); a server that doesn't say falls back to a change of place. Its subtitle
     // is where that place is, fully qualified (up to the planet or system in 40k, the region in D&D).
-    const shows = change !== null && (change.sceneChanged ?? change.seatMoved);
+    // Only the VTT's scene change: a server that can't say shows none (never a guess from the story's places).
+    const shows = change !== null && change.sceneChanged === true;
     // A departure or arrival the VTT couldn't make is said, so the map isn't taken to have moved.
     for (const move of change?.sceneMoves ?? [])
       if (!move.applied)
@@ -1610,7 +1731,8 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    * the round, as features/chat/seat decides it: the party members who speak up, each after the
    * last, then the AI GM's narration when the person sits as a player.
    */
-  const playRound = async (start: ChatMessage, path: readonly ChatMessage[]) => {
+  const playRound = (start: ChatMessage, path: readonly ChatMessage[]) => afterRound(playRoundSteps(start, path));
+  const playRoundSteps = async (start: ChatMessage, path: readonly ChatMessage[]) => {
     const mine = roundRef.current;
     const superseded = () => roundRef.current !== mine;
     if (chat.seat === null) {
@@ -2375,8 +2497,20 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             />
           </div>
         )}
-        {view === 'map' && <MapView campaignId={chat.campaign_id ?? null} gm={chat.seat === 'gm'} />}
-        <EntityLinksProvider campaignId={chat.campaign_id ?? null} entities={linkable}>
+        {view === 'map' && (
+          <MapView
+            campaignId={chat.campaign_id ?? null}
+            gm={chat.seat === 'gm'}
+            onOpenRecord={(personId) => {
+              if (!chat.campaign_id) return;
+              drawer?.open(
+                <RecordPage world={chat.campaign_id} kind='person' id={personId} viewer={drawerViewer} />,
+                castById.get(personId)?.name ?? 'Person',
+              );
+            }}
+          />
+        )}
+        <EntityLinksProvider campaignId={chat.campaign_id ?? null} entities={linkable} viewer={drawerViewer}>
           <ol
             className={cn(
               'mx-auto flex w-full max-w-3xl flex-1 flex-col gap-5 px-3 pb-4',
@@ -2515,14 +2649,16 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                 </li>
               );
             })}
-            {writingAfter !== null && (
+            {(writingAfter !== null || held !== null) && (
               // The narrator's stream splits as it comes (the operator, 2026-11-21: "As soon as the model
               // types the character's name it should transition to them typing"): each part shows under
               // whoever it belongs to, the last one writing.
               <>
-                {streamParts.map((part, index) => {
+                {shownParts.map((part, index) => {
+                  // An empty part shows nothing: the status line below says who is writing.
+                  if (part.text.trim() === '') return null;
                   const member = part.speaker_id === null ? null : castById.get(part.speaker_id);
-                  const last = index === streamParts.length - 1;
+                  const last = writingAfter !== null && index === shownParts.length - 1;
                   return (
                     // Stream parts have no identity beyond their place in the stream.
                     <li key={index}>
@@ -2534,7 +2670,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                           id: `writing-${index}`,
                           role:
                             member == null && part.name === undefined
-                              ? writingAfter?.speakerId === NARRATOR_TURN
+                              ? shownSpeaker === NARRATOR_TURN
                                 ? 'narrator'
                                 : 'character'
                               : 'character',
@@ -2543,7 +2679,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                             member?.name ??
                             part.name ??
                             pending?.name ??
-                            (writingAfter?.speakerId === '' ? TABLE.gm_name : NARRATOR),
+                            (shownSpeaker === '' ? TABLE.gm_name : NARRATOR),
                           avatar:
                             member?.avatar ?? (member == null && part.name === undefined ? (pending?.avatar ?? null) : null),
                           text: part.text,
@@ -2557,6 +2693,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                   );
                 })}
               </>
+            )}
+            {waitingSign !== null && authoring === null && (
+              <li>
+                <p role='status' className='flex items-center gap-2 px-1 text-sm text-muted-foreground'>
+                  <LoaderCircle aria-hidden className='size-4 animate-spin motion-reduce:animate-none' /> {waitingSign}…
+                </p>
+              </li>
             )}
             {roundStep !== null && authoring === null && !writing && (
               <li>
@@ -2689,11 +2832,11 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
               signal,
             )
           }
-          writing={writing}
+          writing={busy}
           // Not before the seat's character is known: a line would be saved as "You" (the run's first line).
           disabled={list.data === undefined || (play.isCampaign && play.playingId !== null && !castById.has(play.playingId))}
           onSend={(text, channel, images) => void send(text, channel, images)}
-          onStop={reply.stop}
+          onStop={stopAll}
           onImpersonate={chat.character_ids.length > 0 ? impersonate : undefined}
           onNarrate={chat.character_ids.length > 0 ? () => void narrate() : undefined}
           onCommand={(command) => void runCommand(command)}

@@ -15,7 +15,8 @@ import { notify } from 'zephyrex/hooks/useToast';
 import { useSWRConfig } from 'swr';
 import { useClient } from 'zephyrex';
 import { z } from 'zod';
-import { type ReactElement, useMemo, useRef, useState } from 'react';
+import { type ReactElement, type ReactNode, useMemo, useRef, useState } from 'react';
+import { StartingLevel } from './StartingLevel';
 import { createPortal } from 'react-dom';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
 import { Button } from 'zephyrex/ui/button';
@@ -49,6 +50,13 @@ export function defaultParty(cast: readonly Pick<Character, 'id' | 'tags'>[], pl
 }
 
 /** The new chat's title: the campaign, and the person's seat. */
+/** An opening's first-line banner (`[location: …]`) apart from its story; null when it has none. */
+export function splitBanner(text: string): [string | null, string] {
+  const [first = '', ...rest] = text.split('\n');
+  if (!/^\s*\[location:\s*[^\]\n]+\]\s*$/i.test(first)) return [null, text];
+  return [first.trim(), rest.join('\n').replace(/^\n+/, '')];
+}
+
 export function startTitle(campaign: string, playing: string | null): string {
   return `${campaign}: ${playing === null ? 'you are the GM' : `you play ${playing}`}`.slice(
     0,
@@ -169,7 +177,10 @@ export function CampaignStartForm({
   onStart,
   mechanical = false,
   loading = false,
+  settings = null,
 }: {
+  /** The scenario's own settings, above the seat (its starting level, for its GM). */
+  settings?: ReactNode;
   /** A campaign whose outcomes the rules decide: no freeform character there. */
   mechanical?: boolean;
   /** The scenario is still being read: Start waits for it (a press before then would do nothing). */
@@ -218,6 +229,7 @@ export function CampaignStartForm({
   return (
     <div className='flex min-h-0 flex-1 flex-col'>
       <div className='grid flex-1 gap-4 overflow-y-auto p-4'>
+        {settings}
         <div className='grid gap-2'>
           <span id='start-seat' className='text-sm font-medium'>
             You start as
@@ -612,15 +624,25 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       setStep(2);
       // What the records say of the start; nothing (or only pointers to other notes): the narrator writes it.
       const situation = openingLine(scenario, notes.data ?? []);
+      // The starting scene's banner is its own record, before the opening (the operator, 2026-11-24: the banner
+      // "shouldn't be part of the narrative stream"; it marks the VTT's scene, here the one play starts on).
+      const told = made.current.opening === undefined ? await stalls(toldOpening(world.id, playing, situation)) : '';
+      const [bannerLine, story] = splitBanner(told);
+      const banner =
+        made.current.opening !== undefined || bannerLine === null
+          ? null
+          : await stalls(
+              createMessage({ chat_id: chat.id, parent_id: null, role: 'narrator', channel: 'ic', swipes: [bannerLine] }),
+            );
       const opening =
         made.current.opening ??
         (await stalls(
           createMessage({
             chat_id: chat.id,
-            parent_id: null,
+            parent_id: banner?.id ?? null,
             role: 'narrator',
             channel: 'ic',
-            swipes: [await stalls(toldOpening(world.id, playing, situation))],
+            swipes: [story],
           }),
         ));
       made.current.opening = opening;
@@ -655,6 +677,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       creep={creep}
       detail={copyStep}
       loading={campaign.data === undefined}
+      settings={<StartingLevel campaignId={campaignId} />}
       onStart={(choice) => void start(choice)}
     />
   );

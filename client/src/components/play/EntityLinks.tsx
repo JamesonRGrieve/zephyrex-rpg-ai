@@ -5,6 +5,7 @@
  * links to wiki pages that open in the drawer"): every name of a person, place or item of the campaign,
  * whole words, the longest first, opens its wiki page in the app wrapper's bottom drawer.
  */
+import type { Viewer } from '@zephyrex-rpg/wiki/features/viewer';
 import { RecordPage } from '@zephyrex-rpg/wiki/pages/RecordPage';
 import { createContext, type ReactElement, type ReactNode, useContext, useMemo } from 'react';
 import { useDrawer } from './CanonNotice';
@@ -16,20 +17,25 @@ export interface LinkedEntity {
   kind: string;
 }
 
-const Entities = createContext<{ campaignId: string; entities: readonly LinkedEntity[] } | null>(null);
+const Entities = createContext<{ campaignId: string; entities: readonly LinkedEntity[]; viewer: Viewer } | null>(null);
 
 export function EntityLinksProvider({
   campaignId,
   entities,
+  viewer,
   children,
 }: {
   campaignId: string | null;
   entities: readonly LinkedEntity[];
+  /** Who reads the pages: the GM seat sees the GM's file; a player's character only what a player may
+   * (the operator, 2026-11-24: "As a non-GM, only player visible information and learned facts"). */
+  viewer: Viewer;
   children: ReactNode;
 }): ReactElement {
   const value = useMemo(
-    () => (campaignId === null ? null : { campaignId, entities: entities.filter((one) => one.name.trim().length >= 3) }),
-    [campaignId, entities],
+    () =>
+      campaignId === null ? null : { campaignId, viewer, entities: entities.filter((one) => one.name.trim().length >= 3) },
+    [campaignId, entities, viewer],
   );
   return <Entities.Provider value={value}>{children}</Entities.Provider>;
 }
@@ -57,7 +63,7 @@ export function Linked({ text }: { text: string }): ReactElement {
         key={`${match.index}-${entity.id}`}
         type='button'
         className='underline decoration-dotted underline-offset-2 hover:text-primary'
-        onClick={() => drawer.open(<RecordPage world={known.campaignId} kind={entity.kind} id={entity.id} />, entity.name)}
+        onClick={() => drawer.open(<RecordPage world={known.campaignId} kind={entity.kind} id={entity.id} viewer={known.viewer} />, entity.name)}
       >
         {match[0]}
       </button>,
