@@ -7,7 +7,14 @@ import { APP_NAME } from '~/zephyrex.config';
 import { SampleScene } from './SampleScene';
 
 /** What the app is, for a visitor, and the way in. */
-export function Landing({ start = START }: { start?: { label: string; href: string } }): ReactElement {
+export function Landing({
+  start = START,
+  signIn,
+}: {
+  start?: { label: string; href: string };
+  /** The header's way in for someone with an account (the hosted build: the hero's is the waitlist). */
+  signIn?: { label: string; href: string };
+}): ReactElement {
   return (
     <div className='flex min-h-svh w-full min-w-0 flex-col'>
       <SiteHeader
@@ -18,7 +25,7 @@ export function Landing({ start = START }: { start?: { label: string; href: stri
           </>
         }
         nav={NAV}
-        cta={start}
+        cta={signIn ?? start}
       />
       <main className='mx-auto w-full min-w-0 max-w-5xl space-y-20 px-4 pb-safe'>
         <Hero

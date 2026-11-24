@@ -26,3 +26,14 @@ export const Phone: Story = {
     await expect(within(canvasElement).getByText('Menu')).toBeInTheDocument();
   },
 };
+
+/** The hosted build: the hero's way in is the waitlist, and sign-in sits in the header. */
+export const Hosted: Story = {
+  args: { start: { label: 'Join the waitlist', href: '/waitlist' }, signIn: { label: 'Sign in', href: '/user' } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getAllByRole('link', { name: 'Join the waitlist' })[0]).toHaveAttribute('href', '/waitlist');
+    await expect(canvas.getAllByRole('link', { name: 'Sign in' })[0]).toHaveAttribute('href', '/user');
+    await expect(canvas.queryByRole('link', { name: /sign up|register/i })).toBeNull();
+  },
+};

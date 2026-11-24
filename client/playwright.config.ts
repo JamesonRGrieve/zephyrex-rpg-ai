@@ -19,7 +19,7 @@ import { defineConfig, devices } from '@playwright/test';
 import { OUTBOX } from './e2e/support/outbox';
 
 // rpg-ai's block on the runner: 48000 + 10 × its 58137 lane (7), so no other app's e2e collides.
-export const PORTS = { model: 48070, lite: 48071, server: 48072, saas: 48073 } as const;
+export const PORTS = { model: 48070, lite: 48071, server: 48072, saas: 48073, saasClosed: 48074 } as const;
 const host = (port: number) => `http://127.0.0.1:${port}`;
 const scratch = mkdtempSync(path.join(process.env.E2E_SCRATCH ?? tmpdir(), 'rpg-ai-e2e-'));
 // Production builds, each in its own build directory: two `next dev` servers from one client/
@@ -53,6 +53,19 @@ const saas = {
   RPG_AI_SERVER_URI: host(PORTS.server),
 };
 
+/**
+ * The same hosted build started a second time as a closed hosted edition runs it: sign-up closed, so the
+ * sign-up page leads to the waitlist (operator, 2026-11-24; SOP Waitlist and Sign-up Gate). Test sign-in makes
+ * a fresh person through sign-up, so only the @signup-closed specs run here.
+ */
+const saasClosed = {
+  ...saas,
+  PORT: String(PORTS.saasClosed),
+  APP_URI: host(PORTS.saasClosed),
+  REGISTRATION_MODE: 'closed',
+  SIGNUP_DISABLED_PATH: '/waitlist',
+};
+
 const desktop = devices['Desktop Chrome'];
 const phone = devices['Pixel 7'];
 
@@ -69,8 +82,9 @@ export default defineConfig({
   expect: { timeout: 15_000 },
   use: { trace: 'retain-on-failure', navigationTimeout: 60_000 },
   projects: [
-    { name: 'lite', use: { ...desktop, baseURL: host(PORTS.lite) }, grepInvert: /@phone-only/ },
-    { name: 'saas', use: { ...desktop, baseURL: host(PORTS.saas) }, grepInvert: /@phone-only/ },
+    { name: 'lite', use: { ...desktop, baseURL: host(PORTS.lite) }, grepInvert: /@phone-only|@signup-closed/ },
+    { name: 'saas', use: { ...desktop, baseURL: host(PORTS.saas) }, grepInvert: /@phone-only|@signup-closed/ },
+    { name: 'saas-closed', use: { ...desktop, baseURL: host(PORTS.saasClosed) }, grep: /@signup-closed/ },
     { name: 'lite-phone', use: { ...phone, baseURL: host(PORTS.lite) }, grep: /@phone/ },
     { name: 'saas-phone', use: { ...phone, baseURL: host(PORTS.saas) }, grep: /@phone/ },
   ],
@@ -97,6 +111,13 @@ export default defineConfig({
       reuseExistingServer: false,
       timeout: STARTUP_MS,
       env: saas,
+    },
+    {
+      command: serve(PORTS.saasClosed, '.next-e2e-saas'),
+      url: `${host(PORTS.saasClosed)}/healthz`,
+      reuseExistingServer: false,
+      timeout: STARTUP_MS,
+      env: saasClosed,
     },
     {
       command: `./node_modules/.bin/prisma migrate deploy && ${serve(PORTS.lite, '.next-e2e-lite')}`,

@@ -39,8 +39,8 @@ const nextConfig = {
   distDir: process.env.NEXT_DIST_DIR || '.next',
   // Self-contained server bundle for the Containerfile's runtime stage and the deploy.
   ...(process.env.NEXT_OUTPUT_STANDALONE ? { output: 'standalone' } : {}),
-  // `route.lite.ts` is a route only in the lite build; the SaaS build never sees it.
-  pageExtensions: IS_LITE ? ['lite.ts', ...DEFAULT_PAGE_EXTENSIONS] : DEFAULT_PAGE_EXTENSIONS,
+  // `route.lite.ts` is a route only in the lite build, and `route.saas.ts` (the waitlist) only in the SaaS one.
+  pageExtensions: IS_LITE ? ['lite.ts', ...DEFAULT_PAGE_EXTENSIONS] : ['saas.ts', ...DEFAULT_PAGE_EXTENSIONS],
   env: {
     NEXT_PUBLIC_RPG_AI_VARIANT: VARIANT,
     APP_URI,

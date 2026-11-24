@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
 import type { ReactNode } from 'react';
 import { Landing } from '~/components/landing/Landing';
+import { WAITLIST_PAGE } from '~/features/waitlist';
 import appConfig, { HOME_PATH } from '~/zephyrex.config';
 
 /** The cookie a sign-in leaves that pages can read (the framework's CSRF echo). */
@@ -16,5 +17,11 @@ const SESSION_HINT_COOKIE = 'zx_csrf';
 export default async function Home(): Promise<ReactNode> {
   const accounts = appConfig.auth?.enabled !== false;
   if (!accounts || (await cookies()).has(SESSION_HINT_COOKIE)) redirect(HOME_PATH);
-  return <Landing start={{ label: 'Sign in to start', href: appConfig.auth?.authPath ?? '/user' }} />;
+  // The way in is the waitlist, never sign-up (SOP Waitlist and Sign-up Gate); sign-in stays in the header.
+  return (
+    <Landing
+      start={{ label: 'Join the waitlist', href: WAITLIST_PAGE }}
+      signIn={{ label: 'Sign in', href: appConfig.auth?.authPath ?? '/user' }}
+    />
+  );
 }

@@ -45,6 +45,12 @@ its own privacy policy. Choose an endpoint you trust with what you write.
 Nothing else leaves the machine. The app has no analytics, advertising or tracking scripts, and
 pages load nothing from other websites.
 
+## The waitlist
+
+While accounts on the hosted service are closed, the waitlist page asks for your email, an optional name, and
+your consent to be contacted. They go to the Zephyrex ERP's CRM (erp.zephyrex.ca) as a lead, and are used only to
+tell you when accounts open. Ask us at the contact below and we remove them.
+
 ## Cookies and browser storage
 
 - **`theme`** remembers light or dark mode, until you clear it.
