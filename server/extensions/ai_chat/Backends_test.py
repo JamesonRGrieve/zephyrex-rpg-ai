@@ -36,7 +36,14 @@ def test_every_ability_rpg_ai_calls_is_in_the_contract() -> None:
 
 
 def test_the_contract_lists_only_what_rpg_ai_calls() -> None:
-    unused = sorted(LISTED - _called())
+    # An ability another caller reaches for rpg-ai (`called_by`: the routing between backends) isn't rpg-ai's call.
+    others = {
+        (ext, name)
+        for ext, abilities in BACKENDS["abilities"].items()
+        for name, spec in abilities.items()
+        if spec.get("called_by")
+    }
+    unused = sorted(LISTED - others - _called())
     assert not unused, f"in contract/backends.json but never called: {unused}"
 
 

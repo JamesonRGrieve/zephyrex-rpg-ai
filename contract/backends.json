@@ -1,5 +1,5 @@
 {
-  "$comment": "What rpg-ai needs from a world backend (the in-house wiki and VTT, or a Foundry-backed one: the operator, 2026-11-24, \"Have an option to directly integrate with Foundry VTT via actors and journals instead of using our in house vtt and wiki\"). Every ability rpg-ai calls, by extension, with its arguments, what it answers and the fields rpg-ai reads; `required` ones a backend must offer for play, the rest it may leave out (rpg-ai then does without). Held by server/extensions/ai_chat/Backends_test.py: each loaded_ability rpg-ai calls is listed here, and the in-house backends offer every required one.",
+  "$comment": "What rpg-ai needs from a world backend (the in-house wiki and VTT, or a Foundry-backed one: the operator, 2026-11-24, \"Have an option to directly integrate with Foundry VTT via actors and journals instead of using our in house vtt and wiki\"). Every ability rpg-ai calls, by extension, with its arguments, what it answers and the fields rpg-ai reads; `required` ones a backend must offer for play, the rest it may leave out (rpg-ai then does without). An ability with `called_by` is one rpg-ai doesn't call itself but its play depends on another caller reaching (the routing between backends). Held by server/extensions/ai_chat/Backends_test.py: each loaded_ability rpg-ai calls is listed here, everything listed without `called_by` is called, and the in-house backends offer every required one.",
   "abilities": {
     "rpg_core": {
       "world_entities": {
@@ -250,6 +250,25 @@
         "required": false,
         "reads": [],
         "for": "a scenario's frame copied into a new playthrough (the hook: model_registry, requester_id, source_campaign_id, new_campaign_id, id_map)"
+      },
+      "campaign_backend": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id",
+          "person_id",
+          "world_id"
+        ],
+        "returns": "{backend, world_id, campaign_id, member}",
+        "required": true,
+        "reads": [
+          "backend",
+          "world_id",
+          "campaign_id",
+          "member"
+        ],
+        "called_by": "the wiki's backend selectors and external_vtt, before each world read",
+        "for": "which backend keeps a campaign (native or foundry), so every rpg-ai read above reaches the right one"
       }
     },
     "rpg_scene": {
