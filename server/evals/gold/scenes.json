@@ -1,0 +1,164 @@
+{
+  "$comment": "Story scenes for evals/story_eval.py, from the operator's chats 950d879c and 64e11be8 (The Missing Merchant): a persona, a cast and the turns so far, in contract/prompt-cases.json's shapes.",
+  "scenes": [
+    {
+      "name": "the parlour: the player presses Delphine (chat 950d879c)",
+      "persona": {
+        "name": "Brenna",
+        "description": "A sellsword hired to find the missing merchant."
+      },
+      "cast": [
+        {
+          "id": "del",
+          "name": "Delphine Halloway",
+          "description": "The wife of Orrin Halloway, a merchant who vanished a week ago. Composed, proud, frightened underneath.",
+          "personality": "guarded, sharp",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        },
+        {
+          "id": "mira",
+          "name": "Inspector Mira Kettle",
+          "description": "A city inspector looking into Orrin's disappearance. Blunt and tired.",
+          "personality": "dry, persistent",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        },
+        {
+          "id": "bram",
+          "name": "Bram Holloway",
+          "description": "A dockhand who works the Halloway warehouses. Big, quiet, nervous around the law.",
+          "personality": "slow to speak, loyal",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        }
+      ],
+      "history": [
+        {
+          "role": "character",
+          "channel": "ic",
+          "speaker_character_id": "del",
+          "content": "The rain beats against the parlour windows. Delphine sits very straight with her teacup."
+        },
+        {
+          "role": "user",
+          "channel": "ic",
+          "speaker_character_id": null,
+          "content": "So, tell us why you are so certain he didn't simply leave."
+        }
+      ]
+    },
+    {
+      "name": "the warehouse: Mira and Bram disagree, the player watches",
+      "persona": {
+        "name": "Brenna",
+        "description": "A sellsword hired to find the missing merchant."
+      },
+      "cast": [
+        {
+          "id": "del",
+          "name": "Delphine Halloway",
+          "description": "The wife of Orrin Halloway, a merchant who vanished a week ago. Composed, proud, frightened underneath.",
+          "personality": "guarded, sharp",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        },
+        {
+          "id": "mira",
+          "name": "Inspector Mira Kettle",
+          "description": "A city inspector looking into Orrin's disappearance. Blunt and tired.",
+          "personality": "dry, persistent",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        },
+        {
+          "id": "bram",
+          "name": "Bram Holloway",
+          "description": "A dockhand who works the Halloway warehouses. Big, quiet, nervous around the law.",
+          "personality": "slow to speak, loyal",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        }
+      ],
+      "history": [
+        {
+          "role": "character",
+          "channel": "ic",
+          "speaker_character_id": "mira",
+          "content": "\"He was here the night he vanished,\" Mira says, pointing at a ledger."
+        },
+        {
+          "role": "user",
+          "channel": "ic",
+          "speaker_character_id": null,
+          "content": "I look at Bram. Was he?"
+        }
+      ]
+    },
+    {
+      "name": "the quay: a fight brews",
+      "persona": {
+        "name": "Brenna",
+        "description": "A sellsword hired to find the missing merchant."
+      },
+      "cast": [
+        {
+          "id": "del",
+          "name": "Delphine Halloway",
+          "description": "The wife of Orrin Halloway, a merchant who vanished a week ago. Composed, proud, frightened underneath.",
+          "personality": "guarded, sharp",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        },
+        {
+          "id": "mira",
+          "name": "Inspector Mira Kettle",
+          "description": "A city inspector looking into Orrin's disappearance. Blunt and tired.",
+          "personality": "dry, persistent",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        },
+        {
+          "id": "bram",
+          "name": "Bram Holloway",
+          "description": "A dockhand who works the Halloway warehouses. Big, quiet, nervous around the law.",
+          "personality": "slow to speak, loyal",
+          "scenario": "",
+          "example_messages": "",
+          "system_prompt": "",
+          "post_history_instructions": ""
+        }
+      ],
+      "history": [
+        {
+          "role": "character",
+          "channel": "ic",
+          "speaker_character_id": "bram",
+          "content": "Something heavy splashes beneath the quay. Bram backs away from the edge."
+        },
+        {
+          "role": "user",
+          "channel": "ic",
+          "speaker_character_id": null,
+          "content": "I draw my sword and step toward the water."
+        }
+      ]
+    }
+  ]
+}

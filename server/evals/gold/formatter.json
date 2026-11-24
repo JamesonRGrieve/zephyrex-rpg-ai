@@ -1,0 +1,252 @@
+{
+  "$comment": "The formatter's gold set (the operator, 2026-11-24: research models trained for attribution and structure; the eval scores them). Each case: the narrator's prose, who is present (ids into people), and the lines it should come out as: speaker (null for narration), kind (say/do/narrate) and the text (present tense, subject off, for actions). From the operator's real failures in chats 950d879c and 64e11be8, plus cases for pronouns, crowds, past tense and the world alone.",
+  "people": [
+    {
+      "id": "del",
+      "name": "Delphine Halloway",
+      "who": "the missing merchant's wife; she"
+    },
+    {
+      "id": "bram",
+      "name": "Bram Holloway",
+      "who": "a dockhand; he"
+    },
+    {
+      "id": "mira",
+      "name": "Inspector Mira Kettle",
+      "who": "a city inspector; she"
+    },
+    {
+      "id": "bren",
+      "name": "Brenna",
+      "who": "a player character, a sellsword; she"
+    },
+    {
+      "id": "tam",
+      "name": "Tam",
+      "who": "a player character, a halfling thief; he"
+    }
+  ],
+  "cases": [
+    {
+      "name": "Delphine answers, then 'She rose from her seat' (chat 950d879c, the operator's)",
+      "prose": "Delphine sets down her teacup with precise care. Her knuckles are white.\n\"Because that is not how my husband does business,\" she says to Brenna. She rose from her seat.",
+      "present": [
+        "del",
+        "bram",
+        "bren"
+      ],
+      "gold": [
+        {
+          "speaker": "del",
+          "kind": "do",
+          "text": "sets down her teacup with precise care"
+        },
+        {
+          "speaker": null,
+          "kind": "narrate",
+          "text": "Her knuckles are white"
+        },
+        {
+          "speaker": "del",
+          "kind": "say",
+          "text": "Because that is not how my husband does business"
+        },
+        {
+          "speaker": "del",
+          "kind": "do",
+          "text": "rises from her seat"
+        }
+      ]
+    },
+    {
+      "name": "a woman's line beside a man's name is hers (Delphine credited to Bram, chat 950d879c)",
+      "prose": "Bram Holloway shifts by the door. She sets down her cup. \"I want him off my property.\"",
+      "present": [
+        "del",
+        "bram",
+        "mira"
+      ],
+      "gold": [
+        {
+          "speaker": "bram",
+          "kind": "do",
+          "text": "shifts by the door"
+        },
+        {
+          "speaker": "del",
+          "kind": "do",
+          "text": "sets down her cup"
+        },
+        {
+          "speaker": "del",
+          "kind": "say",
+          "text": "I want him off my property"
+        }
+      ]
+    },
+    {
+      "name": "Delphine's line inside Mira's turn (chat 64e11be8)",
+      "prose": "Mira folds her arms. Delphine Halloway (to Inspector Mira Kettle, voice strained): \"I want him off my property.\"",
+      "present": [
+        "del",
+        "mira"
+      ],
+      "gold": [
+        {
+          "speaker": "mira",
+          "kind": "do",
+          "text": "folds her arms"
+        },
+        {
+          "speaker": "del",
+          "kind": "say",
+          "text": "I want him off my property"
+        }
+      ]
+    },
+    {
+      "name": "NPC speech inside narration (chat 64e11be8)",
+      "prose": "The rain picks up. Inspector Mira Kettle (to everyone, exasperated): \"That is... I cannot even...\" She turns away.",
+      "present": [
+        "mira",
+        "bren"
+      ],
+      "gold": [
+        {
+          "speaker": null,
+          "kind": "narrate",
+          "text": "The rain picks up"
+        },
+        {
+          "speaker": "mira",
+          "kind": "say",
+          "text": "That is... I cannot even..."
+        },
+        {
+          "speaker": "mira",
+          "kind": "do",
+          "text": "turns away"
+        }
+      ]
+    },
+    {
+      "name": "a code fence around plain narration",
+      "prose": "```\nThe quay is empty. Gulls wheel overhead.\n```",
+      "present": [
+        "bren"
+      ],
+      "gold": [
+        {
+          "speaker": null,
+          "kind": "narrate",
+          "text": "The quay is empty. Gulls wheel overhead"
+        }
+      ]
+    },
+    {
+      "name": "two people, their pronouns tell them apart",
+      "prose": "Tam slips behind a crate. She draws her sword and steps forward. He hisses, \"Not yet.\"",
+      "present": [
+        "tam",
+        "bren"
+      ],
+      "gold": [
+        {
+          "speaker": "tam",
+          "kind": "do",
+          "text": "slips behind a crate"
+        },
+        {
+          "speaker": "bren",
+          "kind": "do",
+          "text": "draws her sword and steps forward"
+        },
+        {
+          "speaker": "tam",
+          "kind": "say",
+          "text": "Not yet"
+        }
+      ]
+    },
+    {
+      "name": "a crowd's words stay narration",
+      "prose": "The crowd jeers, \"Throw him in!\" Brenna steadies her stance.",
+      "present": [
+        "bren"
+      ],
+      "gold": [
+        {
+          "speaker": null,
+          "kind": "narrate",
+          "text": "The crowd jeers, \"Throw him in!\""
+        },
+        {
+          "speaker": "bren",
+          "kind": "do",
+          "text": "steadies her stance"
+        }
+      ]
+    },
+    {
+      "name": "past-tense actions throughout",
+      "prose": "Bram walked to the window. He looked out at the harbour and sighed. \"She's late.\"",
+      "present": [
+        "bram",
+        "del"
+      ],
+      "gold": [
+        {
+          "speaker": "bram",
+          "kind": "do",
+          "text": "walks to the window"
+        },
+        {
+          "speaker": "bram",
+          "kind": "do",
+          "text": "looks out at the harbour and sighs"
+        },
+        {
+          "speaker": "bram",
+          "kind": "say",
+          "text": "She's late"
+        }
+      ]
+    },
+    {
+      "name": "the world alone",
+      "prose": "Fog rolls in off the water. Somewhere a bell tolls twice.",
+      "present": [
+        "bren",
+        "tam"
+      ],
+      "gold": [
+        {
+          "speaker": null,
+          "kind": "narrate",
+          "text": "Fog rolls in off the water. Somewhere a bell tolls twice"
+        }
+      ]
+    },
+    {
+      "name": "speech with tone and an addressee",
+      "prose": "Delphine leans close to Tam. \"Find him,\" she whispers.",
+      "present": [
+        "del",
+        "tam"
+      ],
+      "gold": [
+        {
+          "speaker": "del",
+          "kind": "do",
+          "text": "leans close to Tam"
+        },
+        {
+          "speaker": "del",
+          "kind": "say",
+          "text": "Find him"
+        }
+      ]
+    }
+  ]
+}
