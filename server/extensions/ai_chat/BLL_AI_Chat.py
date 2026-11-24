@@ -3726,7 +3726,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                             {"key": key, "type": question.get("type"), "instructions": question.get("instructions")}
                             for key, question in asked_here.items()
                         ],
-                        state=state[:STATE_CHARACTERS],
+                        # The end of what it read: the latest lines are what it decided on.
+                        state=state[-STATE_CHARACTERS:],
                         answers=dict(answers) if answers is not None else {key: None for key in group},
                         model=str(row.model),
                         ms=int((time.monotonic() - started) * 1000),
@@ -4367,9 +4368,17 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for turn in context["history"]
             if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
         ]
-        # The latest round: from the person's last line on.
-        users = [index for index, turn in enumerate(story_turns) if by_person(turn, playing_id)]
-        round_turns = story_turns[users[-1] :] if users else story_turns
+        # The latest round: from the person's last line on. In the GM's seat the person's lines are the
+        # narration; with none of theirs, the latest line alone, never the whole chat (Zephyrex RPG's r47,
+        # chat 6c488a84: the GM's departure line was a round of the whole chat from its opening, and Hesk
+        # stayed).
+        gm_seat = turn_seat(chat.seat, playing_id is not None) == "gm"
+        users = [
+            index
+            for index, turn in enumerate(story_turns)
+            if by_person(turn, playing_id) or (gm_seat and turn["role"] == "narrator")
+        ]
+        round_turns = story_turns[users[-1] :] if users else story_turns[-1:]
         persona = context["persona"]
         actor = persona["name"] if persona is not None else DEFAULT_USER_NAME
         people = [*context["cast"], *([{"id": playing_id, "name": actor}] if playing_id is not None else [])]

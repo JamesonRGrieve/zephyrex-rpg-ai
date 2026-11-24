@@ -5,7 +5,8 @@
 combat_options for that combatant, its questions (which action, whom it aims at) put to the decision
 models in parallel and filed under the chat, then the picks resolved by the VTT's take_combat_action with
 its own rolls, then the VTT's next_turn. A combatant off its turn does nothing; one with no action left
-or whose decision is to hold passes the turn.
+or whose decision is to hold passes the turn. With ``line_id`` it is the person's own turn: their line is
+read for which of the VTT's options it describes, and that one is taken (the VTT rolls).
 
 ``POST /v1/ai_chat/combat_check`` ``{"combat_check": {"chat_id", "leaf_id"}}``: whether the story's latest
 line starts a fight (the decision model), and if so the VTT's encounter for everyone on the scene (or the
@@ -31,6 +32,9 @@ class CombatTurnRequest(PlainModel):
     chat_id: str = Field(..., min_length=1)
     encounter_id: str = Field(..., min_length=1)
     person_id: str = Field(..., min_length=1)
+    #: The person's own turn: their line, read for which of the VTT's options it describes (never one chosen
+    #: for them). Without it, an AI-run combatant's turn.
+    line_id: str | None = None
 
 
 class CombatTurnRequestEnvelope(PlainModel):
@@ -39,7 +43,8 @@ class CombatTurnRequestEnvelope(PlainModel):
 
 class CombatTurn(PlainModel):
     acted: bool
-    #: Why nothing was done: "not its turn", "no action", "holds", "no decision model".
+    #: Why nothing was done: "not its turn", "no action", "holds", "no decision model", "the line describes no
+    #: action" (the person's turn, which stays theirs).
     reason: str = ""
     action_id: str | None = None
     target_ids: list[str] = Field(default_factory=list)
@@ -111,8 +116,17 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             shown_text,
             wiki_campaign_for,
         )
-        from zephyrex.extensions.ai_chat.CombatTurn import COMBAT  # type: ignore[import-not-found]
-        from zephyrex.extensions.ai_chat.WikiReads import scene_now, scene_people  # type: ignore[import-not-found]
+        from zephyrex.extensions.ai_chat.BLL_AI_Session import play_context  # type: ignore[import-not-found]
+        from zephyrex.extensions.ai_chat.CombatTurn import (  # type: ignore[import-not-found]
+            COMBAT,
+            fight_sides,
+            side_questions,
+        )
+        from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
+            scene_now,
+            scene_people,
+            world_entities_by_id,
+        )
 
         asked = body.combat_check
         requester = str(self.requester.id)
@@ -160,9 +174,20 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             people = await scene_people(self.model_registry, requester, wiki)
             if not people:
                 return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no one on the scene"))
-            made = await _called(
-                start, requester, wiki, scene_id=str(scene["id"]) if scene else None, person_ids=people
-            )
+            # Who is on which side: the party friendly, each other person on the scene put to the decision model,
+            # asked only once a fight starts (Zephyrex RPG's r47, chat 20845cf2: the foe came out neutral, so no
+            # one could aim at it). Unanswered, the VTT's own rule stands for them.
+            seat, _marks = play_context(requester, self.model_registry, chat.id)
+            found = world_entities_by_id(self.model_registry, requester, list(people))
+            named = [{"id": str(one["id"]), "name": str(one.get("name") or "")} for one in found if one.get("name")]
+            pcs = [str(one["id"]) for one in found if one.get("kind") == "pc" or str(one["id"]) == seat]
+            sides_asked, party = side_questions(named, pcs)
+            sided = await chats._decide("Combat: sides", asked, shown_text(line), sides_asked) if sides_asked else None
+            opening: dict[str, Any] = {"scene_id": str(scene["id"]) if scene else None, "person_ids": people}
+            sides = fight_sides(sided, sides_asked, party)
+            if sides and start is not None and "sides" in inspect.signature(start).parameters:
+                opening["sides"] = sides
+            made = await _called(start, requester, wiki, **opening)
             encounter_id = str(made.get("id") or made.get("encounter_id") or "") if isinstance(made, dict) else ""
             if not encounter_id:
                 return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="the VTT opened no fight"))
@@ -250,7 +275,18 @@ class CombatTurnManager(AbstractBLLManager[Any], RouterMixin):
         rows = world_entities_by_id(self.model_registry, requester, [asked.person_id])
         person: dict[str, Any] = dict(next(iter(rows), None) or {})
         name = str(person.get("name") or "They")
-        questions, by_action, by_target = combat_questions(options, name, str(person.get("summary") or ""))
+        line_text = ""
+        if asked.line_id:
+            from zephyrex.extensions.ai_chat.BLL_AI_Chat import ChatMessageManager, shown_text
+
+            said = ChatMessageManager(requester_id=requester, model_registry=self.model_registry).get(id=asked.line_id)
+            if str(said.chat_id) != asked.chat_id:
+                raise HTTPException(
+                    status_code=422, detail={"message": "The line must be in the chat", "code": "validation_error"}
+                )
+            line_text = shown_text(said)
+        by_line = bool(asked.line_id)
+        questions, by_action, by_target = combat_questions(options, name, str(person.get("summary") or ""), by_line)
         if not questions:
             await passed()
             return CombatTurnEnvelope(combat_turn=CombatTurn(acted=False, reason="no action"))
@@ -259,10 +295,15 @@ class CombatTurnManager(AbstractBLLManager[Any], RouterMixin):
             f"{one.get('name')} ({'hostile' if one.get('hostile') else 'friendly'}, {one.get('hp')} hit points)"
             for one in options.get("targets") or []
         )
-        answers = await chats._decide("Combat: turn", asked, state, questions)
+        if by_line:
+            state = f"{state}\n\n{name}'s player: {line_text}"
+        answers = await chats._decide("Combat: person's turn" if by_line else "Combat: turn", asked, state, questions)
         if answers is None:
             return CombatTurnEnvelope(combat_turn=CombatTurn(acted=False, reason="no decision model"))
         pick = combat_pick(answers, options, by_action, by_target)
+        if pick is None and by_line:
+            # Their line describes none of the options: the turn stays theirs, for them to say again.
+            return CombatTurnEnvelope(combat_turn=CombatTurn(acted=False, reason="the line describes no action"))
         if pick is None:
             await passed()
             return CombatTurnEnvelope(combat_turn=CombatTurn(acted=False, reason="holds"))

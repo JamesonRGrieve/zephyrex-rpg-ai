@@ -1563,6 +1563,53 @@ class TestGenerate:
             prompt = client.post("/v1/ai_chat/prompt", json=retried, headers=_headers(user)).json()["prompt"]
             assert "Your last reply rolled or resolved dice itself ([roll=1d20+6])" in prompt["messages"][0]["content"]
 
+    def test_the_gm_seats_round_is_its_own_latest_narration(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Zephyrex RPG's r47 (chat 6c488a84): in the GM's seat no line counted as the person's, so the round was
+        # the whole chat from its opening, and the departure line never reached the scene question.
+        from zephyrex.extensions.ai_chat import BLL_AI_Chat  # type: ignore[import-not-found]
+
+        user = create_user(server)
+        brenna = _cast(server, user, "character", name="Brenna").json()["character"]
+        hesk = _cast(server, user, "character", name="Old Hesk").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        chat = _chat(server, user, "chat", title="Ferry", character_ids=[brenna["id"]], seat="gm").json()["chat"]
+        lines = [
+            ("narrator", None, "Rain on the river. Old Hesk waits at his ferry."),
+            ("character", brenna["id"], "Brenna steps aboard."),
+            ("narrator", None, "Old Hesk pockets his coin and poles the ferry back across the river."),
+        ]
+        leaf: Any = None
+        for role, speaker, text in lines:
+            fields: dict[str, Any] = {"chat_id": chat["id"], "role": role, "swipes": [text]}
+            if speaker:
+                fields["speaker_character_id"] = speaker
+            if leaf is not None:
+                fields["parent_id"] = leaf["id"]
+            leaf = _create(server, user, "chat_message", **fields).json()["chat_message"]
+        read: list[str] = []
+
+        async def scene(_registry: Any, _requester: str, _campaign: str | None) -> dict[str, Any]:
+            return {"id": "s1", "name": "Ferry"}
+
+        async def tokens(_self: Any, _chat: Any) -> list[str]:
+            return [brenna["id"], hesk["id"]]
+
+        async def decide(_self: Any, purpose: str, _asked: Any, state: str, questions: dict[str, Any]) -> Any:
+            if purpose == "map_step: scene":
+                read.append(state)
+            return {key: {"choice": "still here"} for key in questions}
+
+        monkeypatch.setattr(BLL_AI_Chat, "scene_now", scene)
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_scene_tokens", tokens)
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decide)
+        answer = server.post(
+            "/v1/ai_chat/map_step", json={"map_step": {"chat_id": chat["id"], "leaf_id": leaf["id"]}}, headers=_headers(user)
+        )
+        assert answer.status_code == 200, answer.text
+        assert read == ["Old Hesk pockets his coin and poles the ferry back across the river."]
+
     def test_the_gms_narration_takes_someone_off_the_scene(
         self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:

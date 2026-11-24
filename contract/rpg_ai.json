@@ -968,9 +968,19 @@
     "hold": "hold",
     "action_question": "It is {{name}}'s turn in the fight. {{name}}: {{who}} Which of these does {{name}} do now? Choose only one of the options listed, or {{hold}} to do nothing.",
     "target_question": "Whom does {{name}} aim at? Choose only one of these.",
+  "$line": "The person's own turn (Zephyrex RPG's r47, chat 20845cf2: 'I draw my sword and strike at it' was never resolved): their line is read for which of the VTT's options it describes, never chosen for them; {{hold}} when it describes none, so nothing is taken.",
+  "action_question_line": "It is {{name}}'s turn in the fight, and {{name}}'s player wrote what they do (the scene). Which of these does that line describe? Choose only one of the options listed, or {{hold}} if it describes none of them.",
+  "target_question_line": "Whom does that line aim at? Choose only one of these.",
     "reach_unchecked": "(Distance isn't checked: every target listed is in reach.)",
     "start_question": "Does the story's latest line start a fight now (an attack, an ambush, a call to roll initiative)?",
-    "start_yes": "a fight starts",
+    "$sides": "Who is on which side when a fight starts (Zephyrex RPG's r47, chat 20845cf2: the drowned thing came out neutral and no one could aim at it). The party (the campaign's PCs and the seat's character) is friendly; each other person on the scene is asked, among these three only, in the same call as start_question. Unanswered, the VTT's own rule (token disposition, else kind) stands.",
+  "side_question": "In the fight this line starts, which side is {{name}} on?",
+  "sides": {
+    "friendly": "with the party",
+    "hostile": "against the party",
+    "neutral": "in neither side: a bystander"
+  },
+  "start_yes": "a fight starts",
     "start_no": "no fight"
   },
   "battlemap": {

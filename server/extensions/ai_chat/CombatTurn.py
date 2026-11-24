@@ -6,7 +6,7 @@ the VTT's take_combat_action resolves them with its own rolls.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
@@ -15,10 +15,11 @@ COMBAT: dict[str, Any] = CONTRACT["combat_turn"]
 
 
 def combat_questions(
-    options: Mapping[str, Any], name: str, who: str
+    options: Mapping[str, Any], name: str, who: str, by_line: bool = False
 ) -> tuple[dict[str, dict[str, Any]], dict[str, str], dict[str, str]]:
     """The questions for one turn (action, target), asked together, and what each answer picks:
-    (questions, action label → action id, target label → person id). None asked off its turn."""
+    (questions, action label → action id, target label → person id). None asked off its turn. ``by_line``:
+    the person's own turn, their line read for which option it describes (contract action_question_line)."""
     if not options.get("turn") or not options.get("action_available"):
         return {}, {}, {}
     actions = [one for one in options.get("actions") or [] if one.get("id") and one.get("name")]
@@ -29,7 +30,7 @@ def combat_questions(
     questions: dict[str, dict[str, Any]] = {
         "action": {
             "type": "choice",
-            "instructions": str(COMBAT["action_question"])
+            "instructions": str(COMBAT["action_question_line" if by_line else "action_question"])
             .replace("{{name}}", name)
             .replace("{{who}}", who.strip() or name)
             .replace("{{hold}}", hold),
@@ -45,7 +46,10 @@ def combat_questions(
         unchecked = f" {COMBAT['reach_unchecked']}" if options.get("reach") == "unchecked" else ""
         questions["target"] = {
             "type": "choice",
-            "instructions": str(COMBAT["target_question"]).replace("{{name}}", name) + unchecked,
+            "instructions": str(COMBAT["target_question_line" if by_line else "target_question"]).replace(
+                "{{name}}", name
+            )
+            + unchecked,
             "criteria": {
                 str(one["name"]): "hostile" if one.get("hostile") else "friendly" for one in targets if one.get("name")
             },
@@ -72,3 +76,34 @@ def combat_pick(
     if target is None or target not in {str(one) for one in action.get("targets") or []}:
         return None
     return {"action_id": action_id, "target_ids": [target]}
+
+
+def side_questions(
+    people: Sequence[Mapping[str, Any]], party: Sequence[str]
+) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
+    """Who isn't of the party, one question each (contract side_question, among the three sides only); and
+    the party, friendly without asking. Returns (questions keyed side_<id>, the party's sides)."""
+    party_ids = {str(one) for one in party}
+    questions: dict[str, dict[str, Any]] = {}
+    for one in people:
+        if str(one["id"]) in party_ids:
+            continue
+        questions[f"side_{one['id']}"] = {
+            "type": "choice",
+            "instructions": str(COMBAT["side_question"]).replace("{{name}}", str(one["name"])),
+            "criteria": dict(COMBAT["sides"]),
+        }
+    return questions, {one: "friendly" for one in party_ids if any(str(p["id"]) == one for p in people)}
+
+
+def fight_sides(
+    answers: Mapping[str, Any] | None, questions: Mapping[str, Any], party: Mapping[str, str]
+) -> dict[str, str]:
+    """The sides to start the fight with: the party's, and each answered one (an answer outside the three is
+    none, so the VTT's own rule stands for them)."""
+    sides = dict(party)
+    for key in questions:
+        choice = ((answers or {}).get(key) or {}).get("choice")
+        if choice in COMBAT["sides"]:
+            sides[key.removeprefix("side_")] = str(choice)
+    return sides

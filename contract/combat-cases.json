@@ -1,0 +1,77 @@
+{
+  "$comment": "Who is on which side when a fight starts (CombatTurn.side_questions / fight_sides; contract combat_turn sides). Zephyrex RPG's r47, chat 20845cf2.",
+  "cases": [
+    {
+      "name": "the drowned thing attacks: it is hostile, the party friendly, the ferryman a bystander",
+      "line": "A bloated drowned thing heaves itself out of the millrace at me. I draw my sword and strike at it.",
+      "people": [
+        {
+          "id": "brenna",
+          "name": "Brenna"
+        },
+        {
+          "id": "tam",
+          "name": "Tam"
+        },
+        {
+          "id": "hesk",
+          "name": "Old Hesk"
+        },
+        {
+          "id": "drowned",
+          "name": "Drowned Thing"
+        }
+      ],
+      "party": [
+        "brenna",
+        "tam"
+      ],
+      "questions": [
+        "side_hesk",
+        "side_drowned"
+      ],
+      "answers": {
+        "side_hesk": {
+          "choice": "neutral"
+        },
+        "side_drowned": {
+          "choice": "hostile"
+        }
+      },
+      "sides": {
+        "brenna": "friendly",
+        "tam": "friendly",
+        "hesk": "neutral",
+        "drowned": "hostile"
+      }
+    },
+    {
+      "name": "an answer outside the three sides is none: the VTT's own rule stands",
+      "line": "Steel rings.",
+      "people": [
+        {
+          "id": "brenna",
+          "name": "Brenna"
+        },
+        {
+          "id": "hesk",
+          "name": "Old Hesk"
+        }
+      ],
+      "party": [
+        "brenna"
+      ],
+      "questions": [
+        "side_hesk"
+      ],
+      "answers": {
+        "side_hesk": {
+          "choice": "furious"
+        }
+      },
+      "sides": {
+        "brenna": "friendly"
+      }
+    }
+  ]
+}
