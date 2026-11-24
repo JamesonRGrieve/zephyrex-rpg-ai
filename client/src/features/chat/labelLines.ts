@@ -8,6 +8,7 @@
 import { csrfHeaders } from '@zephyrex/auth/lib/session';
 import { ACTION_KINDS, type ActionKind } from './actionKind';
 import type { Manner, ShownLine } from '~/components/play/StructuredLines';
+import { parsePlayerLines } from './playerLines';
 
 export interface LineLabel {
   kind: 'say' | 'do' | 'narrate' | 'drop';
@@ -49,16 +50,26 @@ export function readLabels(raw: unknown): LineLabel[] | null {
   return labels.length === 0 ? null : labels;
 }
 
+/**
+ * A labelled line's own words: its stored form's name, parenthesis and quotes off (`Bram Holloway sets down the
+ * cup` is "sets down the cup"; `Narrator: The fire pops.` "The fire pops."), as a structured line shows them.
+ */
+function ownWords(text: string, actorName: string | null): string {
+  const item = parsePlayerLines(text, actorName === null ? [] : [{ id: 'actor', name: actorName }])[0];
+  return item === undefined || item.text === '' ? text : item.text;
+}
+
 /** The lines to show from labels: speech and actions credited to whoever the model named. */
 export function labelledLines(labels: readonly LineLabel[], fallbackSpeaker: string): ShownLine[] {
   return labels.flatMap((label): ShownLine[] => {
     if (label.kind === 'drop' || label.text === '') return [];
     if (label.kind === 'narrate' || (label.actorName === null && label.kind === 'do'))
-      return [{ kind: 'narrate', text: label.text }];
+      return [{ kind: 'narrate', text: ownWords(label.text, null) }];
     const speaker = label.actorName ?? fallbackSpeaker;
+    const text = ownWords(label.text, speaker);
     if (label.kind === 'say')
-      return [{ kind: 'say', speaker, target: label.targetName, manner: label.manner ?? 'speak', text: label.text }];
-    return [{ kind: 'do', speaker, target: label.targetName, text: label.text, icon: label.icon ?? undefined }];
+      return [{ kind: 'say', speaker, target: label.targetName, manner: label.manner ?? 'speak', text }];
+    return [{ kind: 'do', speaker, target: label.targetName, text, icon: label.icon ?? undefined }];
   });
 }
 

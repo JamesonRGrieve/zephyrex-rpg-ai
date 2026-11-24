@@ -188,6 +188,28 @@
           "text": "\"That's enough fighting for tonight.\" She plants her hammer. \"Sit.\""
         }
       ]
+    },
+    {
+      "name": "an action told by its possessive is theirs: Name's ... (build60's live run, 2026-11-24)",
+      "text": "Tessaly Kord's mechadendrite twitches.\nWren’s hand tightens on the rail.",
+      "items": [
+        {
+          "speaker_id": "tess",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": null,
+          "text": "'s mechadendrite twitches."
+        },
+        {
+          "speaker_id": "wren",
+          "kind": "do",
+          "manner": null,
+          "target_id": null,
+          "target_name": null,
+          "text": "'s hand tightens on the rail."
+        }
+      ]
     }
   ],
   "format_case": {
@@ -442,5 +464,19 @@
       },
       "kept": "[location: Galley | Deck Four, the Kestrel]\nSteam rises."
     }
-  ]
+  ],
+  "possessive_format_case": {
+    "$comment": "Its name once, no space before 's (build58: Old Hesk Old Hesk's weathered face).",
+    "items": [
+      {
+        "speaker_id": "tess",
+        "kind": "do",
+        "manner": null,
+        "target_id": null,
+        "target_name": null,
+        "text": "'s mechadendrite twitches."
+      }
+    ],
+    "text": "Tessaly Kord's mechadendrite twitches."
+  }
 }

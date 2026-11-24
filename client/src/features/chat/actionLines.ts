@@ -7,7 +7,11 @@
  *
  * After the formatter: a narration sentence whose subject is a present person (by name, or a subject pronoun
  * meaning the nearest one named before it) becomes that person's action line; an action line's own subject
- * is taken off (the stored form puts the actor's name first) and its first verb put in the present.
+ * is taken off (the stored form puts the actor's name first) and its first verb put in the present. A sentence
+ * opening on a present person's possessive ("Delphine Halloway's spine stiffens", "Her gaze sweeps across the
+ * room") is their action too, kept as `'s spine stiffens` (stored `Delphine Halloway's spine stiffens`):
+ * build60's live run, 2026-11-24, "she set down her cup and it wasn't action tagged". A pronoun means the
+ * nearest person named whose own pronoun doesn't say otherwise.
  */
 import { ACTION_LINES } from '~/contract';
 import { formatPlayerLines } from './playerLines';
@@ -16,6 +20,11 @@ export interface ActionPerson {
   id: string;
   name: string;
   aliases?: readonly string[] | null;
+  /** Their own pronoun (he, she, they), when it's known. */
+  pronoun?: string | null;
+  /** What's said of them: its pronouns give theirs when `pronoun` doesn't. */
+  description?: string | null;
+  summary?: string | null;
 }
 
 export interface ActionLine {
@@ -42,7 +51,8 @@ const IRREGULAR: Readonly<Record<string, string>> = ACTION_LINES.irregular;
 const TITLES: readonly string[] = ACTION_LINES.titles;
 const PRONOUNS: readonly string[] = ACTION_LINES.subject_pronouns;
 const WORLD_OPENERS: readonly string[] = ACTION_LINES.world_openers;
-const POSSESSIVE_OPENERS: readonly string[] = ACTION_LINES.possessive_openers;
+const POSSESSIVE_OPENERS: Readonly<Record<string, string>> = ACTION_LINES.possessive_openers;
+const PRONOUN_WORDS: Readonly<Record<string, readonly string[]>> = ACTION_LINES.pronoun_words;
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 /**
@@ -113,25 +123,74 @@ export function shortNames(name: string): string[] {
 }
 
 /**
- * Whose action a sentence is, and its words after the subject: a present person's name (whole, first name or
- * alias) opening it, or a subject pronoun meaning `last`; [null, sentence] when neither.
+ * A person's own pronoun: the one they carry (`pronoun`), else the one their description uses most (contract
+ * action_lines.pronoun_words); null when neither says.
  */
-function who(sentence: string, people: readonly ActionPerson[], last: string | null): [string | null, string] {
+export function pronounOf(person: ActionPerson | undefined): string | null {
+  if (person === undefined) return null;
+  if (person.pronoun != null && PRONOUNS.includes(person.pronoun)) return person.pronoun;
+  const words = (person.description ?? person.summary ?? '').toLowerCase().match(/[a-z]+/g) ?? [];
+  const ranked = Object.entries(PRONOUN_WORDS)
+    .map(([pronoun, forms]): [string, number] => [pronoun, words.filter((word) => forms.includes(word)).length])
+    .sort((a, b) => b[1] - a[1]);
+  const [top, next] = ranked;
+  if (top === undefined || top[1] === 0 || (next !== undefined && next[1] === top[1])) return null;
+  return top[0];
+}
+
+/**
+ * Who a pronoun means: the nearest of `recent` (most recent last) whose own pronoun is it, or unknown (never
+ * when `strict`: "their" is a group's unless the person is "they"); null when no one fits ("Her knuckles"
+ * after Bram Holloway's action is no action of his).
+ */
+export function antecedent(
+  pronoun: string,
+  recent: readonly string[],
+  people: readonly ActionPerson[],
+  strict = false,
+): string | null {
+  for (const id of [...recent].reverse()) {
+    const theirs = pronounOf(people.find((one) => one.id === id));
+    if (theirs === pronoun || (theirs === null && !strict)) return id;
+  }
+  return null;
+}
+
+/**
+ * Whose action a sentence is, its words after the subject, and whether the subject is a possessive: a present
+ * person's name (whole, first name or alias) opening it, or a pronoun meaning one of `recent` (antecedent). A
+ * possessive's words keep it ("'s spine stiffens"). [null, sentence, false] when neither.
+ */
+function who(
+  sentence: string,
+  people: readonly ActionPerson[],
+  recent: readonly string[],
+): [string | null, string, boolean] {
   const stripped = sentence.trimStart();
   for (const person of [...people].sort((a, b) => b.name.length - a.name.length)) {
     const names = [person.name, ...(person.aliases ?? []), ...shortNames(person.name)]
       .map((one) => one.trim())
       .filter((one) => one !== '');
     for (const name of [...new Set(names)].sort((a, b) => b.length - a.length)) {
-      const match = new RegExp(`^${escape(name)}(?:'s)?\\b\\s+([\\s\\S]*)`).exec(stripped);
-      if (match !== null && !stripped.slice(name.length).startsWith("'s")) return [person.id, match[1] ?? ''];
+      const match = new RegExp(`^${escape(name)}(['’]s\\b)?\\s+([\\s\\S]*)`, 'u').exec(stripped);
+      if (match !== null) {
+        const owned = match[1] !== undefined;
+        return [person.id, owned ? `'s ${match[2] ?? ''}` : (match[2] ?? ''), owned];
+      }
     }
   }
-  const pronoun = /^(\w+)\s+([\s\S]*)/.exec(stripped);
-  if (pronoun !== null && PRONOUNS.includes((pronoun[1] ?? '').toLowerCase()) && last !== null) {
-    return [last, pronoun[2] ?? ''];
+  const first = /^(\w+)\s+([\s\S]*)/.exec(stripped);
+  const word = (first?.[1] ?? '').toLowerCase();
+  if (first !== null && PRONOUNS.includes(word)) {
+    const found = antecedent(word, recent, people);
+    if (found !== null) return [found, first[2] ?? '', false];
   }
-  return [null, sentence];
+  const owner = Object.hasOwn(POSSESSIVE_OPENERS, word) ? POSSESSIVE_OPENERS[word] : undefined;
+  if (first !== null && owner !== undefined) {
+    const found = antecedent(owner, recent, people, word === 'their');
+    if (found !== null) return [found, `'s ${first[2] ?? ''}`, true];
+  }
+  return [null, sentence, false];
 }
 
 /** Whether a sentence opens on the world, not a person (contract action_lines.world_openers). */
@@ -141,13 +200,13 @@ function opensOnWorld(sentence: string): boolean {
 }
 
 /**
- * Whether a sentence opens on a possessive ("Old Hesk's weathered face tightens", "His gaze lingers..."): a
- * description, never an action with the person as its subject (live run, build58).
+ * Whether a sentence opens on a possessive ("Old Hesk's weathered face tightens", "His gaze lingers..."): asked
+ * only when no one present it could mean was found (who), when it is narration.
  */
 function possessed(sentence: string, people: readonly ActionPerson[]): boolean {
   const stripped = sentence.trimStart();
   const first = /^\W*(\w+)/.exec(stripped);
-  if (first !== null && POSSESSIVE_OPENERS.includes((first[1] ?? '').toLowerCase())) return true;
+  if (first !== null && Object.hasOwn(POSSESSIVE_OPENERS, (first[1] ?? '').toLowerCase())) return true;
   return people.some((person) =>
     [person.name, ...shortNames(person.name), ...(person.aliases ?? [])].some(
       (name) => name.trim() !== '' && stripped.startsWith(`${name.trim()}'s`),
@@ -158,7 +217,7 @@ function possessed(sentence: string, people: readonly ActionPerson[]): boolean {
 /**
  * A character's own sentence with no person as its subject, as their lines: a quote-led one is their speech,
  * and a tag after it with them as subject ("...," he mutters) their action; null when it opens on the world
- * or a possessive (narration). Their plain words are their speech, as their plain reply is: never
+ * or a possessive of no one present (narration). Their plain words are their speech, as their plain reply is: never
  * "Narrator:" in their own message (live run, build58).
  */
 function ownWords(line: ActionLine, sentence: string, speaker: string, people: readonly ActionPerson[]): Placed[] | null {
@@ -175,11 +234,18 @@ function ownWords(line: ActionLine, sentence: string, speaker: string, people: r
   const tail = sentence.replace(QUOTED, '').replace(/^[ ,;:]+|[ ,;:]+$/g, '');
   const lines: Placed[] = quoted === '' ? [] : [{ ...said, text: quoted }];
   if (tail === '') return lines;
-  const [actor, rest] = who(tail, people, speaker);
-  if (actor !== speaker || !/^\w/.test(rest)) return null;
+  const [actor, rest, owned] = who(tail, people, [speaker]);
+  if (actor !== speaker || !/^[\w']/.test(rest)) return null;
   return [
     ...lines,
-    { speaker_id: speaker, kind: 'do', manner: null, target_id: null, target_name: null, text: action(rest) },
+    {
+      speaker_id: speaker,
+      kind: 'do',
+      manner: null,
+      target_id: null,
+      target_name: null,
+      text: owned ? rest : action(rest),
+    },
   ];
 }
 
@@ -217,19 +283,18 @@ export function actionLines(
   const names = new Map(people.map((one) => [one.id, one.name]));
   const lines: Placed[] = [];
   const wrong: string[] = [];
-  let last: string | null = null;
+  // Who a pronoun may mean, the most recent last.
+  const recent: string[] = [];
   for (const run of runs) {
     // In a character's own run, "he" or "she" first means that character.
-    if (run.speaker_id !== null) last = run.speaker_id;
+    if (run.speaker_id !== null) recent.push(run.speaker_id);
     const speaker = run.speaker_id;
     for (const line of run.lines) {
       const text = line.text;
       if (line.kind === 'narrate' || speaker === null) {
         for (const sentence of sentences(text)) {
-          const found = who(sentence, people, last);
-          const actor = possessed(sentence, people) ? null : found[0];
-          const rest = found[1];
-          if (actor === null || !/^\w/.test(rest) || rest.startsWith('"') || rest.startsWith('“')) {
+          const [actor, rest, owned] = who(sentence, people, recent);
+          if (actor === null || !(owned || /^\w/.test(rest)) || rest.startsWith('"') || rest.startsWith('“')) {
             // In a character's own run, a sentence without a person as subject is their words unless it opens
             // on the world ("The ferry bumps...", live run 2026-11-24) or a possessive: then it's narration.
             const own = speaker === null ? null : ownWords(line, sentence, speaker, people);
@@ -239,7 +304,8 @@ export function actionLines(
             }
             if (speaker !== null) wrong.push(sentence.trim());
             lines.push({ ...line, speaker_id: null, kind: 'narrate', text: sentence });
-            last = named(sentence, people) ?? last;
+            const mentioned = named(sentence, people);
+            if (mentioned !== null) recent.push(mentioned);
             continue;
           }
           wrong.push(sentence.trim());
@@ -249,9 +315,9 @@ export function actionLines(
             manner: null,
             target_id: null,
             target_name: null,
-            text: action(rest),
+            text: owned ? rest : action(rest),
           });
-          last = actor;
+          recent.push(actor);
         }
         continue;
       }
@@ -261,7 +327,18 @@ export function actionLines(
         const parts = sentences(text);
         let own: string[] = [];
         for (const sentence of parts.length > 0 ? parts : [text]) {
-          if ((opensOnWorld(sentence) && who(sentence, people, null)[0] === null) || possessed(sentence, people)) {
+          const [actor, rest, owned] = who(sentence, people, [...recent, speaker]);
+          if (owned && actor !== null) {
+            // "Old Hesk's weathered face tightens" in his own turn: his action, as Old Hesk's ...
+            if (own.length > 0) {
+              lines.push(ownLine(line, speaker, own.join(' '), people, names, wrong));
+              own = [];
+            }
+            wrong.push(`${names.get(speaker) ?? ''} ${sentence}`.trim());
+            lines.push({ ...line, speaker_id: actor, kind: 'do', text: rest });
+            continue;
+          }
+          if ((opensOnWorld(sentence) && actor === null) || possessed(sentence, people)) {
             if (own.length > 0) {
               lines.push(ownLine(line, speaker, own.join(' '), people, names, wrong));
               own = [];
@@ -276,7 +353,7 @@ export function actionLines(
       } else {
         lines.push({ ...line, speaker_id: speaker });
       }
-      last = speaker;
+      recent.push(speaker);
     }
   }
   return { runs: grouped(lines, names), wrong };
@@ -291,7 +368,7 @@ function ownLine(
   names: ReadonlyMap<string, string>,
   wrong: string[],
 ): Placed {
-  const [actor, rest] = who(text, people, speaker);
+  const [actor, rest] = who(text, people, [speaker]);
   const fixed = action(actor === speaker ? rest : text);
   if (fixed !== text) wrong.push(`${names.get(speaker) ?? ''} ${text}`.trim());
   return { ...line, speaker_id: speaker, text: fixed };

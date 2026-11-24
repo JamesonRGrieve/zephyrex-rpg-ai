@@ -126,6 +126,14 @@ export function readLines(text: string, names: readonly string[]): ShownLine[] |
       const after = (say[4] ?? '').trim();
       return after === '' ? spoken : [spoken, { kind: 'do', speaker, target: null, text: after }];
     }
+    // An action told by its possessive (`Delphine Halloway's spine stiffens`, build60's live run, 2026-11-24).
+    const owner = known.find(
+      (name) => line.toLowerCase().startsWith(name.toLowerCase()) && /^['’]s\s/u.test(line.slice(name.length)),
+    );
+    if (owner !== undefined) {
+      structured += 1;
+      return { kind: 'do', speaker: owner, target: null, text: `'s ${line.slice(owner.length + 2).trim()}` };
+    }
     const actor = known.find((name) => line.toLowerCase().startsWith(`${name.toLowerCase()} `));
     if (actor !== undefined) {
       const rest = line.slice(actor.length + 1);
@@ -201,6 +209,9 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
           );
         }
         if (line.kind === 'do') {
+          // An action told by its possessive shows its actor's name whoever's message it is: "Delphine Halloway's
+          // spine stiffens", never "'s spine stiffens".
+          const owned = /^['’]s\s/u.test(line.text);
           return (
             <p
               key={key}
@@ -208,9 +219,14 @@ export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[
             >
               <ActionIcon kind={line.icon ?? actionKind(line.text)} />
               <span>
-                {other && <span className='font-medium'>{line.speaker} </span>}
+                {(other || owned) && (
+                  <span className='font-medium'>
+                    {line.speaker}
+                    {owned ? '' : ' '}
+                  </span>
+                )}
                 <span className='italic'>
-                  <Linked text={other ? line.text : capitalised(line.text)} />
+                  <Linked text={other || owned ? line.text : capitalised(line.text)} />
                 </span>
                 {line.target !== null && <span className='ml-1 text-xs text-muted-foreground'>→ {line.target}</span>}
               </span>

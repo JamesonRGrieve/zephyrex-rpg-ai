@@ -63,7 +63,11 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     PROMPT,
     SAMPLER_RANGES,
 )
-from zephyrex.extensions.ai_chat.ActionLines import action_lines  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.ActionLines import (  # type: ignore[import-not-found]
+    ACTIONS,
+    action_lines,
+    short_names,
+)
 from zephyrex.extensions.ai_chat.CampaignFraming import frame_from_framing  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Clarify import (  # type: ignore[import-not-found]
     clarify_need,
@@ -91,6 +95,7 @@ from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-fo
     render_instruct,
 )
 from zephyrex.extensions.ai_chat.LineLabels import (  # type: ignore[import-not-found]
+    held,
     label_chunks,
     message_lines,
     read_labels,
@@ -166,6 +171,7 @@ from zephyrex.extensions.ai_chat.Reformat import (  # type: ignore[import-not-fo
     check_questions,
     failed_checks,
     faithful,
+    grounded,
     reformat_items,
     reformat_request,
     rendered_runs,
@@ -2914,6 +2920,53 @@ def scene_joiners(
 #: Backticks and asterisk emphasis a story model wraps lines in (never part of the story's words).
 _MARKDOWN = re.compile(r"[`*]+")
 
+#: A span a story model marks as an action (``*looks back over his shoulder*``).
+_ACTION_SPAN = re.compile(r"\*+([^*\n]+?)\*+")
+#: A line's credit before its words: ``Name:`` or ``Name (to X):``.
+_CREDIT = re.compile(r"^\s*([^*:\"\u201c()]{1,60}?)\s*(\([^)]*\))?\s*:\s*")
+
+
+def marks_apart(text: str, people: Sequence[Mapping[str, Any]], own: str | None) -> str:
+    """A reply's markdown taken off with each ``*action*`` a line of its own (build60's live run, 2026-11-24, chat
+    e377b927: "*Looks back over his shoulder at Brenna, rain streaming down his face*Give me a boost..." shown as
+    one run-on line once the marks were gone). An action span with no subject of its own is the line's credited
+    speaker's (``Name:``), else the turn's own (``own``), written ``Name looks back...``; the words around it keep
+    the line's credit."""
+    names = {str(one["id"]): str(one["name"]) for one in people}
+    called = {
+        name.casefold(): str(one["name"])
+        for one in people
+        for name in [str(one["name"]), *short_names(str(one["name"]))]
+    }
+    subjects = {*ACTIONS["subject_pronouns"], *ACTIONS["possessive_openers"], *ACTIONS["world_openers"], "i"}
+    lines: list[str] = []
+    for raw in text.replace("`", "").split("\n"):
+        if "*" not in raw:
+            lines.append(raw)
+            continue
+        credit = _CREDIT.match(raw)
+        credited = called.get(credit.group(1).strip().casefold()) if credit is not None else None
+        prefix = raw[: credit.end()].strip() if credit is not None and credited is not None else ""
+        body = raw[credit.end() :] if credit is not None and credited is not None else raw
+        actor = credited or names.get(own or "")
+        at = 0
+        for found in [*_ACTION_SPAN.finditer(body), None]:
+            words = (body[at : found.start()] if found is not None else body[at:]).replace("*", "").strip()
+            if words:
+                lines.append(f"{prefix} {words}" if prefix else words)
+            if found is None:
+                break
+            acted = found.group(1).strip()
+            # A span with its own subject ("He lifts his gaze", "Brenna's hand...", "The rain...") is read as it is.
+            first = re.match(r"\W*(\w+)", acted)
+            word = first.group(1).lower() if first is not None else ""
+            own_subject = word in subjects or any(acted.casefold().startswith(name) for name in called)
+            if acted:
+                lines.append(f"{actor} {acted[:1].lower()}{acted[1:]}" if actor and not own_subject else acted)
+            at = found.end()
+    return "\n".join(lines)
+
+
 #: A line credited to someone by name: ``Name (to X, how): ...`` or ``Name: "..."``.
 _CREDITED = re.compile(r"^\s*[A-Z][\w'\u2019.-]*(?:\s+[A-Z][\w'\u2019.-]*){0,3}\s*(?:\([^)]*\)\s*:|:\s*[\"\u201c])")
 
@@ -2940,7 +2993,7 @@ def credited_runs(
     # Markdown the story model wrapped its lines in (live run, 2026-11-24, multi_actor off: "`Old Hesk:` *He
     # finally lifts his gaze…* \"Seen…\"" saved as it was): the marks come off, and such a reply is always made
     # runs, so its actions become action lines like any other's.
-    plain = _MARKDOWN.sub("", told)
+    plain = _MARKDOWN.sub("", marks_apart(told, people, own))
     items = parse_player_lines(plain, people)
     credits_others = any(item.get("speaker_id") and str(item["speaker_id"]) != own for item in items)
     names = {str(one["id"]): str(one["name"]) for one in people}
@@ -4702,6 +4755,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             )
             for one in people
         }
+        # Each with who they are, so a pronoun means someone it can (ActionLines.pronoun_of).
+        described = [{**one, "summary": who.get(str(one["name"]), "")} for one in people]
         note = ""
         failed: list[str] = []
         result: dict[str, Any] = {}
@@ -4736,11 +4791,14 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 return {"reformatted": False, "reason": "no usable answer", "runs": [], "cut": False}
             if not faithful(prose, items):
                 return {"reformatted": False, "reason": "it rewrote the prose", "runs": [], "cut": False}
+            # Held to the prose's own words: quoted speech is speech, and a line is whose the prose makes it
+            # (build60's live run, 2026-11-24, chat d219ba90: Delphine Halloway's words saved as Bram Holloway's).
+            items = grounded(items, prose, described)
             result = structured_runs(items, people, seat_name)
             # Every present person's action is their action line, present tense, by construction (the operator,
             # 2026-11-24: "HOW THE FUCK ARE WE STILL NOT TAGGING ACTIONS?"): what the formatter left as narration is
             # named for its second try, and moved in any case.
-            normalised, wrong = action_lines(result["runs"], people)
+            normalised, wrong = action_lines(result["runs"], described)
             result = {**result, "runs": normalised}
             if wrong and attempt == 1:
                 note = str(REFORMAT["action_note"]).replace("{{sentences}}", " | ".join(wrong))
@@ -4939,7 +4997,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # a reload or a repeat call (Self Hosted AI, 2026-11-23: label calls were most of 44-64 a minute).
         kept = list(message.line_labels or [])
         if kept and [one.get("text") for one in kept] == [one["text"] for one in read_labels(lines, None, people)]:
-            return LabelLinesEnvelope(label_lines={"labels": kept})
+            return LabelLinesEnvelope(label_lines={"labels": [held(one, people) for one in kept]})
         deciding = self._decider()
         answers = None
         if deciding is not None:

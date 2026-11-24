@@ -2,8 +2,9 @@
 /**
  * Structured lines (the operator, 2026-11-21): the person's message and the AI's answers, one item per
  * line, so every line says who speaks or acts. say: `Name (to Target): "text"` with an optional
- * manner (`to X, whispers`, `to everyone, shouts`, `vox to X`, `voxcast`); do: `Name action…`;
- * narrate: `Narrator: text`; any other line is narration. Pure, and held to
+ * manner (`to X, whispers`, `to everyone, shouts`, `vox to X`, `voxcast`); do: `Name action…`, or
+ * `Name's …` for an action of theirs told by its possessive (`Delphine Halloway's spine stiffens`: its text
+ * `'s spine stiffens`); narrate: `Narrator: text`; any other line is narration. Pure, and held to
  * contract/player-lines-cases.json with ai_chat/PlayerLines.py.
  */
 import { PLAYER_LINES, PROMPT } from '~/contract';
@@ -56,7 +57,7 @@ function opening(line: string, people: readonly Person[]): { id: string; rest: s
   for (const one of forms(people)) {
     if (line.slice(0, one.form.length).toLowerCase() !== one.form.toLowerCase()) continue;
     const rest = line.slice(one.form.length);
-    if (rest === '' || /^[\s(:]/u.test(rest)) return { id: one.id, rest };
+    if (rest === '' || /^(?:[\s(:]|['’]s\s)/u.test(rest)) return { id: one.id, rest };
   }
   return null;
 }
@@ -146,6 +147,11 @@ export function parsePlayerLines(text: string, people: readonly Person[]): Playe
       });
       continue;
     }
+    const owned = /^['’]s\s+([\s\S]*)$/u.exec(open.rest);
+    if (owned !== null) {
+      items.push({ ...NONE, speaker_id: open.id, kind: 'do', text: `'s ${(owned[1] ?? '').trim()}` });
+      continue;
+    }
     items.push({ ...NONE, speaker_id: open.id, kind: 'do', text: open.rest.trim() });
   }
   return items;
@@ -159,6 +165,7 @@ export function formatPlayerLines(items: readonly PlayerLine[], people: readonly
       const who = name(item.speaker_id);
       if (item.kind === 'narrate' || who === '') return `${PLAYER_LINES.narrator}: ${item.text}`;
       const whom = (item.target_id === null ? '' : name(item.target_id)) || (item.target_name ?? '');
+      if (item.kind === 'do' && /^['’]s\s/u.test(item.text)) return `${who}${item.text}`;
       if (item.kind === 'do') return whom === '' ? `${who} ${item.text}` : `${who} (at ${whom}) ${item.text}`;
       const to = whom || PLAYER_LINES.everyone;
       const manner = item.manner ?? 'speak';

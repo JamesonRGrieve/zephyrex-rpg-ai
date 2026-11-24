@@ -34,6 +34,28 @@ export const FromAMessage: Story = {
   },
 };
 
+/**
+ * An action told by its possessive (build60's live run, 2026-11-24: "she set down her cup and it wasn't action
+ * tagged"): an action box with its actor's name once, in her own message too.
+ */
+export const APossessiveAction: Story = {
+  args: {
+    speaker: 'Delphine Halloway',
+    lines:
+      readLines("Delphine Halloway's spine stiffens further.\nDelphine Halloway sets down the cup with deliberate care.", [
+        'Delphine Halloway',
+        'Bram Holloway',
+      ]) ?? [],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Delphine Halloway')).toBeInTheDocument();
+    await expect(canvas.getByText("'s spine stiffens further.")).toBeInTheDocument();
+    await expect(canvas.getByText('Sets down the cup with deliberate care.')).toBeInTheDocument();
+    await expect(canvasElement.querySelectorAll('p.border')).toHaveLength(2);
+  },
+};
+
 const MANNERS: ShownLine[] = [
   { kind: 'say', speaker: 'Osk', target: null, manner: 'speak', text: 'Hold the line.' },
   { kind: 'say', speaker: 'Osk', target: 'Wren', manner: 'whisper', text: 'Watch the door.' },

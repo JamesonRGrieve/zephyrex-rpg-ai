@@ -8,6 +8,7 @@
  */
 import { ACTION_KINDS, LINE_LABELS, PLAYER_LINES, REASONING } from '~/contract';
 import { splitReasoning } from '~/features/prompt/assemble';
+import { parsePlayerLines } from './playerLines';
 
 export interface LineLabel {
   index: number;
@@ -87,26 +88,55 @@ export function readLabels(
     const choice = answers?.[key]?.choice;
     return typeof choice === 'string' ? choice : null;
   };
-  return lines.map((text, index) => {
-    const said = pick(`kind_${index}`);
-    const kind = (LINE_LABELS.kinds as readonly string[]).includes(said ?? '') ? (said as LineLabel['kind']) : 'narrate';
-    const actorName = pick(`actor_${index}`);
-    const person = people.find((one) => one.name === actorName);
-    const icon = pick(`icon_${index}`);
-    const iconOk = icon !== null && (ACTION_KINDS as readonly string[]).includes(icon) && kind === 'do';
-    return {
-      index,
-      text,
-      kind,
-      actor_id: kind === 'narrate' || kind === 'drop' ? null : (person?.id ?? null),
-      actor_name: kind === 'narrate' || kind === 'drop' ? null : (person?.name ?? null),
-      // Never the line's own actor (live run, build58: Old Hesk's own lines labelled "to Old Hesk").
-      target_name:
-        kind === 'say' || kind === 'do'
-          ? (people.find((one) => one.name === pick(`target_${index}`) && one !== person)?.name ?? null)
-          : null,
-      manner: kind === 'say' ? mannerOf(text) : null,
-      icon: iconOk ? icon : null,
-    };
-  });
+  return lines
+    .map((text, index) => {
+      const said = pick(`kind_${index}`);
+      const kind = (LINE_LABELS.kinds as readonly string[]).includes(said ?? '') ? (said as LineLabel['kind']) : 'narrate';
+      const actorName = pick(`actor_${index}`);
+      const person = people.find((one) => one.name === actorName);
+      const icon = pick(`icon_${index}`);
+      const iconOk = icon !== null && (ACTION_KINDS as readonly string[]).includes(icon) && kind === 'do';
+      return {
+        index,
+        text,
+        kind,
+        actor_id: kind === 'narrate' || kind === 'drop' ? null : (person?.id ?? null),
+        actor_name: kind === 'narrate' || kind === 'drop' ? null : (person?.name ?? null),
+        // Never the line's own actor (live run, build58: Old Hesk's own lines labelled "to Old Hesk").
+        target_name:
+          kind === 'say' || kind === 'do'
+            ? (people.find((one) => one.name === pick(`target_${index}`) && one !== person)?.name ?? null)
+            : null,
+        manner: kind === 'say' ? mannerOf(text) : null,
+        icon: iconOk ? icon : null,
+      };
+    })
+    .map((label) => held(label, people));
+}
+
+/**
+ * A label held to its line's stored form: a line saved as someone's speech or action (`Name (to X): "…"`, `Name
+ * sets down the cup`, `Name's spine stiffens`) or as `Narrator: …` is that, by construction, whatever the model
+ * read (build60's live run, 2026-11-24: "Bram Holloway sets down the cup with deliberate care." shown as plain
+ * narration). The model's icon stays an action's, and its target one the form doesn't name.
+ */
+export function held(label: LineLabel, people: readonly { id: string; name: string }[]): LineLabel {
+  const items = parsePlayerLines(label.text, people);
+  const item = items.length === 1 ? items[0] : undefined;
+  const narrated = new RegExp(`^${PLAYER_LINES.narrator}:`, 'iu').test(label.text.trim());
+  if (item === undefined || (item.speaker_id === null && !narrated)) return { ...label };
+  if (item.speaker_id === null)
+    return { ...label, kind: 'narrate', actor_id: null, actor_name: null, target_name: null, icon: null };
+  const own = people.find((one) => one.id === item.speaker_id)?.name ?? null;
+  const aimed = people.find((one) => one.id === item.target_id)?.name ?? null;
+  const picked = label.target_name;
+  return {
+    ...label,
+    kind: item.kind,
+    actor_id: item.speaker_id,
+    actor_name: own,
+    target_name: aimed ?? item.target_name ?? (picked !== own ? picked : null),
+    manner: item.kind === 'say' ? mannerOf(label.text) : null,
+    icon: item.kind === 'do' ? label.icon : null,
+  };
 }

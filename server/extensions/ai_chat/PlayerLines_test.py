@@ -27,6 +27,9 @@ def test_parsing_lines(case: dict[str, Any]) -> None:
 
 def test_formatting_what_it_parses() -> None:
     assert format_player_lines(CASES["format_case"]["items"], CASES["people"]) == CASES["format_case"]["text"]
+    owned = CASES["possessive_format_case"]
+    assert format_player_lines(owned["items"], CASES["people"]) == owned["text"]
+    assert parse_player_lines(owned["text"], CASES["people"]) == owned["items"]
     targets = CASES["target_format_case"]
     assert format_player_lines(targets["items"], CASES["people"]) == targets["text"]
 

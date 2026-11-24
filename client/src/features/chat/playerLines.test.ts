@@ -18,6 +18,9 @@ describe('the structured lines cases both twins run', () => {
   });
   it('formats what it parses', () => {
     expect(formatPlayerLines(cases.format_case.items as PlayerLine[], cases.people)).toBe(cases.format_case.text);
+    const owned = cases.possessive_format_case;
+    expect(formatPlayerLines(owned.items as PlayerLine[], cases.people)).toBe(owned.text);
+    expect(parsePlayerLines(owned.text, cases.people)).toEqual(owned.items);
     expect(formatPlayerLines(cases.target_format_case.items as PlayerLine[], cases.people)).toBe(
       cases.target_format_case.text,
     );

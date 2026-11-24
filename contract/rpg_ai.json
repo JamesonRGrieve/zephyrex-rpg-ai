@@ -955,6 +955,7 @@
     "instruction": "Below is a narrator's reply in a roleplay. Rewrite it as items, in order, keeping every word of it and adding none: a \"say\" item for each spoken line (its words only, without quotation marks), a \"do\" item for what one person does, and a \"narrate\" item for everything else. Every action, gesture or movement of one of these people is a \"do\" item credited to them, even when the prose says \"she\" or \"he\" or tells it in the past tense (\"She rose from her seat\" is a \"do\" item of the woman it means); narration holds only the world: the place, the weather, sounds, what no one of them does. speaker is who says or does it, and can only be one of these people: {{names}}. Credit each line to the one the prose shows saying or doing it, by their name, their pronouns and whom they answer, never to someone only because they are named nearby; anyone else, an unnamed stranger or a crowd, is narration (speaker null), their words kept in quotation marks. target is whom a line is aimed at, from the same people, or null. One person is always the same speaker. Answer with JSON only.",
     "timeout_seconds": 90,
     "min_kept": 0.9,
+    "similar_names": 0.8,
     "max_added": 0.1,
     "$checks": "The formatter's result put to the decision model (the operator, 2026-11-24: \"pass the result of the formatter to the decision model and ask if it meets the format requirements such as all actions correctly in an action block attributed to their actor and all dialogue in quotes with tone and direction\"). Each requirement a question, met or not; one not met sends the reformat once more, naming it.",
     "checks": {
@@ -1128,11 +1129,12 @@
     }
   },
   "action_lines": {
-    "$comment": "Every action of a present person is an action line in present tense with them as subject, by construction, never narration (the operator, 2026-11-24: \"HOW THE FUCK ARE WE STILL NOT TAGGING ACTIONS? She rose from her seat without proper tense/phrasing and without an action block.\"). After the formatter, ActionLines.py moves a narration sentence whose subject is a present person (by name, or a subject pronoun meaning the nearest one named) into that person's action line, takes the subject off an action line (the stored form puts the name first), and puts its first verb in the present. contract/action-cases.json.",
+    "$comment": "Every action of a present person is an action line in present tense with them as subject, by construction, never narration (the operator, 2026-11-24: \"HOW THE FUCK ARE WE STILL NOT TAGGING ACTIONS? She rose from her seat without proper tense/phrasing and without an action block.\"). After the formatter, ActionLines.py moves a narration sentence whose subject is a present person (by name, or a subject pronoun meaning the nearest one named) into that person's action line, takes the subject off an action line (the stored form puts the name first), and puts its first verb in the present. A possessive opener (\"Delphine Halloway's spine stiffens\", \"Her gaze sweeps...\") is that person's action too, stored as Name's ... (build60's live run, 2026-11-24: \"she set down her cup and it wasn't action tagged\"); a pronoun means the nearest person named whose own pronoun (a person's pronoun, else the words of pronoun_words in their description) doesn't say otherwise. contract/action-cases.json.",
     "subject_pronouns": ["he", "she", "they"],
     "titles": ["old", "young", "inspector", "lady", "lord", "sir", "dame", "captain", "father", "mother", "brother", "sister", "master", "mistress", "doctor", "the"],
     "world_openers": ["the", "a", "an", "this", "that", "these", "those", "it", "its", "there", "somewhere", "outside", "above", "below", "behind", "beyond", "nearby", "rain", "thunder", "wind"],
-    "possessive_openers": ["his", "her", "their"],
+    "possessive_openers": {"his": "he", "her": "she", "their": "they"},
+    "pronoun_words": {"she": ["she", "her", "hers", "herself"], "he": ["he", "him", "his", "himself"]},
     "irregular": {
       "rose": "rises", "arose": "arises", "stood": "stands", "sat": "sits", "took": "takes", "gave": "gives",
       "said": "says", "went": "goes", "came": "comes", "ran": "runs", "held": "holds", "drew": "draws",

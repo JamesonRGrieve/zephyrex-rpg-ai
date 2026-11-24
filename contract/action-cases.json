@@ -1,15 +1,17 @@
 {
-  "$comment": "Every action of a present person an action line, in present tense, with them as its subject (ActionLines.action_lines; contract action_lines). The operator, 2026-11-24, chat 950d879c: \"She rose from her seat without proper tense/phrasing and without an action block.\"",
+  "$comment": "Every action of a present person an action line, in present tense, with them as its subject (ActionLines.action_lines; contract action_lines). The operator, 2026-11-24, chat 950d879c: \"She rose from her seat without proper tense/phrasing and without an action block.\" A possessive opener is the person's action, kept as 's ... (stored Name's ...); a pronoun means the nearest person named whose own pronoun (people's pronoun) doesn't say otherwise (build60's live run, 2026-11-24, chat d219ba90).",
   "people": [
     {
       "id": "del",
       "name": "Delphine Halloway",
-      "aliases": []
+      "aliases": [],
+      "pronoun": "she"
     },
     {
       "id": "bram",
       "name": "Bram Holloway",
-      "aliases": []
+      "aliases": [],
+      "pronoun": "he"
     },
     {
       "id": "bren",
@@ -19,12 +21,20 @@
     {
       "id": "hesk",
       "name": "Old Hesk",
-      "aliases": []
+      "aliases": [],
+      "pronoun": "he"
     },
     {
       "id": "hesk",
       "name": "Old Hesk",
-      "aliases": []
+      "aliases": [],
+      "pronoun": "he"
+    },
+    {
+      "id": "tam",
+      "name": "Tam Quickfoot",
+      "aliases": [],
+      "pronoun": "he"
     }
   ],
   "tenses": {
@@ -387,7 +397,7 @@
       "solo": []
     },
     {
-      "name": "\"Old Hesk's weathered face tightens\" is a description, narration, never his action (live run, build58, chat adae1314)",
+      "name": "\"Old Hesk's weathered face tightens\" in his own turn is his action, Old Hesk's ..., never narration and never his name twice (live run, build58, chat adae1314; build60, 2026-11-24)",
       "runs": [
         {
           "speaker_id": "hesk",
@@ -405,20 +415,13 @@
       ],
       "runs_out": [
         [
-          null,
-          [
-            "narrate"
-          ],
-          [
-            "Old Hesk's weathered face tightens."
-          ]
-        ],
-        [
           "hesk",
           [
+            "do",
             "do"
           ],
           [
+            "'s weathered face tightens.",
             "leans closer, lowering his voice."
           ]
         ]
@@ -427,17 +430,7 @@
         "Old Hesk Old Hesk's weathered face tightens.",
         "Old Hesk He leans closer, lowering his voice."
       ],
-      "solo": [
-        [
-          null,
-          [
-            "narrate"
-          ],
-          [
-            "Old Hesk's weathered face tightens."
-          ]
-        ]
-      ]
+      "solo": []
     },
     {
       "name": "a sentence ends at its closing quote: Hesk's line, then his action",
@@ -471,6 +464,204 @@
       ],
       "wrong": [
         "Hesk spits."
+      ],
+      "solo": []
+    },
+    {
+      "name": "\"Delphine Halloway's spine stiffens\" and \"Her fingers tighten\" in narration are her actions, never narration (build60's live run, 2026-11-24, chat d219ba90)",
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Delphine Halloway's spine stiffens further, if such a thing were possible. Her fingers tighten around the cold teacup."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "del",
+          [
+            "do",
+            "do"
+          ],
+          [
+            "'s spine stiffens further, if such a thing were possible.",
+            "'s fingers tighten around the cold teacup."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Delphine Halloway's spine stiffens further, if such a thing were possible.",
+        "Her fingers tighten around the cold teacup."
+      ],
+      "solo": []
+    },
+    {
+      "name": "\"Her gaze sweeps across the room\" after Delphine's line is her action (build60's live run, 2026-11-24, chat d219ba90)",
+      "runs": [
+        {
+          "speaker_id": "del",
+          "speaker_name": "Delphine Halloway",
+          "lines": [
+            {
+              "kind": "say",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Moreover, he had no money with him when he left the counting-house."
+            }
+          ]
+        },
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Her gaze sweeps across the room, lingering on each of you in turn."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "del",
+          [
+            "say",
+            "do"
+          ],
+          [
+            "Moreover, he had no money with him when he left the counting-house.",
+            "'s gaze sweeps across the room, lingering on each of you in turn."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Her gaze sweeps across the room, lingering on each of you in turn."
+      ],
+      "solo": []
+    },
+    {
+      "name": "\"She sets down the cup\" after Bram speaks is Delphine's, the nearest she named, never Bram's (build60's live run, 2026-11-24, chat d219ba90)",
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Delphine Halloway's spine stiffens."
+            }
+          ]
+        },
+        {
+          "speaker_id": "bram",
+          "speaker_name": "Bram Holloway",
+          "lines": [
+            {
+              "kind": "say",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "We should go."
+            }
+          ]
+        },
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "She sets down the cup with deliberate care."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "del",
+          [
+            "do"
+          ],
+          [
+            "'s spine stiffens."
+          ]
+        ],
+        [
+          "bram",
+          [
+            "say"
+          ],
+          [
+            "We should go."
+          ]
+        ],
+        [
+          "del",
+          [
+            "do"
+          ],
+          [
+            "sets down the cup with deliberate care."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Delphine Halloway's spine stiffens.",
+        "She sets down the cup with deliberate care."
+      ],
+      "solo": []
+    },
+    {
+      "name": "\"Quickfoot's fingers trace\" is Tam Quickfoot's action, by the last word of his name (build60's live run, 2026-11-24, chat e377b927)",
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Quickfoot's fingers trace the edge of the cracked glass, testing it gently. Quickfoot's hands go to the windowsill."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "tam",
+          [
+            "do",
+            "do"
+          ],
+          [
+            "'s fingers trace the edge of the cracked glass, testing it gently.",
+            "'s hands go to the windowsill."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Quickfoot's fingers trace the edge of the cracked glass, testing it gently.",
+        "Quickfoot's hands go to the windowsill."
       ],
       "solo": []
     }

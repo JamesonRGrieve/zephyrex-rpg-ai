@@ -12,6 +12,7 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.PlayerLines import PLAYER_LINES, parse_player_lines  # type: ignore[import-not-found]
 
 LINE_LABELS: dict[str, Any] = CONTRACT["line_labels"]
 _MANNER_WORDS: dict[str, str] = CONTRACT["player_lines"]["manner_words"]
@@ -139,4 +140,32 @@ def read_labels(
                 "icon": icon if icon in ACTION_KINDS and kind == "do" else None,
             }
         )
-    return labels
+    return [held(label, people) for label in labels]
+
+
+def held(label: Mapping[str, Any], people: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """A label held to its line's stored form: a line saved as someone's speech or action (``Name (to X): "…"``,
+    ``Name sets down the cup``, ``Name's spine stiffens``) or as ``Narrator: …`` is that, by construction, whatever
+    the model read (build60's live run, 2026-11-24: "Bram Holloway sets down the cup with deliberate care." shown
+    as plain narration). The model's icon stays an action's, and its target one the form doesn't name."""
+    text = str(label["text"])
+    items = parse_player_lines(text, people)
+    item = items[0] if len(items) == 1 else None
+    narrated = re.match(rf"{re.escape(PLAYER_LINES['narrator'])}:", text.strip(), re.IGNORECASE) is not None
+    if item is None or (item["speaker_id"] is None and not narrated):
+        return dict(label)
+    if item["speaker_id"] is None:
+        return {**label, "kind": "narrate", "actor_id": None, "actor_name": None, "target_name": None, "icon": None}
+    person = next((one for one in people if str(one["id"]) == item["speaker_id"]), None)
+    own = str(person["name"]) if person is not None else None
+    aimed = next((str(one["name"]) for one in people if str(one["id"]) == item["target_id"]), None)
+    picked = label.get("target_name")
+    return {
+        **label,
+        "kind": item["kind"],
+        "actor_id": item["speaker_id"],
+        "actor_name": own,
+        "target_name": aimed or item.get("target_name") or (picked if picked != own else None),
+        "manner": _manner(text) if item["kind"] == "say" else None,
+        "icon": label.get("icon") if item["kind"] == "do" else None,
+    }

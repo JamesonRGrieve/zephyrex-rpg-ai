@@ -4,6 +4,11 @@ import { describe, expect, it } from 'vitest';
 import { actionApart, actsWith, readLines } from './StructuredLines';
 
 describe('readLines', () => {
+  it("an action told by its possessive is its actor's (build60's live run, 2026-11-24)", () => {
+    expect(readLines("Delphine Halloway's spine stiffens further.", ['Delphine Halloway'])).toEqual([
+      { kind: 'do', speaker: 'Delphine Halloway', target: null, text: "'s spine stiffens further." },
+    ]);
+  });
   it('an action that carries speech is the action, then a bubble', () => {
     expect(
       readLines('Brakka Ironmantle snorts, wiping foam from her beard. "Aye, I reckon most everyone has." She grins.', [

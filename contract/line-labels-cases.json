@@ -197,6 +197,84 @@
           "icon": null
         }
       ]
+    },
+    {
+      "name": "a line saved as someone's action is theirs whatever the model read (build60's live run, 2026-11-24: the cup set down shown as narration)",
+      "lines": [
+        "Fennick Quill sets down the cup with deliberate care.",
+        "Brakka Ironmantle's knuckles whiten.",
+        "Narrator: The fire pops."
+      ],
+      "answers": {
+        "kind_0": {
+          "choice": "narrate"
+        },
+        "actor_0": {
+          "choice": "Narrator"
+        },
+        "target_0": {
+          "choice": "No one"
+        },
+        "icon_0": {
+          "choice": "drink"
+        },
+        "kind_1": {
+          "choice": "narrate"
+        },
+        "actor_1": {
+          "choice": "Narrator"
+        },
+        "target_1": {
+          "choice": "Fennick Quill"
+        },
+        "icon_1": {
+          "choice": "none"
+        },
+        "kind_2": {
+          "choice": "do"
+        },
+        "actor_2": {
+          "choice": "Brakka Ironmantle"
+        },
+        "target_2": {
+          "choice": "No one"
+        },
+        "icon_2": {
+          "choice": "fire"
+        }
+      },
+      "labels": [
+        {
+          "index": 0,
+          "text": "Fennick Quill sets down the cup with deliberate care.",
+          "kind": "do",
+          "actor_id": "fen",
+          "actor_name": "Fennick Quill",
+          "target_name": null,
+          "manner": null,
+          "icon": null
+        },
+        {
+          "index": 1,
+          "text": "Brakka Ironmantle's knuckles whiten.",
+          "kind": "do",
+          "actor_id": "bra",
+          "actor_name": "Brakka Ironmantle",
+          "target_name": null,
+          "manner": null,
+          "icon": null
+        },
+        {
+          "index": 2,
+          "text": "Narrator: The fire pops.",
+          "kind": "narrate",
+          "actor_id": null,
+          "actor_name": null,
+          "target_name": null,
+          "manner": null,
+          "icon": null
+        }
+      ]
     }
   ]
 }

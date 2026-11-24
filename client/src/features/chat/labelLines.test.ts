@@ -24,6 +24,24 @@ describe('line labels', () => {
       { kind: 'say', speaker: 'Mags', target: 'Fennick', manner: 'shout', text: 'Out.' },
     ]);
   });
+  it("a stored line shows its own words, its name off (build60's live run, 2026-11-24)", () => {
+    const labels = readLabels([
+      { kind: 'do', text: 'Bram Holloway sets down the cup with deliberate care.', actor_name: 'Bram Holloway' },
+      { kind: 'do', text: "Delphine Halloway's spine stiffens.", actor_name: 'Delphine Halloway' },
+      {
+        kind: 'say',
+        text: 'Delphine Halloway (to Ashford): "Mr. Ashford, my husband is many things."',
+        actor_name: 'Delphine Halloway',
+      },
+      { kind: 'narrate', text: 'Narrator: The fire pops.' },
+    ]);
+    expect(labelledLines(labels ?? [], 'Narrator').map((line) => line.text)).toEqual([
+      'sets down the cup with deliberate care.',
+      "'s spine stiffens.",
+      'Mr. Ashford, my husband is many things.',
+      'The fire pops.',
+    ]);
+  });
   it('an action by "the narrator" is narration', () => {
     expect(
       labelledLines(readLabels([{ kind: 'do', text: 'Rain falls.', actor_name: 'the narrator' }]) ?? [], 'Mags'),

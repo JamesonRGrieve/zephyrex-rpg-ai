@@ -1,7 +1,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 """Structured lines (the operator, 2026-11-21): the person's message and the AI's answers, one item per line.
 say: ``Name (to Target): "text"`` with an optional manner (``to X, whispers``, ``to everyone, shouts``,
-``vox to X``, ``voxcast``); do: ``Name action...``; narrate: ``Narrator: text``; any other line is narration.
+``vox to X``, ``voxcast``); do: ``Name action...``, or ``Name's ...`` for an action of theirs told by its
+possessive (``Delphine Halloway's spine stiffens``: its text ``'s spine stiffens``); narrate: ``Narrator: text``;
+any other line is narration.
 
 The twin of client/src/features/chat/playerLines.ts, held to contract/player-lines-cases.json.
 """
@@ -49,7 +51,7 @@ def _opening(line: str, people: Sequence[Mapping[str, Any]]) -> tuple[str, str] 
         if line[: len(form)].lower() != form.lower():
             continue
         rest = line[len(form) :]
-        if rest == "" or re.match(r"[\s(:]", rest):
+        if rest == "" or re.match(r"[\s(:]|['\u2019]s\s", rest):
             return id_, rest
     return None
 
@@ -141,6 +143,9 @@ def parse_player_lines(text: str, people: Sequence[Mapping[str, Any]]) -> list[d
             whom = at.group(1)
             items.append(_item(id_, "do", None, _target(whom, people), at.group(2).strip(), _unnamed(whom, people)))
             continue
+        if (owned := re.fullmatch(r"['\u2019]s\s+(.*)", rest, re.DOTALL)) is not None:
+            items.append(_item(id_, "do", None, None, f"'s {owned.group(1).strip()}"))
+            continue
         items.append(_item(id_, "do", None, None, rest.strip()))
     return items
 
@@ -157,6 +162,8 @@ def format_player_lines(items: Sequence[Mapping[str, Any]], people: Sequence[Map
         whom = (name(item["target_id"]) if item["target_id"] is not None else "") or (item.get("target_name") or "")
         if item["kind"] == "narrate" or not who:
             lines.append(f"{PLAYER_LINES['narrator']}: {item['text']}")
+        elif item["kind"] == "do" and re.match(r"['\u2019]s\s", str(item["text"])):
+            lines.append(f"{who}{item['text']}")
         elif item["kind"] == "do":
             lines.append(f"{who} (at {whom}) {item['text']}" if whom else f"{who} {item['text']}")
         else:

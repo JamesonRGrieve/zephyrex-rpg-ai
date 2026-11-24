@@ -8,6 +8,7 @@ from typing import Any
 
 from zephyrex.extensions.ai_chat.Reformat import (  # type: ignore[import-not-found]
     faithful,
+    grounded,
     reformat_items,
     reformat_request,
     reformat_schema,
@@ -230,3 +231,81 @@ def test_tonights_live_replies_are_saved_in_their_lines() -> None:
     assert shape(hesk) == [("hesk", ["do"]), (None, ["narrate"])]
     # A narration of the world alone is saved as it is.
     assert credited_runs("Rain on the quay.", people, None, True, "bren") == []
+
+
+#: build60's live run, 2026-11-24, chat d219ba90: the prose, and the formatter's answer that credited Delphine
+#: Halloway's speech to Bram Holloway, as action lines.
+D219 = (
+    "Delphine Halloway's spine stiffens further, if such a thing were possible. Her fingers tighten around the cold"
+    ' teacup. "Mr. Ashford, my husband is many things, generous, distracted, fond of his cards, but he is not'
+    ' foolish. We have been married twenty years." She sets down the cup with deliberate care. "Moreover, he had no'
+    ' money with him when he left the counting-house."\n\n"I assume a woman would require payment," she adds.'
+)
+HOLLOWAYS = [
+    {"id": "del", "name": "Delphine Halloway", "summary": "Orrin's wife; she keeps the house and her temper."},
+    {"id": "bram", "name": "Bram Holloway", "summary": "A clerk; he owes his employer more than he admits."},
+    {"id": "ash", "name": "Ashford", "summary": ""},
+]
+
+
+def _item(kind: str, speaker: str | None, text: str) -> dict[str, Any]:
+    return {"fields": {"kind": kind, "speaker": speaker, "target": None, "manner": None}, "text": text, "closed": True}
+
+
+def test_the_prose_says_whose_and_what_kind_each_line_is() -> None:
+    items = [
+        _item("narrate", None, "Delphine Halloway's spine stiffens further, if such a thing were possible."),
+        _item(
+            "do",
+            "Bram Holloway",
+            "Mr. Ashford, my husband is many things, generous, distracted, fond of his cards, but he is not foolish."
+            " We have been married twenty years.",
+        ),
+        _item("do", "Bram Holloway", "sets down the cup with deliberate care."),
+        _item("do", "Bram Holloway", "Moreover, he had no money with him when he left the counting-house."),
+        _item("do", "Bram Holloway", "I assume a woman would require payment,"),
+    ]
+    fixed = grounded(items, D219, HOLLOWAYS)
+    assert [(one["fields"]["kind"], one["fields"]["speaker"]) for one in fixed] == [
+        ("narrate", None),
+        ("say", "Delphine Halloway"),
+        ("do", "Delphine Halloway"),
+        ("say", "Delphine Halloway"),
+        ("say", "Delphine Halloway"),
+    ]
+
+
+def test_a_line_the_prose_gives_its_speaker_stays_theirs() -> None:
+    prose = 'Delphine Halloway waits. He clears his throat. "We should go."'
+    items = [
+        _item("do", "Delphine Halloway", "waits."),
+        _item("do", "Bram Holloway", "clears his throat."),
+        _item("say", "Bram Holloway", "We should go."),
+    ]
+    assert [one["fields"]["speaker"] for one in grounded(items, prose, HOLLOWAYS)] == [
+        "Delphine Halloway",
+        "Bram Holloway",
+        "Bram Holloway",
+    ]
+
+
+def test_an_action_in_marks_is_a_line_apart_from_the_speech_after_it() -> None:
+    # build60's live run, 2026-11-24, chat e377b927: "Looks back over his shoulder at Brenna, rain streaming down his
+    # faceGive me a boost and I'll check what's inside." once the marks were taken off.
+    from zephyrex.extensions.ai_chat.BLL_AI_Chat import credited_runs
+
+    people = [{"id": "tam", "name": "Tam Quickfoot"}, {"id": "bren", "name": "Brenna Ashdown"}]
+    text = (
+        "*Looks back over his shoulder at Brenna, rain streaming down his face*"
+        "Give me a boost and I'll check what's inside."
+    )
+    runs = credited_runs(text, people, "tam")
+    assert [(run["speaker_id"], [(line["kind"], line["text"]) for line in run["lines"]]) for run in runs] == [
+        (
+            "tam",
+            [
+                ("do", "looks back over his shoulder at Brenna, rain streaming down his face"),
+                ("say", "Give me a boost and I'll check what's inside."),
+            ],
+        )
+    ]

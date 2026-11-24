@@ -11,9 +11,15 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping, Sequence
+from difflib import SequenceMatcher
 from typing import Any
 
 from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.ActionLines import (  # type: ignore[import-not-found]
+    antecedent,
+    pronoun_of,
+    short_names,
+)
 from zephyrex.extensions.ai_chat.Structured import STRUCTURED, turn_schema  # type: ignore[import-not-found]
 
 REFORMAT: dict[str, Any] = CONTRACT["reformat"]
@@ -80,6 +86,131 @@ def reformat_items(content: str, names: Sequence[str]) -> list[dict[str, Any]] |
         fields = {"kind": kind, "speaker": speaker, "target": target, "manner": item.get("manner")}
         out.append({"fields": fields, "text": item["text"], "closed": True})
     return out or None
+
+
+#: Words only a speaker says of themselves: an "action" with them in it is speech (build60's live run,
+#: 2026-11-24: "Bram Holloway I assume a woman would require payment…" saved as an action line).
+_FIRST_PERSON = re.compile(r"\b(?:I|I'm|I've|I'll|I'd|me|my|mine|myself|we|we're|we've|us|our|ours)\b", re.IGNORECASE)
+_QUOTE = re.compile(r"[\"\u201c][^\"\u201d]*[\"\u201d]?")
+
+
+def _forms(person: Mapping[str, Any]) -> list[str]:
+    names = [str(person["name"]), *short_names(str(person["name"])), *(str(one) for one in person.get("aliases") or [])]
+    return [name.strip() for name in names if name.strip()]
+
+
+def _names_in(text: str, person: Mapping[str, Any]) -> bool:
+    return any(re.search(rf"\b{re.escape(name)}\b", text) for name in _forms(person))
+
+
+def _similar(a: str, b: str) -> bool:
+    """Near-identical names ("Delphine Halloway" and "Bram Holloway"): the whole names or the last names alike."""
+
+    def alike(x: str, y: str) -> bool:
+        return SequenceMatcher(None, x.casefold(), y.casefold()).ratio() >= float(REFORMAT["similar_names"])
+
+    return alike(a, b) or alike(a.split()[-1], b.split()[-1])
+
+
+def _found_at(prose: str, text: str, start: int) -> int:
+    """Where an item's words are in the prose, from ``start`` on (else anywhere); -1 when they aren't."""
+    words = re.findall(r"[\w']+", text)[:8]
+    if not words:
+        return -1
+    pattern = re.compile(r"\W+".join(re.escape(word) for word in words), re.IGNORECASE)
+    found = pattern.search(prose, start) or pattern.search(prose)
+    return found.start() if found is not None else -1
+
+
+def _quoted_at(prose: str, at: int) -> bool:
+    head = prose[:at]
+    return head.count('"') % 2 == 1 or head.count("\u201c") > head.count("\u201d")
+
+
+def _paragraph(prose: str, at: int) -> str:
+    starts = [0, *(found.end() for found in re.finditer(r"\n\s*\n", prose))]
+    begin = max(start for start in starts if start <= at)
+    end = prose.find("\n\n", begin)
+    return prose[begin : end if end >= 0 else len(prose)]
+
+
+def _last_at(text: str, person: Mapping[str, Any]) -> int:
+    """Where a text last names a person, or -1."""
+    return max(
+        (found.start() for name in _forms(person) for found in re.finditer(rf"\b{re.escape(name)}\b", text)),
+        default=-1,
+    )
+
+
+def _pronouns(text: str) -> set[str]:
+    """The subject pronouns a text's pronouns are (his: he), its quotes left out."""
+    actions = CONTRACT["action_lines"]
+    words = re.findall(r"[a-z]+", text.lower())
+    return {actions["possessive_openers"].get(word, word) for word in words} & set(actions["subject_pronouns"])
+
+
+def _speaker(person: Mapping[str, Any], prose: str, at: int, people: Sequence[Mapping[str, Any]]) -> Mapping[str, Any]:
+    """Whose an item credited to ``person`` is, by the prose's own words (grounded). Names inside speech are
+    whom it's said to, never who acts, so only the prose outside its quotes counts."""
+    told = _QUOTE.sub(" ", _paragraph(prose, at) if at >= 0 else prose)
+    named = [one for one in people if _names_in(told, one)]
+    # A pronoun of the paragraph's that no one it names accounts for may mean them ("Delphine Halloway waits. He
+    # clears his throat."): theirs stays.
+    accounted = {pronoun_of(one) for one in named} - {None}
+    loose = _pronouns(told) - accounted
+    theirs = pronoun_of(person)
+    if _names_in(told, person) or (theirs in loose if theirs is not None else bool(loose)):
+        return person
+    owner = named[0] if len(named) == 1 else None
+    opener = re.match(r"\W*(\w+)", told)
+    word = opener.group(1).lower() if opener is not None else ""
+    actions = CONTRACT["action_lines"]
+    pronoun = actions["possessive_openers"].get(word) or (word if word in actions["subject_pronouns"] else None)
+    if not named and pronoun is not None:
+        before = _QUOTE.sub(" ", prose[: max(at, 0)])
+        mentioned = sorted((one for one in people if _last_at(before, one) >= 0), key=lambda one: _last_at(before, one))
+        meant = antecedent(pronoun, [str(one["id"]) for one in mentioned], people, strict=word == "their")
+        owner = next((one for one in people if str(one["id"]) == meant), None)
+    if owner is not None:
+        return owner
+    if _names_in(_QUOTE.sub(" ", prose), person):
+        return person
+    alike = [
+        one
+        for one in people
+        if one is not person and _names_in(prose, one) and _similar(str(one["name"]), str(person["name"]))
+    ]
+    return alike[0] if len(alike) == 1 else person
+
+
+def grounded(
+    items: Sequence[Mapping[str, Any]], prose: str, people: Sequence[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    """The formatter's items held to the prose they came from (build60's live run, 2026-11-24, chat d219ba90:
+    Delphine Halloway's speech credited to Bram Holloway, as action lines):
+
+    - an item quoted in the prose, or with a speaker's own words in it (I, my, we...), is speech;
+    - an item is the speaker's the prose's own words make it: when its paragraph, outside its quotes, names
+      one present person (or, naming no one, opens on a pronoun meaning one: ActionLines.antecedent) and
+      not the credited one, it's theirs; when the credited one is never named in the prose and someone with
+      a near-identical name is, it's theirs."""
+    by_name = {str(one["name"]).casefold(): one for one in people}
+    out: list[dict[str, Any]] = []
+    cursor = 0
+    for item in items:
+        fields = dict(item["fields"])
+        text = str(item["text"])
+        at = _found_at(prose, text, cursor)
+        cursor = at + 1 if at >= 0 else cursor
+        person = by_name.get(str(fields.get("speaker") or "").casefold())
+        if person is not None and fields.get("kind") != "say":
+            if (at >= 0 and _quoted_at(prose, at)) or _FIRST_PERSON.search(_QUOTE.sub(" ", text) or text):
+                fields = {**fields, "kind": "say", "manner": fields.get("manner") or "speak"}
+        if person is not None:
+            person = _speaker(person, prose, at, people)
+            fields = {**fields, "speaker": str(person["name"])}
+        out.append({**item, "fields": fields})
+    return out
 
 
 def _words(text: str) -> list[str]:
