@@ -1664,7 +1664,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         else await globalMutate((key) => JSON.stringify(key ?? '').match(/person|cast|world_entity|chat/) !== null);
       }
       if (superseded()) return;
-      if (!(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
+      let fightStarted = false;
       if (play.isCampaign && chat.campaign_id) {
         // The GM's own line can bring someone onto the scene (Old Hesk poles his ferry to the bank): the map
         // follows it before anyone is picked, so whoever it names is present and may answer this round
@@ -1682,12 +1682,15 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
         if (fight?.reason === 'no decision' && !superseded())
           fight = await during('Checking for a fight', combatCheck(chat.id, start.id));
         if (superseded()) return;
+        if (fight?.started === true) fightStarted = true;
         if (fight?.reason === 'no decision')
           notify(
             'Could not tell whether a fight started',
             'The decision model gave no answer. Start one from the Combat order if it did.',
           );
       }
+      // A fight runs its own rolls in the VTT's order; outside one, the line's roll is asked as before.
+      if (!fightStarted && !(await rollAfter(start, true, question === null ? rollAsked : undefined))) return;
       // In a fight the VTT's initiative order runs the round (aiCombatTurns): the person's turn passes on,
       // then the AI-run combatants act, until it's the person's character again.
       if (play.isCampaign && chat.campaign_id) {
