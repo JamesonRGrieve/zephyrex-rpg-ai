@@ -80,8 +80,7 @@ export function groupScenarios(
     tree.set(setting, inSetting);
     inSetting.set(system, [...(inSetting.get(system) ?? []), scenario]);
   }
-  const last = (fallback: string) => (a: string, b: string) =>
-    a === fallback ? 1 : b === fallback ? -1 : byName(a, b);
+  const last = (fallback: string) => (a: string, b: string) => (a === fallback ? 1 : b === fallback ? -1 : byName(a, b));
   return [...tree.keys()].sort(last(NO_SETTING)).map((setting) => {
     const inSetting = tree.get(setting) ?? new Map<string, Scenario[]>();
     return {
@@ -108,9 +107,7 @@ export function useScenarios() {
       client.list('/v1/setting', 'settings', namedSchema, {}).catch(() => []),
       client.list('/v1/game_system', 'game_systems', namedSchema, {}).catch(() => []),
       client.list('/v1/taxon', 'taxons', namedSchema, { kind: 'play_style' }).catch(() => []),
-      client
-        .list('/v1/entity_taxon', 'entity_taxons', taggedSchema, { target_entity_type: 'campaign' })
-        .catch(() => []),
+      client.list('/v1/entity_taxon', 'entity_taxons', taggedSchema, { target_entity_type: 'campaign' }).catch(() => []),
     ]);
     const scenarios = campaigns.filter((one) => one.is_scenario === true);
     // Each playthrough's scenario: the campaign it was copied from (copy on start).
@@ -132,4 +129,22 @@ export function campaignLine(chat: { summary?: string | null } & Record<string, 
   const summary = (chat.summary ?? '').trim();
   const end = summary.search(/[.!?](\s|$)/);
   return (end < 0 ? summary : summary.slice(0, end + 1)).slice(0, 140);
+}
+
+/**
+ * How a campaign shows under its scenario (the operator, 2026-11-24: "should not have the name of the campaign.
+ * It should have the character name, and then an optional title set by the player at any time"): the seat's
+ * character, then the player's own title. A chat title that is only the scenario's name (what a new campaign
+ * was given before) is no title. With no seat (the GM's), "Game master".
+ */
+export function campaignLabel(
+  characterName: string | null,
+  chatTitle: string,
+  scenarioName: string,
+): { name: string; title: string | null } {
+  const title = chatTitle.trim();
+  return {
+    name: characterName?.trim() || 'Game master',
+    title: title === '' || title.toLowerCase() === scenarioName.trim().toLowerCase() ? null : title,
+  };
 }

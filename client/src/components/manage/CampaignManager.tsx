@@ -9,13 +9,18 @@
 import { BookOpen, Play } from 'lucide-react';
 import Link from 'next/link';
 import { type ReactElement, useState } from 'react';
+import { useClient } from 'zephyrex';
+import { z } from 'zod';
 import { Button } from 'zephyrex/ui/button';
 import { ChoiceChip } from 'zephyrex/ui/choice-chip';
 import { LoadProblem } from 'zephyrex/ui/load-problem';
 import { SkeletonRows } from 'zephyrex/ui/skeleton';
+import { CampaignEntry } from '~/components/manage/CampaignEntry';
 import { NewChat } from '~/components/play/NewChat';
+import { usePersonNames } from '~/features/data/cast';
+import { campaignPlays } from '~/features/data/playRecords';
 import { chats } from '~/features/data/records';
-import { campaignLine, groupScenarios, taggedWith, useScenarios } from '~/features/data/scenarios';
+import { campaignLabel, campaignLine, groupScenarios, taggedWith, useScenarios } from '~/features/data/scenarios';
 
 const PROVENANCE: Record<string, { label: string; className: string }> = {
   homebrew: { label: 'Homebrew', className: 'border-sky-600 text-sky-700 dark:border-sky-400 dark:text-sky-300' },
@@ -50,12 +55,31 @@ function WikiLink({ href, name }: { href: string; name: string }): ReactElement 
   );
 }
 
+/** A playthrough's row, read before it's deleted: its version, and whether it's a scenario (never deleted here). */
+const playthroughRow = z.object({
+  campaign: z.object({
+    id: z.string(),
+    is_scenario: z.boolean().default(false),
+    created_at: z.string().nullish(),
+    updated_at: z.string().nullish(),
+  }),
+});
+
 export function CampaignManager(): ReactElement {
   const read = useScenarios();
   // The campaigns played from each scenario (the operator, 2026-11-21: one page, each scenario's
   // campaigns under it). A campaign is a chat whose campaign is a playthrough of the scenario.
   const chatList = chats.useList();
-  const played = new Map<string, { id: string; title: string; line: string; updated: string }[]>();
+  const { update: updateChat, remove: removeChat } = chats.useActions();
+  const client = useClient();
+  // Who the person plays in each (the operator, 2026-11-24: each campaign shows its character's name).
+  const plays = campaignPlays.useList();
+  const playingOf = new Map((plays.data ?? []).map((play) => [play.chat_id, play.playing_id]));
+  const names = usePersonNames([...playingOf.values()].filter((id): id is string => id !== null));
+  const played = new Map<
+    string,
+    { id: string; chat: NonNullable<typeof chatList.data>[number]; playing: string | null; line: string; updated: string }[]
+  >();
   for (const chat of chatList.data ?? []) {
     if (chat.campaign_id === null || chat.campaign_id === undefined) continue;
     const scenario = read.data?.scenarioOf.get(chat.campaign_id) ?? chat.campaign_id;
@@ -63,7 +87,8 @@ export function CampaignManager(): ReactElement {
       ...(played.get(scenario) ?? []),
       {
         id: chat.id,
-        title: chat.title,
+        chat,
+        playing: playingOf.get(chat.id) ?? null,
         // What sets this campaign apart (the operator, 2026-11-21): its status line, kept by the
         // campaign's events, else the first sentence of its summary.
         line: campaignLine(chat),
@@ -83,8 +108,7 @@ export function CampaignManager(): ReactElement {
         : groupScenarios(taggedWith(read.data.scenarios, wanted), read.data.settings, read.data.systems),
   };
   const styles = read.data?.styles ?? [];
-  const toggle = (tag: string) =>
-    setWanted(wanted.includes(tag) ? wanted.filter((one) => one !== tag) : [...wanted, tag]);
+  const toggle = (tag: string) => setWanted(wanted.includes(tag) ? wanted.filter((one) => one !== tag) : [...wanted, tag]);
   return (
     <div className='grid gap-4'>
       <p className='flex flex-wrap items-center gap-2 text-sm text-muted-foreground'>
@@ -117,7 +141,9 @@ export function CampaignManager(): ReactElement {
           <section key={setting.setting} aria-label={setting.setting} className='grid gap-3'>
             <h2 className='flex items-center gap-1 text-lg font-semibold'>
               {setting.setting}
-              {setting.settingId !== null && <WikiLink href={`/w/setting-${setting.settingId}/location`} name={setting.setting} />}
+              {setting.settingId !== null && (
+                <WikiLink href={`/w/setting-${setting.settingId}/location`} name={setting.setting} />
+              )}
             </h2>
             {setting.systems.map((system) => (
               <section key={system.system} aria-label={`${setting.setting}, ${system.system}`} className='grid gap-2'>
@@ -164,24 +190,43 @@ export function CampaignManager(): ReactElement {
                         <ul aria-label={`Campaigns of ${scenario.name}`} className='grid gap-1 px-3 pb-3'>
                           {[...(played.get(scenario.id) ?? [])]
                             .sort((a, b) => b.updated.localeCompare(a.updated))
-                            .map((campaign) => (
-                              <li key={campaign.id}>
-                                <Link
-                                  href={`/play/${campaign.id}`}
-                                  className='flex min-h-11 items-center justify-between gap-2 rounded-md border px-3 py-1.5 text-sm hover:bg-muted'
-                                >
-                                  <span className='min-w-0'>
-                                    <span className='block truncate'>{campaign.title}</span>
-                                    {campaign.line !== '' && (
-                                      <span className='line-clamp-2 block text-xs text-muted-foreground'>{campaign.line}</span>
-                                    )}
-                                  </span>
-                                  <span className='shrink-0 text-xs text-muted-foreground'>
-                                    {new Date(campaign.updated).toLocaleDateString()}
-                                  </span>
-                                </Link>
-                              </li>
-                            ))}
+                            .map((campaign) => {
+                              const label = campaignLabel(
+                                campaign.playing === null ? null : (names.get(campaign.playing) ?? null),
+                                campaign.chat.title,
+                                scenario.name,
+                              );
+                              return (
+                                <li key={campaign.id}>
+                                  <CampaignEntry
+                                    href={`/play/${campaign.id}`}
+                                    name={label.name}
+                                    title={label.title}
+                                    line={campaign.line}
+                                    updated={campaign.updated}
+                                    onDelete={async () => {
+                                      // The chat, then its playthrough (the world copy it was played in), never the
+                                      // scenario itself.
+                                      const world = campaign.chat.campaign_id;
+                                      await removeChat(campaign.chat);
+                                      if (world !== null && world !== undefined && world !== scenario.id) {
+                                        // Read first: a delete names the version it saw.
+                                        const seen = playthroughRow.parse(
+                                          await client.get(`/v1/campaign/${world}`),
+                                        ).campaign;
+                                        if (!seen.is_scenario) await client.delete(`/v1/campaign/${world}`, seen);
+                                      }
+                                      await chatList.mutate();
+                                    }}
+                                    onRename={async (title) => {
+                                      // An empty title is none: the scenario's name stands in for it.
+                                      await updateChat(campaign.chat, { title: title === '' ? scenario.name : title });
+                                      await chatList.mutate();
+                                    }}
+                                  />
+                                </li>
+                              );
+                            })}
                         </ul>
                       )}
                     </li>

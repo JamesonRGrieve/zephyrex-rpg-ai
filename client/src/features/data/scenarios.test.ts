@@ -4,7 +4,8 @@ import { describe, expect, it, vi } from 'vitest';
 
 vi.mock('zephyrex', () => ({ useClient: () => ({}) }));
 
-const { campaignLine, groupScenarios, NO_SETTING, NO_SYSTEM, taggedWith, withTags } = await import('./scenarios');
+const { campaignLabel, campaignLine, groupScenarios, NO_SETTING, NO_SYSTEM, taggedWith, withTags } =
+  await import('./scenarios');
 
 const scenario = (id: string, setting_id: string | null, game_system_id: string | null) => ({
   id,
@@ -50,7 +51,9 @@ describe('groupScenarios', () => {
 
   it('an unknown setting or system id falls into the ungrouped', () => {
     const groups = groupScenarios([scenario('A', 'gone', 'gone')], [], []);
-    expect(groups).toEqual([{ setting: NO_SETTING, settingId: null, systems: [{ system: NO_SYSTEM, scenarios: [scenario('A', 'gone', 'gone')] }] }]);
+    expect(groups).toEqual([
+      { setting: NO_SETTING, settingId: null, systems: [{ system: NO_SYSTEM, scenarios: [scenario('A', 'gone', 'gone')] }] },
+    ]);
   });
 });
 
@@ -83,5 +86,22 @@ describe('campaignLine', () => {
     );
     expect(campaignLine({ summary: 'The hymn stopped. Then the lights went.' })).toBe('The hymn stopped.');
     expect(campaignLine({ summary: null })).toBe('');
+  });
+});
+
+describe('campaignLabel', () => {
+  // The operator, 2026-11-24: the character's name, then an optional title the player sets at any time.
+  it('shows the seat character, then the player’s own title', () => {
+    expect(campaignLabel('Brenna Ashdown', 'Clusterfuck Express', 'The Missing Merchant')).toEqual({
+      name: 'Brenna Ashdown',
+      title: 'Clusterfuck Express',
+    });
+  });
+  it('treats a title that is only the scenario’s name, or none, as no title', () => {
+    expect(campaignLabel('Brenna Ashdown', 'The Missing Merchant', 'The Missing Merchant').title).toBeNull();
+    expect(campaignLabel('Brenna Ashdown', '  ', 'The Missing Merchant').title).toBeNull();
+  });
+  it('names the GM’s seat when no one is played', () => {
+    expect(campaignLabel(null, '', 'The Missing Merchant').name).toBe('Game master');
   });
 });

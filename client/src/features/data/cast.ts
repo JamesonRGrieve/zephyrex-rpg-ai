@@ -100,6 +100,25 @@ function usePictures(ids: readonly string[]): ReadonlyMap<string, PersonLook> {
   return data ?? NO_PICTURES;
 }
 
+const NO_NAMES: ReadonlyMap<string, string> = new Map();
+
+/** Each person's name (the wiki's world_entity read by ids, in chunks), for lists that show who someone plays. */
+export function usePersonNames(ids: readonly string[]): ReadonlyMap<string, string> {
+  const client = useClient();
+  const wanted = [...new Set(ids)].sort();
+  const key = wanted.length === 0 ? null : ['rpg-ai', 'person-names', ...wanted];
+  const { data } = useSWR(key, async () => {
+    const found = new Map<string, string>();
+    for (let start = 0; start < wanted.length; start += IDS_PER_READ) {
+      const chunk = wanted.slice(start, start + IDS_PER_READ);
+      const body = pictureRows.parse(await client.get('/v1/world_entity', { ids: chunk.join(',') }));
+      for (const row of body.world_entities) if (row.name) found.set(row.id, row.name);
+    }
+    return found;
+  });
+  return data ?? NO_NAMES;
+}
+
 /** The persons, then the cards no person shadows. */
 export function mergeCast(persons: readonly Character[], cards: readonly Character[]): Character[] {
   const ids = new Set(persons.map((person) => person.id));
