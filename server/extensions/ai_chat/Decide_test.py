@@ -231,3 +231,31 @@ def test_every_option_offered_is_scored_for_the_record() -> None:
     )
     assert answer_scores(questions, content) == {"next": {"Ada": 0.7, "Bram": 0.3}}
     assert answer_scores(questions, "not json") == {}
+
+
+def test_background_work_waits_while_a_turns_decision_is_in_flight(monkeypatch: Any) -> None:
+    # Zephyrex RPG's live chat 64e11be8: a round's scene step took about 40 s while line labels ran.
+    import asyncio
+
+    from zephyrex.extensions.ai_chat import Decide
+
+    order: list[str] = []
+
+    async def post(*args: Any) -> Any:
+        order.append(str(args[4]))
+        await asyncio.sleep(0.02)
+        order.append(f"{args[4]} done")
+        return {"next": {"choice": "Ada"}}, None, {}, args[-1]
+
+    monkeypatch.setattr(Decide, "_post", post)
+    question = {"next": {"type": "choice", "instructions": "Who?", "criteria": ["Ada"]}}
+
+    async def both() -> Any:
+        turn = asyncio.ensure_future(Decide._ask_once("http://x", "m", "", "turn", question, None, False))
+        await asyncio.sleep(0)
+        label = asyncio.ensure_future(Decide._ask_once("http://x", "m", "", "label", question, None, True))
+        return await asyncio.gather(turn, label)
+
+    turn, label = asyncio.run(both())
+    assert order == ["turn", "turn done", "label", "label done"]
+    assert label[3] >= turn[3]  # the label waited (queued_ms), the turn's decision didn't

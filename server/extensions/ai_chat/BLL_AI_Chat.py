@@ -3803,6 +3803,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         record,
                         answers=recorded,
                         ms=int(event.get("ms") or 0),
+                        # Of ms, the wait for a slot (Zephyrex RPG, 2026-11-24: is a 40 s scene step the model's?).
+                        queued_ms=int(event.get("queued_ms") or 0),
                         # Why it gave nothing, never silent nulls (Zephyrex RPG's live fault, 2026-11-23).
                         error=error,
                         status="failed" if error else "done",

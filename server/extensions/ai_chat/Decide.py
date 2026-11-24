@@ -169,6 +169,11 @@ DECIDE_BACKGROUND = frozenset({"label_lines", "learned_facts"})
 #: Per event loop: the in-flight slots, and identical requests already in flight (asked once, shared).
 _SLOTS: dict[int, Any] = {}
 _BACKGROUND_SLOTS: dict[int, Any] = {}
+#: Per event loop: how many of a turn's own decisions are in flight, and an event set while there are none.
+#: Background work waits for it, so it never takes a model slot ahead of a turn's decision (Zephyrex RPG's
+#: live chat 64e11be8: a round's scene step took 40 s while line labels ran).
+_FOREGROUND: dict[int, int] = {}
+_IDLE: dict[int, Any] = {}
 _IN_FLIGHT: dict[tuple[int, str], Any] = {}
 
 
@@ -261,6 +266,7 @@ async def _ask_tries(
         result = await _ask_once(base_url, model, api_key, state, questions, extra, background, patience)
         answers, error = result[0], result[1]
         scores = result[2] if len(result) > 2 else {}
+        queued_ms = result[3] if len(result) > 3 else 0
         if answers is not None and error is None and not any(value is not None for value in answers.values()):
             error = {"kind": "empty", "detail": "no answer within the options"}
         if on_attempt is not None:
@@ -272,6 +278,7 @@ async def _ask_tries(
                     "error": error,
                     "scores": scores,
                     "ms": int((time.monotonic() - began) * 1000),
+                    "queued_ms": int(queued_ms),
                 }
             )
         if answers is not None and any(value is not None for value in answers.values()):
@@ -305,8 +312,6 @@ async def _ask_once(
     import asyncio
     import contextlib
 
-    import httpx
-
     loop = id(asyncio.get_running_loop())
     slots = _SLOTS.setdefault(loop, asyncio.Semaphore(DECIDE_IN_FLIGHT))
     share = (
@@ -314,25 +319,59 @@ async def _ask_once(
         if background
         else contextlib.nullcontext()
     )
+    idle = _IDLE.setdefault(loop, asyncio.Event())
+    if not _FOREGROUND.get(loop):
+        idle.set()
+    queued = time.monotonic()
     headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
     timeout = decide_timeout(questions) * patience
-    async with share, slots:
-        # Where a turn's seconds go (the operator, 2026-11-22: about two minutes before the first token).
-        started = time.monotonic()
-        try:
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                answer = await client.post(
-                    f"{base_url.rstrip('/')}/chat/completions",
-                    headers=headers,
-                    # The endpoint's extra request fields, never over the conversation's own (ExtraBody.py).
-                    json=with_extra_body(decide_request(model, state, questions), extra),
-                )
-        except httpx.TimeoutException:
-            logger.info("decide %s: no answer in %.1fs", model, time.monotonic() - started)
-            return None, {"kind": "timeout", "detail": f"no answer in {timeout:.0f} s ({len(questions)} questions)"}
-        except httpx.HTTPError as failed:
-            logger.info("decide %s: unreachable after %.1fs", model, time.monotonic() - started)
-            return None, {"kind": "unreachable", "detail": type(failed).__name__}
+    if background:
+        await idle.wait()
+    else:
+        _FOREGROUND[loop] = _FOREGROUND.get(loop, 0) + 1
+        idle.clear()
+    try:
+        async with share, slots:
+            queued_ms = int((time.monotonic() - queued) * 1000)
+            return await _post(base_url, model, headers, timeout, state, questions, extra, queued_ms)
+    finally:
+        if not background:
+            _FOREGROUND[loop] -= 1
+            if not _FOREGROUND[loop]:
+                idle.set()
+
+
+async def _post(
+    base_url: str,
+    model: str,
+    headers: Mapping[str, str],
+    timeout: float,
+    state: str,
+    questions: Mapping[str, Mapping[str, Any]],
+    extra: Mapping[str, Any] | None,
+    queued_ms: int,
+) -> tuple[Any, ...]:
+    """The request itself, once a slot is held: (answers, error, scores, queued_ms)."""
+    import httpx
+
+    # Where a turn's seconds go (the operator, 2026-11-22: about two minutes before the first token).
+    started = time.monotonic()
+    try:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            answer = await client.post(
+                f"{base_url.rstrip('/')}/chat/completions",
+                headers=headers,
+                # The endpoint's extra request fields, never over the conversation's own (ExtraBody.py).
+                json=with_extra_body(decide_request(model, state, questions), extra),
+            )
+    except httpx.TimeoutException:
+        logger.info("decide %s: no answer in %.1fs", model, time.monotonic() - started)
+        waited = f"no answer in {timeout:.0f} s ({len(questions)} questions)"
+        return None, {"kind": "timeout", "detail": waited}, {}, queued_ms
+    except httpx.HTTPError as failed:
+        logger.info("decide %s: unreachable after %.1fs", model, time.monotonic() - started)
+        unreachable = {"kind": "unreachable", "detail": type(failed).__name__}
+        return None, unreachable, {}, queued_ms
     logger.info(
         "decide %s: %s questions, HTTP %s in %.1fs",
         model,
@@ -341,11 +380,12 @@ async def _ask_once(
         time.monotonic() - started,
     )
     if answer.status_code >= 400:
-        return None, {"kind": "http", "detail": f"HTTP {answer.status_code}: {answer.text[:500]}"}
+        refused = f"HTTP {answer.status_code}: {answer.text[:500]}"
+        return None, {"kind": "http", "detail": refused}, {}, queued_ms
     try:
         content = completion_content(answer.json())
     except ValueError:
-        return None, {"kind": "parse", "detail": "the reply isn't JSON"}
+        return None, {"kind": "parse", "detail": "the reply isn't JSON"}, {}, queued_ms
     if content is None:
-        return None, {"kind": "parse", "detail": "the reply isn't a completion"}
-    return read_answers(questions, content), None, answer_scores(questions, content)
+        return None, {"kind": "parse", "detail": "the reply isn't a completion"}, {}, queued_ms
+    return read_answers(questions, content), None, answer_scores(questions, content), queued_ms

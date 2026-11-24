@@ -72,6 +72,7 @@ class DecisionCallModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta)
     )
     status: str = Field("done", description="running while asked, then done or failed")
     attempt: int = Field(1, description="Which try this was (a retry is its own record)")
+    queued_ms: int = Field(0, description="Of ms, how long it waited for a decide slot before it was sent")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI decision model calls"
 
@@ -87,6 +88,7 @@ class DecisionCallModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta)
         error: dict[str, Any] | None = None
         status: str = Field("done", pattern="^(running|done|failed)$")
         attempt: int = Field(1, ge=1)
+        queued_ms: int = Field(0, ge=0)
 
     class Update(BaseModel):
         message_id: str | None = None
