@@ -10,7 +10,6 @@
  */
 import { type ReplyStats, statsLabel } from '~/features/chat/replyStats';
 import { type Revision, RevisionButton } from './RevisionButton';
-import { Linked } from './EntityLinks';
 import { type DecisionCall, DecisionCalls } from './DecisionCalls';
 import { type LineLabel, labelledLines } from '~/features/chat/labelLines';
 import { CanonNotice, type CanonNoticeValue } from './CanonNotice';
@@ -53,10 +52,11 @@ import { Textarea } from 'zephyrex/ui/textarea';
 import { cn } from '~/lib/utils';
 import { textAndCode } from '~/features/chat/codeBlocks';
 import { roleplayPieces } from '~/features/chat/roleplayText';
-import { type Colour, colourSpans, locationBlocks, screenBlocks } from '~/features/chat/markup';
+import { locationBlocks, screenBlocks } from '~/features/chat/markup';
 import { splitReasoning } from '~/features/prompt/assemble';
 import { initials } from '../characters/CharacterTile';
 import { CodeRunner } from './CodeRunner';
+import { Coloured, ScreenBlock } from './ScreenBlock';
 import { readLines, StructuredLines } from './StructuredLines';
 
 export interface MessageView {
@@ -206,30 +206,6 @@ function StoryText({ text, writing = false }: { text: string; writing?: boolean 
   );
 }
 
-/** A device's display (a cogitator, a data-slate, an auspex), set as a screen. */
-export function ScreenBlock({ title, text }: { title: string; text: string }): ReactElement {
-  return (
-    <figure className='my-2 overflow-hidden rounded-md border border-emerald-500/50 bg-zinc-950 text-emerald-300 shadow-inner'>
-      <figcaption className='border-b border-emerald-500/30 bg-emerald-500/10 px-3 py-1 font-mono text-xs uppercase tracking-widest'>
-        {title}
-      </figcaption>
-      <pre className='whitespace-pre-wrap px-3 py-2 font-mono text-sm [overflow-wrap:anywhere] [text-shadow:0_0_6px_rgb(16_185_129/0.5)]'>
-        <Coloured text={text} />
-      </pre>
-    </figure>
-  );
-}
-
-const COLOURS: Record<Colour, string> = {
-  red: 'font-semibold text-red-500',
-  amber: 'font-semibold text-amber-500',
-  green: 'font-semibold text-emerald-500',
-  blue: 'font-semibold text-sky-500',
-  gold: 'font-semibold text-yellow-500',
-  grey: 'text-muted-foreground',
-};
-
-/** Text with the narrator's palette colours (features/chat/markup.ts). */
 /** Common ways a reply goes wrong, to sort flagged replies in review; the note says the rest. */
 const FLAG_REASONS = [
   'Wrong speaker',
@@ -241,25 +217,6 @@ const FLAG_REASONS = [
   'Repetitive or rambling',
   'Other',
 ] as const;
-
-export function Coloured({ text }: { text: string }): ReactElement {
-  return (
-    <>
-      {colourSpans(text).map((span, index) =>
-        // Spans have no identity beyond their place in the text.
-        span.colour === null ? (
-          <span key={index}>
-            <Linked text={span.text} />
-          </span>
-        ) : (
-          <span key={index} className={COLOURS[span.colour]}>
-            <Linked text={span.text} />
-          </span>
-        ),
-      )}
-    </>
-  );
-}
 
 /** A change of place (the operator, 2026-11-21: "a grand banner with a map icon"). */
 export function LocationBanner({ name, within }: { name: string; within?: string }): ReactElement {

@@ -53,15 +53,62 @@ import {
   Wrench,
 } from 'lucide-react';
 import { type ActionKind, actionKind } from '~/features/chat/actionKind';
+import { screenBlocks } from '~/features/chat/markup';
 import type { ReactElement } from 'react';
 import { cn } from '~/lib/utils';
 import { Linked } from './EntityLinks';
+import { ScreenBlock } from './ScreenBlock';
 
 export type Manner = 'speak' | 'whisper' | 'shout' | 'vox' | 'voxcast';
 export type ShownLine =
   | { kind: 'say'; speaker: string; target: string | null; manner: Manner; text: string }
   | { kind: 'do'; speaker: string; target: string | null; text: string; icon?: ActionKind }
   | { kind: 'narrate'; text: string };
+
+/** A line as laid out: a screen block's narrator lines are one screen. */
+export type LaidLine = ShownLine | { kind: 'screen'; title: string; text: string };
+
+const opens = (text: string) => (text.match(/\[screen(?::[^\]\n]*)?\]/gi) ?? []).length;
+const closes = (text: string) => (text.match(/\[\/screen\]/gi) ?? []).length;
+
+function screenParts(text: string): LaidLine[] {
+  return screenBlocks(text).flatMap((block): LaidLine[] => {
+    if (block.kind === 'screen') return [{ kind: 'screen', title: block.title, text: block.text.trim() }];
+    const rest = block.kind === 'text' ? block.text.trim() : '';
+    return rest === '' ? [] : [{ kind: 'narrate', text: rest }];
+  });
+}
+
+/**
+ * The lines with each screen block (`[screen: Title]` ... `[/screen]`) a screen of its own, its narrator lines
+ * its lines (build60's live run, 2026-11-24, chat d219ba90: the Watch Report shown as one plain line).
+ */
+export function withScreens(lines: readonly ShownLine[]): LaidLine[] {
+  const laid: LaidLine[] = [];
+  let block: string[] | null = null;
+  for (const line of lines) {
+    if (block !== null && line.kind === 'narrate') {
+      block.push(line.text);
+      if (closes(block.join('\n')) >= opens(block.join('\n'))) {
+        laid.push(...screenParts(block.join('\n')));
+        block = null;
+      }
+      continue;
+    }
+    if (block !== null) {
+      laid.push(...screenParts(block.join('\n')));
+      block = null;
+    }
+    if (line.kind === 'narrate' && opens(line.text) > 0) {
+      if (opens(line.text) > closes(line.text)) block = [line.text];
+      else laid.push(...screenParts(line.text));
+      continue;
+    }
+    laid.push(line);
+  }
+  if (block !== null) laid.push(...screenParts(block.join('\n')));
+  return laid;
+}
 
 const MANNERS: readonly Manner[] = ['speak', 'whisper', 'shout', 'vox', 'voxcast'];
 const MANNER_WORD: Record<string, Manner> = {
@@ -184,9 +231,10 @@ const MANNER_LABEL: Record<Manner, string | null> = {
 export function StructuredLines({ lines, speaker }: { lines: readonly ShownLine[]; speaker: string }): ReactElement {
   return (
     <div className='grid gap-2'>
-      {lines.map((line, index) => {
+      {withScreens(lines).map((line, index) => {
         // Lines have no identity beyond their place in the message.
         const key = index;
+        if (line.kind === 'screen') return <ScreenBlock key={key} title={line.title} text={line.text} />;
         const other = line.kind !== 'narrate' && line.speaker.toLowerCase() !== speaker.toLowerCase();
         if (line.kind === 'say') {
           const tag = [MANNER_LABEL[line.manner], line.target === null ? null : `to ${line.target}`]

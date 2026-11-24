@@ -289,6 +289,56 @@ def test_a_line_the_prose_gives_its_speaker_stays_theirs() -> None:
     ]
 
 
+def _aimed_item(kind: str, speaker: str, target: str | None, text: str) -> dict[str, Any]:
+    fields = {"kind": kind, "speaker": speaker, "target": target, "manner": None}
+    return {"fields": fields, "text": text, "closed": True}
+
+
+def test_speech_is_aimed_at_whom_it_calls_else_at_whoever_it_answers() -> None:
+    # build60's live run, 2026-11-24, chat d219ba90: Delphine Halloway's answer to Quentin Ashford's question saved
+    # as "Delphine Halloway (to Bram Holloway): ...", and her own pause "(at Bram Holloway)".
+    prose = (
+        'Delphine Halloway pauses, reconsidering. "Mr. Ashford, my husband is many things." She glances at him.'
+        ' "We have been married twenty years."'
+    )
+    items = [
+        _aimed_item("do", "Delphine Halloway", "Bram Holloway", "pauses, reconsidering."),
+        _aimed_item("say", "Delphine Halloway", "Bram Holloway", "Mr. Ashford, my husband is many things."),
+        _aimed_item("do", "Delphine Halloway", "Ashford", "glances at him."),
+        _aimed_item("say", "Delphine Halloway", "Bram Holloway", "We have been married twenty years."),
+    ]
+    fixed = grounded(items, prose, [*HOLLOWAYS[:2], {"id": "ash", "name": "Ashford", "pronoun": "he"}], "Ashford")
+    assert [one["fields"]["target"] for one in fixed] == [None, "Ashford", "Ashford", "Ashford"]
+
+
+def test_a_target_the_paragraph_names_stays() -> None:
+    prose = 'Delphine Halloway turns to Bram Holloway. "You knew."'
+    items = [_aimed_item("say", "Delphine Halloway", "Bram Holloway", "You knew.")]
+    assert grounded(items, prose, HOLLOWAYS, "Ashford")[0]["fields"]["target"] == "Bram Holloway"
+
+
+def test_a_quote_cut_by_its_speech_tag_is_one_line() -> None:
+    # build60's live run, 2026-11-24, chat d219ba90: 'Delphine Halloway (to Bram Holloway): "Romantic liaison,"'
+    # saved alone.
+    prose = '"Romantic liaison," Delphine Halloway repeats, the words clipped, "is not a phrase I use."'
+    items = [
+        _aimed_item("say", "Delphine Halloway", None, "Romantic liaison,"),
+        _aimed_item("do", "Delphine Halloway", None, "repeats, the words clipped,"),
+        _aimed_item("say", "Delphine Halloway", None, "is not a phrase I use."),
+    ]
+    assert [(one["fields"]["kind"], one["text"]) for one in grounded(items, prose, HOLLOWAYS)] == [
+        ("say", "Romantic liaison, is not a phrase I use."),
+        ("do", "repeats, the words clipped,"),
+    ]
+
+
+def test_an_action_credited_to_a_near_name_is_whose_the_prose_says() -> None:
+    # build60's live run, 2026-11-24, chat d219ba90 (19:53:26Z): "Bram Holloway leans back, hands folded in her lap".
+    prose = "Delphine Halloway leans back, hands folded in her lap."
+    items = [_item("do", "Bram Holloway", "leans back, hands folded in her lap.")]
+    assert grounded(items, prose, HOLLOWAYS)[0]["fields"]["speaker"] == "Delphine Halloway"
+
+
 def test_an_action_in_marks_is_a_line_apart_from_the_speech_after_it() -> None:
     # build60's live run, 2026-11-24, chat e377b927: "Looks back over his shoulder at Brenna, rain streaming down his
     # faceGive me a boost and I'll check what's inside." once the marks were taken off.

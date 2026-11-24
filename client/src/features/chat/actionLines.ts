@@ -47,6 +47,11 @@ type Placed = ActionLine & { speaker_id: string | null };
 const BOUNDARY = /(?<=[.!?]["”]?)\s+(?=["“(A-Z])/g;
 const QUOTED = /["“]([^"”]*)["”]?/g;
 const VOWELS = 'aeiou';
+// A screen block (`[screen: Title]` ... `[/screen]`) is shown as written, a line of it each (build60's live run,
+// 2026-11-24, chat d219ba90: the Watch Report's lines split into sentences and joined into one paragraph).
+const SCREEN_OPEN = /\[screen(?::[^\]\n]*)?\]/i;
+const SCREEN_OPEN_ALL = /\[screen(?::[^\]\n]*)?\]/gi;
+const SCREEN_CLOSE = /\[\/screen\]/i;
 const IRREGULAR: Readonly<Record<string, string>> = ACTION_LINES.irregular;
 const TITLES: readonly string[] = ACTION_LINES.titles;
 const PRONOUNS: readonly string[] = ACTION_LINES.subject_pronouns;
@@ -71,6 +76,38 @@ export function sentences(text: string): string[] {
   }
   found.push(text.slice(start));
   return found.filter((one) => one.trim() !== '');
+}
+
+/**
+ * A narrator text's pieces in order, each [on a screen, text]: its prose, and a screen block's lines one each,
+ * its tags each a line of their own; and whether a block is still open at its end (the formatter gives a block
+ * one item per line).
+ */
+export function screenApart(text: string, open = false): [Array<[boolean, string]>, boolean] {
+  const pieces: Array<[boolean, string]> = [];
+  let rest = text;
+  let inside = open;
+  while (rest.trim() !== '') {
+    if (inside) {
+      const close = SCREEN_CLOSE.exec(rest);
+      const body = (close === null ? rest : rest.slice(0, close.index)).replace(SCREEN_OPEN_ALL, (tag) => `${tag}\n`);
+      for (const one of body.split('\n')) if (one.trim() !== '') pieces.push([true, one.trim()]);
+      if (close === null) return [pieces, true];
+      pieces.push([true, close[0]]);
+      inside = false;
+      rest = rest.slice(close.index + close[0].length);
+      continue;
+    }
+    const found = SCREEN_OPEN.exec(rest);
+    if (found === null) {
+      pieces.push([false, rest.trim()]);
+      break;
+    }
+    if (rest.slice(0, found.index).trim() !== '') pieces.push([false, rest.slice(0, found.index).trim()]);
+    inside = true;
+    rest = rest.slice(found.index);
+  }
+  return [pieces, inside];
 }
 
 /**
@@ -285,6 +322,9 @@ export function actionLines(
   const wrong: string[] = [];
   // Who a pronoun may mean, the most recent last.
   const recent: string[] = [];
+  // Which lines are a screen block's, and whether one is open.
+  const screen = new Set<number>();
+  let onScreen = false;
   for (const run of runs) {
     // In a character's own run, "he" or "she" first means that character.
     if (run.speaker_id !== null) recent.push(run.speaker_id);
@@ -292,32 +332,42 @@ export function actionLines(
     for (const line of run.lines) {
       const text = line.text;
       if (line.kind === 'narrate' || speaker === null) {
-        for (const sentence of sentences(text)) {
-          const [actor, rest, owned] = who(sentence, people, recent);
-          if (actor === null || !(owned || /^\w/.test(rest)) || rest.startsWith('"') || rest.startsWith('“')) {
-            // In a character's own run, a sentence without a person as subject is their words unless it opens
-            // on the world ("The ferry bumps...", live run 2026-11-24) or a possessive: then it's narration.
-            const own = speaker === null ? null : ownWords(line, sentence, speaker, people);
-            if (own !== null) {
-              lines.push(...own);
-              continue;
-            }
-            if (speaker !== null) wrong.push(sentence.trim());
-            lines.push({ ...line, speaker_id: null, kind: 'narrate', text: sentence });
-            const mentioned = named(sentence, people);
-            if (mentioned !== null) recent.push(mentioned);
+        const [pieces, open] = screenApart(text, onScreen);
+        onScreen = open;
+        for (const [shown, piece] of pieces) {
+          if (shown) {
+            // A screen's line is the narrator's, as written.
+            screen.add(lines.length);
+            lines.push({ ...line, speaker_id: null, kind: 'narrate', text: piece });
             continue;
           }
-          wrong.push(sentence.trim());
-          lines.push({
-            speaker_id: actor,
-            kind: 'do',
-            manner: null,
-            target_id: null,
-            target_name: null,
-            text: owned ? rest : action(rest),
-          });
-          recent.push(actor);
+          for (const sentence of sentences(piece)) {
+            const [actor, rest, owned] = who(sentence, people, recent);
+            if (actor === null || !(owned || /^\w/.test(rest)) || rest.startsWith('"') || rest.startsWith('“')) {
+              // In a character's own run, a sentence without a person as subject is their words unless it opens
+              // on the world ("The ferry bumps...", live run 2026-11-24) or a possessive: then it's narration.
+              const own = speaker === null ? null : ownWords(line, sentence, speaker, people);
+              if (own !== null) {
+                lines.push(...own);
+                continue;
+              }
+              if (speaker !== null) wrong.push(sentence.trim());
+              lines.push({ ...line, speaker_id: null, kind: 'narrate', text: sentence });
+              const mentioned = named(sentence, people);
+              if (mentioned !== null) recent.push(mentioned);
+              continue;
+            }
+            wrong.push(sentence.trim());
+            lines.push({
+              speaker_id: actor,
+              kind: 'do',
+              manner: null,
+              target_id: null,
+              target_name: null,
+              text: owned ? rest : action(rest),
+            });
+            recent.push(actor);
+          }
         }
         continue;
       }
@@ -356,7 +406,7 @@ export function actionLines(
       recent.push(speaker);
     }
   }
-  return { runs: grouped(lines, names), wrong };
+  return { runs: grouped(lines, names, screen), wrong };
 }
 
 /** An action line of the speaker's, its own subject taken off and its first verb in the present. */
@@ -375,11 +425,19 @@ function ownLine(
 }
 
 /** Lines into runs again: one per stretch of the same speaker (the narrator's sentences one paragraph). */
-function grouped(lines: readonly Placed[], names: ReadonlyMap<string, string>): ActionRun[] {
+function grouped(lines: readonly Placed[], names: ReadonlyMap<string, string>, screen: ReadonlySet<number>): ActionRun[] {
   const runs: ActionRun[] = [];
-  for (const { speaker_id: speaker, ...line } of lines) {
+  for (const [at, { speaker_id: speaker, ...line }] of lines.entries()) {
     const previousRun = runs.at(-1);
-    if (speaker === null && previousRun !== undefined && previousRun.speaker_id === null && previousRun.lines.length > 0) {
+    // A screen block's lines are each their own.
+    const joins = !screen.has(at) && !screen.has(at - 1);
+    if (
+      joins &&
+      speaker === null &&
+      previousRun !== undefined &&
+      previousRun.speaker_id === null &&
+      previousRun.lines.length > 0
+    ) {
       const previous = previousRun.lines[previousRun.lines.length - 1];
       if (previous !== undefined) {
         previousRun.lines[previousRun.lines.length - 1] = { ...previous, text: `${previous.text} ${line.text}`.trim() };

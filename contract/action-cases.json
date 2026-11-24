@@ -664,6 +664,207 @@
         "Quickfoot's hands go to the windowsill."
       ],
       "solo": []
+    },
+    {
+      "name": "A screen block's lines stay each its own, never split or joined into the narrator's paragraph (build60's live run, 2026-11-24, chat d219ba90: the Watch Report)",
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "The paper is official-looking, stamped with the city's seal."
+            },
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "[screen: Watch Report]"
+            },
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "CASE FILE: HALLOWAY, O. - MISSING PERSON"
+            },
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "DATE OF DISAPPEARANCE: 3 DAYS AGO"
+            },
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "LAST SEEN: LANTERN STEPS, DOCK DISTRICT"
+            },
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "- CAPTAIN VESSA DOYLE"
+            },
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "[/screen]"
+            },
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Delphine Halloway's fingers tremble slightly as she sets down the paper."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          null,
+          [
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate"
+          ],
+          [
+            "The paper is official-looking, stamped with the city's seal.",
+            "[screen: Watch Report]",
+            "CASE FILE: HALLOWAY, O. - MISSING PERSON",
+            "DATE OF DISAPPEARANCE: 3 DAYS AGO",
+            "LAST SEEN: LANTERN STEPS, DOCK DISTRICT",
+            "- CAPTAIN VESSA DOYLE",
+            "[/screen]"
+          ]
+        ],
+        [
+          "del",
+          [
+            "do"
+          ],
+          [
+            "'s fingers tremble slightly as she sets down the paper."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Delphine Halloway's fingers tremble slightly as she sets down the paper."
+      ],
+      "solo": [
+        [
+          null,
+          [
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate"
+          ],
+          [
+            "The paper is official-looking, stamped with the city's seal.",
+            "[screen: Watch Report]",
+            "CASE FILE: HALLOWAY, O. - MISSING PERSON",
+            "DATE OF DISAPPEARANCE: 3 DAYS AGO",
+            "LAST SEEN: LANTERN STEPS, DOCK DISTRICT",
+            "- CAPTAIN VESSA DOYLE",
+            "[/screen]"
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "A screen block inside one narrator line is set apart, a line each, its tags their own",
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "The paper is official-looking, stamped with the city's seal. [screen: Watch Report]\nCASE FILE: HALLOWAY, O. - MISSING PERSON\nDATE OF DISAPPEARANCE: 3 DAYS AGO\nLAST SEEN: LANTERN STEPS, DOCK DISTRICT\n- CAPTAIN VESSA DOYLE\n[/screen] Delphine Halloway's fingers tremble slightly as she sets down the paper."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          null,
+          [
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate"
+          ],
+          [
+            "The paper is official-looking, stamped with the city's seal.",
+            "[screen: Watch Report]",
+            "CASE FILE: HALLOWAY, O. - MISSING PERSON",
+            "DATE OF DISAPPEARANCE: 3 DAYS AGO",
+            "LAST SEEN: LANTERN STEPS, DOCK DISTRICT",
+            "- CAPTAIN VESSA DOYLE",
+            "[/screen]"
+          ]
+        ],
+        [
+          "del",
+          [
+            "do"
+          ],
+          [
+            "'s fingers tremble slightly as she sets down the paper."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Delphine Halloway's fingers tremble slightly as she sets down the paper."
+      ],
+      "solo": [
+        [
+          null,
+          [
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate",
+            "narrate"
+          ],
+          [
+            "The paper is official-looking, stamped with the city's seal.",
+            "[screen: Watch Report]",
+            "CASE FILE: HALLOWAY, O. - MISSING PERSON",
+            "DATE OF DISAPPEARANCE: 3 DAYS AGO",
+            "LAST SEEN: LANTERN STEPS, DOCK DISTRICT",
+            "- CAPTAIN VESSA DOYLE",
+            "[/screen]"
+          ]
+        ]
+      ]
     }
   ]
 }

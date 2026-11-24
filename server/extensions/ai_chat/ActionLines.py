@@ -25,6 +25,10 @@ ACTIONS: dict[str, Any] = CONTRACT["action_lines"]
 _BOUNDARY = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"”]))\s+(?=[\"“(A-Z])")
 _QUOTED = re.compile(r"[\"“]([^\"”]*)[\"”]?")
 _VOWELS = "aeiou"
+# A screen block (`[screen: Title]` ... `[/screen]`) is shown as written, a line of it each (build60's live run,
+# 2026-11-24, chat d219ba90: the Watch Report's lines split into sentences and joined into one paragraph).
+_SCREEN_OPEN = re.compile(r"\[screen(?::[^\]\n]*)?\]", re.IGNORECASE)
+_SCREEN_CLOSE = re.compile(r"\[/screen\]", re.IGNORECASE)
 
 
 def sentences(text: str) -> list[str]:
@@ -40,6 +44,35 @@ def sentences(text: str) -> list[str]:
         start = boundary.end()
     found.append(text[start:])
     return [one for one in found if one.strip()]
+
+
+def screen_apart(text: str, open_: bool = False) -> tuple[list[tuple[bool, str]], bool]:
+    """A narrator text's pieces in order, each (on a screen, text): its prose, and a screen block's lines one
+    each, its tags each a line of their own; and whether a block is still open at its end (the formatter gives
+    a block one item per line)."""
+    pieces: list[tuple[bool, str]] = []
+    rest = text
+    while rest.strip():
+        if open_:
+            close = _SCREEN_CLOSE.search(rest)
+            body = rest if close is None else rest[: close.start()]
+            body = _SCREEN_OPEN.sub(lambda tag: f"{tag.group(0)}\n", body)
+            pieces += [(True, one.strip()) for one in body.split("\n") if one.strip()]
+            if close is None:
+                return pieces, True
+            pieces.append((True, close.group(0)))
+            open_ = False
+            rest = rest[close.end() :]
+            continue
+        found = _SCREEN_OPEN.search(rest)
+        if found is None:
+            pieces.append((False, rest.strip()))
+            break
+        if rest[: found.start()].strip():
+            pieces.append((False, rest[: found.start()].strip()))
+        open_ = True
+        rest = rest[found.start() :]
+    return pieces, open_
 
 
 def present(verb: str) -> str:
@@ -203,6 +236,9 @@ def action_lines(
     wrong: list[str] = []
     # Who a pronoun may mean, the most recent last.
     recent: list[str] = []
+    # Which lines are a screen block's, and whether one is open.
+    screen: set[int] = set()
+    on_screen = False
     for run in runs:
         # In a character's own run, "he" or "she" first means that character.
         if run.get("speaker_id") is not None:
@@ -212,35 +248,42 @@ def action_lines(
             text = str(line.get("text") or "")
             speaker = run.get("speaker_id")
             if kind == "narrate" or speaker is None:
-                for sentence in sentences(text):
-                    actor, rest, owned = _who(sentence, people, recent)
-                    if actor is None or not (owned or re.match(r"\w", rest)) or rest[:1] in ('"', "\u201c"):
-                        # In a character's own run, a sentence without a person as subject is their words unless it
-                        # opens on the world ("The ferry bumps...", live run 2026-11-24) or a possessive: then it's
-                        # narration.
-                        own = None if speaker is None else _own_words(line, sentence, str(speaker), people)
-                        if own is not None:
-                            lines.extend(own)
-                            continue
-                        if speaker is not None:
-                            wrong.append(sentence.strip())
-                        lines.append({**line, "speaker_id": None, "kind": "narrate", "text": sentence})
-                        mentioned = _named(sentence, people)
-                        if mentioned is not None:
-                            recent.append(mentioned)
+                pieces, on_screen = screen_apart(text, on_screen)
+                for shown, piece in pieces:
+                    if shown:
+                        # A screen's line is the narrator's, as written.
+                        screen.add(len(lines))
+                        lines.append({**line, "speaker_id": None, "kind": "narrate", "text": piece})
                         continue
-                    wrong.append(sentence.strip())
-                    lines.append(
-                        {
-                            "speaker_id": actor,
-                            "kind": "do",
-                            "manner": None,
-                            "target_id": None,
-                            "target_name": None,
-                            "text": rest if owned else _action(rest),
-                        }
-                    )
-                    recent.append(actor)
+                    for sentence in sentences(piece):
+                        actor, rest, owned = _who(sentence, people, recent)
+                        if actor is None or not (owned or re.match(r"\w", rest)) or rest[:1] in ('"', "\u201c"):
+                            # In a character's own run, a sentence without a person as subject is their words unless it
+                            # opens on the world ("The ferry bumps...", live run 2026-11-24) or a possessive: then it's
+                            # narration.
+                            own = None if speaker is None else _own_words(line, sentence, str(speaker), people)
+                            if own is not None:
+                                lines.extend(own)
+                                continue
+                            if speaker is not None:
+                                wrong.append(sentence.strip())
+                            lines.append({**line, "speaker_id": None, "kind": "narrate", "text": sentence})
+                            mentioned = _named(sentence, people)
+                            if mentioned is not None:
+                                recent.append(mentioned)
+                            continue
+                        wrong.append(sentence.strip())
+                        lines.append(
+                            {
+                                "speaker_id": actor,
+                                "kind": "do",
+                                "manner": None,
+                                "target_id": None,
+                                "target_name": None,
+                                "text": rest if owned else _action(rest),
+                            }
+                        )
+                        recent.append(actor)
                 continue
             if kind == "do":
                 # A sentence of it that opens on the world ("The ferry bumps against the post", live run 2026-11-24,
@@ -270,7 +313,7 @@ def action_lines(
             else:
                 lines.append({**line, "speaker_id": speaker})
             recent.append(str(speaker))
-    return _grouped(lines, names), wrong
+    return _grouped(lines, names, screen), wrong
 
 
 def _own_line(
@@ -289,12 +332,17 @@ def _own_line(
     return {**line, "speaker_id": speaker, "text": fixed}
 
 
-def _grouped(lines: Sequence[Mapping[str, Any]], names: Mapping[str, str]) -> list[dict[str, Any]]:
-    """Lines into runs again: one per stretch of the same speaker (the narrator's sentences one paragraph)."""
+def _grouped(
+    lines: Sequence[Mapping[str, Any]], names: Mapping[str, str], screen: set[int] | None = None
+) -> list[dict[str, Any]]:
+    """Lines into runs again: one per stretch of the same speaker (the narrator's sentences one paragraph, a
+    screen block's lines each their own)."""
     runs: list[dict[str, Any]] = []
-    for line in lines:
+    shown = screen or set()
+    for at, line in enumerate(lines):
         speaker = line.get("speaker_id")
-        if speaker is None and runs and runs[-1]["speaker_id"] is None and runs[-1]["lines"]:
+        joins = at not in shown and at - 1 not in shown
+        if joins and speaker is None and runs and runs[-1]["speaker_id"] is None and runs[-1]["lines"]:
             previous = runs[-1]["lines"][-1]
             runs[-1]["lines"][-1] = {**previous, "text": f"{previous['text']} {line['text']}".strip()}
             continue

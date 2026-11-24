@@ -56,6 +56,32 @@ export const APossessiveAction: Story = {
   },
 };
 
+/** A screen block the narrator wrote a line at a time (build60's live run, 2026-11-24): one screen, its lines kept. */
+export const AScreenBlock: Story = {
+  args: {
+    speaker: 'Narrator',
+    lines:
+      readLines(
+        [
+          "Narrator: The paper is official-looking, stamped with the city's seal.",
+          'Narrator: [screen: Watch Report]',
+          'Narrator: CASE FILE: HALLOWAY, O. - MISSING PERSON',
+          'Narrator: LAST SEEN: LANTERN STEPS, DOCK DISTRICT',
+          'Narrator: [/screen]',
+        ].join('\n'),
+        [],
+      ) ?? [],
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(canvas.getByText('Watch Report')).toBeInTheDocument();
+    await expect(canvasElement.querySelector('pre')?.textContent).toBe(
+      'CASE FILE: HALLOWAY, O. - MISSING PERSON\nLAST SEEN: LANTERN STEPS, DOCK DISTRICT',
+    );
+    await expect(canvas.queryByText('[screen: Watch Report]')).not.toBeInTheDocument();
+  },
+};
+
 const MANNERS: ShownLine[] = [
   { kind: 'say', speaker: 'Osk', target: null, manner: 'speak', text: 'Hold the line.' },
   { kind: 'say', speaker: 'Osk', target: 'Wren', manner: 'whisper', text: 'Watch the door.' },

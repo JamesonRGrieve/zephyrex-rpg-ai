@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 // @vitest-environment node
 import { describe, expect, it } from 'vitest';
-import { actionApart, actsWith, readLines } from './StructuredLines';
+import { actionApart, actsWith, readLines, withScreens } from './StructuredLines';
 
 describe('readLines', () => {
   it("an action told by its possessive is its actor's (build60's live run, 2026-11-24)", () => {
@@ -70,5 +70,46 @@ describe('readLines', () => {
     expect(actsWith('slowly turns')).toBe(true);
     expect(actsWith('sat up')).toBe(true);
     expect(actsWith('vessel drifts')).toBe(false);
+  });
+});
+
+describe('withScreens', () => {
+  const report = [
+    "Narrator: The paper is official-looking, stamped with the city's seal.",
+    'Narrator: [screen: Watch Report]',
+    'Narrator: CASE FILE: HALLOWAY, O. - MISSING PERSON',
+    'Narrator: DATE OF DISAPPEARANCE: 3 DAYS AGO',
+    'Narrator: [/screen]',
+    "Delphine Halloway's fingers tremble slightly as she sets down the paper.",
+  ].join('\n');
+  it("a screen block's narrator lines are one screen, a line each (build60's live run, 2026-11-24, chat d219ba90)", () => {
+    expect(withScreens(readLines(report, ['Delphine Halloway']) ?? [])).toEqual([
+      { kind: 'narrate', text: "The paper is official-looking, stamped with the city's seal." },
+      {
+        kind: 'screen',
+        title: 'Watch Report',
+        text: 'CASE FILE: HALLOWAY, O. - MISSING PERSON\nDATE OF DISAPPEARANCE: 3 DAYS AGO',
+      },
+      {
+        kind: 'do',
+        speaker: 'Delphine Halloway',
+        target: null,
+        text: "'s fingers tremble slightly as she sets down the paper.",
+      },
+    ]);
+  });
+  it('a block saved inside one narrator line is still a screen, the prose either side narration', () => {
+    expect(
+      withScreens([
+        {
+          kind: 'narrate',
+          text: 'The paper is stamped. [screen: Watch Report] CASE FILE: HALLOWAY, O. [/screen] She looks up.',
+        },
+      ]),
+    ).toEqual([
+      { kind: 'narrate', text: 'The paper is stamped.' },
+      { kind: 'screen', title: 'Watch Report', text: 'CASE FILE: HALLOWAY, O.' },
+      { kind: 'narrate', text: 'She looks up.' },
+    ]);
   });
 });

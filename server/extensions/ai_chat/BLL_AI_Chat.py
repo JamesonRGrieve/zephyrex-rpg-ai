@@ -4792,8 +4792,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if not faithful(prose, items):
                 return {"reformatted": False, "reason": "it rewrote the prose", "runs": [], "cut": False}
             # Held to the prose's own words: quoted speech is speech, and a line is whose the prose makes it
-            # (build60's live run, 2026-11-24, chat d219ba90: Delphine Halloway's words saved as Bram Holloway's).
-            items = grounded(items, prose, described)
+            # (build60's live run, 2026-11-24, chat d219ba90: Delphine Halloway's words saved as Bram Holloway's),
+            # and aimed at whom the prose says, else at the seat, whose line the reply answers.
+            items = grounded(items, prose, described, seat_name)
             result = structured_runs(items, people, seat_name)
             # Every present person's action is their action line, present tense, by construction (the operator,
             # 2026-11-24: "HOW THE FUCK ARE WE STILL NOT TAGGING ACTIONS?"): what the formatter left as narration is

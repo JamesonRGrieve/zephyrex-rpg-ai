@@ -183,8 +183,88 @@ def _speaker(person: Mapping[str, Any], prose: str, at: int, people: Sequence[Ma
     return alike[0] if len(alike) == 1 else person
 
 
+def _addressed(
+    text: str, people: Sequence[Mapping[str, Any]], speaker: Mapping[str, Any] | None
+) -> Mapping[str, Any] | None:
+    """Whom a line of speech calls by name ("Mr. Ashford, my husband is many things"): a name, or a title and a
+    name, at its start or its end, set off by a comma."""
+    for one in people:
+        if one is speaker:
+            continue
+        for name in _forms(one):
+            called = rf"(?:[A-Z][\w']*\.?\s+)?{re.escape(name)}"
+            if re.match(rf"\W*{called}\s*[,!?]", text) or re.search(rf",\s*{called}\W*$", text):
+                return one
+    return None
+
+
+def _aimed(
+    fields: Mapping[str, Any],
+    text: str,
+    told: str,
+    people: Sequence[Mapping[str, Any]],
+    asker: Mapping[str, Any] | None,
+) -> str | None:
+    """Whom a line is aimed at, by the prose's own words (build60's live run, 2026-11-24, chat d219ba90: Delphine
+    Halloway's answer to Quentin Ashford's question saved as said to Bram Holloway, and "(at Bram Holloway)
+    pauses, reconsidering"). Speech: whom it calls by name; else the formatter's target when the line's
+    paragraph names them outside its quotes; else whoever the reply answers. An action: the formatter's target
+    only when the action names them, or a pronoun of it can mean them."""
+    by_name = {str(one["name"]).casefold(): one for one in people}
+    speaker = by_name.get(str(fields.get("speaker") or "").casefold())
+    target = by_name.get(str(fields.get("target") or "").casefold())
+    if fields.get("kind") == "say":
+        called = _addressed(text, people, speaker)
+        if called is not None:
+            return str(called["name"])
+        if target is None or target is speaker:
+            return None
+        if _names_in(told, target):
+            return str(target["name"])
+        return str(asker["name"]) if asker is not None and asker is not speaker else None
+    if fields.get("kind") != "do" or target is None or target is speaker:
+        return None
+    words = set(re.findall(r"[a-z]+", text.lower()))
+    fits = pronoun_of(target)
+    # A pronoun the actor's own could be ("folds her hands") never aims it.
+    own = pronoun_of(speaker) if speaker is not None else None
+    words_of = CONTRACT["action_lines"]["pronoun_words"]
+    objects = set(words_of.get(fits, [])) - {fits} if fits and fits != own else set()
+    return str(target["name"]) if _names_in(text, target) or words & objects else None
+
+
+def _rejoined(items: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """A quote a speech tag cuts at its comma ("Romantic liaison," she repeats, "is...") one say line again, the
+    tag's action after it (build60's live run, 2026-11-24, chat d219ba90: "Romantic liaison," saved alone)."""
+    out: list[dict[str, Any]] = []
+    for item in items:
+        fields = item["fields"]
+        speaker = fields.get("speaker")
+        # The last say, with at most one line after it.
+        says = [at for at in (len(out) - 1, len(out) - 2) if at >= 0 and out[at]["fields"].get("kind") == "say"]
+        back = says[0] if says else None
+        first = str(out[back]["text"]).rstrip().rstrip('"\u201d').rstrip() if back is not None else ""
+        if (
+            fields.get("kind") == "say"
+            and speaker
+            and back is not None
+            and out[back]["fields"].get("speaker") == speaker
+            and first.endswith(",")
+            and all(one["fields"].get("speaker") in (speaker, None) for one in out[back + 1 :])
+        ):
+            second = str(item["text"]).strip()
+            joined = f"{first} {second}" if second[:1].islower() else f"{first[:-1]}. {second}"
+            out[back] = {**out[back], "text": joined}
+            continue
+        out.append(item)
+    return out
+
+
 def grounded(
-    items: Sequence[Mapping[str, Any]], prose: str, people: Sequence[Mapping[str, Any]]
+    items: Sequence[Mapping[str, Any]],
+    prose: str,
+    people: Sequence[Mapping[str, Any]],
+    asker: str | None = None,
 ) -> list[dict[str, Any]]:
     """The formatter's items held to the prose they came from (build60's live run, 2026-11-24, chat d219ba90:
     Delphine Halloway's speech credited to Bram Holloway, as action lines):
@@ -193,8 +273,11 @@ def grounded(
     - an item is the speaker's the prose's own words make it: when its paragraph, outside its quotes, names
       one present person (or, naming no one, opens on a pronoun meaning one: ActionLines.antecedent) and
       not the credited one, it's theirs; when the credited one is never named in the prose and someone with
-      a near-identical name is, it's theirs."""
+      a near-identical name is, it's theirs;
+    - whom it's aimed at is whom the prose says (_aimed: ``asker`` is whose line the reply answers);
+    - a quote cut by its speech tag is one line (_rejoined)."""
     by_name = {str(one["name"]).casefold(): one for one in people}
+    asked = by_name.get(str(asker or "").casefold())
     out: list[dict[str, Any]] = []
     cursor = 0
     for item in items:
@@ -209,8 +292,10 @@ def grounded(
         if person is not None:
             person = _speaker(person, prose, at, people)
             fields = {**fields, "speaker": str(person["name"])}
+            told = _QUOTE.sub(" ", _paragraph(prose, at) if at >= 0 else prose)
+            fields = {**fields, "target": _aimed(fields, text, told, people, asked)}
         out.append({**item, "fields": fields})
-    return out
+    return _rejoined(out)
 
 
 def _words(text: str) -> list[str]:
