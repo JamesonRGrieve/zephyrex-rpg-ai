@@ -10,6 +10,7 @@
  * is taken off (the stored form puts the actor's name first) and its first verb put in the present.
  */
 import { ACTION_LINES } from '~/contract';
+import { formatPlayerLines } from './playerLines';
 
 export interface ActionPerson {
   id: string;
@@ -254,4 +255,73 @@ function grouped(lines: readonly Placed[], names: ReadonlyMap<string, string>): 
     });
   }
   return runs;
+}
+
+export interface SavedPart {
+  speaker_id: string | null;
+  speaker_name?: string | null;
+  text: string;
+}
+
+/**
+ * The parts a narration is saved as (the reader's split, lib's narrateSegments), with every present person's
+ * action in the narrator's parts made their action line, as the server's credited_runs saves them: a
+ * speaker's own part is kept as written; an action found in the narration is that person's line ("Old Hesk
+ * shifts his weight", live run 2026-11-24). With multi-actor turns off (`solo`) the narrator voices no one,
+ * so an action found is cut, never saved as narration (d3c8288).
+ */
+export function actedParts(parts: readonly SavedPart[], people: readonly ActionPerson[], solo = false): SavedPart[] {
+  const known = new Set(people.map((person) => person.id));
+  const narrator = (part: SavedPart): boolean => part.speaker_id === null && (part.speaker_name ?? '') === '';
+  const out: SavedPart[] = [];
+  let context: ActionRun | null = null;
+  for (const part of parts) {
+    if (!narrator(part)) {
+      out.push(part);
+      // The speaker a following "she" means: a person of the scene's.
+      if (part.speaker_id !== null && known.has(part.speaker_id)) {
+        const line: ActionLine = { kind: 'say', manner: null, target_id: null, target_name: null, text: part.text };
+        context = { speaker_id: part.speaker_id, speaker_name: null, lines: [line] };
+      }
+      continue;
+    }
+    const told: ActionRun = {
+      speaker_id: null,
+      speaker_name: null,
+      lines: [{ kind: 'narrate', manner: null, target_id: null, target_name: null, text: part.text }],
+    };
+    const { runs: acted } = actionLines(context === null ? [told] : [context, told], people);
+    // The context's own line goes; an action of the same speaker's grouped after it stays.
+    const runs =
+      context === null
+        ? acted
+        : acted
+            .map((run, index) => (index === 0 ? { ...run, lines: run.lines.slice(1) } : run))
+            .filter((run) => run.lines.length > 0);
+    for (const run of runs) {
+      if (run.speaker_id === null) {
+        const text = run.lines.map((line) => line.text).join(' ');
+        if (text.trim() !== '') out.push({ speaker_id: null, text });
+        continue;
+      }
+      if (solo) continue;
+      out.push({
+        speaker_id: run.speaker_id,
+        text: formatPlayerLines(
+          run.lines.map((line) => ({
+            speaker_id: run.speaker_id ?? '',
+            kind: line.kind,
+            manner: null,
+            target_id: line.target_id,
+            target_name: line.target_name,
+            text: line.text,
+          })),
+          people,
+        ),
+      });
+      const line = run.lines.at(-1);
+      if (line !== undefined) context = { speaker_id: run.speaker_id, speaker_name: null, lines: [line] };
+    }
+  }
+  return out;
 }
