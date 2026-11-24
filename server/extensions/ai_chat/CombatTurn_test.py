@@ -128,7 +128,7 @@ def test_a_fight_the_story_starts_opens_the_vtts_encounter(server: TestClient, m
         return {}
 
     async def start_combat(_requester: str, _encounter: str) -> dict[str, Any]:
-        return {"round": 1, "current_combatant_id": "x"}
+        return {"status": "running", "round": 1, "current_combatant_id": "x"}
 
     found = {
         "current_encounter": current_encounter,
@@ -157,3 +157,77 @@ def test_a_fight_the_story_starts_opens_the_vtts_encounter(server: TestClient, m
     assert answer.status_code == 200, answer.text
     assert answer.json()["combat_check"]["started"] is True and answer.json()["combat_check"]["encounter_id"] == "e1"
     assert opened == [{"campaign_id": world, "scene_id": "s1", "person_ids": [tam["id"], "p-beast"]}]
+
+
+def test_a_fight_the_vtt_cant_start_is_said_and_a_stuck_one_is_started(
+    server: TestClient, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    # Zephyrex RPG's live run, chat 54763f15: pregens without sheets rolled no initiative, the VTT refused to
+    # start, and the encounter sat in setup at round 0 while combat_check said started.
+    from fastapi import HTTPException
+
+    user = create_user(server)  # type: ignore[no-untyped-call]
+    headers = {"Authorization": f"Bearer {user.jwt}"}
+    world = server.post("/v1/campaign", json={"campaign": {"name": "Mill"}}, headers=headers).json()["campaign"]["id"]
+    brenna = server.post(
+        "/v1/person", json={"person": {"name": "Brenna", "kind": "pc", "campaign_id": world}}, headers=headers
+    ).json()["person"]
+    made = {"chat": {"title": "Mill", "character_ids": [brenna["id"]], "campaign_id": world}}
+    chat = server.post("/v1/chat", json=made, headers=headers).json()["chat"]
+    said = {"chat_message": {"chat_id": chat["id"], "role": "user", "swipes": ["I strike at the drowned thing."]}}
+    line = server.post("/v1/chat_message", json=said, headers=headers).json()["chat_message"]
+    state: dict[str, Any] = {"current": None, "opened": [], "ended": [], "started": []}
+
+    async def current_encounter(_requester: str, _campaign: str) -> Any:
+        return state["current"]
+
+    async def start_encounter(_requester: str, _campaign: str, **_fields: Any) -> dict[str, Any]:
+        state["opened"].append("e1")
+        return {"id": "e1"}
+
+    async def roll_initiative(_requester: str, _encounter: str) -> dict[str, Any]:
+        return {"unrolled": [{"name": "Brenna", "reason": "No character to roll for"}]}
+
+    async def start_combat(_requester: str, encounter: str) -> dict[str, Any]:
+        if encounter == "e1":
+            raise HTTPException(status_code=422, detail={"message": "Roll or set initiative first for: Brenna"})
+        state["started"].append(encounter)
+        return {"id": encounter, "status": "running", "round": 1, "current_combatant_id": "c1"}
+
+    async def end_encounter(_requester: str, encounter: str) -> dict[str, Any]:
+        state["ended"].append(encounter)
+        return {}
+
+    found = {
+        "current_encounter": current_encounter,
+        "start_encounter": start_encounter,
+        "roll_initiative": roll_initiative,
+        "start_combat": start_combat,
+        "end_encounter": end_encounter,
+    }
+    monkeypatch.setattr(AbstractExtensionProvider, "loaded_ability", lambda _registry, _ext, name: found.get(name))
+
+    async def scene(_registry: Any, _requester: str, _campaign: str | None) -> dict[str, Any]:
+        return {"id": "s1"}
+
+    async def people(_registry: Any, _requester: str, _campaign: str | None) -> list[str]:
+        return [brenna["id"]]
+
+    monkeypatch.setattr(WikiReads, "scene_now", scene)
+    monkeypatch.setattr(WikiReads, "scene_people", people)
+
+    async def decide(_self: Any, _purpose: str, _asked: Any, _state: str, _questions: dict[str, Any]) -> Any:
+        return {"fight": {"choice": "a fight starts"}}
+
+    monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decide)
+    asked = {"combat_check": {"chat_id": chat["id"], "leaf_id": line["id"]}}
+    refused = server.post("/v1/ai_chat/combat_check", json=asked, headers=headers).json()["combat_check"]
+    assert refused["started"] is False and refused["encounter_id"] is None
+    assert "Roll or set initiative first for: Brenna" in refused["reason"]
+    assert "Brenna: No character to roll for" in refused["reason"]
+    assert state["ended"] == ["e1"]
+    # One left in setup (the GM's, or a start that couldn't be ended) is started, never "already".
+    state["current"] = {"id": "e2", "status": "setup", "round": 0}
+    started = server.post("/v1/ai_chat/combat_check", json=asked, headers=headers).json()["combat_check"]
+    assert started["started"] is True and started["encounter_id"] == "e2"
+    assert state["started"] == ["e2"] and state["opened"] == ["e1"]

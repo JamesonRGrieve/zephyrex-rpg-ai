@@ -8,8 +8,10 @@ its own rolls, then the VTT's next_turn. A combatant off its turn does nothing; 
 or whose decision is to hold passes the turn.
 
 ``POST /v1/ai_chat/combat_check`` ``{"combat_check": {"chat_id", "leaf_id"}}``: whether the story's latest
-line starts a fight (the decision model), and if so the VTT's encounter for everyone on the scene, its
-initiative rolled and round 1 begun (live run 4: "Roll initiative!" had opened nothing).
+line starts a fight (the decision model), and if so the VTT's encounter for everyone on the scene (or the
+one already in setup), its initiative rolled and round 1 begun (live run 4: "Roll initiative!" had opened
+nothing). A fight the VTT couldn't start answers started=false with the VTT's reason, and an encounter
+made just for it is ended.
 """
 
 from __future__ import annotations
@@ -125,10 +127,14 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
         if not wiki or None in (current, start, roll, begin):
             return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no combat here"))
         going = await _called(current, requester, wiki)
-        if isinstance(going, dict) and going.get("id"):
+        # Only a running fight is one already going: an encounter still in setup (a start that failed, or one
+        # the GM is preparing) is started, never a reason to stop (Zephyrex RPG's live run, chat 54763f15:
+        # one stuck in setup at round 0).
+        if isinstance(going, dict) and going.get("id") and going.get("status") == "running":
             return CombatCheckEnvelope(
                 combat_check=CombatCheck(started=False, encounter_id=str(going["id"]), order=going, reason="already")
             )
+        waiting = str(going["id"]) if isinstance(going, dict) and going.get("id") else None
         rows = ChatMessageManager(requester_id=requester, model_registry=self.model_registry).list(chat_id=chat.id)
         line = next((one for one in rows if asked.leaf_id and str(one.id) == asked.leaf_id), None) or (
             max(rows, key=lambda one: (str(one.created_at), str(one.id))) if rows else None
@@ -147,19 +153,51 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no decision"))
         if ((answers or {}).get("fight") or {}).get("choice") != COMBAT["start_yes"]:
             return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no fight"))
-        scene = await scene_now(self.model_registry, requester, wiki)
-        people = await scene_people(self.model_registry, requester, wiki)
-        if not people:
-            return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no one on the scene"))
-        made = await _called(start, requester, wiki, scene_id=str(scene["id"]) if scene else None, person_ids=people)
-        encounter_id = str(made.get("id") or made.get("encounter_id") or "") if isinstance(made, dict) else ""
-        if not encounter_id:
-            return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="the VTT opened no fight"))
-        await _called(roll, requester, encounter_id)
-        order = await _called(begin, requester, encounter_id)
+        if waiting is not None:
+            encounter_id = waiting
+        else:
+            scene = await scene_now(self.model_registry, requester, wiki)
+            people = await scene_people(self.model_registry, requester, wiki)
+            if not people:
+                return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="no one on the scene"))
+            made = await _called(
+                start, requester, wiki, scene_id=str(scene["id"]) if scene else None, person_ids=people
+            )
+            encounter_id = str(made.get("id") or made.get("encounter_id") or "") if isinstance(made, dict) else ""
+            if not encounter_id:
+                return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="the VTT opened no fight"))
+        # Each step's answer is read: a fight the VTT couldn't start is said, never reported as started (Zephyrex
+        # RPG's live run, chat 54763f15: pregens without sheets rolled no initiative, and the fight sat in setup).
+        rolled: Any = None
+        order: Any = None
+        refused = ""
+        try:
+            rolled = await _called(roll, requester, encounter_id)
+            order = await _called(begin, requester, encounter_id)
+        except HTTPException as failed:
+            detail = failed.detail
+            refused = str(detail.get("message") if isinstance(detail, dict) else detail)
+        if isinstance(order, dict) and order.get("status") == "running":
+            return CombatCheckEnvelope(combat_check=CombatCheck(started=True, encounter_id=encounter_id, order=order))
+        unrolled = [
+            f"{one.get('name')}: {one.get('reason')}"
+            for one in (rolled.get("unrolled") if isinstance(rolled, dict) else None) or []
+            if isinstance(one, dict)
+        ]
+        reason = "; ".join([one for one in [refused or "the VTT didn't start it", *unrolled] if one])
+        if waiting is None:
+            # The encounter made just now isn't left half made, so the next fight can start.
+            ending = loaded_ability(self.model_registry, "rpg_combat", "end_encounter")
+            if ending is not None:
+                try:
+                    await _called(ending, requester, encounter_id)
+                except HTTPException:
+                    pass  # it couldn't be ended: it stays in setup, and the next check starts it
         return CombatCheckEnvelope(
             combat_check=CombatCheck(
-                started=True, encounter_id=encounter_id, order=dict(order) if isinstance(order, dict) else None
+                started=False,
+                encounter_id=None if waiting is None else encounter_id,
+                reason=f"the VTT couldn't start the fight: {reason}",
             )
         )
 
