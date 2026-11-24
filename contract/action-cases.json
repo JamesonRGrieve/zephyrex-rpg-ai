@@ -1,0 +1,233 @@
+{
+  "$comment": "Every action of a present person an action line, in present tense, with them as its subject (ActionLines.action_lines; contract action_lines). The operator, 2026-11-24, chat 950d879c: \"She rose from her seat without proper tense/phrasing and without an action block.\"",
+  "people": [
+    {
+      "id": "del",
+      "name": "Delphine Halloway",
+      "aliases": []
+    },
+    {
+      "id": "bram",
+      "name": "Bram Holloway",
+      "aliases": []
+    },
+    {
+      "id": "bren",
+      "name": "Brenna",
+      "aliases": []
+    }
+  ],
+  "tenses": {
+    "rose": "rises",
+    "walked": "walks",
+    "smiled": "smiles",
+    "nodded": "nods",
+    "carried": "carries",
+    "turned": "turns",
+    "opened": "opens",
+    "stopped": "stops",
+    "listened": "listens",
+    "hoped": "hopes",
+    "kissed": "kisses",
+    "called": "calls",
+    "looked": "looks",
+    "rises": "rises",
+    "stood": "stands",
+    "said": "says"
+  },
+  "cases": [
+    {
+      "name": "\"She rose from her seat\" after Delphine speaks is her action, in the present; the rain stays narration",
+      "runs": [
+        {
+          "speaker_id": "del",
+          "speaker_name": "Delphine Halloway",
+          "lines": [
+            {
+              "kind": "say",
+              "manner": null,
+              "target_id": null,
+              "target_name": "Brenna",
+              "text": "Because that is not how my husband does business."
+            }
+          ]
+        },
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "She rose from her seat. Rain drums on the roof."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "del",
+          [
+            "say",
+            "do"
+          ],
+          [
+            "Because that is not how my husband does business.",
+            "rises from her seat."
+          ]
+        ],
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "Rain drums on the roof."
+          ]
+        ]
+      ],
+      "wrong": [
+        "She rose from her seat."
+      ],
+      "solo": [
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "Rain drums on the roof."
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "\"Bram Holloway sets down her teacup\" in narration is Bram's action by name (whose it really is, the formatter's speaker check says)",
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Bram Holloway sets down her teacup with precise care. Her knuckles are white."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "bram",
+          [
+            "do"
+          ],
+          [
+            "sets down her teacup with precise care."
+          ]
+        ],
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "Her knuckles are white."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Bram Holloway sets down her teacup with precise care."
+      ],
+      "solo": [
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "Her knuckles are white."
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "an action line in the past tense, its own subject in front, is put right",
+      "runs": [
+        {
+          "speaker_id": "del",
+          "speaker_name": "Delphine Halloway",
+          "lines": [
+            {
+              "kind": "do",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "She nodded slowly."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "del",
+          [
+            "do"
+          ],
+          [
+            "nods slowly."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Delphine Halloway She nodded slowly."
+      ],
+      "solo": []
+    },
+    {
+      "name": "the world alone is narration, untouched",
+      "runs": [
+        {
+          "speaker_id": null,
+          "speaker_name": null,
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Rain drums on the roof. The lamps gutter."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "Rain drums on the roof. The lamps gutter."
+          ]
+        ]
+      ],
+      "wrong": [],
+      "solo": [
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "Rain drums on the roof. The lamps gutter."
+          ]
+        ]
+      ]
+    }
+  ]
+}

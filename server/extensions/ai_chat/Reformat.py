@@ -29,10 +29,14 @@ def reformat_schema(names: Sequence[str]) -> dict[str, Any]:
     return schema
 
 
-def reformat_request(model: str, prose: str, names: Sequence[str], note: str = "") -> dict[str, Any]:
-    """The reformat model's request: the instruction naming who may speak, the prose, the schema; on a retry,
-    the requirements its last answer broke (``note``)."""
-    listed = ", ".join(dict.fromkeys(names)) or "(no one: every item is narration)"
+def reformat_request(
+    model: str, prose: str, names: Sequence[str], note: str = "", who: Mapping[str, str] | None = None
+) -> dict[str, Any]:
+    """The reformat model's request: the instruction naming who may speak, each with who they are (``who``:
+    name to a line about them, so a "her" isn't credited to a man: the operator's test-play, 2026-11-24, chat
+    950d879c), the prose, the schema; on a retry, the requirements its last answer broke (``note``)."""
+    described = [f"{name} ({(who or {})[name]})" if (who or {}).get(name) else name for name in dict.fromkeys(names)]
+    listed = ", ".join(described) or "(no one: every item is narration)"
     instruction = str(REFORMAT["instruction"]).replace("{{names}}", listed)
     return {
         "model": model,
@@ -122,9 +126,30 @@ def rendered_runs(runs: Sequence[Mapping[str, Any]]) -> str:
     return "\n".join(shown)
 
 
-def check_questions() -> dict[str, dict[str, Any]]:
-    """The format requirements, one question each (contract reformat checks), met or not."""
-    return {
+def narration_about(runs: Sequence[Mapping[str, Any]], people: Sequence[Mapping[str, Any]]) -> list[str]:
+    """The narration sentences that name a present person or open with a subject pronoun: the ones an action
+    might hide in, each checked on its own (the operator, 2026-11-24)."""
+    pronouns = ("he ", "she ", "they ")
+    found: list[str] = []
+    for run in runs:
+        if run.get("speaker_id") is not None:
+            continue
+        for line in run.get("lines") or []:
+            for sentence in re.split(r"(?<=[.!?])\s+", str(line.get("text") or "")):
+                said = sentence.strip()
+                lowered = said.lower()
+                named = any(str(one["name"]).split()[0].lower() in lowered for one in people if str(one["name"]))
+                if said and (named or lowered.startswith(pronouns)):
+                    found.append(said)
+    return found
+
+
+def check_questions(
+    runs: Sequence[Mapping[str, Any]] = (), people: Sequence[Mapping[str, Any]] = ()
+) -> dict[str, dict[str, Any]]:
+    """The format requirements, one question each (contract reformat checks), met or not; and each
+    narration sentence about a present person, asked on its own whether it's an action (citing it)."""
+    questions = {
         f"format_{key}": {
             "type": "choice",
             "instructions": str(REFORMAT["check_instructions"]).replace("{{requirement}}", str(requirement)),
@@ -132,12 +157,32 @@ def check_questions() -> dict[str, dict[str, Any]]:
         }
         for key, requirement in REFORMAT["checks"].items()
     }
+    for index, sentence in enumerate(narration_about(runs, people)):
+        questions[f"action_{index}"] = {
+            "type": "choice",
+            "instructions": str(REFORMAT["action_check"]).replace("{{sentence}}", sentence),
+            "criteria": dict(REFORMAT["action_options"]),
+        }
+    return questions
 
 
-def failed_checks(answers: Mapping[str, Any] | None) -> list[str]:
-    """The requirements the decision model says the lines break, in the contract's words."""
-    return [
+def failed_checks(
+    answers: Mapping[str, Any] | None,
+    runs: Sequence[Mapping[str, Any]] = (),
+    people: Sequence[Mapping[str, Any]] = (),
+) -> list[str]:
+    """The requirements the decision model says the lines break, in the contract's words; and each sentence
+    it says is an action, cited."""
+    failed = [
         str(requirement)
         for key, requirement in REFORMAT["checks"].items()
         if ((answers or {}).get(f"format_{key}") or {}).get("choice") == "fails"
     ]
+    actions = [
+        sentence
+        for index, sentence in enumerate(narration_about(runs, people))
+        if ((answers or {}).get(f"action_{index}") or {}).get("choice") == "an action"
+    ]
+    if actions:
+        failed.append(str(REFORMAT["action_note"]).replace("{{sentences}}", " | ".join(actions)))
+    return failed

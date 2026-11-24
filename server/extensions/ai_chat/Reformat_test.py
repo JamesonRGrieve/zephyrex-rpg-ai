@@ -85,7 +85,7 @@ def test_the_formatters_result_is_checked_requirement_by_requirement() -> None:
         "[do] Delphine: She glances away.",
     ]
     questions = check_questions()
-    assert set(questions) == {"format_actions", "format_dialogue", "format_narrator", "format_voices"}
+    assert set(questions) == {"format_dialogue", "format_narrator", "format_voices", "format_speakers"}
     assert all(set(one["criteria"]) == {"meets", "fails"} for one in questions.values())
     answers = {key: {"choice": "meets"} for key in questions} | {"format_dialogue": {"choice": "fails"}}
     assert failed_checks(answers) == [
@@ -157,3 +157,29 @@ def test_with_multi_actor_off_the_narrator_voices_no_one() -> None:
     persona = {"name": "Brenna", "description": ""}
     assert PROMPT["narrate_solo"] in narrate_rule(persona, cast, True)
     assert PROMPT["narrate_solo"] not in narrate_rule(persona, cast, False)
+
+
+def test_the_formatter_is_told_who_each_person_is() -> None:
+    # The operator's test-play, 2026-11-24 (chat 950d879c): Delphine's answer ("her teacup") was credited to Bram.
+    from zephyrex.extensions.ai_chat.Reformat import reformat_request
+
+    who = {"Delphine Halloway": "the missing merchant's wife; she", "Bram Holloway": "a dockhand; he"}
+    body = reformat_request("m", "She sets down her teacup.", ["Bram Holloway", "Delphine Halloway"], "", who)
+    system = body["messages"][0]["content"]
+    assert "Delphine Halloway (the missing merchant's wife; she)" in system
+    assert "Bram Holloway (a dockhand; he)" in system
+    assert "their pronouns and whom they answer" in system
+
+
+def test_each_narration_sentence_about_a_person_is_checked_on_its_own() -> None:
+    # The operator, 2026-11-24: "HOW THE FUCK ARE WE STILL NOT TAGGING ACTIONS?" The check cites the sentence.
+    from zephyrex.extensions.ai_chat.Reformat import check_questions, failed_checks
+
+    people = [{"id": "del", "name": "Delphine Halloway"}]
+    narrated = [{"kind": "narrate", "text": "Rain. Delphine flinches."}]
+    runs = [{"speaker_id": None, "speaker_name": None, "lines": narrated}]
+    questions = check_questions(runs, people)
+    assert "Delphine flinches." in questions["action_0"]["instructions"]
+    answers = {key: {"choice": "meets"} for key in questions} | {"action_0": {"choice": "an action"}}
+    failed = failed_checks(answers, runs, people)
+    assert len(failed) == 1 and "Delphine flinches." in failed[0]

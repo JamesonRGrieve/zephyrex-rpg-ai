@@ -63,6 +63,7 @@ from zephyrex.extensions.ai_character.Contract import (  # type: ignore[import-n
     PROMPT,
     SAMPLER_RANGES,
 )
+from zephyrex.extensions.ai_chat.ActionLines import action_lines  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.CampaignFraming import frame_from_framing  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Clarify import (  # type: ignore[import-not-found]
     clarify_need,
@@ -2943,7 +2944,9 @@ def credited_runs(
             runs[-1]["lines"].append(line)
         else:
             runs.append({"speaker_id": speaker, "speaker_name": names.get(speaker or ""), "lines": [line]})
-    return [run for run in runs if any(str(line["text"]).strip() for line in run["lines"])]
+    kept = [run for run in runs if any(str(line["text"]).strip() for line in run["lines"])]
+    # Every action an action line of its actor's, in present tense (ActionLines.py).
+    return action_lines(kept, people)[0] if kept else kept
 
 
 def shown_text(message: Any) -> str:
@@ -4654,6 +4657,16 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         traits = traits_of({"model": endpoint.model, "traits": dict(getattr(endpoint, "traits", None) or {})})
         # The banner's place is the server's (on a scene change only): none is kept from the reply.
         prose = story_reply(prose)
+        # Who each present person is, in a line, so the formatter credits by pronoun and addressee.
+        known = {
+            str(entity["id"]): entity for entity in context["world"] if entity.get("kind") in ("person", "pc", "npc")
+        }
+        who = {
+            str(one["name"]): one_line(
+                str((known.get(str(one["id"])) or {}).get("summary") or one.get("description") or "")
+            )
+            for one in people
+        }
         note = ""
         failed: list[str] = []
         result: dict[str, Any] = {}
@@ -4662,7 +4675,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # the format requirements").
         for attempt in (1, 2):
             body = {
-                **reformat_request(endpoint.model, prose, names, note),
+                **reformat_request(endpoint.model, prose, names, note, who),
                 **(thinking_fields("off", traits.get("reasoning_effort")) if traits.get("reasoning_effort") else {}),
             }
             started = time.monotonic()
@@ -4689,9 +4702,18 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if not faithful(prose, items):
                 return {"reformatted": False, "reason": "it rewrote the prose", "runs": [], "cut": False}
             result = structured_runs(items, people, seat_name)
+            # Every present person's action is their action line, present tense, by construction (the operator,
+            # 2026-11-24: "HOW THE FUCK ARE WE STILL NOT TAGGING ACTIONS?"): what the formatter left as narration is
+            # named for its second try, and moved in any case.
+            normalised, wrong = action_lines(result["runs"], people)
+            result = {**result, "runs": normalised}
+            if wrong and attempt == 1:
+                note = str(REFORMAT["action_note"]).replace("{{sentences}}", " | ".join(wrong))
+                continue
             asked = SimpleNamespace(chat_id=str(chat.id), leaf_id=leaf_id)
-            judged = await self._decide("format_check", asked, rendered_runs(result["runs"]), check_questions())
-            failed = failed_checks(judged)
+            questions = check_questions(result["runs"], people)
+            judged = await self._decide("format_check", asked, rendered_runs(result["runs"]), questions)
+            failed = failed_checks(judged, result["runs"], people)
             if not failed:
                 break
             note = str(REFORMAT["retry_note"]).replace("{{failed}}", " ".join(failed))
