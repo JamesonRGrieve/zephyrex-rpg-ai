@@ -65,7 +65,7 @@ export function TargetPicker({
           <ChevronsUpDown className='ml-1 size-4 shrink-0 opacity-50' aria-hidden />
         </Button>
       </PopoverTrigger>
-      <PopoverContent className='w-64 p-0' align='start'>
+      <PopoverContent className='w-64 p-0' align='start' aria-label={label}>
         <Command>
           <CommandInput placeholder='Someone or something…' value={typed} onValueChange={setTyped} />
           <CommandList>

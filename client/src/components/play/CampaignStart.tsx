@@ -327,9 +327,7 @@ export function CampaignStartForm({
                   : []),
               ].map((group) => (
                 <ul key={group.label} className='grid gap-2' aria-label={group.label}>
-                  <li role='presentation' className='text-xs font-semibold text-muted-foreground'>
-                    {group.label}
-                  </li>
+                  <li className='text-xs font-semibold text-muted-foreground'>{group.label}</li>
                   {group.members.map((character) => (
                     <li key={character.id}>
                       <Row

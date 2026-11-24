@@ -29,9 +29,14 @@ export const PullFromTheBar: Story = {
     const page = within(canvasElement.ownerDocument.body);
     const body = canvasElement.ownerDocument.body;
     await expect(canvas.queryByRole('status')).toBeNull();
-    touch('touchstart', body, 20);
-    touch('touchmove', body, 60);
-    await expect(await page.findByRole('status', { name: 'Pull to reload' })).toBeInTheDocument();
+    // The component listens once its effect has run, which can come after the story's first touch: the pull
+    // is begun again until it's seen (test-storybook, 2026-11-24: a probe showed the touches arrive and the arrow
+    // shows; only the first touch came before the listener).
+    await waitFor(() => {
+      touch('touchstart', body, 20);
+      touch('touchmove', body, 60);
+      expect(page.getByRole('status', { name: 'Pull to reload' })).toBeInTheDocument();
+    });
     touch('touchmove', body, 140);
     await expect(await page.findByRole('status', { name: 'Release to reload' })).toBeInTheDocument();
     // Back up under the mark, then the touch ends without a reload.

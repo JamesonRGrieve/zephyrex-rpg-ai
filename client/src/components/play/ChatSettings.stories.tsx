@@ -47,15 +47,17 @@ const meta: Meta<typeof ChatSettings> = {
 export default meta;
 type Story = StoryObj<typeof ChatSettings>;
 
-/** The sheet fades in: the play test waits for it before reading it. */
+/**
+ * The sheet fades in: the play test waits for it before reading it. Lorebooks are no longer picked here (the
+ * wiki owns them, d66915a), so a save keeps the chat's own as they were.
+ */
 export const Open: Story = {
   play: async ({ args }) => {
     const body = within(document.body);
-    const book = await body.findByLabelText('Ring of Islands');
-    await waitFor(() => expect(book).toBeVisible());
-    await userEvent.click(book);
-    await userEvent.click(body.getByRole('button', { name: 'Save' }));
-    await expect(args.onSave).toHaveBeenCalledWith(expect.objectContaining({ lorebook_ids: ['b1', 'b2'] }));
+    const save = (await body.findAllByRole('button', { name: 'Save' })).at(-1)!;
+    await waitFor(() => expect(save).toBeVisible(), { timeout: 5000 });
+    await userEvent.click(save);
+    await expect(args.onSave).toHaveBeenCalledWith(expect.objectContaining({ lorebook_ids: args.value?.lorebook_ids }));
   },
 };
 
@@ -64,10 +66,13 @@ export const WithProfiles: Story = {
   args: { profiles: [{ id: 'c1', name: 'Long scenes', endpoint_id: 'e1', preset_id: 's1' }] },
   play: async ({ args }) => {
     const body = within(document.body);
-    const chip = await body.findByRole('radio', { name: 'Long scenes' });
-    await waitFor(() => expect(chip).toBeVisible());
+    // The profiles sit under Advanced, closed until opened (6a969a3), in the open sheet (a story before this one
+    // leaves its closing sheet in the page).
+    await userEvent.click((await body.findAllByText('Advanced')).at(-1)!);
+    const chip = (await body.findAllByRole('radio', { name: 'Long scenes' })).at(-1)!;
+    await waitFor(() => expect(chip).toBeVisible(), { timeout: 5000 });
     await userEvent.click(chip);
-    await userEvent.click(body.getByRole('button', { name: 'Save' }));
+    await userEvent.click(body.getAllByRole('button', { name: 'Save' }).at(-1)!);
     await expect(args.onSave).toHaveBeenCalledWith(expect.objectContaining({ preset_id: 's1', endpoint_id: 'e1' }));
   },
 };

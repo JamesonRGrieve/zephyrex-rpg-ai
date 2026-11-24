@@ -96,11 +96,7 @@ export function SeatList({
           </button>
         </li>
         {seatGroups(shown).flatMap((group) => [
-          <li
-            key={`group-${group.label}`}
-            role='presentation'
-            className='px-2 pt-2 text-xs font-semibold text-muted-foreground'
-          >
+          <li key={`group-${group.label}`} className='px-2 pt-2 text-xs font-semibold text-muted-foreground'>
             {group.label}
           </li>,
           ...group.members.map((character) => (
