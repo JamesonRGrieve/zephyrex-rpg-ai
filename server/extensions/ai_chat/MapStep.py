@@ -123,8 +123,12 @@ SCENE: dict[str, Any] = MAP_STEP["scene"]
 
 
 def _named(text: str, person: Mapping[str, Any]) -> bool:
+    """Whether the text names the person: their name or an alias, whole, or without a leading article (the live
+    run, 2026-11-24: "The Bloated Drowned Thing" was never matched by "a bloated drowned thing heaves…", so the
+    fight never asked about its foe)."""
     lowered = text.lower()
     names = [str(person.get("name") or ""), *(str(alias) for alias in person.get("aliases") or [])]
+    names += [re.sub(r"^(?:the|a|an)\s+", "", name, flags=re.IGNORECASE) for name in names]
     return any(
         name.strip() and re.search(rf"(?<![\w']){re.escape(name.strip().lower())}(?![\w'])", lowered) for name in names
     )

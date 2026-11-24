@@ -185,7 +185,14 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             seat, _marks = play_context(requester, self.model_registry, chat.id)
             found = world_entities_by_id(self.model_registry, requester, list(people))
             named = [{"id": str(one["id"]), "name": str(one.get("name") or "")} for one in found if one.get("name")]
-            pcs = [str(one["id"]) for one in found if one.get("kind") == "pc" or str(one["id"]) == seat]
+            # The party: the seat, every PC, and the chat's own characters (live run, 2026-11-24: Tam, an AI party
+            # member with kind npc, was asked about and turned hostile to the seat).
+            members = {str(one) for one in getattr(chat, "character_ids", None) or []}
+            pcs = [
+                str(one["id"])
+                for one in found
+                if one.get("kind") == "pc" or str(one["id"]) == seat or str(one["id"]) in members
+            ]
             said = shown_text(line)
             # Each one's own disposition toward the others (the operator, 2026-11-24: "Combat sides should be
             # based on character disposition not blanket red team and blue team"): the chat's, then the
@@ -338,7 +345,12 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
 
         ids = [str(one["person_id"]) for one in combatants]
         kinds = {str(row["id"]): row.get("kind") for row in world_entities_by_id(self.model_registry, requester, ids)}
-        party = [str(one["person_id"]) for one in combatants if kinds.get(str(one["person_id"])) == "pc"]
+        members = {str(one) for one in getattr(chat, "character_ids", None) or []}
+        party = [
+            str(one["person_id"])
+            for one in combatants
+            if kinds.get(str(one["person_id"])) == "pc" or str(one["person_id"]) in members
+        ]
         named = [one for one in combatants if _named(said, {"name": one.get("name") or ""})]
         named = [one for one in named if str(one["person_id"]) not in party]
         if not named:

@@ -5053,6 +5053,11 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if turn["channel"] in story and not turn["x_carded"] and not turn["hidden"]
         ]
         latest = next((turn for turn in reversed(story_turns) if by_person(turn, playing_id)), None)
+        if playing_id is None:
+            # The GM's seat (live run, 2026-11-24: "a bloated drowned thing heaves itself out of the water at Tam" in
+            # the GM's own line authored no one, so the fight had no foe): the line asked about (the branch ends at
+            # it) is theirs.
+            latest = story_turns[-1] if story_turns else latest
         if latest is None:
             return answer(False, "no line of the person's")
         persona = context["persona"]

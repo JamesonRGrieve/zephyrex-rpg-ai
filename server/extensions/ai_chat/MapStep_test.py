@@ -80,3 +80,12 @@ def test_only_people_on_the_scene_and_never_the_seat() -> None:
     line = "Old Hesk walks away. Tam Quickfoot walks away."
     assert departures(line, [HESK, TAM], ["p-tam"], None) == ["p-tam"]
     assert departures(line, [HESK, TAM], ["p-hesk", "p-tam"], "p-tam") == ["p-hesk"]
+
+
+def test_a_name_with_a_leading_article_is_matched_without_it() -> None:
+    # Live run, 2026-11-24: "The Bloated Drowned Thing" was never matched, so the fight never asked about its foe.
+    from zephyrex.extensions.ai_chat.MapStep import _named
+
+    thing = {"id": "t", "name": "The Bloated Drowned Thing", "aliases": []}
+    assert _named("A bloated drowned thing heaves itself out of the millrace at me.", thing)
+    assert not _named("A drowned man floats past.", thing)
