@@ -414,10 +414,8 @@ def test_a_fight_opens_with_each_ones_disposition(server: TestClient, monkeypatc
     assert answer["started"] is True and answer["encounter_id"] == "e1"
     # The line names the drowned thing, so it's asked; Hesk, unnamed, is the VTT's open choice, and a bystander the
     # line doesn't name stays neutral without a model call (live run, 2026-11-24: the decider set him on Tam).
-    assert asked_of == [
-        ("Combat: start", ["fight"]),
-        ("Combat: disposition", ["disposition_drowned"]),
-    ]
+    # The drowned thing is whom the line brings in to attack: hostile to the party with no question (build56).
+    assert asked_of == [("Combat: start", ["fight"])]
     assert opened[0]["dispositions"] == {
         "brenna": {"disposition": "friendly", "hostile_to": []},
         "drowned": {"disposition": "hostile", "hostile_to": ["brenna"]},

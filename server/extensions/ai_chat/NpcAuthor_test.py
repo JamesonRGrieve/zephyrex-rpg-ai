@@ -8,7 +8,7 @@ from typing import Any
 
 import pytest
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
-from zephyrex.extensions.ai_chat.NpcAuthor import npc_figures  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.NpcAuthor import attackers, npc_figures  # type: ignore[import-not-found]
 
 CASES: dict[str, Any] = json.loads((REPOSITORY_ROOT / "contract" / "npc-author-cases.json").read_text())
 
@@ -25,3 +25,27 @@ def test_a_creature_the_line_brings_in_to_fight_is_a_figure() -> None:
     assert [one["role"] for one in found] == ["bloated drowned thing"]
     # Not in a line that fights no one.
     assert npc_figures("A gull drops onto the post.", [{"id": "brenna", "name": "Brenna Ashdown"}]) == []
+
+
+def test_a_creature_the_gm_brings_in_mid_sentence_is_a_figure() -> None:
+    # Live run, 2026-11-24 (prod): the GM's own fight line authored nothing, so only Tam was in the fight.
+    line = (
+        "As the ferry bumps the mill steps, a bloated drowned thing heaves itself out of the water at Tam. "
+        "Roll initiative!"
+    )
+    found = npc_figures(line, [{"id": "tam", "name": "Tam Quickfoot"}])
+    assert [one["role"] for one in found] == ["bloated drowned thing"]
+    assert npc_figures("The rain eases, a cold wind comes off the river.", [{"id": "tam", "name": "Tam"}]) == []
+
+
+def test_whoever_the_line_brings_in_to_attack_is_an_attacker() -> None:
+    # build56: the drowned thing, asked, came out friendly, and the seat had no one to strike.
+    people = [
+        {"id": "thing", "name": "The Bloated Drowned Thing"},
+        {"id": "hesk", "name": "Old Hesk"},
+        {"id": "tam", "name": "Tam Quickfoot"},
+    ]
+    line = "As the ferry bumps the mill steps, a bloated drowned thing heaves itself out of the water at Tam."
+    assert attackers(line + " Roll initiative!", people) == ["thing"]
+    # A line that fights no one makes no attacker.
+    assert attackers("A bloated drowned thing drifts past the ferry, face down.", people) == []

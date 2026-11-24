@@ -40,14 +40,33 @@ def _figure(phrase: str, place: str = "") -> dict[str, str] | None:
 ATTACKING = re.compile(
     r"\b(attack(?:s|ed)?|strike(?:s)?(?: at)?|struck|stab(?:s|bed)?|slash(?:es|ed)?|swing(?:s)? at|swung at|"
     r"shoot(?:s)?(?: at)?|shot at|hit(?:s)?|charge(?:s|d)?|fight(?:s)?|draw(?:s)? (?:my|his|her|their) "
-    r"(?:sword|blade|axe|bow|dagger|weapon))\b",
+    r"(?:sword|blade|axe|bow|dagger|weapon)|roll(?:s)? (?:for )?initiative|lunges? at|leaps? at|springs? at|"
+    r"comes? at|rush(?:es)? at|charges? at|out of the \w+ at)\b",
     re.IGNORECASE,
 )
 EMERGING = re.compile(
-    rf"(?:^|(?<=[.!?])\s+)(?:a|an)\s+((?:{_WORD}\s+){{0,2}}{_WORD})\s+(?:heaves|lunges|leaps|rises|bursts|"
+    r"(?:^|(?<=[.!?,;:])\s+|(?<=\u2014)\s*)"
+    rf"(?:a|an)\s+((?:{_WORD}\s+){{0,2}}{_WORD})\s+(?:heaves|lunges|leaps|rises|bursts|"
     r"attacks|charges|crawls|drags|emerges|claws|surges|lurches|springs|drops|swoops|slithers|rushes|comes|bursts)\b",
     re.IGNORECASE,
 )
+
+
+def attackers(line: str, people: Sequence[Mapping[str, Any]]) -> list[str]:
+    """The people a line brings in to attack ("a bloated drowned thing heaves itself out of the water at Tam"): each
+    whose name, without a leading article, is the creature of an emerging phrase in a line that fights. They are
+    the reason the fight starts, so they are hostile to the party without a question."""
+    if not ATTACKING.search(line):
+        return []
+    phrases = {_bare(match.group(1).lower()) for match in EMERGING.finditer(line)}
+    found: list[str] = []
+    for person in people:
+        name = _bare(str(person.get("name") or ""))
+        # Either ends the other at a word ("drowned thing" in "a bloated drowned thing heaves").
+        same = any(name == one or one.endswith(f" {name}") or name.endswith(f" {one}") for one in phrases)
+        if name and same and str(person["id"]) not in found:
+            found.append(str(person["id"]))
+    return found
 
 
 def npc_figures(line: str, people: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:

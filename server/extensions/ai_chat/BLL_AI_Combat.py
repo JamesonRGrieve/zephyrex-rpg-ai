@@ -18,7 +18,7 @@ made just for it is ended.
 from __future__ import annotations
 
 import inspect
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from typing import Any, ClassVar
 
 from fastapi import HTTPException
@@ -79,6 +79,13 @@ class CombatCheckEnvelope(PlainModel):
     combat_check: CombatCheck
 
 
+def _is_pc(entity: Mapping[str, Any]) -> bool:
+    """A player character: the wiki's PC tag (Party.py's rule), or a record whose kind says so."""
+    from zephyrex.extensions.ai_chat.Party import PARTY  # type: ignore[import-not-found]
+
+    return entity.get("kind") == "pc" or PARTY["tag"] in (entity.get("tags") or [])
+
+
 async def _called(ability: Any, *args: Any, **kwargs: Any) -> Any:
     answer = ability(*args, **kwargs)
     return await answer if inspect.isawaitable(answer) else answer
@@ -124,6 +131,7 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             combat_stances,
         )
         from zephyrex.extensions.ai_chat.MapStep import _named  # type: ignore[import-not-found]
+        from zephyrex.extensions.ai_chat.NpcAuthor import attackers  # type: ignore[import-not-found]
         from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
             scene_now,
             scene_people,
@@ -185,14 +193,11 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             seat, _marks = play_context(requester, self.model_registry, chat.id)
             found = world_entities_by_id(self.model_registry, requester, list(people))
             named = [{"id": str(one["id"]), "name": str(one.get("name") or "")} for one in found if one.get("name")]
-            # The party: the seat, every PC, and the chat's own characters (live run, 2026-11-24: Tam, an AI party
-            # member with kind npc, was asked about and turned hostile to the seat).
-            members = {str(one) for one in getattr(chat, "character_ids", None) or []}
-            pcs = [
-                str(one["id"])
-                for one in found
-                if one.get("kind") == "pc" or str(one["id"]) == seat or str(one["id"]) in members
-            ]
+            # The party: the seat and every PC, by the wiki's PC tag (Party.py; a person's kind is "person", so a
+            # kind of "pc" never matched: live run, 2026-11-24, Tam was asked about and turned on the seat). Never
+            # the chat's whole cast: an NPC authored for the story joins it (build56: the drowned thing came out
+            # friendly).
+            pcs = [str(one["id"]) for one in found if _is_pc(one) or str(one["id"]) == seat]
             said = shown_text(line)
             # Each one's own disposition toward the others (the operator, 2026-11-24: "Combat sides should be
             # based on character disposition not blanket red team and blue team"): the chat's, then the
@@ -204,12 +209,18 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
                     attitudes = await _called(reading, self.model_registry, requester, wiki, list(people)) or {}
                 except HTTPException:
                     attitudes = {}
+            # Whoever the line brings in to attack is hostile to the party, unasked (build56: the drowned thing,
+            # asked, could come out neutral or friendly, and the seat had no one to strike).
+            dispositions = dict(getattr(chat, "dispositions", None) or {})
+            attacking = [one for one in attackers(said, named) if one not in pcs and not dispositions.get(one)]
+            for one in attacking:
+                dispositions[one] = {"party": "hostile"}
             stances, stance_asked = combat_stances(
                 named,
                 pcs,
-                dict(getattr(chat, "dispositions", None) or {}),
+                dispositions,
                 attitudes if isinstance(attitudes, dict) else {},
-                [one["id"] for one in named if _named(said, one)],
+                [one["id"] for one in named if _named(said, one) and one["id"] not in attacking],
             )
             stood = await chats._decide("Combat: disposition", asked, said, stance_asked) if stance_asked else None
             fighting = answered_stances(stances, stood, stance_asked, pcs)
@@ -344,13 +355,8 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
         from zephyrex.extensions.ai_chat.WikiReads import world_entities_by_id
 
         ids = [str(one["person_id"]) for one in combatants]
-        kinds = {str(row["id"]): row.get("kind") for row in world_entities_by_id(self.model_registry, requester, ids)}
-        members = {str(one) for one in getattr(chat, "character_ids", None) or []}
-        party = [
-            str(one["person_id"])
-            for one in combatants
-            if kinds.get(str(one["person_id"])) == "pc" or str(one["person_id"]) in members
-        ]
+        rows = {str(row["id"]): row for row in world_entities_by_id(self.model_registry, requester, ids)}
+        party = [str(one["person_id"]) for one in combatants if _is_pc(rows.get(str(one["person_id"])) or {})]
         named = [one for one in combatants if _named(said, {"name": one.get("name") or ""})]
         named = [one for one in named if str(one["person_id"]) not in party]
         if not named:
