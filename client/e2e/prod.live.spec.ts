@@ -57,7 +57,18 @@ async function act(page: Page, step: string, text: string): Promise<void> {
   await page.getByRole('button', { name: 'Do', exact: true }).click();
   await page.getByLabel('What is done').last().fill(text);
   await page.getByRole('button', { name: /^Send/ }).click();
-  await expect.poll(() => page.getByRole('article').count(), { timeout: TURN }).toBeGreaterThanOrEqual(before + 2);
+  // A question from the GM (which one is meant) can come at any point while the turn is worked out: whenever one
+  // is open, it's answered with its first choice, as a person would answer.
+  await expect
+    .poll(
+      async () => {
+        const asked = page.getByRole('dialog');
+        if (await asked.isVisible().catch(() => false)) await asked.getByRole('button').first().click();
+        return page.getByRole('article').count();
+      },
+      { timeout: TURN, intervals: [2000] },
+    )
+    .toBeGreaterThanOrEqual(before + 2);
   await settled(page);
   record(step, (await lines(page)).slice(before));
 }
