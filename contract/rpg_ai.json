@@ -1132,6 +1132,7 @@
     "subject_pronouns": ["he", "she", "they"],
     "titles": ["old", "young", "inspector", "lady", "lord", "sir", "dame", "captain", "father", "mother", "brother", "sister", "master", "mistress", "doctor", "the"],
     "world_openers": ["the", "a", "an", "this", "that", "these", "those", "it", "its", "there", "somewhere", "outside", "above", "below", "behind", "beyond", "nearby", "rain", "thunder", "wind"],
+    "possessive_openers": ["his", "her", "their"],
     "irregular": {
       "rose": "rises", "arose": "arises", "stood": "stands", "sat": "sits", "took": "takes", "gave": "gives",
       "said": "says", "went": "goes", "came": "comes", "ran": "runs", "held": "holds", "drew": "draws",

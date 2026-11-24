@@ -18,8 +18,25 @@ from typing import Any
 from zephyrex.extensions.ai_character.Contract import CONTRACT  # type: ignore[import-not-found]
 
 ACTIONS: dict[str, Any] = CONTRACT["action_lines"]
-_SENTENCE = re.compile(r"(?<=[.!?])\s+(?=[\"“(A-Z])")
+# A sentence ends at . ! or ?, or one with a closing quote after it, before the next one opens.
+_BOUNDARY = re.compile(r"(?:(?<=[.!?])|(?<=[.!?][\"”]))\s+(?=[\"“(A-Z])")
+_QUOTED = re.compile(r"[\"“]([^\"”]*)[\"”]?")
 _VOWELS = "aeiou"
+
+
+def sentences(text: str) -> list[str]:
+    """A text's sentences, never split inside quoted speech (live run, build58: Hesk's "...what they owe. That
+    miller's got himself into..." split at "That", a world opener, and half his speech went to the narrator)."""
+    found: list[str] = []
+    start = 0
+    for boundary in _BOUNDARY.finditer(text):
+        head = text[: boundary.start()]
+        if head.count('"') % 2 == 1 or head.count("“") > head.count("”"):
+            continue
+        found.append(text[start : boundary.start()])
+        start = boundary.end()
+    found.append(text[start:])
+    return [one for one in found if one.strip()]
 
 
 def present(verb: str) -> str:
@@ -81,6 +98,44 @@ def _opens_on_world(sentence: str) -> bool:
     return first is not None and first.group(1).lower() in ACTIONS["world_openers"]
 
 
+def _possessed(sentence: str, people: Sequence[Mapping[str, Any]]) -> bool:
+    """Whether a sentence opens on a possessive ("Old Hesk's weathered face tightens", "His gaze lingers..."):
+    a description, never an action with the person as its subject (live run, build58)."""
+    stripped = sentence.lstrip()
+    first = re.match(r"\W*(\w+)", stripped)
+    if first is not None and first.group(1).lower() in ACTIONS["possessive_openers"]:
+        return True
+    for person in people:
+        for name in [str(person["name"]), *short_names(str(person["name"])), *(person.get("aliases") or [])]:
+            if name.strip() and stripped.startswith(f"{name.strip()}'s"):
+                return True
+    return False
+
+
+def _own_words(
+    line: Mapping[str, Any], sentence: str, speaker: str, people: Sequence[Mapping[str, Any]]
+) -> list[dict[str, Any]] | None:
+    """A character's own sentence with no person as its subject, as their lines: a quote-led one is their
+    speech, and a tag after it with them as subject ("...," he mutters) their action; None when it opens on
+    the world or a possessive (narration). Their plain words are their speech, as their plain reply is: never
+    "Narrator:" in their own message (live run, build58)."""
+    if _opens_on_world(sentence) or _possessed(sentence, people):
+        return None
+    said = {**line, "speaker_id": speaker, "kind": "say", "manner": line.get("manner") or None}
+    if not sentence.lstrip().startswith(('"', "“")):
+        return [{**said, "text": sentence.strip()}]
+    quoted = " ".join(part.strip() for part in _QUOTED.findall(sentence) if part.strip()).rstrip(",;: ")
+    tail = _QUOTED.sub("", sentence).strip(" ,;:")
+    lines = [{**said, "text": quoted}] if quoted else []
+    if not tail:
+        return lines
+    actor, rest = _who(tail, people, speaker)
+    if actor != speaker or not re.match(r"\w", rest):
+        return None
+    blank = {"manner": None, "target_id": None, "target_name": None}
+    return [*lines, {**blank, "speaker_id": speaker, "kind": "do", "text": _action(rest)}]
+
+
 def _action(rest: str) -> str:
     """An action's words with its first verb in the present: "rose from her seat." rises from her seat."""
     first = re.match(r"(\w+)(.*)", rest, re.DOTALL)
@@ -116,13 +171,17 @@ def action_lines(
             text = str(line.get("text") or "")
             speaker = run.get("speaker_id")
             if kind == "narrate" or speaker is None:
-                for sentence in [one for one in _SENTENCE.split(text) if one.strip()]:
+                for sentence in sentences(text):
                     actor, rest = _who(sentence, people, last)
+                    if _possessed(sentence, people):
+                        actor = None
                     if actor is None or not re.match(r"\w", rest) or rest[:1] in ('"', "\u201c"):
-                        # In a character's own run, a sentence without a person as subject stays theirs unless it
-                        # opens on the world ("The ferry bumps...", live run 2026-11-24): then it's narration.
-                        if speaker is not None and not _opens_on_world(sentence):
-                            lines.append({**line, "speaker_id": speaker, "text": sentence})
+                        # In a character's own run, a sentence without a person as subject is their words unless it
+                        # opens on the world ("The ferry bumps...", live run 2026-11-24) or a possessive: then it's
+                        # narration.
+                        own = None if speaker is None else _own_words(line, sentence, str(speaker), people)
+                        if own is not None:
+                            lines.extend(own)
                             continue
                         if speaker is not None:
                             wrong.append(sentence.strip())
@@ -145,12 +204,10 @@ def action_lines(
             if kind == "do":
                 # A sentence of it that opens on the world ("The ferry bumps against the post", live run 2026-11-24,
                 # in Old Hesk's own turn) is narration, never the actor's action; the rest stay one action line.
-                sentences = [one for one in _SENTENCE.split(text) if one.strip()] or [text]
                 own_part: list[str] = []
-                for sentence in sentences:
-                    first = re.match(r"\W*(\w+)", sentence)
-                    world = first is not None and first.group(1).lower() in ACTIONS["world_openers"]
-                    if world and _who(sentence, people, None)[0] is None:
+                for sentence in sentences(text) or [text]:
+                    world = _opens_on_world(sentence) and _who(sentence, people, None)[0] is None
+                    if world or _possessed(sentence, people):
                         if own_part:
                             lines.append(_own_line(line, speaker, " ".join(own_part), people, names, wrong))
                             own_part = []

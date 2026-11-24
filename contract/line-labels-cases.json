@@ -165,6 +165,38 @@
           "icon": null
         }
       ]
+    },
+    {
+      "name": "a line's target is never its own actor (live run, build58: Old Hesk's own lines labelled \"to Old Hesk\")",
+      "lines": [
+        "Fennick Quill (to everyone, whispers): \"Lights in the windows.\""
+      ],
+      "answers": {
+        "kind_0": {
+          "choice": "say"
+        },
+        "actor_0": {
+          "choice": "Fennick Quill"
+        },
+        "target_0": {
+          "choice": "Fennick Quill"
+        },
+        "icon_0": {
+          "choice": "none"
+        }
+      },
+      "labels": [
+        {
+          "index": 0,
+          "text": "Fennick Quill (to everyone, whispers): \"Lights in the windows.\"",
+          "kind": "say",
+          "actor_id": "fen",
+          "actor_name": "Fennick Quill",
+          "target_name": null,
+          "manner": "whisper",
+          "icon": null
+        }
+      ]
     }
   ]
 }

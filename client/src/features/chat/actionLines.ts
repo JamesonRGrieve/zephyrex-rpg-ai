@@ -34,15 +34,34 @@ export interface ActionRun {
 
 type Placed = ActionLine & { speaker_id: string | null };
 
-const SENTENCE = /(?<=[.!?])\s+(?=["“(A-Z])/;
+// A sentence ends at . ! or ?, or one with a closing quote after it, before the next one opens.
+const BOUNDARY = /(?<=[.!?]["”]?)\s+(?=["“(A-Z])/g;
+const QUOTED = /["“]([^"”]*)["”]?/g;
 const VOWELS = 'aeiou';
 const IRREGULAR: Readonly<Record<string, string>> = ACTION_LINES.irregular;
 const TITLES: readonly string[] = ACTION_LINES.titles;
 const PRONOUNS: readonly string[] = ACTION_LINES.subject_pronouns;
 const WORLD_OPENERS: readonly string[] = ACTION_LINES.world_openers;
+const POSSESSIVE_OPENERS: readonly string[] = ACTION_LINES.possessive_openers;
 
 const escape = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const sentences = (text: string): string[] => text.split(SENTENCE).filter((one) => one.trim() !== '');
+/**
+ * A text's sentences, never split inside quoted speech (live run, build58: Hesk's "...what they owe. That
+ * miller's got himself into..." split at "That", a world opener, and half his speech went to the narrator).
+ */
+export function sentences(text: string): string[] {
+  const found: string[] = [];
+  let start = 0;
+  for (const boundary of text.matchAll(BOUNDARY)) {
+    const head = text.slice(0, boundary.index);
+    const straight = head.split('"').length - 1;
+    if (straight % 2 === 1 || head.split('“').length > head.split('”').length) continue;
+    found.push(text.slice(start, boundary.index));
+    start = boundary.index + boundary[0].length;
+  }
+  found.push(text.slice(start));
+  return found.filter((one) => one.trim() !== '');
+}
 
 /**
  * A past-tense verb in the present, third person ("rose" rises, "walked" walks, "nodded" nods); a verb
@@ -121,6 +140,49 @@ function opensOnWorld(sentence: string): boolean {
   return first !== null && WORLD_OPENERS.includes((first[1] ?? '').toLowerCase());
 }
 
+/**
+ * Whether a sentence opens on a possessive ("Old Hesk's weathered face tightens", "His gaze lingers..."): a
+ * description, never an action with the person as its subject (live run, build58).
+ */
+function possessed(sentence: string, people: readonly ActionPerson[]): boolean {
+  const stripped = sentence.trimStart();
+  const first = /^\W*(\w+)/.exec(stripped);
+  if (first !== null && POSSESSIVE_OPENERS.includes((first[1] ?? '').toLowerCase())) return true;
+  return people.some((person) =>
+    [person.name, ...shortNames(person.name), ...(person.aliases ?? [])].some(
+      (name) => name.trim() !== '' && stripped.startsWith(`${name.trim()}'s`),
+    ),
+  );
+}
+
+/**
+ * A character's own sentence with no person as its subject, as their lines: a quote-led one is their speech,
+ * and a tag after it with them as subject ("...," he mutters) their action; null when it opens on the world
+ * or a possessive (narration). Their plain words are their speech, as their plain reply is: never
+ * "Narrator:" in their own message (live run, build58).
+ */
+function ownWords(line: ActionLine, sentence: string, speaker: string, people: readonly ActionPerson[]): Placed[] | null {
+  if (opensOnWorld(sentence) || possessed(sentence, people)) return null;
+  const said: Placed = { ...line, speaker_id: speaker, kind: 'say', manner: line.manner ?? null, text: '' };
+  if (!sentence.trimStart().startsWith('"') && !sentence.trimStart().startsWith('“')) {
+    return [{ ...said, text: sentence.trim() }];
+  }
+  const quoted = [...sentence.matchAll(QUOTED)]
+    .map((part) => (part[1] ?? '').trim())
+    .filter((part) => part !== '')
+    .join(' ')
+    .replace(/[,;: ]+$/, '');
+  const tail = sentence.replace(QUOTED, '').replace(/^[ ,;:]+|[ ,;:]+$/g, '');
+  const lines: Placed[] = quoted === '' ? [] : [{ ...said, text: quoted }];
+  if (tail === '') return lines;
+  const [actor, rest] = who(tail, people, speaker);
+  if (actor !== speaker || !/^\w/.test(rest)) return null;
+  return [
+    ...lines,
+    { speaker_id: speaker, kind: 'do', manner: null, target_id: null, target_name: null, text: action(rest) },
+  ];
+}
+
 /** An action's words with its first verb in the present: "rose from her seat." rises from her seat. */
 function action(rest: string): string {
   const first = /^(\w+)([\s\S]*)/.exec(rest);
@@ -164,12 +226,15 @@ export function actionLines(
       const text = line.text;
       if (line.kind === 'narrate' || speaker === null) {
         for (const sentence of sentences(text)) {
-          const [actor, rest] = who(sentence, people, last);
+          const found = who(sentence, people, last);
+          const actor = possessed(sentence, people) ? null : found[0];
+          const rest = found[1];
           if (actor === null || !/^\w/.test(rest) || rest.startsWith('"') || rest.startsWith('“')) {
-            // In a character's own run, a sentence without a person as subject stays theirs unless it opens
-            // on the world ("The ferry bumps...", live run 2026-11-24): then it's narration.
-            if (speaker !== null && !opensOnWorld(sentence)) {
-              lines.push({ ...line, speaker_id: speaker, text: sentence });
+            // In a character's own run, a sentence without a person as subject is their words unless it opens
+            // on the world ("The ferry bumps...", live run 2026-11-24) or a possessive: then it's narration.
+            const own = speaker === null ? null : ownWords(line, sentence, speaker, people);
+            if (own !== null) {
+              lines.push(...own);
               continue;
             }
             if (speaker !== null) wrong.push(sentence.trim());
@@ -196,7 +261,7 @@ export function actionLines(
         const parts = sentences(text);
         let own: string[] = [];
         for (const sentence of parts.length > 0 ? parts : [text]) {
-          if (opensOnWorld(sentence) && who(sentence, people, null)[0] === null) {
+          if ((opensOnWorld(sentence) && who(sentence, people, null)[0] === null) || possessed(sentence, people)) {
             if (own.length > 0) {
               lines.push(ownLine(line, speaker, own.join(' '), people, names, wrong));
               own = [];

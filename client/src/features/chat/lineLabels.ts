@@ -100,8 +100,11 @@ export function readLabels(
       kind,
       actor_id: kind === 'narrate' || kind === 'drop' ? null : (person?.id ?? null),
       actor_name: kind === 'narrate' || kind === 'drop' ? null : (person?.name ?? null),
+      // Never the line's own actor (live run, build58: Old Hesk's own lines labelled "to Old Hesk").
       target_name:
-        kind === 'say' || kind === 'do' ? (people.find((one) => one.name === pick(`target_${index}`))?.name ?? null) : null,
+        kind === 'say' || kind === 'do'
+          ? (people.find((one) => one.name === pick(`target_${index}`) && one !== person)?.name ?? null)
+          : null,
       manner: kind === 'say' ? mannerOf(text) : null,
       icon: iconOk ? icon : null,
     };

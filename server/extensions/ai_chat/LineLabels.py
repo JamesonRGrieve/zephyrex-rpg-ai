@@ -126,8 +126,14 @@ def read_labels(
                 "kind": kind,
                 "actor_id": str(person["id"]) if voiced and person is not None else None,
                 "actor_name": str(person["name"]) if voiced and person is not None else None,
+                # Never the line's own actor (live run, build58: Old Hesk's own lines labelled "to Old Hesk").
                 "target_name": next(
-                    (str(one["name"]) for one in people if voiced and one["name"] == pick(f"target_{index}")), None
+                    (
+                        str(one["name"])
+                        for one in people
+                        if voiced and one["name"] == pick(f"target_{index}") and one is not person
+                    ),
+                    None,
                 ),
                 "manner": _manner(text) if kind == "say" else None,
                 "icon": icon if icon in ACTION_KINDS and kind == "do" else None,

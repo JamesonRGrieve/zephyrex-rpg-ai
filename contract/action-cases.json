@@ -346,6 +346,133 @@
           ]
         ]
       ]
+    },
+    {
+      "name": "Hesk's own speech is never split inside its quotes, and his plain words stay his speech, never \"Narrator:\" in his message (live run, build58, chat d33b4ad5)",
+      "runs": [
+        {
+          "speaker_id": "hesk",
+          "speaker_name": "Old Hesk",
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Old Hesk eyes Tam warily. \"Says you're from outside,\" he mutters, his voice rough as gravel. \"But folk who pay their debts don't send strangers to collect what they owe. That miller's got himself into something he can't get out of, mark my words.\""
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "hesk",
+          [
+            "do",
+            "say",
+            "do",
+            "say"
+          ],
+          [
+            "eyes Tam warily.",
+            "Says you're from outside",
+            "mutters, his voice rough as gravel.",
+            "But folk who pay their debts don't send strangers to collect what they owe. That miller's got himself into something he can't get out of, mark my words."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Old Hesk eyes Tam warily."
+      ],
+      "solo": []
+    },
+    {
+      "name": "\"Old Hesk's weathered face tightens\" is a description, narration, never his action (live run, build58, chat adae1314)",
+      "runs": [
+        {
+          "speaker_id": "hesk",
+          "speaker_name": "Old Hesk",
+          "lines": [
+            {
+              "kind": "do",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "Old Hesk's weathered face tightens. He leans closer, lowering his voice."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "Old Hesk's weathered face tightens."
+          ]
+        ],
+        [
+          "hesk",
+          [
+            "do"
+          ],
+          [
+            "leans closer, lowering his voice."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Old Hesk Old Hesk's weathered face tightens.",
+        "Old Hesk He leans closer, lowering his voice."
+      ],
+      "solo": [
+        [
+          null,
+          [
+            "narrate"
+          ],
+          [
+            "Old Hesk's weathered face tightens."
+          ]
+        ]
+      ]
+    },
+    {
+      "name": "a sentence ends at its closing quote: Hesk's line, then his action",
+      "runs": [
+        {
+          "speaker_id": "hesk",
+          "speaker_name": "Old Hesk",
+          "lines": [
+            {
+              "kind": "narrate",
+              "manner": null,
+              "target_id": null,
+              "target_name": null,
+              "text": "\"Mark my words.\" Hesk spits."
+            }
+          ]
+        }
+      ],
+      "runs_out": [
+        [
+          "hesk",
+          [
+            "say",
+            "do"
+          ],
+          [
+            "Mark my words.",
+            "spits."
+          ]
+        ]
+      ],
+      "wrong": [
+        "Hesk spits."
+      ],
+      "solo": []
     }
   ]
 }
