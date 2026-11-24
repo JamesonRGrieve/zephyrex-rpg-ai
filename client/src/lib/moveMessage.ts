@@ -26,6 +26,7 @@ const MOVED = [
   'images',
   'xCarded',
   'hidden',
+  'generated',
 ] as const;
 
 export async function move(nextRequest: NextRequest): Promise<Response> {

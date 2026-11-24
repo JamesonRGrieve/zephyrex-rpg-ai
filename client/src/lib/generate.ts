@@ -307,6 +307,7 @@ export async function generationInputs(
       images: string[];
       x_carded: boolean;
       hidden: boolean;
+      generated?: boolean;
     }),
   }));
   if (body.leaf_id !== null && !messages.some((message) => message.id === body.leaf_id)) {
@@ -333,6 +334,7 @@ export async function generationInputs(
     content: message.swipes[message.swipe_index] ?? '',
     x_carded: message.x_carded,
     hidden: message.hidden,
+    generated: message.generated === true,
   }));
 
   // World Info: the chat's lorebooks and each cast member's own, scanned against the branch's story.
@@ -1262,8 +1264,7 @@ export async function nextTurn(nextRequest: NextRequest): Promise<Response> {
     // After the person's own line someone answers: no pause.
     const lastTurn = storyTurns.at(-1);
     // In the GM's seat the person's lines are the narration (Zephyrex RPG's live run, chat 608b169c).
-    const afterPerson =
-      lastTurn !== undefined && (byPerson(lastTurn, playingId) || (seat === 'gm' && lastTurn.role === 'narrator'));
+    const afterPerson = lastTurn !== undefined && (byPerson(lastTurn, playingId) || gmLine(lastTurn, seat === 'gm'));
     const { question, picks } = turnQuestion(
       prompt.characters,
       fields.muted_ids,
@@ -1599,6 +1600,7 @@ export async function mapStep(nextRequest: NextRequest): Promise<Response> {
     if (chat === null) throw notFound(chats.modelName);
     const play = await prisma.campaignPlay.findUnique({ where: { chatId: chat.id } });
     const playingId = play?.playingId ?? null;
+    const gmSeat = turnSeat((chats.fields(chat) as { seat?: string | null }).seat ?? null, playingId !== null) === 'gm';
     const reader = wikiReader(nextRequest);
     const { prompt, world } = await generationInputs(
       owner.id,
@@ -1611,9 +1613,11 @@ export async function mapStep(nextRequest: NextRequest): Promise<Response> {
     const storyTurns = prompt.history.filter(
       (turn) => story.has(turn.channel) && turn.x_carded !== true && turn.hidden !== true,
     );
-    // The latest round: from the person's last line on.
-    const from = storyTurns.findLastIndex((turn) => byPerson(turn, playingId));
-    const round = from === -1 ? storyTurns : storyTurns.slice(from);
+    // The latest round: from the person's last line on. In the GM's seat the person's lines are the
+    // narration; with none of theirs, the latest line alone, never the whole chat (Zephyrex RPG's r47,
+    // chat 6c488a84: the GM's departure line was a round of the whole chat from its opening).
+    const from = storyTurns.findLastIndex((turn) => byPerson(turn, playingId) || gmLine(turn, gmSeat));
+    const round = from === -1 ? storyTurns.slice(-1) : storyTurns.slice(from);
     const actor = prompt.persona?.name ?? DEFAULT_USER_NAME;
     const people = [...prompt.characters, ...(playingId === null ? [] : [{ id: playingId, name: actor }])];
     const field = (entity: object, key: string): unknown => Reflect.get(entity, key);
@@ -1841,6 +1845,15 @@ export function byPerson(turn: { role: string; speaker_character_id?: string | n
   return (
     turn.role === 'user' || (playingId !== null && turn.role === 'character' && turn.speaker_character_id === playingId)
   );
+}
+
+/**
+ * Whether a line is the GM seat's own narration: a narrator line the person wrote. A model's reply saves its
+ * world sentences as narrator lines too, and those are never the GM's (Zephyrex RPG's build57 run, chat
+ * 99a9f3c0: Old Hesk's turn ended on narration, so no pause was offered and the round gave him six turns).
+ */
+export function gmLine(turn: { role: string; generated?: boolean }, gmSeat: boolean): boolean {
+  return gmSeat && turn.role === 'narrator' && turn.generated !== true;
 }
 
 /** The address a server lists its models at (OpenAI-compatible `GET /models`). */

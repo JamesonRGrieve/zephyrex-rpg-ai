@@ -105,6 +105,8 @@ export interface PromptTurn {
   x_carded?: boolean;
   /** Hidden by the person (/hide, audit gap 10): on screen, never read. */
   hidden?: boolean;
+  /** Written by a model, never typed by the person: never the GM seat's own line. */
+  generated?: boolean;
 }
 
 export interface PromptInput {

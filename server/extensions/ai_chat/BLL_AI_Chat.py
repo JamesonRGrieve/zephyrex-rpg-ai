@@ -1062,6 +1062,9 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     images: list[str] = Field(default_factory=list, description="Pictures sent with it (data URLs)")
     x_carded: bool = Field(False, description="X-carded by the table: kept, never read by the model")
     hidden: bool = Field(False, description="Hidden by the person (/hide): kept on screen, never read by the model")
+    generated: bool = Field(
+        False, description="Written by a model, never typed by the person: never the GM seat's own line"
+    )
     revision: dict[str, Any] | None = Field(
         None, description="A line written again: the first answer, why it was rewritten, and how (canon, voice, meta)"
     )
@@ -1082,6 +1085,7 @@ class ChatMessageModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
         bookmarked: bool = False
         images: list[str] = Field(default_factory=list)
         revision: dict[str, Any] | None = None
+        generated: bool = False
 
         @field_validator("images")
         @classmethod
@@ -1132,6 +1136,7 @@ class ChatMessageManager(AbstractBLLManager[ChatMessageModel], RouterMixin):
         kwargs.setdefault("images", [])
         kwargs.setdefault("x_carded", False)
         kwargs.setdefault("hidden", False)
+        kwargs.setdefault("generated", False)
         chats = ChatManager(requester_id=str(self.requester.id), model_registry=self.model_registry)
         try:
             chat = chats.get(id=kwargs["chat_id"])
@@ -2408,6 +2413,7 @@ MOVED_FIELDS = (
     "images",
     "x_carded",
     "hidden",
+    "generated",
 )
 
 
@@ -2993,6 +2999,13 @@ def turn_start(messages: Sequence[Any], leaf_id: str | None, playing_id: str | N
     return None
 
 
+def gm_line(turn: Mapping[str, Any], gm_seat: bool) -> bool:
+    """Whether a line is the GM seat's own narration: a narrator line the person wrote. A model's reply saves
+    its world sentences as narrator lines too, and those are never the GM's (Zephyrex RPG's build57 run, chat
+    99a9f3c0: Old Hesk's turn ended on narration, so no pause was offered and the round gave him six turns)."""
+    return gm_seat and turn["role"] == "narrator" and not turn.get("generated")
+
+
 def by_person(turn: Mapping[str, Any], playing_id: str | None) -> bool:
     """Whether a line is the person's own: a user line, or, in a campaign, their seat's character line
     (the client saves a seated person's lines as the seat's; Zephyrex RPG's build37 run: no roll ever)."""
@@ -3082,6 +3095,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     ),
                     "x_carded": bool(getattr(message, "x_carded", False)),
                     "hidden": bool(getattr(message, "hidden", False)),
+                    "generated": bool(getattr(message, "generated", False)),
                 }
                 for message in branch_to(messages, body.leaf_id)
             ],
@@ -3195,6 +3209,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 ),
                 "x_carded": bool(getattr(message, "x_carded", False)),
                 "hidden": bool(getattr(message, "hidden", False)),
+                "generated": bool(getattr(message, "generated", False)),
             }
             for message in path
         ]
@@ -4170,7 +4185,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # In the GM's seat the person's lines are the narration (Zephyrex RPG's live run, chat 608b169c: the
         # GM set the scene, the round paused, and the two present PCs never answered).
         after_person = bool(story_turns) and (
-            by_person(story_turns[-1], playing_id) or (seat == "gm" and story_turns[-1]["role"] == "narrator")
+            by_person(story_turns[-1], playing_id) or gm_line(story_turns[-1], seat == "gm")
         )
         question, picks = turn_question(
             cast,
@@ -4502,9 +4517,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # stayed).
         gm_seat = turn_seat(chat.seat, playing_id is not None) == "gm"
         users = [
-            index
-            for index, turn in enumerate(story_turns)
-            if by_person(turn, playing_id) or (gm_seat and turn["role"] == "narrator")
+            index for index, turn in enumerate(story_turns) if by_person(turn, playing_id) or gm_line(turn, gm_seat)
         ]
         round_turns = story_turns[users[-1] :] if users else story_turns[-1:]
         persona = context["persona"]
@@ -5475,6 +5488,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             channel="ic",
             speaker_character_id=speaker,
             swipes=[whole],
+            generated=True,
         )
         return frame(
             "saved",
@@ -5546,6 +5560,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 channel="ic",
                 speaker_character_id=run["speaker_id"],
                 swipes=[text],
+                generated=True,
             )
             parent = str(created.id)
             saved.append(

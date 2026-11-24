@@ -1109,6 +1109,36 @@ class TestGenerate:
         assert answer.status_code == 200, answer.text
         assert "Pause for the GM" not in offered[0] and "Brenna" in offered[0]
 
+    def test_a_replys_narration_is_never_the_gms_line(
+        self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Zephyrex RPG's build57 run, chat 99a9f3c0: in the GM's seat Old Hesk's reply ended on a narrator line
+        # ("The ferry bumps..."), taken for the GM's own narration, so no pause was offered and the round gave
+        # Hesk six turns in a row. A model's narration is marked generated; only the person's counts.
+        from zephyrex.extensions.ai_chat import BLL_AI_Chat  # type: ignore[import-not-found]
+
+        user = create_user(server)
+        brenna = _cast(server, user, "character", name="Brenna").json()["character"]
+        _create(server, user, "model_endpoint", name="Local", base_url=model_url, model="tiny", is_default=True)
+        _create(server, user, "model_endpoint", name="Judge", base_url=model_url, model="tiny", roles=["decide"])
+        chat = _chat(server, user, "chat", title="Mill", character_ids=[brenna["id"]], seat="gm").json()["chat"]
+        said = "Rain sheets across the mill steps. Brenna, the door is ajar."
+        gm = _create(server, user, "chat_message", chat_id=chat["id"], role="narrator", swipes=[said]).json()["chat_message"]
+        hers = _create(server, user, "chat_message", chat_id=chat["id"], parent_id=gm["id"], role="character", speaker_character_id=brenna["id"], swipes=['"I\'ll go first."'], generated=True).json()["chat_message"]
+        world = _create(server, user, "chat_message", chat_id=chat["id"], parent_id=hers["id"], role="narrator", swipes=["The door creaks wider."], generated=True).json()["chat_message"]
+        offered: list[list[str]] = []
+
+        async def decide(_self: Any, _purpose: str, _asked: Any, _state: str, questions: dict[str, Any]) -> Any:
+            offered.append(list(questions["next"]["criteria"]))
+            return {"next": {"choice": "Pause for the GM"}}
+
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decide)
+        asked = {"next_turn": {"chat_id": chat["id"], "leaf_id": world["id"]}}
+        answer = server.post("/v1/ai_chat/next_turn", json=asked, headers=_headers(user))
+        assert answer.status_code == 200, answer.text
+        assert "Pause for the GM" in offered[0]
+        assert answer.json()["next_turn"]["kind"] == "pause"
+
     def test_needs_roll_is_undecided_without_a_usable_decision(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: after a character's line the decision model says whether it needs a
         # roll; without one, or without a usable answer, there's no roll step.
