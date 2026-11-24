@@ -1706,6 +1706,23 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           undecided = true;
           break;
         }
+        // Someone the story brought onto the scene (Old Hesk, placed by the map step) whom the decision model
+        // picks joins the chat's cast and speaks, never a pick quietly dropped (live test, 2026-11-24). Never
+        // the person's own seat.
+        if (
+          play.isCampaign &&
+          next.kind === 'character' &&
+          next.character_id !== null &&
+          !aiIds.has(next.character_id) &&
+          next.character_id !== play.playingId &&
+          castById.has(next.character_id)
+        ) {
+          const joining = next.character_id;
+          const fresh = chatSchema.parse(Reflect.get(Object(await client.get(`/v1/chat/${chat.id}`)), 'chat'));
+          if (!fresh.character_ids.includes(joining))
+            await updateChat(fresh, { character_ids: [...fresh.character_ids, joining] });
+          aiIds.add(joining);
+        }
         const usable = next.kind === 'character' && next.character_id !== null && aiIds.has(next.character_id);
         // The person's own line always gets an answer: a pause (or a pick outside the AI party)
         // straight after it becomes the AI GM's narration. Later in the round, it ends the round. When the

@@ -168,9 +168,12 @@ export function CampaignStartForm({
   detail = null,
   onStart,
   mechanical = false,
+  loading = false,
 }: {
   /** A campaign whose outcomes the rules decide: no freeform character there. */
   mechanical?: boolean;
+  /** The scenario is still being read: Start waits for it (a press before then would do nothing). */
+  loading?: boolean;
   cast: readonly Character[];
   starting: boolean;
   step?: number;
@@ -362,7 +365,7 @@ export function CampaignStartForm({
         <Button
           type='button'
           className='h-11 w-full'
-          disabled={!ready || starting}
+          disabled={!ready || starting || loading}
           onClick={() =>
             onStart({
               seat,
@@ -535,7 +538,11 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
   }>({});
   const start = async (choice: StartChoice) => {
     const scenario = campaign.data;
-    if (scenario === undefined) return;
+    if (scenario === undefined) {
+      // Never a press that does nothing (live test, 2026-11-24): the scenario isn't read yet.
+      notify('The scenario is still loading', 'Press Start again in a moment.');
+      return;
+    }
     setStarting(true);
     setStep(0);
     setCreep(0);
@@ -647,6 +654,7 @@ export function CampaignStart({ campaignId, onStarted }: { campaignId: string; o
       step={step}
       creep={creep}
       detail={copyStep}
+      loading={campaign.data === undefined}
       onStart={(choice) => void start(choice)}
     />
   );
