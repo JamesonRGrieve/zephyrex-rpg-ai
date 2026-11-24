@@ -1371,6 +1371,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const party = new Set(play.aiIds);
       const aiRuns = (personId: string) => (chat.seat === 'gm' ? party.has(personId) : personId !== seat);
       const now = encounter.combatants.find((one) => one.id === encounter?.currentId);
+      // A fight the VTT started but whose order isn't running (no one's turn: initiative not rolled, or its
+      // sides not settled) is said, and the round goes on with the story rather than stopping without a word
+      // (live run, 2026-11-24: the round ended silently after the fight's dispositions).
+      if (now === undefined) {
+        notify('The fight has not started yet', 'The VTT has no one to act. The story goes on; start the order from the Combat panel.');
+        return undefined;
+      }
       let parent = after;
       if (passOwn && now !== undefined && now.personId !== null && !aiRuns(now.personId)) {
         // The person's own turn: what their line describes, among the VTT's options, is what their character
@@ -1395,7 +1402,9 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           encounter = (await currentEncounter(chat.campaign_id)) ?? encounter;
         } else if (own !== null && own.reason === 'the line describes no action') {
           notify('What does your character do?', 'Your line names none of the actions open to you in this fight.');
-          return parent;
+          // The story still answers the line (live run, 2026-11-24: a fight with no legal target ended the round
+          // without a word); the narrator tells what happens, the VTT's order waits for a real action.
+          return (await narrateAfter(parent.id)) ?? parent;
         } else encounter = (await nextTurn(encounter.id)) ?? encounter;
       }
       for (let step = 0; step < encounter.combatants.length && roundRef.current === mine; step += 1) {

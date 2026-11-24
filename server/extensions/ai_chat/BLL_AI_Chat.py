@@ -97,6 +97,7 @@ from zephyrex.extensions.ai_chat.LineLabels import (  # type: ignore[import-not-
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.MapStep import (  # type: ignore[import-not-found]
+    departures,
     map_questions,
     movers,
     scene_changed,
@@ -2905,6 +2906,9 @@ def scene_joiners(
     ]
 
 
+#: Backticks and asterisk emphasis a story model wraps lines in (never part of the story's words).
+_MARKDOWN = re.compile(r"[`*]+")
+
 #: A line credited to someone by name: ``Name (to X, how): ...`` or ``Name: "..."``.
 _CREDITED = re.compile(r"^\s*[A-Z][\w'\u2019.-]*(?:\s+[A-Z][\w'\u2019.-]*){0,3}\s*(?:\([^)]*\)\s*:|:\s*[\"\u201c])")
 
@@ -2919,8 +2923,13 @@ def credited_runs(
     it was saved as Mira's. Without ``split`` (the chat's multi_actor off: each speaks on their own turn), a
     line credited to anyone else is cut, never made theirs."""
     _thinking, reply = split_reasoning(text)
-    items = parse_player_lines(story_reply(reply), people)
-    if not any(item.get("speaker_id") and str(item["speaker_id"]) != own for item in items):
+    told = story_reply(reply)
+    # Markdown the story model wrapped its lines in (live run, 2026-11-24, multi_actor off: "`Old Hesk:` *He
+    # finally lifts his gaze…* \"Seen…\"" saved as it was): the marks come off, and such a reply is always made
+    # runs, so its actions become action lines like any other's.
+    plain = _MARKDOWN.sub("", told)
+    items = parse_player_lines(plain, people)
+    if plain == told and not any(item.get("speaker_id") and str(item["speaker_id"]) != own for item in items):
         return []
     names = {str(one["id"]): str(one["name"]) for one in people}
     runs: list[dict[str, Any]] = []
@@ -4748,7 +4757,15 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         names = {one["id"]: one["name"] for one in people}
         remove = loaded_ability(self.model_registry, "rpg_scene", "remove_person_from_scene")
         moved: list[dict[str, Any]] = []
-        for change in scene_changes(answers, questions):
+        changes = scene_changes(answers, questions)
+        # A departure the lines state outright is applied even when the decision model missed it (MapStep.departures).
+        said_left = {change["person_id"] for change in changes if change["change"] == "left"}
+        changes += [
+            {"person_id": pid, "change": "left"}
+            for pid in departures(text, people, on_scene, seat)
+            if pid not in said_left and f"scene_{pid}" in questions
+        ]
+        for change in changes:
             person_id = change["person_id"]
             applied = False
             if change["change"] == "arrived":

@@ -151,6 +151,43 @@ def scene_questions(
     return questions
 
 
+# Leaving said in so many words, read without a model (the live run, 2026-11-24: after the GM sent Old Hesk away,
+# the decision model answered "still here" at 0.97 for every scene step, and his token stayed). A sentence that
+# names the person (or a pronoun right after naming them) with one of these, and no negation, is a departure.
+LEAVING = re.compile(
+    r"\b(leaves|left|departs?|departed|goes off|went off|walks? (?:off|away|out)|walked (?:off|away|out)|"
+    r"heads? (?:off|away|out|back)|headed (?:off|away|out|back)|is sent (?:away|off)|was sent (?:away|off)|"
+    r"sends? (?:\w+ )?(?:away|off)|"
+    r"poles? (?:the \w+ )?(?:away|back|off)|poled (?:the \w+ )?(?:away|back|off)|exits?|exited|vanish(?:es|ed)|"
+    r"disappears?|disappeared|is gone|out of sight|takes? (?:his|her|their) leave|took (?:his|her|their) leave)\b",
+    re.IGNORECASE,
+)
+NEGATED = re.compile(
+    r"\b(not|n't|never|refuses?|refused|won't|wouldn't|doesn't|didn't|stays?|stayed|remains?)\b", re.IGNORECASE
+)
+
+
+def departures(text: str, people: Sequence[Mapping[str, Any]], on_scene: Sequence[str], seat: str | None) -> list[str]:
+    """The people on the scene whom the lines plainly send away: a sentence naming them (or, right after a
+    sentence naming them, one whose subject is a pronoun) with a leaving phrase and no negation."""
+    here = set(on_scene)
+    sentences = [one.strip() for one in re.split(r"(?<=[.!?])\s+|\n+", text) if one.strip()]
+    gone: list[str] = []
+    for person in people:
+        pid = str(person["id"])
+        if pid == seat or pid not in here:
+            continue
+        last_named = False
+        for sentence in sentences:
+            named = _named(sentence, person)
+            pronoun_led = re.match(r"^(he|she|they)\b", sentence, re.IGNORECASE) is not None
+            if (named or (last_named and pronoun_led)) and LEAVING.search(sentence) and not NEGATED.search(sentence):
+                gone.append(pid)
+                break
+            last_named = named or (last_named and pronoun_led)
+    return gone
+
+
 def scene_changes(answers: Mapping[str, Any] | None, questions: Mapping[str, Any]) -> list[dict[str, str]]:
     """The scene moves the answers make: {person_id, change: "left" | "arrived"}; staying is none."""
     changes: list[dict[str, str]] = []

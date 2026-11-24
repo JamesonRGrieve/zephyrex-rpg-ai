@@ -18,6 +18,7 @@ made just for it is ended.
 from __future__ import annotations
 
 import inspect
+from collections.abc import Sequence
 from typing import Any, ClassVar
 
 from fastapi import HTTPException
@@ -223,7 +224,8 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             if isinstance(made, dict) and made.get("status") == "running":
                 # The VTT starts a fight at once (initiative rolled, round 1 begun): what's left are the stances it
                 # couldn't settle, put to the decision model among its own options.
-                settled_order = await self._open_choices(asked, said, encounter_id, made, requester)
+                in_line = [one["id"] for one in named if _named(said, one)]
+                settled_order = await self._open_choices(asked, said, encounter_id, made, requester, pcs, in_line)
                 return CombatCheckEnvelope(
                     combat_check=CombatCheck(started=True, encounter_id=encounter_id, order=settled_order)
                 )
@@ -239,6 +241,9 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             detail = failed.detail
             refused = str(detail.get("message") if isinstance(detail, dict) else detail)
         if isinstance(order, dict) and order.get("status") == "running":
+            if order.get("open_choices") and waiting is None:
+                in_line = [one["id"] for one in named if _named(said, one)]
+                order = await self._open_choices(asked, said, encounter_id, order, requester, pcs, in_line)
             return CombatCheckEnvelope(combat_check=CombatCheck(started=True, encounter_id=encounter_id, order=order))
         unrolled = [
             f"{one.get('name')}: {one.get('reason')}"
@@ -263,21 +268,33 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
         )
 
     async def _open_choices(
-        self, asked: Any, said: str, encounter_id: str, order: dict[str, Any], requester: str
+        self,
+        asked: Any,
+        said: str,
+        encounter_id: str,
+        order: dict[str, Any],
+        requester: str,
+        party: Sequence[str] = (),
+        in_line: Sequence[str] = (),
     ) -> dict[str, Any]:
         """The VTT's open_choices settled by the decision model among its options, each through set_disposition;
         the order as it stands after."""
         from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
         from zephyrex.extensions.ai_chat.BLL_AI_Chat import AIChatManager
-        from zephyrex.extensions.ai_chat.CombatTurn import open_questions, settled
+        from zephyrex.extensions.ai_chat.CombatTurn import defaulted_choices, open_questions, settled
 
         choices = [one for one in order.get("open_choices") or [] if isinstance(one, dict)]
         setting = loaded_ability(self.model_registry, "rpg_combat", "set_disposition")
         questions = open_questions(choices)
         if not questions or setting is None:
             return order
+        # The party never turns on itself and a bystander stays out, without a model call; only the people the
+        # line names are asked.
+        preset = defaulted_choices(choices, party, in_line)
+        asking = {key: question for key, question in questions.items() if key not in preset}
         chats = AIChatManager(requester_id=requester, model_registry=self.model_registry)
-        answers = await chats._decide("Combat: disposition", asked, said, questions)
+        decided = await chats._decide("Combat: disposition", asked, said, asking) if asking else {}
+        answers = {**preset, **(decided or {})}
         hostile_now = {
             str(one.get("person_id")): [str(other) for other in one.get("hostile_to") or []]
             for one in order.get("combatants") or []

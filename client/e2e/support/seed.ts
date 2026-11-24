@@ -190,17 +190,26 @@ export async function seedChat(page: Page): Promise<Seeded> {
  */
 export async function setMultiActor(page: Page, chatId: string): Promise<boolean> {
   const on = (process.env.LIVE_MULTI_ACTOR ?? 'on') !== 'off';
-  const { chat } = await api<{ chat: { updated_at: string | null; created_at: string; group_settings?: Record<string, unknown> } }>(
-    page,
-    'GET',
-    `chat/${chatId}`,
-  );
-  await api(
-    page,
-    'PUT',
-    `chat/${chatId}`,
-    { chat: { group_settings: { ...(chat.group_settings ?? {}), multi_actor: on } } },
-    { 'If-Match': `"${chat.updated_at ?? chat.created_at}"` },
-  );
-  return on;
+  // The page writes the chat as a session opens (its cast, the party's place), so a read can be stale by the
+  // time it's written back: a 412 is read afresh and tried again.
+  for (let attempt = 0; ; attempt += 1) {
+    const { chat } = await api<{ chat: { updated_at: string | null; created_at: string; group_settings?: Record<string, unknown> } }>(
+      page,
+      'GET',
+      `chat/${chatId}`,
+    );
+    try {
+      await api(
+        page,
+        'PUT',
+        `chat/${chatId}`,
+        { chat: { group_settings: { ...(chat.group_settings ?? {}), multi_actor: on } } },
+        { 'If-Match': `"${chat.updated_at ?? chat.created_at}"` },
+      );
+      return on;
+    } catch (error) {
+      if (attempt >= 4 || !String(error).includes('412')) throw error;
+      await page.waitForTimeout(1500);
+    }
+  }
 }

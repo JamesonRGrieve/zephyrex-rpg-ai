@@ -183,3 +183,16 @@ def test_each_narration_sentence_about_a_person_is_checked_on_its_own() -> None:
     answers = {key: {"choice": "meets"} for key in questions} | {"action_0": {"choice": "an action"}}
     failed = failed_checks(answers, runs, people)
     assert len(failed) == 1 and "Delphine flinches." in failed[0]
+
+
+def test_a_reply_in_markdown_is_made_runs_with_its_action_an_action_line() -> None:
+    # Live run, 2026-11-24 (multi_actor off): "`Old Hesk:` *He finally lifts his gaze...*" was saved as it was.
+    from zephyrex.extensions.ai_chat.BLL_AI_Chat import credited_runs
+
+    people = [{"id": "hesk", "name": "Old Hesk"}, {"id": "bren", "name": "Brenna Ashdown"}]
+    text = '`Old Hesk:` *He finally lifts his gaze to meet yours.* "Seen... shapes. In the windows."'
+    runs = credited_runs(text, people, "hesk", split=False)
+    assert runs, "a reply wrapped in markdown is always made runs"
+    words = " ".join(str(line["text"]) for run in runs for line in run["lines"])
+    assert "`" not in words and "*" not in words
+    assert all(run["speaker_id"] == "hesk" for run in runs)

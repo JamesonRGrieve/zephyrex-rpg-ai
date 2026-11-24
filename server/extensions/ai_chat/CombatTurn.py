@@ -172,6 +172,27 @@ def open_questions(choices: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, 
     return questions
 
 
+def defaulted_choices(
+    choices: Sequence[Mapping[str, Any]], party: Sequence[str], named: Sequence[str]
+) -> dict[str, dict[str, str]]:
+    """The VTT's open choices that are never the decision model's (live run, 2026-11-24: it made the party's own
+    Tam hostile to the seat, and the ferryman hostile to Tam, when the line named only the creature attacked):
+    a party member toward another party member is friendly; anyone the fight's line doesn't name is neutral,
+    a bystander. Keyed open_<n> as open_questions keys them; the rest are asked."""
+    members = {str(one) for one in party}
+    in_line = {str(one) for one in named}
+    preset: dict[str, dict[str, str]] = {}
+    for index, choice in enumerate(choices):
+        options = [str(one) for one in choice.get("options") or []]
+        who = str(choice.get("person_id") or "")
+        toward = str(choice.get("toward") or "")
+        if who in members and toward in members and "friendly" in options:
+            preset[f"open_{index}"] = {"choice": "friendly"}
+        elif who not in in_line and "neutral" in options:
+            preset[f"open_{index}"] = {"choice": "neutral"}
+    return preset
+
+
 def settled(
     choices: Sequence[Mapping[str, Any]],
     answers: Mapping[str, Any] | None,

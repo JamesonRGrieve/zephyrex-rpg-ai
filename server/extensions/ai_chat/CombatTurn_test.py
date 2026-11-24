@@ -17,6 +17,7 @@ from zephyrex.extensions.ai_chat.CombatTurn import (  # type: ignore[import-not-
     combat_pick,
     combat_questions,
     combat_stances,
+    defaulted_choices,
     open_questions,
     settled,
 )
@@ -411,14 +412,26 @@ def test_a_fight_opens_with_each_ones_disposition(server: TestClient, monkeypatc
     asked = {"combat_check": {"chat_id": chat["id"], "leaf_id": line["id"]}}
     answer = server.post("/v1/ai_chat/combat_check", json=asked, headers=headers).json()["combat_check"]
     assert answer["started"] is True and answer["encounter_id"] == "e1"
-    # The line names the drowned thing, so it's asked; Hesk, unnamed and unrecorded, is the VTT's open choice.
+    # The line names the drowned thing, so it's asked; Hesk, unnamed, is the VTT's open choice, and a bystander the
+    # line doesn't name stays neutral without a model call (live run, 2026-11-24: the decider set him on Tam).
     assert asked_of == [
         ("Combat: start", ["fight"]),
         ("Combat: disposition", ["disposition_drowned"]),
-        ("Combat: disposition", ["open_0"]),
     ]
     assert opened[0]["dispositions"] == {
         "brenna": {"disposition": "friendly", "hostile_to": []},
         "drowned": {"disposition": "hostile", "hostile_to": ["brenna"]},
     }
     assert set_to == [("hesk", "neutral", [])]
+
+
+def test_the_party_never_turns_on_itself_and_bystanders_stay_out() -> None:
+    # Live run, 2026-11-24: the line named only the creature attacked; Tam (the party) came out hostile to the seat.
+    options = ["friendly", "neutral", "hostile"]
+    choices = [
+        {"person_id": "tam", "toward": "brenna", "options": options},
+        {"person_id": "hesk", "toward": "tam", "options": options},
+        {"person_id": "thing", "toward": "brenna", "options": options},
+    ]
+    preset = defaulted_choices(choices, ["brenna", "tam"], ["thing"])
+    assert preset == {"open_0": {"choice": "friendly"}, "open_1": {"choice": "neutral"}}

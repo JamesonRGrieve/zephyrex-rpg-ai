@@ -34,6 +34,22 @@ def _figure(phrase: str, place: str = "") -> dict[str, str] | None:
     return {"phrase": f"the {role}{place}", "name": name, "role": role}
 
 
+# A creature the line brings in to fight (live run, 2026-11-24: "A bloated drowned thing heaves itself out of the
+# millrace at me. I draw my sword and strike at it" authored nothing, so the fight had no foe and no target): a
+# sentence that opens with "a"/"an" and up to three words, then a verb of coming at someone, in a line that attacks.
+ATTACKING = re.compile(
+    r"\b(attack(?:s|ed)?|strike(?:s)?(?: at)?|struck|stab(?:s|bed)?|slash(?:es|ed)?|swing(?:s)? at|swung at|"
+    r"shoot(?:s)?(?: at)?|shot at|hit(?:s)?|charge(?:s|d)?|fight(?:s)?|draw(?:s)? (?:my|his|her|their) "
+    r"(?:sword|blade|axe|bow|dagger|weapon))\b",
+    re.IGNORECASE,
+)
+EMERGING = re.compile(
+    rf"(?:^|(?<=[.!?])\s+)(?:a|an)\s+((?:{_WORD}\s+){{0,2}}{_WORD})\s+(?:heaves|lunges|leaps|rises|bursts|"
+    r"attacks|charges|crawls|drags|emerges|claws|surges|lurches|springs|drops|swoops|slithers|rushes|comes|bursts)\b",
+    re.IGNORECASE,
+)
+
+
 def npc_figures(line: str, people: Sequence[Mapping[str, Any]]) -> list[dict[str, str]]:
     """The figures the line addresses or approaches who aren't people yet: {phrase, name, role}."""
     present = {_bare(str(person["name"])) for person in people}
@@ -59,6 +75,9 @@ def npc_figures(line: str, people: Sequence[Mapping[str, Any]]) -> list[dict[str
             continue
         for match in pattern.finditer(str(item["text"])):
             keep(_figure(match.group(1).lower(), re.sub(r"\s+", " ", match.group(2).lower())))
+        if ATTACKING.search(str(item["text"])):
+            for match in EMERGING.finditer(str(item["text"])):
+                keep(_figure(match.group(1).lower()))
     return found
 
 
