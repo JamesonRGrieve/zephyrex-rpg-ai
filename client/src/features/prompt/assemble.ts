@@ -167,6 +167,8 @@ export interface PromptInput {
     join_prefix?: string;
     join_suffix?: string;
     scenario?: string;
+    /** One reply may voice several people (the operator, 2026-11-24); false: each turn is one voice. */
+    multi_actor?: boolean;
   };
   /**
    * What SillyTavern's macros read beyond the names (audit gap 1): the card's and persona's fields,
@@ -687,11 +689,17 @@ export function castRule(
  * The narrator's rule: never the person's seat (named first, as the player); any other cast member
  * only in an @@Name interlude, each named with how they look.
  */
-export function narrateRule(persona: PromptPersona | null, characters: readonly PromptCharacter[]): string {
+export function narrateRule(
+  persona: PromptPersona | null,
+  characters: readonly PromptCharacter[],
+  solo = false,
+): string {
   const voiced = characters.filter((character) => character.name.trim() !== '');
   const seatName = persona?.name.trim() || '{{user}}';
   // The play-test: the narrator told the person their own habits ("you never quite…").
   const seatRule = PROMPT.narrate_seat.replaceAll('{{seat_name}}', seatName);
+  // The chat's multi_actor off (the operator, 2026-11-24: each turn one model call): it voices no one.
+  if (solo) return `${PROMPT.narrate_open} ${seatRule} ${PROMPT.narrate_solo}`;
   if (voiced.length === 0) return `${PROMPT.narrate_open} ${seatRule}`;
   const marks = [PROMPT.player_label, oneLine(persona?.description ?? '')].filter((mark) => mark !== '');
   const names = voiced.map((character) => {
@@ -813,7 +821,8 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
               [
                 PROMPT.narrate_prompt,
                 PROMPT.in_character,
-                narrateRule(persona, input.characters) + (input.narrate_wide === true ? ` ${PROMPT.narrate_wide}` : ''),
+                narrateRule(persona, input.characters, (input.group ?? {}).multi_actor === false) +
+                (input.narrate_wide === true ? ` ${PROMPT.narrate_wide}` : ''),
               ]
                 .filter((part) => part !== '')
                 .join(' '),

@@ -1,9 +1,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import { describe, expect, it } from 'vitest';
 import cases from '../../../../contract/prompt-cases.json';
+import { PROMPT } from '~/contract';
 import {
   assemblePrompt,
   estimateTokens,
+  narrateRule,
   type PromptCharacter,
   type PromptInput,
   splitReasoning,
@@ -115,5 +117,14 @@ describe('scenePicturePrompt (contract/prompt-cases.json)', () => {
         given.asked,
       ),
     ).toBe(prompt);
+  });
+});
+
+describe('multi-actor turns off (the operator, 2026-11-24: each character turn or narrator one model call)', () => {
+  it('the narrator voices no one', () => {
+    const cast = [{ id: 'mira', name: 'Mira Kettle', description: 'An inspector.' }] as unknown as PromptCharacter[];
+    const persona = { name: 'Brenna', description: '' } as Parameters<typeof narrateRule>[0];
+    expect(narrateRule(persona, cast, true)).toContain(PROMPT.narrate_solo);
+    expect(narrateRule(persona, cast, false)).not.toContain(PROMPT.narrate_solo);
   });
 });
