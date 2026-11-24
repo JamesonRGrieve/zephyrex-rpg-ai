@@ -6159,6 +6159,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                                 body.generate, _context, str(flags["thought"]) + str(flags["told"]), seat_name
                             )
                 yield frame("done", {"dropped": assembled.dropped, **({"stalled": True} if flags["stalled"] else {})})
+            except httpx.TimeoutException:
+                # Said as it is (build60's live run, 2026-11-24: a turn queued behind another on a one-at-a-time
+                # model until the call timed out, and the person was told the model "stopped mid-reply").
+                yield frame("error", {"detail": "The model didn't answer in time; it may be busy with another turn"})
             except httpx.HTTPError:
                 yield frame("error", {"detail": "The model stopped mid-reply"})
             finally:
