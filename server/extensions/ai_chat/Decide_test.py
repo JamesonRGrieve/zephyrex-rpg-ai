@@ -120,23 +120,26 @@ def test_the_decision_model_gets_three_tries(monkeypatch: Any) -> None:
     assert got == {"next": {"choice": "Ada"}} and len(asked) == 3
 
 
-def test_a_timeout_is_said_and_not_tried_again(monkeypatch: Any) -> None:
-    # Zephyrex RPG's live fault, 2026-11-23: a busy decision model's timeouts were kept as silent nulls,
-    # and each was tried twice more, lengthening its queue.
+def test_a_timeout_is_said_and_a_turns_own_decision_waits_once_more(monkeypatch: Any) -> None:
+    # Zephyrex RPG's live fault, 2026-11-23: a busy decision model's timeouts were kept as silent nulls, and
+    # each was tried twice more, lengthening its queue. r46: a departure's scene move timed out twice at 20 s.
     import asyncio
 
     from zephyrex.extensions.ai_chat import Decide
 
-    asked: list[int] = []
+    waits: list[float] = []
 
-    async def once(*_args: Any) -> Any:
-        asked.append(1)
+    async def once(*args: Any) -> Any:
+        waits.append(args[7] if len(args) > 7 else 1.0)
         return None, {"kind": "timeout", "detail": "no answer in 12 s (1 questions)"}
 
     monkeypatch.setattr(Decide, "_ask_once", once)
     question = {"next": {"type": "choice", "criteria": ["Ada"]}}
     got = asyncio.run(Decide.ask_decider_detailed("http://x", "m", "", "state", question))
-    assert got == (None, {"kind": "timeout", "detail": "no answer in 12 s (1 questions)"}) and len(asked) == 1
+    assert got == (None, {"kind": "timeout", "detail": "no answer in 12 s (1 questions)"}) and waits == [1.0, 2.0]
+    waits.clear()
+    asyncio.run(Decide.ask_decider_detailed("http://x", "m", "", "state", question, None, True))
+    assert waits == [1.0]  # background work isn't asked again
     sized = Decide.DECIDE_TIMEOUT_SECONDS + 2 * Decide.DECIDE_SECONDS_PER_QUESTION
     assert Decide.decide_timeout({"a": 1, "b": 2}) == sized
 

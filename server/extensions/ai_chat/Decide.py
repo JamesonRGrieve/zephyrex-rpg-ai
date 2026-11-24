@@ -133,7 +133,9 @@ DECIDE_IN_FLIGHT = 4
 #: Of those, at most this many for background work (labelling lines), so a turn's own decisions (a fight
 #: starting, who speaks, a scene move) always find a slot (Zephyrex RPG's live run, chat 3a9a44cd: label
 #: calls of 8-24 questions held all 4, and 5 of 6 fight checks timed out behind them).
-DECIDE_BACKGROUND_IN_FLIGHT = 2
+#: Zephyrex RPG's r46 (chat a834702e): with 2, 5 of 8 scene moves still timed out behind label calls of
+#: 14-54 s, so labels now take one slot at a time.
+DECIDE_BACKGROUND_IN_FLIGHT = 1
 #: The purposes that are background work.
 DECIDE_BACKGROUND = frozenset({"label_lines"})
 
@@ -208,19 +210,27 @@ async def _ask_tries(
     background: bool = False,
 ) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
     """Asked up to three times (the operator, 2026-11-22: "Give the decision model 3 tries if it chokes").
-    A timeout isn't tried again: the model is busy, and another request only lengthens its queue."""
+    A timeout is the model's queue: background work isn't tried again (another request only lengthens it), and
+    a turn's own decision is asked once more, waiting twice as long (Zephyrex RPG's r46: a departure's scene
+    move timed out twice at 20 s, and the person never left)."""
     import asyncio
 
     tries = list(DECIDE_RETRY_SECONDS)
     answers: dict[str, dict[str, Any] | None] | None = None
     error: dict[str, str] | None = None
+    patience = 1.0
     for attempt in range(len(tries) + 1):
-        answers, error = await _ask_once(base_url, model, api_key, state, questions, extra, background)
+        answers, error = await _ask_once(base_url, model, api_key, state, questions, extra, background, patience)
         if answers is not None and any(value is not None for value in answers.values()):
             return answers, None
         if answers is not None and error is None:
             error = {"kind": "empty", "detail": "no answer within the options"}
-        if attempt < len(tries) and (error or {}).get("kind") != "timeout":
+        timed_out = (error or {}).get("kind") == "timeout"
+        if timed_out and not background and patience == 1.0:
+            patience = 2.0
+            logger.info("decide %s: timed out; once more, waiting twice as long", model)
+            continue
+        if attempt < len(tries) and not timed_out:
             logger.info("decide %s: try %s gave nothing usable; again in %.1fs", model, attempt + 1, tries[attempt])
             await asyncio.sleep(tries[attempt])
             continue
@@ -237,6 +247,7 @@ async def _ask_once(
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None,
     background: bool = False,
+    patience: float = 1.0,
 ) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
     """One ask of the decision model, waiting for one of the in-flight slots (background work first for one
     of its share): its answers, or None and why."""
@@ -253,7 +264,7 @@ async def _ask_once(
         else contextlib.nullcontext()
     )
     headers = {"Content-Type": "application/json", **({"Authorization": f"Bearer {api_key}"} if api_key else {})}
-    timeout = decide_timeout(questions)
+    timeout = decide_timeout(questions) * patience
     async with share, slots:
         # Where a turn's seconds go (the operator, 2026-11-22: about two minutes before the first token).
         started = time.monotonic()
