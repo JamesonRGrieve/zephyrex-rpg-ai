@@ -1080,10 +1080,22 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
    */
   const roundsRunning = useRef(0);
   const labelsWaiting = useRef<string[]>([]);
-  const labelNow = (id: string) =>
-    void labelLines(chat.id, id).then((labelled) => {
-      if (labelled) void list.mutate();
-    });
+  // One label call at a time, a line not asked twice while it waits (build60's live run, 2026-11-24: a round's end let 20 go at once,
+  // and on a two-core server the seat's own save waited behind them past a minute).
+  const labelQueue = useRef<Promise<void>>(Promise.resolve());
+  const labelAsked = useRef(new Set<string>());
+  const labelNow = (id: string) => {
+    if (labelAsked.current.has(id)) return;
+    labelAsked.current.add(id);
+    labelQueue.current = labelQueue.current
+      .then(() => labelLines(chat.id, id))
+      .then((labelled) => {
+        if (labelled) void list.mutate();
+      })
+      .catch(() => undefined)
+      // Once answered it may be asked again (a line written anew keeps its id).
+      .finally(() => labelAsked.current.delete(id));
+  };
   const labelSaved = (id: string) => {
     if (roundsRunning.current > 0) labelsWaiting.current.push(id);
     else labelNow(id);
@@ -1377,7 +1389,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       // sides not settled) is said, and the round goes on with the story rather than stopping without a word
       // (live run, 2026-11-24: the round ended silently after the fight's dispositions).
       if (now === undefined) {
-        notify('The fight has not started yet', 'The VTT has no one to act. The story goes on; start the order from the Combat panel.');
+        notify(
+          'The fight has not started yet',
+          'The VTT has no one to act. The story goes on; start the order from the Combat panel.',
+        );
         return undefined;
       }
       let parent = after;
@@ -2729,10 +2744,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                               : 'character',
                           channel: 'ic',
                           speaker:
-                            member?.name ??
-                            part.name ??
-                            pending?.name ??
-                            (shownSpeaker === '' ? TABLE.gm_name : NARRATOR),
+                            member?.name ?? part.name ?? pending?.name ?? (shownSpeaker === '' ? TABLE.gm_name : NARRATOR),
                           avatar:
                             member?.avatar ?? (member == null && part.name === undefined ? (pending?.avatar ?? null) : null),
                           text: part.text,
