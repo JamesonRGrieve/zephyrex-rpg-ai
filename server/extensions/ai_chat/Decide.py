@@ -11,7 +11,7 @@ The twin of client/src/features/decide/decide.ts, held to contract/decide-cases.
 import json
 import math
 import time
-from collections.abc import Mapping, Sequence
+from collections.abc import Awaitable, Callable, Mapping, Sequence
 from typing import Any
 
 from zephyrex.extensions.ai_chat.ExtraBody import with_extra_body  # type: ignore[import-not-found]
@@ -183,17 +183,22 @@ async def ask_decider_detailed(
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None = None,
     background: bool = False,
+    on_attempt: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
 ) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
     """The questions' answers, and why there are none ({kind, detail}; None when it answered). An identical
     request already in flight is shared, never sent twice; ``background`` work keeps to its share of the
-    slots."""
+    slots. ``on_attempt`` hears of each try as it starts ({phase: "start", attempt}) and ends ({phase: "end",
+    attempt, answers, error, ms}), so each is kept as its own record (the operator, 2026-11-24: "A fail should
+    be red, with a retry stacking up beside it")."""
     import asyncio
 
     loop = id(asyncio.get_running_loop())
     key = (loop, json.dumps([base_url, model, state, questions, extra], sort_keys=True, default=str))
     running = _IN_FLIGHT.get(key)
     if running is None:
-        running = asyncio.ensure_future(_ask_tries(base_url, model, api_key, state, questions, extra, background))
+        running = asyncio.ensure_future(
+            _ask_tries(base_url, model, api_key, state, questions, extra, background, on_attempt)
+        )
         _IN_FLIGHT[key] = running
         running.add_done_callback(lambda _done: _IN_FLIGHT.pop(key, None))
     answers, error = await asyncio.shield(running)
@@ -208,6 +213,7 @@ async def _ask_tries(
     questions: Mapping[str, Mapping[str, Any]],
     extra: Mapping[str, Any] | None,
     background: bool = False,
+    on_attempt: Callable[[dict[str, Any]], Awaitable[None]] | None = None,
 ) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
     """Asked up to three times (the operator, 2026-11-22: "Give the decision model 3 tries if it chokes").
     A timeout is the model's queue: background work isn't tried again (another request only lengthens it), and
@@ -219,12 +225,27 @@ async def _ask_tries(
     answers: dict[str, dict[str, Any] | None] | None = None
     error: dict[str, str] | None = None
     patience = 1.0
+    attempt_number = 0
     for attempt in range(len(tries) + 1):
+        attempt_number += 1
+        if on_attempt is not None:
+            await on_attempt({"phase": "start", "attempt": attempt_number})
+        began = time.monotonic()
         answers, error = await _ask_once(base_url, model, api_key, state, questions, extra, background, patience)
+        if answers is not None and error is None and not any(value is not None for value in answers.values()):
+            error = {"kind": "empty", "detail": "no answer within the options"}
+        if on_attempt is not None:
+            await on_attempt(
+                {
+                    "phase": "end",
+                    "attempt": attempt_number,
+                    "answers": answers,
+                    "error": error,
+                    "ms": int((time.monotonic() - began) * 1000),
+                }
+            )
         if answers is not None and any(value is not None for value in answers.values()):
             return answers, None
-        if answers is not None and error is None:
-            error = {"kind": "empty", "detail": "no answer within the options"}
         timed_out = (error or {}).get("kind") == "timeout"
         if timed_out and not background and patience == 1.0:
             patience = 2.0

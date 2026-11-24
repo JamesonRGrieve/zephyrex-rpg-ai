@@ -71,7 +71,6 @@ from zephyrex.extensions.ai_chat.Clarify import (  # type: ignore[import-not-fou
 from zephyrex.extensions.ai_chat.DataBank import data_bank_text, wiki_document_texts  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Decide import (  # type: ignore[import-not-found]
     DECIDE_BACKGROUND,
-    ask_decider,
     ask_decider_detailed,
 )
 from zephyrex.extensions.ai_chat.Dispositions import (  # type: ignore[import-not-found]
@@ -3626,10 +3625,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         # the labels; without one, or when it gives no answer, the chat's own model is asked as before.
         deciding = self._decider()
         if deciding is not None:
-            answers = await ask_decider(
-                deciding.base_url,
-                deciding.model,
-                decrypt_secret(deciding.api_key) if deciding.api_key else "",
+            # Through _decide, so the call is kept and shown with the others (the operator, 2026-11-24).
+            answers = await self._decide(
+                "expression",
+                asked,
                 split_reasoning(asked.text)[1],
                 {
                     "expression": {
@@ -3638,7 +3637,6 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         "criteria": labels,
                     }
                 },
-                getattr(deciding, "extra_body", None),
             )
             decided = (answers or {}).get("expression")
             if decided is not None and "choice" in decided:
@@ -3705,9 +3703,56 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         message_id = getattr(asked, "message_id", None) or getattr(asked, "leaf_id", None)
 
         async def one(row: Any, group: list[str]) -> dict[str, dict[str, Any] | None] | None:
-            started = time.monotonic()
             asked_here = {key: questions[key] for key in group}
-            answers, error = await ask_decider_detailed(
+            calls = DecisionCallManager(requester_id=str(self.requester.id), model_registry=self.model_registry)
+            kept: dict[int, str] = {}
+
+            async def heard(event: dict[str, Any]) -> None:
+                # Each try is its own record, kept while it runs and then finished (the operator, 2026-11-24:
+                # "A fail should be red, with a retry stacking up beside it"). A chat that isn't the
+                # person's keeps none; the answer still stands.
+                if not chat_id:
+                    return
+                try:
+                    if event["phase"] == "start":
+                        made = calls.create(
+                            chat_id=chat_id,
+                            message_id=str(message_id) if message_id else None,
+                            purpose=purpose,
+                            questions=[
+                                {
+                                    "key": key,
+                                    "type": question.get("type"),
+                                    "instructions": question.get("instructions"),
+                                }
+                                for key, question in asked_here.items()
+                            ],
+                            # The end of what it read: the latest lines are what it decided on.
+                            state=state[-STATE_CHARACTERS:],
+                            answers={key: None for key in group},
+                            model=str(row.model),
+                            status="running",
+                            attempt=int(event["attempt"]),
+                        )
+                        kept[int(event["attempt"])] = str(made.id)
+                        return
+                    record = kept.get(int(event["attempt"]))
+                    if record is None:
+                        return
+                    found = event.get("answers")
+                    error = event.get("error")
+                    calls.update_trusted(
+                        record,
+                        answers=dict(found) if found is not None else {key: None for key in group},
+                        ms=int(event.get("ms") or 0),
+                        # Why it gave nothing, never silent nulls (Zephyrex RPG's live fault, 2026-11-23).
+                        error=error,
+                        status="failed" if error else "done",
+                    )
+                except HTTPException:
+                    pass
+
+            answers, _error = await ask_decider_detailed(
                 row.base_url,
                 row.model,
                 decrypt_secret(row.api_key) if row.api_key else "",
@@ -3715,27 +3760,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 asked_here,
                 getattr(row, "extra_body", None),
                 purpose in DECIDE_BACKGROUND,
+                heard,
             )
-            if chat_id:
-                try:
-                    DecisionCallManager(requester_id=str(self.requester.id), model_registry=self.model_registry).create(
-                        chat_id=chat_id,
-                        message_id=str(message_id) if message_id else None,
-                        purpose=purpose,
-                        questions=[
-                            {"key": key, "type": question.get("type"), "instructions": question.get("instructions")}
-                            for key, question in asked_here.items()
-                        ],
-                        # The end of what it read: the latest lines are what it decided on.
-                        state=state[-STATE_CHARACTERS:],
-                        answers=dict(answers) if answers is not None else {key: None for key in group},
-                        model=str(row.model),
-                        ms=int((time.monotonic() - started) * 1000),
-                        # Why it gave nothing, never silent nulls (Zephyrex RPG's live fault, 2026-11-23).
-                        error=error,
-                    )
-                except HTTPException:
-                    pass  # a chat that isn't the person's keeps no record; the answer still stands
             return dict(answers) if answers is not None else None
 
         results = await asyncio.gather(*(one(row, group) for row, group in zip(rows, groups, strict=False)))

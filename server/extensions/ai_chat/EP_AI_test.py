@@ -1703,7 +1703,7 @@ class TestGenerate:
         self, server: TestClient, model_url: str, monkeypatch: pytest.MonkeyPatch
     ) -> None:
         # The operator, 2026-11-22: "Canon check has no detail. Just 'may differ from the scenario'. I need WHY!"
-        from zephyrex.extensions.ai_chat import BLL_AI_Canon, Decide
+        from zephyrex.extensions.ai_chat import BLL_AI_Canon, BLL_AI_Chat
 
         user = create_user(server)
         ada = _cast(server, user, "character", name="Ada").json()["character"]
@@ -1714,18 +1714,25 @@ class TestGenerate:
         async def flags(*_args: Any, **_kwargs: Any) -> dict[str, Any]:
             return {"established": {"level": "contradicts", "index": 2}, "universe": {"level": "consistent", "index": 0}, "fact": {"choice": "none of them"}}
 
+        purposes: list[str] = []
+
+        async def decided(_self: Any, purpose: str, *_args: Any) -> dict[str, Any]:
+            purposes.append(purpose)
+            return await flags()
+
         whys: list[str | None] = ["Ada is an engineer in the scenario; this line has her as a priest.", None]
 
         async def why(_self: Any, _speaker: str, _line: str, _fact: str | None) -> str | None:
             return whys.pop(0)
 
-        monkeypatch.setattr(Decide, "ask_decider", flags)
+        monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decided)
         monkeypatch.setattr(BLL_AI_Canon.CanonCheckManager, "_why", why)
         asked = {"canon_check": {"chat_id": chat["id"], "text": "Ada blesses the altar.", "speaker": "The GM"}}
         said = server.post("/v1/canon_check", json=asked, headers=_headers(user)).json()["canon_check"]
         assert said["level"] == "yellow" and said["reason"].startswith("Ada is an engineer in the scenario")
         vague = server.post("/v1/canon_check", json=asked, headers=_headers(user)).json()["canon_check"]
         assert vague["level"] == "none" and vague["reason"] == "" and vague["checked"] is True
+        assert set(purposes) == {"canon"}  # kept with the other decisions (the operator, 2026-11-24)
 
     def test_the_narrator_sliders_choose_the_model_by_reputation(self, server: TestClient, model_url: str) -> None:
         # The operator, 2026-11-21: "sliders that determine the model based on the models reputation".

@@ -89,6 +89,7 @@ class CanonCheckManager(AbstractBLLManager[Any], RouterMixin):
             frame_for,
         )
         from zephyrex.extensions.ai_chat.BLL_AI_Chat import (  # type: ignore[import-not-found]
+            AIChatManager,
             ChatManager,
             ModelEndpointManager,
             wiki_campaign_for,
@@ -101,7 +102,6 @@ class CanonCheckManager(AbstractBLLManager[Any], RouterMixin):
             canon_state,
             canon_verdict,
         )
-        from zephyrex.extensions.ai_chat.Decide import ask_decider  # type: ignore[import-not-found]
         from zephyrex.extensions.ai_chat.WikiReads import world_matching  # type: ignore[import-not-found]
         from zephyrex.extensions.ai_lorebook.BLL_AI_Lorebook import LorebookEntryManager  # type: ignore[import-not-found]
 
@@ -148,13 +148,10 @@ class CanonCheckManager(AbstractBLLManager[Any], RouterMixin):
             _CASES["max_facts"],
         )
         facts = facts[: _CASES["max_facts"]]
-        answers = await ask_decider(
-            deciding.base_url,
-            deciding.model,
-            decrypt_secret(deciding.api_key) if deciding.api_key else "",
-            canon_state(asked.speaker, asked.text, facts),
-            canon_questions(facts),
-        )
+        # Through _decide, so the call is kept and shown with the others (the operator, 2026-11-24).
+        chats = AIChatManager(requester_id=requester, model_registry=self.model_registry)
+        state = canon_state(asked.speaker, asked.text, facts)
+        answers = await chats._decide("canon", asked, state, canon_questions(facts))
         if answers is None:
             return CanonVerdictEnvelope(canon_check=CanonVerdict(level="none", fact=None, reason="", checked=False))
         verdict = canon_verdict(answers, facts, asked.text)

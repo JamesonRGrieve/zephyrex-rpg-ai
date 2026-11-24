@@ -70,6 +70,8 @@ class DecisionCallModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta)
     error: dict[str, Any] | None = Field(
         None, description="Why the call gave nothing: kind (timeout, unreachable, http, parse, empty) and detail"
     )
+    status: str = Field("done", description="running while asked, then done or failed")
+    attempt: int = Field(1, description="Which try this was (a retry is its own record)")
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI decision model calls"
 
@@ -83,6 +85,8 @@ class DecisionCallModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta)
         model: str = Field("", max_length=200)
         ms: int = Field(0, ge=0)
         error: dict[str, Any] | None = None
+        status: str = Field("done", pattern="^(running|done|failed)$")
+        attempt: int = Field(1, ge=1)
 
     class Update(BaseModel):
         message_id: str | None = None
@@ -158,9 +162,8 @@ class MessageFeedbackModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMe
         verdict: str = Field(..., pattern="^(bad|good)$")
         reason: str = Field("", max_length=REASON_CHARACTERS)
         note: str = Field("", max_length=NOTE_CHARACTERS)
-        # Always set by the manager (the message's chat, and what produced the line), never by the caller.
-        chat_id: str | None = None
-        snapshot: dict[str, Any] = Field(default_factory=dict)
+        # chat_id and snapshot are the manager's alone (the message's chat, and what produced the line): set
+        # through trusted_fields, never accepted from the caller.
 
     class Update(BaseModel):
         verdict: str | None = Field(None, pattern="^(bad|good)$")
@@ -220,6 +223,7 @@ class MessageFeedbackManager(AbstractBLLManager[MessageFeedbackModel], RouterMix
                     "answers": call.answers,
                     "model": call.model,
                     "ms": call.ms,
+                    "error": getattr(call, "error", None),
                 }
                 for call in calls
                 if call.message_id in about
@@ -227,4 +231,6 @@ class MessageFeedbackManager(AbstractBLLManager[MessageFeedbackModel], RouterMix
         }
         kwargs.setdefault("note", "")
         kwargs.setdefault("reason", "")
-        return super().create(**kwargs)
+        # The framework's trusted create (server-framework ac86cc4): the fields Create doesn't take, set here.
+        with self.trusted_fields("chat_id", "snapshot"):
+            return super().create(**kwargs)
