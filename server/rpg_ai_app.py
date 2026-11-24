@@ -71,8 +71,13 @@ EXTENSIONS = ",".join(_FRAMEWORK + _WIKI + _VTT + _AI)
 # Sign-in through the operator's identity provider (Authentik; ai_chat/SignIn.py), when one is
 # configured: oauth_consumer needs FRAMEWORK_FERNET_KEY and the OIDC_CONSUMER_* settings, so it is
 # loaded only where its issuer is set.
+#
+# Where it is set, it is the only way in (the operator, 2026-11-24: "Launch all the zephyrex domains publicly,
+# with the only sign in option as zephyrex authentik for now"): the magic link is not loaded, so no email
+# sign-in route exists. An instance without an issuer (the operator's own) keeps the magic link.
 if os.environ.get("OIDC_CONSUMER_ISSUER_URL", "").strip():
-    EXTENSIONS = f"auth_session,oauth_consumer,{EXTENSIONS.removeprefix('auth_session,')}"
+    _ONLY_SSO = [name for name in EXTENSIONS.split(",") if name not in ("auth_session", "auth_magic_link")]
+    EXTENSIONS = ",".join(["auth_session", "oauth_consumer", *_ONLY_SSO])
 
 _HERE = Path(__file__).resolve().parent
 

@@ -52,7 +52,7 @@ const APP_ROUTES = [
 
 /**
  * The build edition decides only what the back end can do, never what a page shows. The hosted
- * (saas) build turns on accounts (magic-link sign-in only). The lite build is one person's app with
+ * (saas) build turns on accounts: sign-in through the named identity provider only, or the magic link where none is named. The lite build is one person's app with
  * no accounts. Pages show features by capability (src/features/capabilities.ts).
  *
  * The config is imported on the client (app/Providers.tsx) and by the proxy, so it may carry
@@ -138,8 +138,11 @@ const config: ZephyrexConfig = {
       children: [{ title: 'Privacy Policy', url: '/docs/privacy' }],
     },
   ],
+  // With an identity provider named, it is the only sign-in (the operator, 2026-11-24: "the only sign in option as
+  // zephyrex authentik for now"): no magic link, no email or password. Without one (the operator's own instance),
+  // the magic link stays.
   extensions: HOSTED
-    ? [rpgAiExtension, wiki, vtt, authMagicLinkExtension, ...(OAUTH_PROVIDERS.length === 0 ? [] : [oauthConsumerExtension])]
+    ? [rpgAiExtension, wiki, vtt, ...(OAUTH_PROVIDERS.length === 0 ? [authMagicLinkExtension] : [oauthConsumerExtension])]
     : [rpgAiExtension, wiki, vtt],
 };
 

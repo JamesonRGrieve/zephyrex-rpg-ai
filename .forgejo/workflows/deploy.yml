@@ -18,9 +18,8 @@ concurrency:
 
 jobs:
   deploy:
-    # A Zephyrex Forgejo runner's size tier (SOP CI Runners: the smallest a job runs on). A Next
-    # build and the server bundle take the normal tier (5–8 vCPU); a fresh container per job.
-    runs-on: normal
+    # The deploy runner (Chief of Staff, relaying the operator's launch order, 2026-11-24: deploy.yml runs-on: deploy).
+    runs-on: deploy
     container:
       # node:24-trixie: Node 24 on Debian 13, the CT's release (the image Cule's deploy pins).
       image: docker.io/library/node@sha256:611b2e34ec1dd43a7bd4a334f146be7b0b51e8827acb86f94ca4c078cc53bba5
