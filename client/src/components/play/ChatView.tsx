@@ -2069,6 +2069,30 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     else if (message.channel === 'ic') await narrateAfter(copy.id);
   };
 
+  /**
+   * The person's own line put in before someone else's (the operator, 2026-11-24: "interject and fork before
+   * this… 'before the npc does that can I do this?'"): saved as a fork from just before that line, in the seat's
+   * voice, and the round runs on from it; the line it went before stays on its own branch.
+   */
+  const interject = async (message: ChatMessage, text: string) => {
+    roundRef.current += 1;
+    if (writing) reply.stop();
+    const own =
+      play.isCampaign && play.playingId !== null
+        ? { role: 'character' as const, speaker_character_id: play.playingId }
+        : { role: chat.seat === 'gm' ? ('narrator' as const) : ('user' as const) };
+    const line = await create({
+      chat_id: chat.id,
+      parent_id: message.parent_id,
+      ...own,
+      channel: 'ic',
+      swipes: [stored(text, 'user_input')],
+    });
+    setLeafId(line.id);
+    const at = branch.findIndex((one) => one.id === message.id);
+    await playRound(line, [...(at === -1 ? branch : branch.slice(0, at)), line]);
+  };
+
   /** Another alternative for a reply; with `endpointId`, from that model (AP4), to compare them side by side. */
   const regenerate = async (message: ChatMessage, endpointId?: string) => {
     // The person's own line is never rewritten by the model (the operator, 2026-11-22: "The regenerate
@@ -2578,6 +2602,14 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
                       })
                     }
                     onEditFork={!writing && roundStep === null ? (text) => void editFork(message, text) : undefined}
+                    onInterject={
+                      message.channel === 'ic' &&
+                      message.role !== 'system' &&
+                      !(play.isCampaign && play.playingId !== null && message.speaker_character_id === play.playingId) &&
+                      message.role !== 'user'
+                        ? (text) => void interject(message, text)
+                        : undefined
+                    }
                     onBookmark={() => void update(message, { bookmarked: !message.bookmarked })}
                     onMoveUp={
                       message.parent_id !== null && onlyReply(message.parent_id) !== undefined && !writing

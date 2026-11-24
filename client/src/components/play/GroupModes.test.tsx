@@ -20,6 +20,15 @@ function Harness({ onChange }: { onChange: (next: GroupSettings) => void }) {
 }
 
 describe('GroupModes (audit gap 6)', () => {
+  it('turns multi-actor turns off (on by default), so each model call is one actor', async () => {
+    const onChange = vi.fn();
+    render(<Harness onChange={onChange} />);
+    const multi = screen.getByRole('switch', { name: 'Multi-actor turns' });
+    expect(multi).toBeChecked();
+    await userEvent.click(multi);
+    expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ multi_actor: false }));
+  });
+
   it('sets joined cards with their affixes, pooled order, auto-reply and a group scenario', async () => {
     const onChange = vi.fn();
     render(<Harness onChange={onChange} />);

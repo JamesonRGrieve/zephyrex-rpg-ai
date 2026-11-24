@@ -34,10 +34,16 @@ export async function post(page: Page, resource: string, fields: Record<string, 
 }
 
 /** A JSON request as the signed-in page makes it (its session and CSRF token); throws on a refusal. */
-export async function api<T>(page: Page, method: 'GET' | 'POST', path: string, body?: unknown): Promise<T> {
+export async function api<T>(
+  page: Page,
+  method: 'GET' | 'POST' | 'PUT',
+  path: string,
+  body?: unknown,
+  extraHeaders: Record<string, string> = {},
+): Promise<T> {
   if (!page.url().startsWith('http')) await page.goto('/play');
   const answer = await page.evaluate(
-    async ({ method, path, body }) => {
+    async ({ method, path, body, extraHeaders }) => {
       const token = document.cookie
         .split('; ')
         .find((cookie) => cookie.startsWith('zx_csrf='))
@@ -45,12 +51,16 @@ export async function api<T>(page: Page, method: 'GET' | 'POST', path: string, b
       const response = await fetch(`/api/v1/${path}`, {
         method,
         credentials: 'same-origin',
-        headers: { 'Content-Type': 'application/json', ...(token === undefined ? {} : { 'X-CSRF-Token': token }) },
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token === undefined ? {} : { 'X-CSRF-Token': token }),
+          ...extraHeaders,
+        },
         ...(body === undefined ? {} : { body: JSON.stringify(body) }),
       });
       return { status: response.status, text: await response.text() };
     },
-    { method, path, body },
+    { method, path, body, extraHeaders },
   );
   if (answer.status >= 400) throw new Error(`${method} ${path} answered ${answer.status}: ${answer.text}`);
   return JSON.parse(answer.text) as T;
@@ -172,4 +182,25 @@ export async function seedChat(page: Page): Promise<Seeded> {
     campaignId: campaign.id,
     campaignChatId: story.id,
   };
+}
+
+/**
+ * The chat's multi-actor setting, from LIVE_MULTI_ACTOR (on, the default, or off): the operator, 2026-11-24, "Both
+ * modes must be tested". Set through the chat's own PUT, held to its version.
+ */
+export async function setMultiActor(page: Page, chatId: string): Promise<boolean> {
+  const on = (process.env.LIVE_MULTI_ACTOR ?? 'on') !== 'off';
+  const { chat } = await api<{ chat: { updated_at: string | null; created_at: string; group_settings?: Record<string, unknown> } }>(
+    page,
+    'GET',
+    `chat/${chatId}`,
+  );
+  await api(
+    page,
+    'PUT',
+    `chat/${chatId}`,
+    { chat: { group_settings: { ...(chat.group_settings ?? {}), multi_actor: on } } },
+    { 'If-Match': `"${chat.updated_at ?? chat.created_at}"` },
+  );
+  return on;
 }

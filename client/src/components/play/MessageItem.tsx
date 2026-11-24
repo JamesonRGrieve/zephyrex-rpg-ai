@@ -19,21 +19,22 @@ import {
   ArrowUp,
   Bookmark,
   Brain,
-  Languages,
-  Volume2,
-  ThumbsDown,
-  ThumbsUp,
-  X,
   ChevronLeft,
   ChevronRight,
   Ellipsis,
   EyeOff,
   FastForward,
   GitBranch,
+  Hand,
+  Languages,
+  Map as MapIcon,
   Pencil,
   RotateCw,
+  ThumbsDown,
+  ThumbsUp,
   Trash2,
-  Map as MapIcon,
+  Volume2,
+  X,
 } from 'lucide-react';
 import { type ReactElement, useId, useState } from 'react';
 import { Avatar, AvatarFallback, AvatarImage } from 'zephyrex/ui/avatar';
@@ -86,6 +87,12 @@ export interface MessageActions {
   onEdit?: (text: string) => void;
   /** Saves the edit as a new alternative and runs on from it (the operator, 2026-11-23: edit, fork and regenerate). */
   onEditFork?: (text: string) => void;
+  /**
+   * The person's own line put in before this one, as a fork from just before it, and play runs on from it (the
+   * operator, 2026-11-24: "an 'interject and fork before this' button to take the place of people at the table
+   * doing the 'before the npc does that can I do this?'"). Offered on others' lines.
+   */
+  onInterject?: (text: string) => void;
   onBookmark?: () => void;
   /** Moves it up its branch, swapping with the message above (A9); offered where that has no other reply. */
   onMoveUp?: () => void;
@@ -372,6 +379,7 @@ export function MessageItem({
   const [carding, setCarding] = useState<string | null>(null);
   // The note for a flagged reply, while its box is open.
   const [flagging, setFlagging] = useState<string | null>(null);
+  const [interjecting, setInterjecting] = useState<string | null>(null);
   const [flagReason, setFlagReason] = useState('');
   const editId = useId();
   const label = CHANNEL_LABEL[message.channel];
@@ -574,6 +582,37 @@ export function MessageItem({
             </div>
           </form>
         )}
+        {interjecting !== null && (
+          <form
+            className='mt-2 grid gap-2 rounded-md border p-3'
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (interjecting.trim() === '') return;
+              actions.onInterject?.(interjecting.trim());
+              setInterjecting(null);
+            }}
+          >
+            <label htmlFor={`${editId}-interject`} className='text-sm font-medium'>
+              Before {message.speaker} does that…
+            </label>
+            <Textarea
+              id={`${editId}-interject`}
+              value={interjecting}
+              rows={3}
+              autoFocus
+              placeholder='What your character does or says first'
+              onChange={(event) => setInterjecting(event.target.value)}
+            />
+            <div className='flex gap-2'>
+              <Button type='submit' size='sm' className='h-10'>
+                Interject
+              </Button>
+              <Button type='button' size='sm' variant='ghost' className='h-10' onClick={() => setInterjecting(null)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        )}
         {flagging !== null && (
           <form
             className='mt-2 grid gap-2 rounded-md border p-3'
@@ -729,6 +768,11 @@ export function MessageItem({
                 </Button>
               </DropdownMenuTrigger>
               <DropdownMenuContent align='start'>
+                {actions.onInterject !== undefined && (
+                  <DropdownMenuItem onSelect={() => setInterjecting('')}>
+                    <Hand aria-hidden /> Interject before this
+                  </DropdownMenuItem>
+                )}
                 {actions.onTranslate !== undefined && (
                   <DropdownMenuItem onSelect={actions.onTranslate.run}>
                     <Languages aria-hidden /> {actions.onTranslate.label}

@@ -9,7 +9,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
-import { api, post } from './support/seed';
+import { api, post, setMultiActor } from './support/seed';
 
 const SESSION = process.env.PROD_SESSION ?? '';
 /** The instance's host (pw.prod.config.ts's LIVE_ORIGIN): prod unless another is named. */
@@ -86,6 +86,8 @@ async function seat(page: Page, name: string | null): Promise<void> {
       .click();
   }
   await expect(page.getByRole('button', { name: `Your seat: ${name ?? 'the GM'}` })).toBeVisible({ timeout: 60_000 });
+  // Each live pass runs once per mode (LIVE_MULTI_ACTOR on or off).
+  await setMultiActor(page, page.url().split('/').pop() ?? '');
 }
 
 /** `name` (a person of the campaign) given a token on the campaign's current scene, as the GM places one. */

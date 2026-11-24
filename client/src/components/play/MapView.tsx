@@ -92,7 +92,7 @@ export function MapView({
       </div>
     );
   return (
-    <div className='mx-auto grid w-full max-w-5xl flex-1 gap-3 px-3 pt-3 pb-4'>
+    <div className='mx-auto flex min-h-0 w-full max-w-5xl flex-1 flex-col gap-3 px-3 pt-3 pb-4'>
       {views}
       {scenes}
       <PlayScene sceneId={scene.data ?? ''} campaignId={campaignId} gm={gm} />
@@ -116,8 +116,10 @@ function PlayScene({ sceneId, campaignId, gm }: { sceneId: string; campaignId: s
     setAnnouncement(`${one.name ?? 'Token'} moved`);
   };
   return (
-    <section aria-label={data.view.name ?? 'Map'} className='grid gap-2'>
-      <SceneCanvas view={data.view} onMove={move} />
+    // The map takes the height the screen leaves it (the operator, 2026-11-24, of a map using a third of the
+    // phone: VTT's fill opens it filled by its width or height, whichever fills more; pinch and pan as before).
+    <section aria-label={data.view.name ?? 'Map'} className='flex min-h-[60svh] flex-1 flex-col gap-2'>
+      <SceneCanvas view={data.view} onMove={move} fill />
       {scene.problem !== null && (
         <p role='alert' className='text-sm text-destructive'>
           {scene.problem}

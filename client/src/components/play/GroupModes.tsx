@@ -43,6 +43,7 @@ export function GroupModes({
     cards: useId(),
     order: useId(),
     self: useId(),
+    multi: useId(),
     auto: useId(),
     scenario: useId(),
     prefix: useId(),
@@ -119,6 +120,21 @@ export function GroupModes({
           <Switch id={ids.self} checked={value.allow_self ?? false} onCheckedChange={(next) => set('allow_self', next)} />
         </div>
       )}
+      <div className='flex items-start justify-between gap-3'>
+        <div className='grid gap-0.5'>
+          <Label htmlFor={ids.multi}>Multi-actor turns</Label>
+          <p id={`${ids.multi}-hint`} className='text-xs text-muted-foreground'>
+            On: one turn may voice several people. Off: each turn is one actor, the narrator only narrates, and
+            anyone else who speaks gets a turn of their own.
+          </p>
+        </div>
+        <Switch
+          id={ids.multi}
+          aria-describedby={`${ids.multi}-hint`}
+          checked={value.multi_actor ?? true}
+          onCheckedChange={(next) => set('multi_actor', next)}
+        />
+      </div>
       <div className='grid gap-1.5'>
         <Label htmlFor={ids.auto}>Reply by themselves after (seconds)</Label>
         <p id={`${ids.auto}-hint`} className='text-xs text-muted-foreground'>

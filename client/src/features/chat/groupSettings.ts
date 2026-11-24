@@ -15,9 +15,16 @@ export type GroupSettings = {
   allow_self?: boolean;
   auto_seconds?: number;
   scenario?: string;
+  /**
+   * Multi-actor turns (the operator, 2026-11-24: "a setting for multi-actor turns that can be toggled off so
+   * each character turn (/narrator) is one model call"): on (the default), one turn may voice several people;
+   * off, each model call is one actor's: a character's turn writes only that character, the narrator only
+   * narrates, and anyone else who speaks gets their own turn.
+   */
+  multi_actor?: boolean;
 };
 
-const KEYS = ['card_mode', 'join_prefix', 'join_suffix', 'order', 'allow_self', 'auto_seconds', 'scenario'];
+const KEYS = ['card_mode', 'join_prefix', 'join_suffix', 'order', 'allow_self', 'auto_seconds', 'scenario', 'multi_actor'];
 const chars = (text: string) => Array.from(text).length;
 
 /** Why `value` can't be kept as a chat's group settings, or null. */
@@ -32,6 +39,8 @@ export function groupSettingsProblem(value: unknown): string | null {
   if (order !== undefined && !(GROUP_SETTINGS.orders as readonly unknown[]).includes(order))
     return `order is ${GROUP_SETTINGS.orders.join(', ')}`;
   if (allowSelf !== undefined && typeof allowSelf !== 'boolean') return 'allow_self is true or false';
+  if (settings.multi_actor !== undefined && typeof settings.multi_actor !== 'boolean')
+    return 'multi_actor is true or false';
   const [low, high] = GROUP_SETTINGS.auto_seconds;
   if (
     autoSeconds !== undefined &&

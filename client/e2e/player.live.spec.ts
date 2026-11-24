@@ -11,7 +11,7 @@ import { randomBytes } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { expect, type Page, test } from '@playwright/test';
-import { api, post } from './support/seed';
+import { api, post, setMultiActor } from './support/seed';
 
 const SESSION = process.env.PROD_SESSION ?? '';
 const HOST = new URL(process.env.LIVE_ORIGIN ?? 'https://rpg.zephyrex.ca').hostname;
@@ -157,6 +157,9 @@ test('live from a seat: party and NPC talk, the AI GM, a fight in the VTT order,
     .first()
     .click();
   await expect(page.getByRole('button', { name: 'Your seat: Brenna Ashdown' })).toBeVisible({ timeout: 60_000 });
+  // Each live pass runs once per mode (LIVE_MULTI_ACTOR on or off).
+  const multiActor = await setMultiActor(page, page.url().split('/').pop() ?? '');
+  testInfo.annotations.push({ type: 'multi_actor', description: String(multiActor) });
 
   await act(
     page,
