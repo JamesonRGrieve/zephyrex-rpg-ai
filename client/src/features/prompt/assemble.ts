@@ -689,11 +689,7 @@ export function castRule(
  * The narrator's rule: never the person's seat (named first, as the player); any other cast member
  * only in an @@Name interlude, each named with how they look.
  */
-export function narrateRule(
-  persona: PromptPersona | null,
-  characters: readonly PromptCharacter[],
-  solo = false,
-): string {
+export function narrateRule(persona: PromptPersona | null, characters: readonly PromptCharacter[], solo = false): string {
   const voiced = characters.filter((character) => character.name.trim() !== '');
   const seatName = persona?.name.trim() || '{{user}}';
   // The play-test: the narrator told the person their own habits ("you never quite…").
@@ -822,7 +818,7 @@ export function assemblePrompt(input: PromptInput): AssembledPrompt {
                 PROMPT.narrate_prompt,
                 PROMPT.in_character,
                 narrateRule(persona, input.characters, (input.group ?? {}).multi_actor === false) +
-                (input.narrate_wide === true ? ` ${PROMPT.narrate_wide}` : ''),
+                  (input.narrate_wide === true ? ` ${PROMPT.narrate_wide}` : ''),
               ]
                 .filter((part) => part !== '')
                 .join(' '),
