@@ -83,7 +83,7 @@ def _is_pc(entity: Mapping[str, Any]) -> bool:
     """A player character: the wiki's PC tag (Party.py's rule), or a record whose kind says so."""
     from zephyrex.extensions.ai_chat.Party import PARTY  # type: ignore[import-not-found]
 
-    return entity.get("kind") == "pc" or PARTY["tag"] in (entity.get("tags") or [])
+    return "pc" in (entity.get("kind"), entity.get("person_kind")) or PARTY["tag"] in (entity.get("tags") or [])
 
 
 async def _called(ability: Any, *args: Any, **kwargs: Any) -> Any:
@@ -193,12 +193,21 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             seat, _marks = play_context(requester, self.model_registry, chat.id)
             found = world_entities_by_id(self.model_registry, requester, list(people))
             named = [{"id": str(one["id"]), "name": str(one.get("name") or "")} for one in found if one.get("name")]
-            # The party: the seat and every PC, by the wiki's PC tag (Party.py; a person's kind is "person", so a
-            # kind of "pc" never matched: live run, 2026-11-24, Tam was asked about and turned on the seat). Never
-            # the chat's whole cast: an NPC authored for the story joins it (build56: the drowned thing came out
-            # friendly).
-            pcs = [str(one["id"]) for one in found if _is_pc(one) or str(one["id"]) == seat]
+            # The party: the seat, every PC (the wiki's PC tag, or a person_kind of "pc": a world entity's kind is
+            # "person", so kind "pc" never matched, and Tam was asked about and turned on the seat), and, until the
+            # wiki's world entity carries the person's own kind (asked of Zephyrex RPG Wiki), the chat's cast less
+            # whoever the line brings in to attack (an authored creature joins the cast: on build56 the drowned
+            # thing came out friendly).
             said = shown_text(line)
+            members = {str(one) for one in getattr(chat, "character_ids", None) or []}
+            attacking_ids = set(attackers(said, named))
+            pcs = [
+                str(one["id"])
+                for one in found
+                if _is_pc(one)
+                or str(one["id"]) == seat
+                or (str(one["id"]) in members and str(one["id"]) not in attacking_ids)
+            ]
             # Each one's own disposition toward the others (the operator, 2026-11-24: "Combat sides should be
             # based on character disposition not blanket red team and blue team"): the chat's, then the
             # wiki's current attitude; the decision model only where there's none or the line names them.
@@ -356,7 +365,14 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
 
         ids = [str(one["person_id"]) for one in combatants]
         rows = {str(row["id"]): row for row in world_entities_by_id(self.model_registry, requester, ids)}
-        party = [str(one["person_id"]) for one in combatants if _is_pc(rows.get(str(one["person_id"])) or {})]
+        # The party as at the start: PCs, and (until the wiki carries a person's kind) the chat's cast not now hostile.
+        members = {str(one) for one in getattr(chat, "character_ids", None) or []}
+        party = [
+            str(one["person_id"])
+            for one in combatants
+            if _is_pc(rows.get(str(one["person_id"])) or {})
+            or (str(one["person_id"]) in members and one.get("disposition") != "hostile")
+        ]
         named = [one for one in combatants if _named(said, {"name": one.get("name") or ""})]
         named = [one for one in named if str(one["person_id"]) not in party]
         if not named:
