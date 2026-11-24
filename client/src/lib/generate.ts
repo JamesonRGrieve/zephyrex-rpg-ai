@@ -913,6 +913,27 @@ async function askHorde(
   return textAsStream(await poll());
 }
 
+/**
+ * Said as it is (build60's live run, 2026-11-24): a turn queued behind another on a one-at-a-time
+ * model until the call timed out, and the person was told the model "stopped mid-reply". The server's
+ * twin answers httpx.TimeoutException with the same words (BLL_AI_Chat generate).
+ */
+export const MODEL_TIMED_OUT = "The model didn't answer in time; it may be busy with another turn";
+
+const TIMEOUT_CODES = new Set(['UND_ERR_HEADERS_TIMEOUT', 'UND_ERR_BODY_TIMEOUT', 'UND_ERR_CONNECT_TIMEOUT']);
+
+/** Whether a failed model call timed out: fetch's own timeouts, an AbortSignal.timeout, or one wrapped in a cause. */
+export function timedOut(error: unknown): boolean {
+  for (let at = error, depth = 0; at !== null && typeof at === 'object' && depth < 8; depth += 1) {
+    if (Reflect.get(at, 'name') === 'TimeoutError') return true;
+    const code: unknown = Reflect.get(at, 'code');
+    if (typeof code === 'string' && TIMEOUT_CODES.has(code)) return true;
+    if (at instanceof ApiError && Reflect.get(Object(at.detail), 'code') === 'model_timeout') return true;
+    at = Reflect.get(at, 'cause');
+  }
+  return false;
+}
+
 async function askModel(
   endpoint: Endpoint,
   body: Record<string, unknown>,
@@ -930,7 +951,8 @@ async function askModel(
     // The endpoint's extra request fields go last, over everything but the conversation's own.
     body: JSON.stringify(withExtraBody(native?.json ?? body, endpoint.extra_body)),
     signal,
-  }).catch(() => {
+  }).catch((error: unknown) => {
+    if (timedOut(error)) throw new ApiError(504, { message: MODEL_TIMED_OUT, code: 'model_timeout' });
     throw new ApiError(502, { message: 'The model endpoint could not be reached', code: 'model_unreachable' });
   });
   if (!upstream.ok || upstream.body === null) {
@@ -2197,8 +2219,9 @@ export async function generate(nextRequest: NextRequest): Promise<Response> {
           const next = await source.next();
           if (next.done) controller.close();
           else controller.enqueue(next.value);
-        } catch {
-          controller.enqueue(event('error', { detail: 'The model stopped mid-reply' }));
+        } catch (error) {
+          const detail = timedOut(error) ? MODEL_TIMED_OUT : 'The model stopped mid-reply';
+          controller.enqueue(event('error', { detail }));
           controller.close();
         }
       },

@@ -6,9 +6,9 @@
  * version stale.
  */
 import { beforeEach, describe, expect, it } from 'vitest';
-import { LOCAL_OWNER_ID } from '@zephyrex/lite';
+import { ApiError, LOCAL_OWNER_ID } from '@zephyrex/lite';
 import { prisma } from '~/lib/prisma';
-import { saveVariables, upstreamBody } from './generate';
+import { MODEL_TIMED_OUT, saveVariables, timedOut, upstreamBody } from './generate';
 
 const sampler = {
   temperature: 0.7,
@@ -64,5 +64,26 @@ describe('the variables a reply keeps (audit gap 1)', () => {
       mood: 'grim',
       seen: 'yes',
     });
+  });
+});
+
+describe('timedOut (build60 live run, 2026-11-24)', () => {
+  it('reads a timeout from fetch, an AbortSignal, or a cause beneath them', () => {
+    const headers = Object.assign(new Error('Headers Timeout Error'), { code: 'UND_ERR_HEADERS_TIMEOUT' });
+    expect(timedOut(new TypeError('fetch failed', { cause: headers }))).toBe(true);
+    expect(timedOut(Object.assign(new Error('body'), { code: 'UND_ERR_BODY_TIMEOUT' }))).toBe(true);
+    expect(timedOut(new DOMException('The operation timed out', 'TimeoutError'))).toBe(true);
+    expect(timedOut(new ApiError(504, { message: 'The Horde took too long', code: 'model_timeout' }))).toBe(true);
+  });
+
+  it('never calls a refusal, a stop or a dropped connection a timeout', () => {
+    expect(timedOut(new DOMException('stopped', 'AbortError'))).toBe(false);
+    expect(timedOut(new TypeError('fetch failed', { cause: Object.assign(new Error('x'), { code: 'ECONNRESET' }) }))).toBe(false);
+    expect(timedOut(new ApiError(502, { message: 'The model endpoint answered 500', code: 'model_refused' }))).toBe(false);
+    expect(timedOut('nothing')).toBe(false);
+  });
+
+  it('says it as the server does', () => {
+    expect(MODEL_TIMED_OUT).toBe("The model didn't answer in time; it may be busy with another turn");
   });
 });
