@@ -59,8 +59,17 @@ def test_a_stale_location_line_goes_at_save(case: dict[str, Any]) -> None:
 def test_a_reply_keeps_no_location_banner() -> None:
     # The operator, 2026-11-24: "It also threw a random location banner in?" The banner is the server's, on a
     # scene change only.
-    from zephyrex.extensions.ai_chat.PlayerLines import without_banners  # type: ignore[import-not-found]
+    from zephyrex.extensions.ai_chat.PlayerLines import without_banners
 
     assert without_banners("[location: Saltmere Quay]\nRain on the quay.") == "Rain on the quay."
     assert without_banners("Rain.\n[Location: Saltmere | the docks]\nMore rain.") == "Rain.\nMore rain."
     assert without_banners("She says [location] twice.") == "She says [location] twice."
+
+
+def test_a_reply_keeps_no_code_fence() -> None:
+    # The operator's test-play, 2026-11-24: a message of nothing but ``` was saved as a line.
+    from zephyrex.extensions.ai_chat.PlayerLines import story_reply
+
+    assert story_reply("```") == ""
+    assert story_reply("```json\nRain.\n```") == "Rain."
+    assert story_reply("[location: Quay]\nShe says `hush`.") == "She says `hush`."

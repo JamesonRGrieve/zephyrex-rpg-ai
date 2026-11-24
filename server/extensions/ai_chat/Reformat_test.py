@@ -85,7 +85,7 @@ def test_the_formatters_result_is_checked_requirement_by_requirement() -> None:
         "[do] Delphine: She glances away.",
     ]
     questions = check_questions()
-    assert set(questions) == {"format_actions", "format_dialogue", "format_narrator"}
+    assert set(questions) == {"format_actions", "format_dialogue", "format_narrator", "format_voices"}
     assert all(set(one["criteria"]) == {"meets", "fails"} for one in questions.values())
     answers = {key: {"choice": "meets"} for key in questions} | {"format_dialogue": {"choice": "fails"}}
     assert failed_checks(answers) == [
@@ -109,3 +109,51 @@ def test_a_line_the_reply_credits_is_that_persons_own() -> None:
     assert runs[1]["speaker_name"] == "Delphine Halloway"
     assert runs[1]["lines"][0]["text"] == "He never came back."
     assert credited_runs("Rain on the quay.", people) == []
+
+
+def test_a_characters_turn_never_keeps_anothers_line() -> None:
+    # The operator's test-play, 2026-11-24 (chat 64e11be8): Mira's turn wrote Delphine's line, plus a code
+    # fence, and both were saved as Mira's.
+    from zephyrex.extensions.ai_chat.BLL_AI_Chat import credited_runs
+
+    people = [{"id": "mira", "name": "Mira Kettle"}, {"id": "del", "name": "Delphine Halloway"}]
+    text = (
+        "Mira folds her arms.\n"
+        'Delphine Halloway (to Mira Kettle, voice strained): "I want him off my property."\n'
+        "```\n"
+        'Orrin Halloway (to Mira Kettle): "I am not here."'
+    )
+    runs = credited_runs(text, people, "mira")
+    assert [(run["speaker_id"], [line["text"] for line in run["lines"]]) for run in runs] == [
+        ("mira", ["folds her arms."]),
+        ("del", ["I want him off my property."]),
+    ]
+    # A reply of nothing but its own words stays as it is.
+    assert credited_runs("Mira folds her arms.", people, "mira") == []
+    # Narration that only looks like a label stays the turn's own.
+    later = credited_runs('Later: they left.\nDelphine Halloway (to Mira Kettle): "Go."', people, "mira")
+    assert [line["text"] for line in later[0]["lines"]] == ["Later: they left."]
+
+
+def test_with_multi_actor_off_anothers_line_is_cut_never_theirs() -> None:
+    # The operator, 2026-11-24: "a setting for multi-actor turns that can be toggled off so each character
+    # turn (/narrator) is one model call"; each person then speaks on their own turn.
+    from zephyrex.extensions.ai_chat.BLL_AI_Chat import credited_runs
+
+    people = [{"id": "mira", "name": "Mira Kettle"}, {"id": "del", "name": "Delphine Halloway"}]
+    text = 'Mira folds her arms.\nDelphine Halloway (to Mira Kettle): "I want him off my property."'
+    split = credited_runs(text, people, "mira", True)
+    cut = credited_runs(text, people, "mira", False)
+    assert [run["speaker_id"] for run in split] == ["mira", "del"]
+    assert [(run["speaker_id"], [line["text"] for line in run["lines"]]) for run in cut] == [
+        ("mira", ["folds her arms."])
+    ]
+
+
+def test_with_multi_actor_off_the_narrator_voices_no_one() -> None:
+    from zephyrex.extensions.ai_chat.Prompt import PROMPT, narrate_rule  # type: ignore[import-not-found]
+
+    cast = [{"id": "mira", "name": "Mira Kettle", "description": "An inspector."}]
+    persona = {"name": "Brenna", "description": ""}
+    assert PROMPT["narrate_solo"] in narrate_rule(persona, cast, True)
+    assert PROMPT["narrate_solo"] not in narrate_rule(persona, cast, False)

@@ -127,6 +127,7 @@
     "voice_grounding": "Act only on what {{char}} knows and feels: their home, their stance toward each person present, and what just happened. Never ask what {{char}} would know; never be friendly to someone {{char}} would resent without a reason.",
     "narrate_continue": "Open with what comes of the latest line; never retell what already happened.",
     "story_samplers": {"min_p": 0.05},
+    "narrate_solo": "Voice no one: each character speaks on their own turn. Tell only the world, what happens and what can be seen, never a line of anyone's speech.",
     "narrate_targets": "An action's object is its stated target (at X), else the nearest hostile; never a member of the party unless named. Never invent props, devices or objects the story doesn't have.",
     "narrate_markup": "A device's display or readout goes in a screen block: a line [screen: Cogitator] (or Data-slate, Auspex, Vox-log), its lines, then [/screen]. For emphasis you may colour a few words: [red]...[/red], or amber, green, blue, gold or grey.",
     "voice_lines": "Write {{char}}'s turn one item per line: `{{char}} (to Someone): \"what they say\"` or `{{char}} does something`.",
@@ -959,7 +960,8 @@
     "checks": {
       "actions": "Every action is in an action line credited to the one who does it.",
       "dialogue": "Every piece of dialogue is a speech line, in quotes, with its tone and whom it is said to.",
-      "narrator": "No speech or dialogue is credited to the narrator."
+      "narrator": "No speech or dialogue is credited to the narrator.",
+      "voices": "No line holds one person's speech under another's name: each person's words are their own line."
     },
     "check_instructions": "This is a story reply sorted into lines. Does it meet this requirement? {{requirement}}",
     "check_options": {

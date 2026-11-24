@@ -243,3 +243,15 @@ def without_banners(text: str) -> str:
     of the narrative stream it should trigger as a result of the GM transitioning scenes in the vtt only")."""
     kept = [line for line in text.split("\n") if not re.fullmatch(r"\s*\[location:\s*.+?\s*\]\s*", line, re.IGNORECASE)]
     return "\n".join(kept).strip("\n")
+
+
+def without_fences(text: str) -> str:
+    """A reply with code-fence and backtick-only lines taken out (the operator's test-play, 2026-11-24: a
+    message of nothing but ``` was saved as a character's line)."""
+    kept = [line for line in text.split("\n") if not re.fullmatch(r"\s*`{1,}[\w-]*\s*", line)]
+    return "\n".join(kept).strip("\n")
+
+
+def story_reply(text: str) -> str:
+    """A reply as the story keeps it: no location banner, no code fence."""
+    return without_fences(without_banners(text))

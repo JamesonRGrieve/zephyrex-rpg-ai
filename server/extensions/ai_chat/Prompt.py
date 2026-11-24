@@ -458,13 +458,16 @@ def cast_rule(
     return template.replace("{{names}}", ", ".join(names)) if names else ""
 
 
-def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping[str, Any]]) -> str:
+def narrate_rule(persona: Mapping[str, Any] | None, characters: Sequence[Mapping[str, Any]], solo: bool = False) -> str:
     """The narrator's rule: never the person's seat (named first, as the player); any other cast member
-    only in an @@Name interlude, each named with how they look."""
+    only in an @@Name interlude, each named with how they look. ``solo`` (the chat's multi_actor off: the
+    operator, 2026-11-24, "each character turn (/narrator) is one model call"): it voices no one."""
     voiced = [character for character in characters if str(character["name"]).strip()]
     seat_name = (str(persona["name"]).strip() if persona is not None else "") or "{{user}}"
     # The play-test: the narrator told the person their own habits ("you never quite...").
     seat_rule = str(PROMPT["narrate_seat"]).replace("{{seat_name}}", seat_name)
+    if solo:
+        return f"{PROMPT['narrate_open']} {seat_rule} {PROMPT['narrate_solo']}"
     if not voiced:
         return f"{PROMPT['narrate_open']} {seat_rule}"
     marks = [PROMPT["player_label"], one_line(str((persona or {}).get("description") or ""))]
@@ -596,7 +599,7 @@ def assemble_prompt(
     if system_prompt.strip():
         main = system_prompt
     elif narrating:
-        ruled = narrate_rule(persona, characters)
+        ruled = narrate_rule(persona, characters, (group_modes or {}).get("multi_actor") is False)
         if narrate_wide:
             # No one was chosen to act next (three undecided turns): the narrator carries the moment.
             ruled = f"{ruled} {PROMPT['narrate_wide']}"

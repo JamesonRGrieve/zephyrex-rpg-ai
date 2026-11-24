@@ -140,8 +140,8 @@ from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
 )
 from zephyrex.extensions.ai_chat.PlayerLines import (  # type: ignore[import-not-found]
     parse_player_lines,
+    story_reply,
     strip_markup,
-    without_banners,
 )
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     DEFAULT_USER_NAME,
@@ -2904,17 +2904,33 @@ def scene_joiners(
     ]
 
 
-def credited_runs(text: str, people: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    """A reply's lines as runs when it credits someone present (parse_player_lines): each run one speaker's
-    consecutive lines, narration the narrator's; none when it credits no one (then it's saved as it is)."""
+#: A line credited to someone by name: ``Name (to X, how): ...`` or ``Name: "..."``.
+_CREDITED = re.compile(r"^\s*[A-Z][\w'\u2019.-]*(?:\s+[A-Z][\w'\u2019.-]*){0,3}\s*(?:\([^)]*\)\s*:|:\s*[\"\u201c])")
+
+
+def credited_runs(
+    text: str, people: Sequence[Mapping[str, Any]], own: str | None = None, split: bool = True
+) -> list[dict[str, Any]]:
+    """A reply's lines as runs when it credits someone present other than its own speaker (parse_player_lines):
+    each run one speaker's consecutive lines; an uncredited line is the turn's own (``own``: a character's
+    turn) or the narrator's. A line credited to someone not present is cut. None when it credits no one else
+    (then it's saved as it is). The operator's test-play, 2026-11-24: Mira's turn wrote Delphine's line, and
+    it was saved as Mira's. Without ``split`` (the chat's multi_actor off: each speaks on their own turn), a
+    line credited to anyone else is cut, never made theirs."""
     _thinking, reply = split_reasoning(text)
-    items = parse_player_lines(without_banners(reply), people)
-    if not any(item.get("speaker_id") for item in items):
+    items = parse_player_lines(story_reply(reply), people)
+    if not any(item.get("speaker_id") and str(item["speaker_id"]) != own for item in items):
         return []
     names = {str(one["id"]): str(one["name"]) for one in people}
     runs: list[dict[str, Any]] = []
     for item in items:
-        speaker = str(item["speaker_id"]) if item.get("speaker_id") else None
+        # A line in a credited form for someone who isn't here ("Orrin Halloway (to Mira Kettle): ...") is
+        # theirs, not the turn's: cut.
+        if not item.get("speaker_id") and _CREDITED.match(str(item.get("text") or "")):
+            continue
+        speaker = str(item["speaker_id"]) if item.get("speaker_id") else own
+        if speaker is not None and speaker != own and (not split or speaker not in names):
+            continue
         line = {
             "speaker_id": speaker,
             "kind": "narrate" if speaker is None else item["kind"],
@@ -2927,7 +2943,7 @@ def credited_runs(text: str, people: Sequence[Mapping[str, Any]]) -> list[dict[s
             runs[-1]["lines"].append(line)
         else:
             runs.append({"speaker_id": speaker, "speaker_name": names.get(speaker or ""), "lines": [line]})
-    return runs
+    return [run for run in runs if any(str(line["text"]).strip() for line in run["lines"])]
 
 
 def shown_text(message: Any) -> str:
@@ -4637,7 +4653,7 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         traits = traits_of({"model": endpoint.model, "traits": dict(getattr(endpoint, "traits", None) or {})})
         # The banner's place is the server's (on a scene change only): none is kept from the reply.
-        prose = without_banners(prose)
+        prose = story_reply(prose)
         note = ""
         failed: list[str] = []
         result: dict[str, Any] = {}
@@ -5386,8 +5402,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         it would have the seat act (seat_cut), then `saved {messages}` as a structured turn's."""
         narrating = asked.mode == "narrate" or context.get("speaker_id") is None
         thinking, reply = split_reasoning(text)
-        # The banner's place is the server's, on a scene change only (the operator, 2026-11-24).
-        reply = without_banners(reply)
+        # No banner (the server's, on a scene change only) and no code fence (the operator, 2026-11-24).
+        reply = story_reply(reply)
         kept = seat_cut(reply, seat_name).strip() if narrating and seat_name else reply.strip()
         if not kept:
             return frame("saved", {"messages": []})
@@ -5425,9 +5441,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             for run in runs
             if (
                 lines := [
-                    {**line, "text": without_banners(str(line.get("text") or ""))}
+                    {**line, "text": story_reply(str(line.get("text") or ""))}
                     for line in run.get("lines") or []
-                    if without_banners(str(line.get("text") or "")).strip()
+                    if story_reply(str(line.get("text") or "")).strip()
                 ]
             )
         ]
@@ -6034,21 +6050,27 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         yield frame(
                             "voice_problem", {**problem, "note": table_voice_note(problem), "reason": "table_voice"}
                         )
+                # The chat's multi_actor (the operator, 2026-11-24; on by default): one reply may voice several.
+                settings = getattr(_context["chat"], "group_settings", None) or {}
+                multi = settings.get("multi_actor") is not False
                 if body.generate.server_save and not flags["saved"] and str(flags["told"]).strip():
                     # An asynchronous turn is saved by the server (the operator, 2026-11-23: "on reconnecting the
                     # result is there"): the reformatted runs, else the reply as one line, in the shape a
                     # structured turn's `saved` has.
                     yield frame("stage", {"stage": "saving"})
                     if reformatted is not None and reformatted.get("reformatted") and reformatted.get("runs"):
+                        # Multi-actor off: a narration keeps only the narrator's own lines.
+                        kept_runs = [run for run in reformatted["runs"] if multi or run.get("speaker_id") is None]
                         async for piece in self._save_runs(
-                            body.generate, _context, list(reformatted["runs"]), people, None, str(flags["thought"])
+                            body.generate, _context, kept_runs, people, None, str(flags["thought"])
                         ):
                             yield piece
                     else:
                         # No runs from the formatter: a line the reply itself credits ("Delphine Halloway (to
                         # you): ...") is still that person's own line, never narration (the operator's test-play,
                         # 2026-11-24, chat 64e11be8).
-                        voiced = credited_runs(str(flags["told"]), people) if body.generate.mode == "narrate" else []
+                        own = None if body.generate.mode == "narrate" else _context.get("speaker_id")
+                        voiced = credited_runs(str(flags["told"]), people, str(own) if own else None, multi)
                         if voiced:
                             async for piece in self._save_runs(
                                 body.generate, _context, voiced, people, None, str(flags["thought"])
