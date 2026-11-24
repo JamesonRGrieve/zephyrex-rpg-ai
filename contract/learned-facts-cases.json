@@ -1,0 +1,86 @@
+{
+  "$comment": "What a scene reveals to the party (LearnedFacts.learn_questions / learned; contract learned_facts).",
+  "pcs": [
+    {
+      "id": "brenna",
+      "name": "Brenna"
+    },
+    {
+      "id": "tam",
+      "name": "Tam"
+    }
+  ],
+  "entities": [
+    {
+      "id": "hesk",
+      "name": "Old Hesk",
+      "kind": "person",
+      "aliases": [
+        "Hesk"
+      ]
+    },
+    {
+      "id": "mill",
+      "name": "Blackwater Mill",
+      "kind": "location",
+      "aliases": []
+    },
+    {
+      "id": "brenna",
+      "name": "Brenna",
+      "kind": "person",
+      "aliases": []
+    },
+    {
+      "id": "guild",
+      "name": "Drowned Guild",
+      "kind": "faction",
+      "aliases": []
+    }
+  ],
+  "cases": [
+    {
+      "name": "the ferryman names the mill: each PC is asked about Hesk and the mill, never about themselves",
+      "text": "Old Hesk spits. \"Blackwater Mill is that way. Brenna knows it.\"",
+      "questions": 5,
+      "answers": {
+        "learn_0": {
+          "choice": "knows of"
+        },
+        "learn_1": {
+          "choice": "knows of"
+        },
+        "learn_2": {
+          "choice": "knows of"
+        },
+        "learn_3": {
+          "choice": "not yet"
+        }
+      },
+      "learned": [
+        {
+          "person_id": "brenna",
+          "target_entity_type": "person",
+          "target_entity_id": "hesk"
+        },
+        {
+          "person_id": "brenna",
+          "target_entity_type": "location",
+          "target_entity_id": "mill"
+        },
+        {
+          "person_id": "tam",
+          "target_entity_type": "person",
+          "target_entity_id": "hesk"
+        }
+      ]
+    },
+    {
+      "name": "nothing named: no question, no call",
+      "text": "Rain on the river.",
+      "questions": 0,
+      "answers": {},
+      "learned": []
+    }
+  ]
+}

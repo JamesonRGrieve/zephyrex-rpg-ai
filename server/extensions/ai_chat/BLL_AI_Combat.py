@@ -119,9 +119,10 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
         from zephyrex.extensions.ai_chat.BLL_AI_Session import play_context  # type: ignore[import-not-found]
         from zephyrex.extensions.ai_chat.CombatTurn import (  # type: ignore[import-not-found]
             COMBAT,
-            fight_sides,
-            side_questions,
+            answered_stances,
+            combat_stances,
         )
+        from zephyrex.extensions.ai_chat.MapStep import _named  # type: ignore[import-not-found]
         from zephyrex.extensions.ai_chat.WikiReads import (  # type: ignore[import-not-found]
             scene_now,
             scene_people,
@@ -145,8 +146,11 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
         # the GM is preparing) is started, never a reason to stop (Zephyrex RPG's live run, chat 54763f15:
         # one stuck in setup at round 0).
         if isinstance(going, dict) and going.get("id") and going.get("status") == "running":
+            # A line that names a combatant may turn them ("the guard surrenders", "she turns on them"): asked
+            # again, and the VTT's set_disposition moves them (the operator, 2026-11-24).
+            turned = await self._turned(asked, chat, wiki, going, requester)
             return CombatCheckEnvelope(
-                combat_check=CombatCheck(started=False, encounter_id=str(going["id"]), order=going, reason="already")
+                combat_check=CombatCheck(started=False, encounter_id=str(going["id"]), order=turned, reason="already")
             )
         waiting = str(going["id"]) if isinstance(going, dict) and going.get("id") else None
         rows = ChatMessageManager(requester_id=requester, model_registry=self.model_registry).list(chat_id=chat.id)
@@ -181,16 +185,48 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
             found = world_entities_by_id(self.model_registry, requester, list(people))
             named = [{"id": str(one["id"]), "name": str(one.get("name") or "")} for one in found if one.get("name")]
             pcs = [str(one["id"]) for one in found if one.get("kind") == "pc" or str(one["id"]) == seat]
-            sides_asked, party = side_questions(named, pcs)
-            sided = await chats._decide("Combat: sides", asked, shown_text(line), sides_asked) if sides_asked else None
+            said = shown_text(line)
+            # Each one's own disposition toward the others (the operator, 2026-11-24: "Combat sides should be
+            # based on character disposition not blanket red team and blue team"): the chat's, then the
+            # wiki's current attitude; the decision model only where there's none or the line names them.
+            reading = loaded_ability(self.model_registry, "rpg_core", "current_attitudes")
+            attitudes: Any = {}
+            if reading is not None:
+                try:
+                    attitudes = await _called(reading, self.model_registry, requester, wiki, list(people)) or {}
+                except HTTPException:
+                    attitudes = {}
+            stances, stance_asked = combat_stances(
+                named,
+                pcs,
+                dict(getattr(chat, "dispositions", None) or {}),
+                attitudes if isinstance(attitudes, dict) else {},
+                [one["id"] for one in named if _named(said, one)],
+            )
+            stood = await chats._decide("Combat: disposition", asked, said, stance_asked) if stance_asked else None
+            fighting = answered_stances(stances, stood, stance_asked, pcs)
             opening: dict[str, Any] = {"scene_id": str(scene["id"]) if scene else None, "person_ids": people}
-            sides = fight_sides(sided, sides_asked, party)
-            if sides and start is not None and "sides" in inspect.signature(start).parameters:
-                opening["sides"] = sides
+            takes = inspect.signature(start).parameters if start is not None else {}
+            if fighting and "dispositions" in takes:
+                # Only what the VTT can't read itself: the story's stances and the wiki's current attitude (it
+                # reads the wiki's default rows on its own).
+                opening["dispositions"] = {
+                    who: {"disposition": str(stance["stance"]), "hostile_to": list(stance["hostile_to"])}
+                    for who, stance in fighting.items()
+                }
+            elif fighting and "sides" in takes:
+                opening["sides"] = {who: str(stance["stance"]) for who, stance in fighting.items()}
             made = await _called(start, requester, wiki, **opening)
             encounter_id = str(made.get("id") or made.get("encounter_id") or "") if isinstance(made, dict) else ""
             if not encounter_id:
                 return CombatCheckEnvelope(combat_check=CombatCheck(started=False, reason="the VTT opened no fight"))
+            if isinstance(made, dict) and made.get("status") == "running":
+                # The VTT starts a fight at once (initiative rolled, round 1 begun): what's left are the stances it
+                # couldn't settle, put to the decision model among its own options.
+                settled_order = await self._open_choices(asked, said, encounter_id, made, requester)
+                return CombatCheckEnvelope(
+                    combat_check=CombatCheck(started=True, encounter_id=encounter_id, order=settled_order)
+                )
         # Each step's answer is read: a fight the VTT couldn't start is said, never reported as started (Zephyrex
         # RPG's live run, chat 54763f15: pregens without sheets rolled no initiative, and the fight sat in setup).
         rolled: Any = None
@@ -225,6 +261,104 @@ class CombatCheckManager(AbstractBLLManager[Any], RouterMixin):
                 reason=f"the VTT couldn't start the fight: {reason}",
             )
         )
+
+    async def _open_choices(
+        self, asked: Any, said: str, encounter_id: str, order: dict[str, Any], requester: str
+    ) -> dict[str, Any]:
+        """The VTT's open_choices settled by the decision model among its options, each through set_disposition;
+        the order as it stands after."""
+        from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
+        from zephyrex.extensions.ai_chat.BLL_AI_Chat import AIChatManager
+        from zephyrex.extensions.ai_chat.CombatTurn import open_questions, settled
+
+        choices = [one for one in order.get("open_choices") or [] if isinstance(one, dict)]
+        setting = loaded_ability(self.model_registry, "rpg_combat", "set_disposition")
+        questions = open_questions(choices)
+        if not questions or setting is None:
+            return order
+        chats = AIChatManager(requester_id=requester, model_registry=self.model_registry)
+        answers = await chats._decide("Combat: disposition", asked, said, questions)
+        hostile_now = {
+            str(one.get("person_id")): [str(other) for other in one.get("hostile_to") or []]
+            for one in order.get("combatants") or []
+            if isinstance(one, dict) and one.get("person_id")
+        }
+        for call in settled(choices, answers, hostile_now):
+            try:
+                answered = await _called(
+                    setting,
+                    requester,
+                    encounter_id,
+                    call["person_id"],
+                    disposition=call["disposition"],
+                    hostile_to=call["hostile_to"],
+                )
+            except HTTPException:
+                continue
+            if isinstance(answered, dict):
+                order = answered
+                hostile_now[call["person_id"]] = list(call["hostile_to"])
+        return order
+
+    async def _turned(self, asked: Any, chat: Any, wiki: str, order: dict[str, Any], requester: str) -> dict[str, Any]:
+        """Mid-fight, each combatant the latest line names asked how they stand now; one the answer turns is
+        moved by the VTT's set_disposition (hostile: against the party; otherwise toward no one)."""
+        from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
+        from zephyrex.extensions.ai_chat.BLL_AI_Chat import AIChatManager, ChatMessageManager, shown_text
+        from zephyrex.extensions.ai_chat.CombatTurn import COMBAT
+        from zephyrex.extensions.ai_chat.MapStep import _named
+
+        setting = loaded_ability(self.model_registry, "rpg_combat", "set_disposition")
+        if setting is None or not getattr(asked, "leaf_id", None):
+            return order
+        try:
+            line = ChatMessageManager(requester_id=requester, model_registry=self.model_registry).get(id=asked.leaf_id)
+        except HTTPException:
+            return order
+        said = shown_text(line)
+        combatants = [one for one in order.get("combatants") or [] if isinstance(one, dict) and one.get("person_id")]
+        from zephyrex.extensions.ai_chat.WikiReads import world_entities_by_id
+
+        ids = [str(one["person_id"]) for one in combatants]
+        kinds = {str(row["id"]): row.get("kind") for row in world_entities_by_id(self.model_registry, requester, ids)}
+        party = [str(one["person_id"]) for one in combatants if kinds.get(str(one["person_id"])) == "pc"]
+        named = [one for one in combatants if _named(said, {"name": one.get("name") or ""})]
+        named = [one for one in named if str(one["person_id"]) not in party]
+        if not named:
+            return order
+        questions = {
+            f"disposition_{one['person_id']}": {
+                "type": "choice",
+                "instructions": str(COMBAT["disposition_question"])
+                .replace("{{name}}", str(one.get("name") or ""))
+                .replace(
+                    "{{known}}",
+                    str(COMBAT["disposition_known"]).replace("{{stances}}", str(one.get("disposition") or "neutral")),
+                ),
+                "criteria": dict(COMBAT["stances"]),
+            }
+            for one in named
+        }
+        chats = AIChatManager(requester_id=requester, model_registry=self.model_registry)
+        answers = await chats._decide("Combat: disposition", asked, said, questions)
+        for one in named:
+            picked = ((answers or {}).get(f"disposition_{one['person_id']}") or {}).get("choice")
+            if picked not in COMBAT["stances"] or picked == one.get("disposition"):
+                continue
+            try:
+                answered = await _called(
+                    setting,
+                    requester,
+                    str(order["id"]),
+                    str(one["person_id"]),
+                    disposition=str(picked),
+                    hostile_to=party if picked == "hostile" else [],
+                )
+            except HTTPException:
+                continue
+            if isinstance(answered, dict):
+                order = answered
+        return order
 
 
 class CombatTurnManager(AbstractBLLManager[Any], RouterMixin):

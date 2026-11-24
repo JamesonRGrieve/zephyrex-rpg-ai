@@ -13,10 +13,12 @@ from zephyrex.extensions import AbstractExtensionProvider
 from zephyrex.extensions.ai_character.Contract import REPOSITORY_ROOT  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat import BLL_AI_Chat, WikiReads  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.CombatTurn import (  # type: ignore[import-not-found]
+    answered_stances,
     combat_pick,
     combat_questions,
-    fight_sides,
-    side_questions,
+    combat_stances,
+    open_questions,
+    settled,
 )
 from zephyrex.testing.factories import create_user
 
@@ -155,7 +157,7 @@ def test_a_fight_the_story_starts_opens_the_vtts_encounter(server: TestClient, m
     monkeypatch.setattr(WikiReads, "scene_people", people)
 
     async def decide(_self: Any, purpose: str, _asked: Any, state: str, _questions: dict[str, Any]) -> dict[str, Any]:
-        assert purpose in ("Combat: start", "Combat: sides") and "Roll initiative" in state
+        assert purpose in ("Combat: start", "Combat: disposition") and "Roll initiative" in state
         return {"fight": {"choice": "a fight starts"}}
 
     monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decide)
@@ -295,15 +297,30 @@ SIDES: dict[str, Any] = json.loads((REPOSITORY_ROOT / "contract" / "combat-cases
 
 
 @pytest.mark.parametrize("case", SIDES["cases"], ids=lambda case: case["name"])
-def test_who_is_on_which_side(case: dict[str, Any]) -> None:
-    questions, party = side_questions(case["people"], case["party"])
+def test_each_stands_by_their_own_disposition(case: dict[str, Any]) -> None:
+    # The operator, 2026-11-24: "Combat sides should be based on character disposition not blanket red team
+    # and blue team."
+    stances, questions = combat_stances(
+        case["people"], case["party"], case["chat_dispositions"], case["attitudes"], case["named"]
+    )
     assert list(questions) == case["questions"]
-    assert set(questions[case["questions"][0]]["criteria"]) == {"friendly", "hostile", "neutral"}
-    assert fight_sides(case["answers"], questions, party) == case["sides"]
+    for question in questions.values():
+        assert set(question["criteria"]) == {"friendly", "hostile", "neutral"}
+    assert answered_stances(stances, case["answers"], questions, case["party"]) == case["stances"]
 
 
-def test_a_fight_opens_with_its_sides(server: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
-    # Zephyrex RPG's r47 (chat 20845cf2): the drowned thing came out neutral, so no one could aim at it.
+@pytest.mark.parametrize("case", SIDES["open_cases"], ids=lambda case: case["name"])
+def test_the_vtts_open_choices_are_settled_among_its_options(case: dict[str, Any]) -> None:
+    questions = open_questions(case["choices"])
+    assert list(questions) == case["questions"]
+    for question, choice in zip(questions.values(), case["choices"], strict=True):
+        assert list(question["criteria"]) == choice["options"]
+    assert settled(case["choices"], case["answers"], case["hostile_now"]) == case["calls"]
+
+
+def test_a_fight_opens_with_each_ones_disposition(server: TestClient, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The operator, 2026-11-24: "Combat sides should be based on character disposition not blanket red team and
+    # blue team." The VTT reads the wiki's rows itself and offers what it can't settle as open_choices.
     user = create_user(server)  # type: ignore[no-untyped-call]
     headers = {"Authorization": f"Bearer {user.jwt}"}
     world = server.post("/v1/campaign", json={"campaign": {"name": "Weir"}}, headers=headers).json()["campaign"]["id"]
@@ -316,6 +333,7 @@ def test_a_fight_opens_with_its_sides(server: TestClient, monkeypatch: pytest.Mo
     said = {"chat_message": {"chat_id": chat["id"], "role": "user", "swipes": [shout]}}
     line = server.post("/v1/chat_message", json=said, headers=headers).json()["chat_message"]
     opened: list[dict[str, Any]] = []
+    set_to: list[tuple[str, str | None, list[str] | None]] = []
 
     async def current_encounter(_requester: str, _campaign: str) -> None:
         return None
@@ -325,23 +343,42 @@ def test_a_fight_opens_with_its_sides(server: TestClient, monkeypatch: pytest.Mo
         _campaign: str,
         scene_id: str | None = None,
         person_ids: list[str] | None = None,
-        sides: dict[str, str] | None = None,
+        dispositions: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
-        opened.append({"person_ids": person_ids, "sides": sides})
-        return {"id": "e1"}
+        opened.append({"person_ids": person_ids, "dispositions": dispositions})
+        return {
+            "id": "e1",
+            "status": "running",
+            "round": 1,
+            "combatants": [{"person_id": "drowned", "hostile_to": ["brenna"]}],
+            "open_choices": [
+                {
+                    "person_id": "hesk",
+                    "name": "Old Hesk",
+                    "toward": "brenna",
+                    "toward_name": "Brenna",
+                    "reason": "no disposition recorded",
+                    "options": ["friendly", "neutral", "hostile"],
+                }
+            ],
+        }
 
-    async def roll_initiative(_requester: str, _encounter: str) -> dict[str, Any]:
-        return {}
-
-    async def start_combat(_requester: str, _encounter: str) -> dict[str, Any]:
-        return {"status": "running", "round": 1, "current_combatant_id": "x"}
+    async def set_disposition(
+        _requester: str,
+        _encounter: str,
+        person: str,
+        disposition: str | None = None,
+        hostile_to: list[str] | None = None,
+    ) -> dict[str, Any]:
+        set_to.append((person, disposition, hostile_to))
+        return {"id": "e1", "status": "running", "round": 1, "open_choices": []}
 
     found = {
         "current_encounter": current_encounter,
         "start_encounter": start_encounter,
-        "roll_initiative": roll_initiative,
-        "start_combat": start_combat,
+        "set_disposition": set_disposition,
     }
+    found |= {"roll_initiative": start_encounter, "start_combat": start_encounter}
     monkeypatch.setattr(AbstractExtensionProvider, "loaded_ability", lambda _registry, _ext, name: found.get(name))
     rows = {
         "brenna": {"id": "brenna", "name": "Brenna", "kind": "pc"},
@@ -357,19 +394,31 @@ def test_a_fight_opens_with_its_sides(server: TestClient, monkeypatch: pytest.Mo
 
     monkeypatch.setattr(WikiReads, "scene_now", scene)
     monkeypatch.setattr(WikiReads, "scene_people", people)
-    monkeypatch.setattr(WikiReads, "world_entities_by_id", lambda _r, _u, ids: [rows[one] for one in ids])
-    asked_of: list[list[str]] = []
+    monkeypatch.setattr(
+        WikiReads, "world_entities_by_id", lambda _r, _u, ids: [rows[one] for one in ids if one in rows]
+    )
+    asked_of: list[tuple[str, list[str]]] = []
 
-    async def decide(_self: Any, _purpose: str, _asked: Any, _state: str, questions: dict[str, Any]) -> Any:
-        asked_of.append(list(questions))
+    async def decide(_self: Any, purpose: str, _asked: Any, _state: str, questions: dict[str, Any]) -> Any:
+        asked_of.append((purpose, list(questions)))
         if "fight" in questions:
             return {"fight": {"choice": "a fight starts"}}
-        return {"side_hesk": {"choice": "neutral"}, "side_drowned": {"choice": "hostile"}}
+        if "open_0" in questions:
+            return {"open_0": {"choice": "neutral"}}
+        return {"disposition_drowned": {"choice": "hostile"}}
 
     monkeypatch.setattr(BLL_AI_Chat.AIChatManager, "_decide", decide)
     asked = {"combat_check": {"chat_id": chat["id"], "leaf_id": line["id"]}}
     answer = server.post("/v1/ai_chat/combat_check", json=asked, headers=headers).json()["combat_check"]
-    assert answer["started"] is True
-    # The sides only once a fight starts, and never the party's.
-    assert asked_of == [["fight"], ["side_hesk", "side_drowned"]]
-    assert opened[0]["sides"] == {"brenna": "friendly", "hesk": "neutral", "drowned": "hostile"}
+    assert answer["started"] is True and answer["encounter_id"] == "e1"
+    # The line names the drowned thing, so it's asked; Hesk, unnamed and unrecorded, is the VTT's open choice.
+    assert asked_of == [
+        ("Combat: start", ["fight"]),
+        ("Combat: disposition", ["disposition_drowned"]),
+        ("Combat: disposition", ["open_0"]),
+    ]
+    assert opened[0]["dispositions"] == {
+        "brenna": {"disposition": "friendly", "hostile_to": []},
+        "drowned": {"disposition": "hostile", "hostile_to": ["brenna"]},
+    }
+    assert set_to == [("hesk", "neutral", [])]

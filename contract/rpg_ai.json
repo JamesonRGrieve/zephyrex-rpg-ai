@@ -973,12 +973,25 @@
   "target_question_line": "Whom does that line aim at? Choose only one of these.",
     "reach_unchecked": "(Distance isn't checked: every target listed is in reach.)",
     "start_question": "Does the story's latest line start a fight now (an attack, an ambush, a call to roll initiative)?",
-    "$sides": "Who is on which side when a fight starts (Zephyrex RPG's r47, chat 20845cf2: the drowned thing came out neutral and no one could aim at it). The party (the campaign's PCs and the seat's character) is friendly; each other person on the scene is asked, among these three only, in the same call as start_question. Unanswered, the VTT's own rule (token disposition, else kind) stands.",
-  "side_question": "In the fight this line starts, which side is {{name}} on?",
-  "sides": {
+    "$dispositions": "Each combatant's stance comes from their own disposition toward the others (the operator, 2026-11-24: \"Combat sides should be based on character disposition not blanket red team and blue team\"): the chat's dispositions (the story's latest) first, then the wiki's current attitude. The decision model is asked only for someone with no stance toward anyone in the fight, or someone the fight line names (the story may have turned them), choosing among the three stances; a bystander answers neutral.",
+  "disposition_question": "In the fight this line starts, how does {{name}} stand toward the others?{{known}}",
+  "disposition_known": " Before this line: {{stances}}.",
+  "open_question": "In this fight, how does {{name}} stand toward {{toward}}? ({{reason}}) Choose only one of these.",
+  "stances": {
     "friendly": "with the party",
     "hostile": "against the party",
     "neutral": "in neither side: a bystander"
+  },
+  "stance_of": {
+    "furious": "hostile",
+    "enraged": "hostile",
+    "hostile": "hostile",
+    "wary": "neutral",
+    "cautious-neutral": "neutral",
+    "neutral": "neutral",
+    "friendly": "friendly",
+    "helpful": "friendly",
+    "devoted": "friendly"
   },
   "start_yes": "a fight starts",
     "start_no": "no fight"
@@ -1087,5 +1100,14 @@
     "max_bytes": 4000,
     "max_keys": 30,
     "reserved": ["model", "messages", "prompt", "stream", "system", "systemInstruction", "contents"]
+  },
+  "learned_facts": {
+    "$comment": "What a scene reveals to the party (the operator's learned facts, in the player's drawer; the wiki's learn_fact). For each PC present and each world entity the round's lines name, the decision model says whether they now know of it, only among those named; a yes is a knows-of record (text none). LearnedFacts.py.",
+    "question": "After these lines, does {{pc}} now know of {{name}} (has {{pc}} heard of, seen or met them, there or by name)?",
+    "knows": "knows of",
+    "options": {
+      "knows of": "the lines told or showed them",
+      "not yet": "the lines didn't reach them"
+    }
   }
 }

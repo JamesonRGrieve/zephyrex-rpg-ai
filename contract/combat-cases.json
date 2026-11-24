@@ -1,9 +1,8 @@
 {
-  "$comment": "Who is on which side when a fight starts (CombatTurn.side_questions / fight_sides; contract combat_turn sides). Zephyrex RPG's r47, chat 20845cf2.",
+  "$comment": "Each combatant's stance from their own disposition (CombatTurn.combat_stances / answered_stances; contract combat_turn stance_of). The operator, 2026-11-24: \"Combat sides should be based on character disposition not blanket red team and blue team.\"",
   "cases": [
     {
-      "name": "the drowned thing attacks: it is hostile, the party friendly, the ferryman a bystander",
-      "line": "A bloated drowned thing heaves itself out of the millrace at me. I draw my sword and strike at it.",
+      "name": "a recorded foe is hostile without asking; the ferryman, with nothing recorded and unnamed, is left to the VTT's open choices",
       "people": [
         {
           "id": "brenna",
@@ -26,28 +25,118 @@
         "brenna",
         "tam"
       ],
-      "questions": [
-        "side_hesk",
-        "side_drowned"
-      ],
-      "answers": {
-        "side_hesk": {
-          "choice": "neutral"
-        },
-        "side_drowned": {
-          "choice": "hostile"
+      "named": [],
+      "chat_dispositions": {
+        "drowned": {
+          "brenna": "furious"
         }
       },
-      "sides": {
-        "brenna": "friendly",
-        "tam": "friendly",
-        "hesk": "neutral",
-        "drowned": "hostile"
+      "attitudes": {},
+      "questions": [],
+      "answers": {},
+      "stances": {
+        "brenna": {
+          "stance": "friendly",
+          "hostile_to": []
+        },
+        "tam": {
+          "stance": "friendly",
+          "hostile_to": []
+        },
+        "drowned": {
+          "stance": "hostile",
+          "hostile_to": [
+            "brenna"
+          ]
+        }
       }
     },
     {
-      "name": "an answer outside the three sides is none: the VTT's own rule stands",
-      "line": "Steel rings.",
+      "name": "the story turns someone: named in the fight line, a friendly guard is asked again and turns",
+      "people": [
+        {
+          "id": "brenna",
+          "name": "Brenna"
+        },
+        {
+          "id": "guard",
+          "name": "Guard"
+        }
+      ],
+      "party": [
+        "brenna"
+      ],
+      "named": [
+        "guard"
+      ],
+      "chat_dispositions": {},
+      "attitudes": {
+        "guard": {
+          "brenna": "helpful"
+        }
+      },
+      "questions": [
+        "disposition_guard"
+      ],
+      "answers": {
+        "disposition_guard": {
+          "choice": "hostile"
+        }
+      },
+      "stances": {
+        "brenna": {
+          "stance": "friendly",
+          "hostile_to": []
+        },
+        "guard": {
+          "stance": "hostile",
+          "hostile_to": [
+            "brenna"
+          ]
+        }
+      }
+    },
+    {
+      "name": "the chat's latest beats the wiki's: wary now, though the wiki says hostile",
+      "people": [
+        {
+          "id": "brenna",
+          "name": "Brenna"
+        },
+        {
+          "id": "mags",
+          "name": "Mags"
+        }
+      ],
+      "party": [
+        "brenna"
+      ],
+      "named": [],
+      "chat_dispositions": {
+        "mags": {
+          "brenna": "wary"
+        }
+      },
+      "attitudes": {
+        "mags": {
+          "brenna": "hostile"
+        }
+      },
+      "questions": [],
+      "answers": {},
+      "stances": {
+        "brenna": {
+          "stance": "friendly",
+          "hostile_to": []
+        },
+        "mags": {
+          "stance": "neutral",
+          "hostile_to": []
+        }
+      }
+    },
+    {
+      "name": "named but answered outside the three: nothing recorded, so the VTT's own rule stands",
       "people": [
         {
           "id": "brenna",
@@ -61,17 +150,134 @@
       "party": [
         "brenna"
       ],
+      "named": [
+        "hesk"
+      ],
+      "chat_dispositions": {},
+      "attitudes": {},
       "questions": [
-        "side_hesk"
+        "disposition_hesk"
       ],
       "answers": {
-        "side_hesk": {
+        "disposition_hesk": {
           "choice": "furious"
         }
       },
-      "sides": {
-        "brenna": "friendly"
+      "stances": {
+        "brenna": {
+          "stance": "friendly",
+          "hostile_to": []
+        }
       }
+    },
+    {
+      "name": "the wiki's attitude toward the party counts toward each PC (wiki 5bf4e75's party key)",
+      "people": [
+        {
+          "id": "brenna",
+          "name": "Brenna"
+        },
+        {
+          "id": "tam",
+          "name": "Tam"
+        },
+        {
+          "id": "bandit",
+          "name": "Bandit"
+        }
+      ],
+      "party": [
+        "brenna",
+        "tam"
+      ],
+      "named": [],
+      "chat_dispositions": {},
+      "attitudes": {
+        "bandit": {
+          "party": "hostile"
+        }
+      },
+      "questions": [],
+      "answers": {},
+      "stances": {
+        "brenna": {
+          "stance": "friendly",
+          "hostile_to": []
+        },
+        "tam": {
+          "stance": "friendly",
+          "hostile_to": []
+        },
+        "bandit": {
+          "stance": "hostile",
+          "hostile_to": [
+            "brenna",
+            "tam"
+          ]
+        }
+      }
+    }
+  ],
+  "open_cases": [
+    {
+      "name": "the VTT can't settle Hesk toward Brenna: asked among its options, he stays out of it",
+      "choices": [
+        {
+          "person_id": "hesk",
+          "name": "Old Hesk",
+          "toward": "brenna",
+          "toward_name": "Brenna",
+          "reason": "no disposition recorded",
+          "options": [
+            "friendly",
+            "neutral",
+            "hostile"
+          ]
+        },
+        {
+          "person_id": "drowned",
+          "name": "Drowned Thing",
+          "toward": "tam",
+          "toward_name": "Tam",
+          "reason": "no disposition recorded",
+          "options": [
+            "neutral",
+            "hostile"
+          ]
+        }
+      ],
+      "hostile_now": {
+        "drowned": [
+          "brenna"
+        ]
+      },
+      "questions": [
+        "open_0",
+        "open_1"
+      ],
+      "answers": {
+        "open_0": {
+          "choice": "neutral"
+        },
+        "open_1": {
+          "choice": "hostile"
+        }
+      },
+      "calls": [
+        {
+          "person_id": "hesk",
+          "disposition": "neutral",
+          "hostile_to": []
+        },
+        {
+          "person_id": "drowned",
+          "disposition": "hostile",
+          "hostile_to": [
+            "brenna",
+            "tam"
+          ]
+        }
+      ]
     }
   ]
 }

@@ -78,32 +78,116 @@ def combat_pick(
     return {"action_id": action_id, "target_ids": [target]}
 
 
-def side_questions(
-    people: Sequence[Mapping[str, Any]], party: Sequence[str]
-) -> tuple[dict[str, dict[str, Any]], dict[str, str]]:
-    """Who isn't of the party, one question each (contract side_question, among the three sides only); and
-    the party, friendly without asking. Returns (questions keyed side_<id>, the party's sides)."""
-    party_ids = {str(one) for one in party}
+def combat_stances(
+    people: Sequence[Mapping[str, Any]],
+    party: Sequence[str],
+    chat_dispositions: Mapping[str, Mapping[str, str]],
+    attitudes: Mapping[str, Mapping[str, str]],
+    named: Sequence[str],
+) -> tuple[dict[str, dict[str, Any]], dict[str, dict[str, Any]]]:
+    """Each combatant's stance from their own disposition toward the others (the operator, 2026-11-24:
+    "Combat sides should be based on character disposition not blanket red team and blue team"): the
+    chat's dispositions (the story's latest) over the wiki's current attitude, each read as a stance
+    (contract stance_of). Returns (stances {id: {stance, hostile_to}}, the questions for those the fight line
+    names, keyed disposition_<id>: the story may have turned them). Anyone with no stance is left to the VTT,
+    which reads the wiki's rows and offers what it can't settle as open_choices. The party is friendly."""
+    here = {str(one["id"]): str(one.get("name") or "") for one in people}
+    party_ids = [one for one in (str(p) for p in party) if one in here]
+    named_ids = {str(one) for one in named}
+    stance_of: Mapping[str, str] = COMBAT["stance_of"]
+    stances: dict[str, dict[str, Any]] = {}
     questions: dict[str, dict[str, Any]] = {}
-    for one in people:
-        if str(one["id"]) in party_ids:
+    for who, name in here.items():
+        toward: dict[str, str] = {}
+        for source in (attitudes, chat_dispositions):
+            regard = dict(source.get(who) or {})
+            # The wiki's attitude toward the party as a whole ("party", 5bf4e75): toward each PC here, below any
+            # pair of its own.
+            party_word = str(regard.pop("party", "") or "")
+            if party_word in stance_of:
+                for pc in party_ids:
+                    if pc != who:
+                        toward.setdefault(pc, stance_of[party_word])
+            for other, word in regard.items():
+                if str(other) in here and str(other) != who and word in stance_of:
+                    toward[str(other)] = stance_of[word]
+        hostile_to = [other for other, stance in toward.items() if stance == "hostile"]
+        if who in party_ids:
+            stances[who] = {"stance": "friendly", "hostile_to": [one for one in hostile_to if one not in party_ids]}
             continue
-        questions[f"side_{one['id']}"] = {
-            "type": "choice",
-            "instructions": str(COMBAT["side_question"]).replace("{{name}}", str(one["name"])),
-            "criteria": dict(COMBAT["sides"]),
-        }
-    return questions, {one: "friendly" for one in party_ids if any(str(p["id"]) == one for p in people)}
+        if toward:
+            to_party = [toward[one] for one in party_ids if one in toward]
+            stance = "hostile" if "hostile" in to_party else "friendly" if "friendly" in to_party else "neutral"
+            stances[who] = {"stance": stance, "hostile_to": hostile_to}
+        if who in named_ids:
+            known = ", ".join(f"{toward[other]} toward {here[other]}" for other in toward)
+            questions[f"disposition_{who}"] = {
+                "type": "choice",
+                "instructions": str(COMBAT["disposition_question"])
+                .replace("{{name}}", name)
+                .replace("{{known}}", str(COMBAT["disposition_known"]).replace("{{stances}}", known) if known else ""),
+                "criteria": dict(COMBAT["stances"]),
+            }
+    return stances, questions
 
 
-def fight_sides(
-    answers: Mapping[str, Any] | None, questions: Mapping[str, Any], party: Mapping[str, str]
-) -> dict[str, str]:
-    """The sides to start the fight with: the party's, and each answered one (an answer outside the three is
-    none, so the VTT's own rule stands for them)."""
-    sides = dict(party)
+def answered_stances(
+    stances: Mapping[str, Mapping[str, Any]],
+    answers: Mapping[str, Any] | None,
+    questions: Mapping[str, Any],
+    party: Sequence[str],
+) -> dict[str, dict[str, Any]]:
+    """The stances with the decision model's answers in (one among the three stances only; any other answer
+    leaves what was recorded, or nothing, so the VTT's own rule stands for them). Someone it turns hostile
+    with no one recorded is hostile to the party."""
+    found = {who: dict(stance) for who, stance in stances.items()}
     for key in questions:
         choice = ((answers or {}).get(key) or {}).get("choice")
-        if choice in COMBAT["sides"]:
-            sides[key.removeprefix("side_")] = str(choice)
-    return sides
+        if choice not in COMBAT["stances"]:
+            continue
+        who = key.removeprefix("disposition_")
+        hostile_to = list((found.get(who) or {}).get("hostile_to") or [])
+        if choice == "hostile" and not hostile_to:
+            hostile_to = [str(one) for one in party if str(one) != who]
+        found[who] = {"stance": str(choice), "hostile_to": hostile_to if choice == "hostile" else []}
+    return found
+
+
+def open_questions(choices: Sequence[Mapping[str, Any]]) -> dict[str, dict[str, Any]]:
+    """The VTT's open choices (a stance it couldn't settle: {person_id, name, toward, toward_name, reason,
+    options}), one question each, among the VTT's own options only. Keyed open_<n>."""
+    questions: dict[str, dict[str, Any]] = {}
+    for index, choice in enumerate(choices):
+        options = [str(one) for one in choice.get("options") or [] if str(one) in COMBAT["stances"]]
+        if not options or not choice.get("person_id"):
+            continue
+        questions[f"open_{index}"] = {
+            "type": "choice",
+            "instructions": str(COMBAT["open_question"])
+            .replace("{{name}}", str(choice.get("name") or "they"))
+            .replace("{{toward}}", str(choice.get("toward_name") or "the others"))
+            .replace("{{reason}}", str(choice.get("reason") or "")),
+            "criteria": {one: str(COMBAT["stances"][one]) for one in options},
+        }
+    return questions
+
+
+def settled(
+    choices: Sequence[Mapping[str, Any]],
+    answers: Mapping[str, Any] | None,
+    hostile_now: Mapping[str, Sequence[str]],
+) -> list[dict[str, Any]]:
+    """The set_disposition calls the answers make: {person_id, disposition, hostile_to}, hostile_to their
+    present enemies with the one this choice is toward added (hostile) or taken out (otherwise)."""
+    calls: list[dict[str, Any]] = []
+    for index, choice in enumerate(choices):
+        picked = ((answers or {}).get(f"open_{index}") or {}).get("choice")
+        if picked not in [str(one) for one in choice.get("options") or []] or picked not in COMBAT["stances"]:
+            continue
+        who = str(choice["person_id"])
+        toward = str(choice.get("toward") or "")
+        enemies = [str(one) for one in hostile_now.get(who) or [] if str(one) != toward]
+        if picked == "hostile" and toward:
+            enemies.append(toward)
+        calls.append({"person_id": who, "disposition": str(picked), "hostile_to": enemies})
+    return calls

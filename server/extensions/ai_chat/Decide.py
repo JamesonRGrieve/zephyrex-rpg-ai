@@ -137,7 +137,7 @@ DECIDE_IN_FLIGHT = 4
 #: 14-54 s, so labels now take one slot at a time.
 DECIDE_BACKGROUND_IN_FLIGHT = 1
 #: The purposes that are background work.
-DECIDE_BACKGROUND = frozenset({"label_lines"})
+DECIDE_BACKGROUND = frozenset({"label_lines", "learned_facts"})
 
 #: Per event loop: the in-flight slots, and identical requests already in flight (asked once, shared).
 _SLOTS: dict[int, Any] = {}
