@@ -21,6 +21,19 @@ def test_the_seat_first_then_the_cast_none_already_there() -> None:
     assert party_to_place(["brenna"], "brenna", ["brenna"]) == []
 
 
+def test_presence_follows_where_the_wiki_says_a_person_is() -> None:
+    # The operator's test-play, 2026-11-24: Orrin, the missing merchant, was given a token with the party.
+    rows = {
+        "brenna": {"id": "brenna", "kind": "pc", "location_id": None},
+        "delphine": {"id": "delphine", "kind": "npc", "location_id": "saltmere"},
+        "orrin": {"id": "orrin", "kind": "npc", "location_id": None},
+        "quentin": {"id": "quentin", "kind": "npc", "location_id": "the-deep"},
+    }
+    cast = ["brenna", "delphine", "orrin", "quentin"]
+    assert party_to_place(cast, "brenna", [], rows, "saltmere") == ["brenna", "delphine"]
+    assert party_to_place(cast, "brenna", [], rows, None) == ["brenna"]
+
+
 @pytest.fixture(scope="module")
 def server() -> Iterator[TestClient]:
     yield TestClient(create())
@@ -53,6 +66,9 @@ def test_a_fresh_campaign_gets_its_party_on_the_scene(server: TestClient, monkey
     monkeypatch.setattr(WikiReads, "scene_now", scene)
     monkeypatch.setattr(WikiReads, "scene_people", nobody)
     monkeypatch.setattr(WikiReads, "place_in_scene", place)
+    monkeypatch.setattr(
+        WikiReads, "world_entities_by_id", lambda _r, _u, ids: [{"id": one, "kind": "pc"} for one in ids]
+    )
     answer = server.post("/v1/ai_chat/place_party", json={"place_party": {"chat_id": chat["id"]}}, headers=headers)
     assert answer.status_code == 200, answer.text
     assert answer.json()["place_party"] == {"placed": people, "scene_id": "s1"}

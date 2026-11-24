@@ -95,6 +95,33 @@ def read_answers(questions: Mapping[str, Mapping[str, Any]], content: str) -> di
     return {key: _read_one(question, answers.get(key)) for key, question in questions.items()}
 
 
+def answer_scores(questions: Mapping[str, Mapping[str, Any]], content: str) -> dict[str, dict[str, float]]:
+    """Each choice question's score per option offered (the decider's probabilities), for the record (the
+    operator, 2026-11-24: "I don't see the available options and their individual scores"). Only the options
+    offered, and only real probabilities."""
+    try:
+        parsed = json.loads(content)
+    except (TypeError, ValueError):
+        return {}
+    answers = parsed.get("answers") if isinstance(parsed, Mapping) else None
+    if not isinstance(answers, Mapping):
+        return {}
+    scores: dict[str, dict[str, float]] = {}
+    for key, question in questions.items():
+        raw = answers.get(key)
+        if question.get("type") != "choice" or not isinstance(raw, Mapping):
+            continue
+        offered = _choice_options(question["criteria"])
+        given = raw.get("probabilities")
+        if isinstance(given, Mapping):
+            found = {
+                str(name): float(value) for name, value in given.items() if name in offered and _is_probability(value)
+            }
+            if found:
+                scores[key] = found
+    return scores
+
+
 def tokens_of(characters: int) -> int:
     """The estimate the budget is counted in: about four characters to a token."""
     return math.ceil(characters / 4)
@@ -231,7 +258,9 @@ async def _ask_tries(
         if on_attempt is not None:
             await on_attempt({"phase": "start", "attempt": attempt_number})
         began = time.monotonic()
-        answers, error = await _ask_once(base_url, model, api_key, state, questions, extra, background, patience)
+        result = await _ask_once(base_url, model, api_key, state, questions, extra, background, patience)
+        answers, error = result[0], result[1]
+        scores = result[2] if len(result) > 2 else {}
         if answers is not None and error is None and not any(value is not None for value in answers.values()):
             error = {"kind": "empty", "detail": "no answer within the options"}
         if on_attempt is not None:
@@ -241,6 +270,7 @@ async def _ask_tries(
                     "attempt": attempt_number,
                     "answers": answers,
                     "error": error,
+                    "scores": scores,
                     "ms": int((time.monotonic() - began) * 1000),
                 }
             )
@@ -269,7 +299,7 @@ async def _ask_once(
     extra: Mapping[str, Any] | None,
     background: bool = False,
     patience: float = 1.0,
-) -> tuple[dict[str, dict[str, Any] | None] | None, dict[str, str] | None]:
+) -> tuple[Any, ...]:
     """One ask of the decision model, waiting for one of the in-flight slots (background work first for one
     of its share): its answers, or None and why."""
     import asyncio
@@ -318,4 +348,4 @@ async def _ask_once(
         return None, {"kind": "parse", "detail": "the reply isn't JSON"}
     if content is None:
         return None, {"kind": "parse", "detail": "the reply isn't a completion"}
-    return read_answers(questions, content), None
+    return read_answers(questions, content), None, answer_scores(questions, content)

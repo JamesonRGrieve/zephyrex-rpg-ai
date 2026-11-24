@@ -16,6 +16,7 @@ meet in the same process.
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -36,8 +37,18 @@ class Turn:
         self.finished_at: float | None = None
         self.task: asyncio.Task[Any] | None = None
         self._changed = asyncio.Event()
+        #: Where the turn is (the operator, 2026-11-24: the page asks whether processing is in progress, so Stop
+        #: never disappears mid generation or while waiting for formatting): generating, formatting, saving.
+        self.stage = "generating"
+        self.started_at = time.time()
 
     def add(self, piece: str) -> None:
+        if piece.startswith("event: stage\n"):
+            # A stage frame says where the turn has got to; it's kept, as every frame is.
+            try:
+                self.stage = str(json.loads(piece.split("data: ", 1)[1].strip()).get("stage") or self.stage)
+            except (IndexError, ValueError, AttributeError):
+                pass
         self.frames.append(piece)
         self._wake()
 

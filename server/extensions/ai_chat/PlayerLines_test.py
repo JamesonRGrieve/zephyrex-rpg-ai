@@ -54,3 +54,13 @@ def test_a_location_banner(case: dict[str, Any]) -> None:
 )
 def test_a_stale_location_line_goes_at_save(case: dict[str, Any]) -> None:
     assert drop_stale_location(case["text"], case["current"]) == case["kept"]
+
+
+def test_a_reply_keeps_no_location_banner() -> None:
+    # The operator, 2026-11-24: "It also threw a random location banner in?" The banner is the server's, on a
+    # scene change only.
+    from zephyrex.extensions.ai_chat.PlayerLines import without_banners  # type: ignore[import-not-found]
+
+    assert without_banners("[location: Saltmere Quay]\nRain on the quay.") == "Rain on the quay."
+    assert without_banners("Rain.\n[Location: Saltmere | the docks]\nMore rain.") == "Rain.\nMore rain."
+    assert without_banners("She says [location] twice.") == "She says [location] twice."

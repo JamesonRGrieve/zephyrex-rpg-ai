@@ -29,13 +29,15 @@ def reformat_schema(names: Sequence[str]) -> dict[str, Any]:
     return schema
 
 
-def reformat_request(model: str, prose: str, names: Sequence[str]) -> dict[str, Any]:
-    """The reformat model's request: the instruction naming who may speak, the prose, the schema."""
+def reformat_request(model: str, prose: str, names: Sequence[str], note: str = "") -> dict[str, Any]:
+    """The reformat model's request: the instruction naming who may speak, the prose, the schema; on a retry,
+    the requirements its last answer broke (``note``)."""
     listed = ", ".join(dict.fromkeys(names)) or "(no one: every item is narration)"
+    instruction = str(REFORMAT["instruction"]).replace("{{names}}", listed)
     return {
         "model": model,
         "messages": [
-            {"role": "system", "content": str(REFORMAT["instruction"]).replace("{{names}}", listed)},
+            {"role": "system", "content": f"{instruction} {note}".strip()},
             {"role": "user", "content": prose.strip()},
         ],
         "stream": False,
@@ -96,3 +98,46 @@ def faithful(prose: str, items: Sequence[Mapping[str, Any]]) -> bool:
     return kept / len(had) >= float(REFORMAT["min_kept"]) and (len(got) - kept) / len(had) <= float(
         REFORMAT["max_added"]
     )
+
+
+def rendered_runs(runs: Sequence[Mapping[str, Any]]) -> str:
+    """The reformatted runs as the decision model reads them: one line each, who, what kind, how and to whom."""
+    shown: list[str] = []
+    for run in runs:
+        who = str(run.get("speaker_name") or ("the narrator" if run.get("speaker_id") is None else "someone"))
+        for line in run.get("lines") or []:
+            kind = str(line.get("kind") or "narrate")
+            how = ", ".join(
+                one
+                for one in [
+                    str(line.get("manner") or "") if kind == "say" else "",
+                    f"to {line.get('target_name') or line.get('target_id')}"
+                    if line.get("target_name") or line.get("target_id")
+                    else "",
+                ]
+                if one
+            )
+            text = f'"{line.get("text")}"' if kind == "say" else str(line.get("text") or "")
+            shown.append(f"[{kind}] {who}{f' ({how})' if how else ''}: {text}")
+    return "\n".join(shown)
+
+
+def check_questions() -> dict[str, dict[str, Any]]:
+    """The format requirements, one question each (contract reformat checks), met or not."""
+    return {
+        f"format_{key}": {
+            "type": "choice",
+            "instructions": str(REFORMAT["check_instructions"]).replace("{{requirement}}", str(requirement)),
+            "criteria": dict(REFORMAT["check_options"]),
+        }
+        for key, requirement in REFORMAT["checks"].items()
+    }
+
+
+def failed_checks(answers: Mapping[str, Any] | None) -> list[str]:
+    """The requirements the decision model says the lines break, in the contract's words."""
+    return [
+        str(requirement)
+        for key, requirement in REFORMAT["checks"].items()
+        if ((answers or {}).get(f"format_{key}") or {}).get("choice") == "fails"
+    ]

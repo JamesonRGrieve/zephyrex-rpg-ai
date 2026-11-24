@@ -26,6 +26,7 @@ import re
 import time
 from collections.abc import AsyncIterator, Mapping, Sequence
 from datetime import UTC, datetime
+from types import SimpleNamespace
 from typing import Any, ClassVar
 
 import httpx
@@ -137,7 +138,11 @@ from zephyrex.extensions.ai_chat.Play import (  # type: ignore[import-not-found]
     session_start_index,
     sessions_summary,
 )
-from zephyrex.extensions.ai_chat.PlayerLines import parse_player_lines, strip_markup  # type: ignore[import-not-found]
+from zephyrex.extensions.ai_chat.PlayerLines import (  # type: ignore[import-not-found]
+    parse_player_lines,
+    strip_markup,
+    without_banners,
+)
 from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-found]
     DEFAULT_USER_NAME,
     assemble_prompt,
@@ -156,9 +161,12 @@ from zephyrex.extensions.ai_chat.Prompt import (  # type: ignore[import-not-foun
 )
 from zephyrex.extensions.ai_chat.Reformat import (  # type: ignore[import-not-found]
     REFORMAT,
+    check_questions,
+    failed_checks,
     faithful,
     reformat_items,
     reformat_request,
+    rendered_runs,
 )
 from zephyrex.extensions.ai_chat.Regex import compile_find  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.Remembering import forget_chat, memories_for  # type: ignore[import-not-found]
@@ -2183,6 +2191,19 @@ class PresentEnvelope(PlainModel):
     present: Present
 
 
+class Processing(PlainModel):
+    processing: bool
+    #: generating, formatting or saving (a turn), or deciding (a decision still running); "" when idle.
+    stage: str = ""
+    started_at: str | None = None
+    #: What a running decision is deciding, when that's what is in progress.
+    purpose: str | None = None
+
+
+class ProcessingEnvelope(PlainModel):
+    processing: Processing
+
+
 class TurnStopRequest(PlainModel):
     chat_id: str = Field(..., min_length=1)
 
@@ -2881,6 +2902,32 @@ def scene_joiners(
         and str(entity["id"]) in here
         and str(entity["id"]) not in known
     ]
+
+
+def credited_runs(text: str, people: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """A reply's lines as runs when it credits someone present (parse_player_lines): each run one speaker's
+    consecutive lines, narration the narrator's; none when it credits no one (then it's saved as it is)."""
+    _thinking, reply = split_reasoning(text)
+    items = parse_player_lines(without_banners(reply), people)
+    if not any(item.get("speaker_id") for item in items):
+        return []
+    names = {str(one["id"]): str(one["name"]) for one in people}
+    runs: list[dict[str, Any]] = []
+    for item in items:
+        speaker = str(item["speaker_id"]) if item.get("speaker_id") else None
+        line = {
+            "speaker_id": speaker,
+            "kind": "narrate" if speaker is None else item["kind"],
+            "manner": item.get("manner") if item["kind"] == "say" else None,
+            "target_id": item.get("target_id"),
+            "target_name": item.get("target_name"),
+            "text": item["text"],
+        }
+        if runs and runs[-1]["speaker_id"] == speaker:
+            runs[-1]["lines"].append(line)
+        else:
+            runs.append({"speaker_id": speaker, "speaker_name": names.get(speaker or ""), "lines": [line]})
+    return runs
 
 
 def shown_text(message: Any) -> str:
@@ -3724,6 +3771,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                                     "key": key,
                                     "type": question.get("type"),
                                     "instructions": question.get("instructions"),
+                                    # The options offered, each with what it means (the operator, 2026-11-24).
+                                    "options": question.get("criteria"),
                                 }
                                 for key, question in asked_here.items()
                             ],
@@ -3741,9 +3790,18 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                         return
                     found = event.get("answers")
                     error = event.get("error")
+                    scores = dict(event.get("scores") or {})
+                    recorded = {
+                        key: (
+                            {**dict((found or {}).get(key) or {}), "scores": scores[key]}
+                            if key in scores
+                            else (found or {}).get(key)
+                        )
+                        for key in group
+                    }
                     calls.update_trusted(
                         record,
-                        answers=dict(found) if found is not None else {key: None for key in group},
+                        answers=recorded,
                         ms=int(event.get("ms") or 0),
                         # Why it gave nothing, never silent nulls (Zephyrex RPG's live fault, 2026-11-23).
                         error=error,
@@ -4552,7 +4610,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 return found
         return None
 
-    async def _reformat(self, context: dict[str, Any], prose: str, seat_name: str) -> dict[str, Any]:
+    async def _reformat(
+        self, context: dict[str, Any], prose: str, seat_name: str, leaf_id: str | None = None
+    ) -> dict[str, Any]:
         """The narrator's prose as runs, attributed among the people present only ({runs, cut, reformatted});
         reformatted false (with why) when there's no model, no usable answer, or it rewrote the prose."""
         chat = context["chat"]
@@ -4574,32 +4634,50 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             return {"reformatted": False, "reason": "no reformat model", "runs": [], "cut": False}
         key = decrypt_secret(endpoint.api_key) if endpoint.api_key else ""
         traits = traits_of({"model": endpoint.model, "traits": dict(getattr(endpoint, "traits", None) or {})})
-        body = {
-            **reformat_request(endpoint.model, prose, names),
-            **(thinking_fields("off", traits.get("reasoning_effort")) if traits.get("reasoning_effort") else {}),
-        }
-        started = time.monotonic()
-        try:
-            async with httpx.AsyncClient(timeout=float(REFORMAT["timeout_seconds"])) as client:
-                answer = await client.post(
-                    f"{endpoint.base_url.rstrip('/')}/chat/completions",
-                    headers={"Content-Type": "application/json", **({"Authorization": f"Bearer {key}"} if key else {})},
-                    json=with_extra_body(body, getattr(endpoint, "extra_body", None)),
-                )
-            content = answer.json()["choices"][0]["message"]["content"] if answer.status_code < 400 else None
-        except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
-            content = None
-        items = reformat_items(story_text(content), names) if isinstance(content, str) else None
-        logger.info(
-            f"reformat {endpoint.model}: {len(items or [])} items in {time.monotonic() - started:.1f}s "
-            f"among {len(names)} present"
-        )
-        if items is None:
-            return {"reformatted": False, "reason": "no usable answer", "runs": [], "cut": False}
-        if not faithful(prose, items):
-            return {"reformatted": False, "reason": "it rewrote the prose", "runs": [], "cut": False}
-        result = structured_runs(items, people, seat_name)
-        return {"reformatted": True, "reason": "", **result}
+        # The banner's place is the server's (on a scene change only): none is kept from the reply.
+        prose = without_banners(prose)
+        note = ""
+        failed: list[str] = []
+        result: dict[str, Any] = {}
+        # The formatter's result checked by the decision model, and sent once more if it breaks a requirement
+        # (the operator, 2026-11-24: "pass the result of the formatter to the decision model and ask if it meets
+        # the format requirements").
+        for attempt in (1, 2):
+            body = {
+                **reformat_request(endpoint.model, prose, names, note),
+                **(thinking_fields("off", traits.get("reasoning_effort")) if traits.get("reasoning_effort") else {}),
+            }
+            started = time.monotonic()
+            try:
+                async with httpx.AsyncClient(timeout=float(REFORMAT["timeout_seconds"])) as client:
+                    answer = await client.post(
+                        f"{endpoint.base_url.rstrip('/')}/chat/completions",
+                        headers={
+                            "Content-Type": "application/json",
+                            **({"Authorization": f"Bearer {key}"} if key else {}),
+                        },
+                        json=with_extra_body(body, getattr(endpoint, "extra_body", None)),
+                    )
+                content = answer.json()["choices"][0]["message"]["content"] if answer.status_code < 400 else None
+            except (httpx.HTTPError, ValueError, KeyError, IndexError, TypeError):
+                content = None
+            items = reformat_items(story_text(content), names) if isinstance(content, str) else None
+            logger.info(
+                f"reformat {endpoint.model} (try {attempt}): {len(items or [])} items in "
+                f"{time.monotonic() - started:.1f}s among {len(names)} present"
+            )
+            if items is None:
+                return {"reformatted": False, "reason": "no usable answer", "runs": [], "cut": False}
+            if not faithful(prose, items):
+                return {"reformatted": False, "reason": "it rewrote the prose", "runs": [], "cut": False}
+            result = structured_runs(items, people, seat_name)
+            asked = SimpleNamespace(chat_id=str(chat.id), leaf_id=leaf_id)
+            judged = await self._decide("format_check", asked, rendered_runs(result["runs"]), check_questions())
+            failed = failed_checks(judged)
+            if not failed:
+                break
+            note = str(REFORMAT["retry_note"]).replace("{{failed}}", " ".join(failed))
+        return {"reformatted": True, "reason": "", "format_failed": failed, **result}
 
     async def _scene_moves(
         self,
@@ -5306,6 +5384,8 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         it would have the seat act (seat_cut), then `saved {messages}` as a structured turn's."""
         narrating = asked.mode == "narrate" or context.get("speaker_id") is None
         thinking, reply = split_reasoning(text)
+        # The banner's place is the server's, on a scene change only (the operator, 2026-11-24).
+        reply = without_banners(reply)
         kept = seat_cut(reply, seat_name).strip() if narrating and seat_name else reply.strip()
         if not kept:
             return frame("saved", {"messages": []})
@@ -5336,6 +5416,19 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
     ) -> AsyncIterator[str]:
         """Runs saved as messages under the turn's leaf, one per run (someone unnamed made a person of the
         campaign first), then `saved {messages}`; the turn's thinking kept on the first."""
+        # A banner is never part of the story's lines (the operator, 2026-11-24: "it should trigger as a result
+        # of the GM transitioning scenes in the vtt only").
+        runs = [
+            {**run, "lines": lines}
+            for run in runs
+            if (
+                lines := [
+                    {**line, "text": without_banners(str(line.get("text") or ""))}
+                    for line in run.get("lines") or []
+                    if without_banners(str(line.get("text") or "")).strip()
+                ]
+            )
+        ]
         if not runs:
             return
         chat = context["chat"]
@@ -5554,6 +5647,42 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         if turn is None:
             raise HTTPException(status_code=404, detail={"message": "No turn on this chat", "code": "no_turn"})
         return event_stream(turn.follow(start, HEARTBEAT, HEARTBEAT_SECONDS))
+
+    @custom_route(
+        method="GET",
+        path="/processing",
+        output_model=ProcessingEnvelope,
+        authentication_type="jwt",
+        expose_in=(ExposeIn.REST,),
+        openapi_tags=("AI Chat",),
+        summary="Whether a chat's conversation processing is in progress (a turn, its formatting, a decision)",
+    )
+    async def processing_route(self, chat_id: str) -> ProcessingEnvelope:
+        """The operator, 2026-11-24: "There should be an endpoint for 'conversation processing in progress' that
+        the page calls to determine whether to show the stop button ... It can't disappear mid generation or
+        while waiting for formatting." True from a turn's post until its reply is formatted and saved, and
+        while any of the chat's decisions is still running."""
+        from zephyrex.extensions.ai_chat.BLL_AI_Review import DecisionCallManager
+        from zephyrex.extensions.ai_chat.Turns import turn_of
+
+        self._manager(ChatManager).get(id=chat_id)
+        turn = turn_of(str(self.requester.id), chat_id)
+        if turn is not None and not turn.done:
+            started = datetime.fromtimestamp(turn.started_at, tz=UTC).isoformat()
+            return ProcessingEnvelope(processing=Processing(processing=True, stage=turn.stage, started_at=started))
+        running = [
+            call
+            for call in self._manager(DecisionCallManager).list(chat_id=chat_id)
+            if getattr(call, "status", "done") == "running"
+        ]
+        if running:
+            first = min(running, key=lambda call: str(call.created_at))
+            return ProcessingEnvelope(
+                processing=Processing(
+                    processing=True, stage="deciding", started_at=str(first.created_at), purpose=str(first.purpose)
+                )
+            )
+        return ProcessingEnvelope(processing=Processing(processing=False))
 
     @custom_route(
         method="POST",
@@ -5884,7 +6013,10 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                 ):
                     # Structure without trusting the narrator (the operator, 2026-11-23; Reformat.py): the
                     # finished prose re-sorted by a small model among the people present.
-                    reformatting = asyncio.ensure_future(self._reformat(_context, str(flags["told"]), seat_name))
+                    yield frame("stage", {"stage": "formatting"})
+                    reformatting = asyncio.ensure_future(
+                        self._reformat(_context, str(flags["told"]), seat_name, body.generate.leaf_id)
+                    )
                     async for got in heartbeat_wait(reformatting, HEARTBEAT_SECONDS):
                         if got is None:
                             yield HEARTBEAT
@@ -5904,15 +6036,26 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
                     # An asynchronous turn is saved by the server (the operator, 2026-11-23: "on reconnecting the
                     # result is there"): the reformatted runs, else the reply as one line, in the shape a
                     # structured turn's `saved` has.
+                    yield frame("stage", {"stage": "saving"})
                     if reformatted is not None and reformatted.get("reformatted") and reformatted.get("runs"):
                         async for piece in self._save_runs(
                             body.generate, _context, list(reformatted["runs"]), people, None, str(flags["thought"])
                         ):
                             yield piece
                     else:
-                        yield self._save_plain(
-                            body.generate, _context, str(flags["thought"]) + str(flags["told"]), seat_name
-                        )
+                        # No runs from the formatter: a line the reply itself credits ("Delphine Halloway (to
+                        # you): ...") is still that person's own line, never narration (the operator's test-play,
+                        # 2026-11-24, chat 64e11be8).
+                        voiced = credited_runs(str(flags["told"]), people) if body.generate.mode == "narrate" else []
+                        if voiced:
+                            async for piece in self._save_runs(
+                                body.generate, _context, voiced, people, None, str(flags["thought"])
+                            ):
+                                yield piece
+                        else:
+                            yield self._save_plain(
+                                body.generate, _context, str(flags["thought"]) + str(flags["told"]), seat_name
+                            )
                 yield frame("done", {"dropped": assembled.dropped, **({"stalled": True} if flags["stalled"] else {})})
             except httpx.HTTPError:
                 yield frame("error", {"detail": "The model stopped mid-reply"})

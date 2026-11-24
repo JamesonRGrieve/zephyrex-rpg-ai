@@ -211,3 +211,23 @@ def test_background_work_keeps_to_its_share_of_the_slots(monkeypatch: Any) -> No
         return held
 
     assert asyncio.run(run()) == Decide.DECIDE_BACKGROUND_IN_FLIGHT
+
+
+def test_every_option_offered_is_scored_for_the_record() -> None:
+    # The operator, 2026-11-24: "I don't see the available options and their individual scores".
+    from zephyrex.extensions.ai_chat.Decide import answer_scores
+
+    questions = {
+        "next": {"type": "choice", "instructions": "Who?", "criteria": ["Ada", "Bram"]},
+        "how": {"type": "noul", "instructions": "How sure?"},
+    }
+    content = json.dumps(
+        {
+            "answers": {
+                "next": {"type": "choice", "choice": "Ada", "probabilities": {"Ada": 0.7, "Bram": 0.3, "Cy": 0.1}},
+                "how": {"type": "noul", "noul": 0.4},
+            }
+        }
+    )
+    assert answer_scores(questions, content) == {"next": {"Ada": 0.7, "Bram": 0.3}}
+    assert answer_scores(questions, "not json") == {}

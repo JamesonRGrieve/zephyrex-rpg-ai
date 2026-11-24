@@ -236,3 +236,10 @@ def drop_stale_location(text: str, current: Mapping[str, Any] | None) -> str:
         if banner is None or banner_place(banner.group(1)).lower() in names:
             kept.append(line)
     return re.sub(r"^\n+", "", "\n".join(kept))
+
+
+def without_banners(text: str) -> str:
+    """A reply with any ``[location: …]`` line taken out (the operator, 2026-11-24: "The banner shouldn't be part
+    of the narrative stream it should trigger as a result of the GM transitioning scenes in the vtt only")."""
+    kept = [line for line in text.split("\n") if not re.fullmatch(r"\s*\[location:\s*.+?\s*\]\s*", line, re.IGNORECASE)]
+    return "\n".join(kept).strip("\n")

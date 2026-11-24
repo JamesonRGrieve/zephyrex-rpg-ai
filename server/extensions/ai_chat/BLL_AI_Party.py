@@ -2,14 +2,16 @@
 """The party put on the map when play starts (Zephyrex RPG's live blocker, 2026-11-23: a campaign just
 started had no tokens, so presence was empty from round one).
 
-``POST /v1/ai_chat/place_party`` ``{"place_party": {"chat_id"}}``: each of the chat's cast and the seat's
-character with no token on the campaign's current scene is put there beside the seat (the VTT's
+``POST /v1/ai_chat/place_party`` ``{"place_party": {"chat_id"}}``: the seat's character, the cast's PCs, and any
+cast NPC the wiki puts at the scene's place, with no token on the campaign's current scene, are put there
+beside the seat (the VTT's
 place_person; their wiki location follows). Answers ``{placed: [person ids], scene_id}``; without the VTT
 or a scene, nothing.
 """
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from typing import Any, ClassVar
 
 from pydantic import BaseModel as PlainModel
@@ -37,10 +39,35 @@ class PartyPlacedEnvelope(PlainModel):
     place_party: PartyPlaced
 
 
-def party_to_place(cast: list[str], seat: str | None, on_scene: list[str]) -> list[str]:
-    """The seat's character first (the others are placed beside them), then the cast; none already there."""
+def party_to_place(
+    cast: list[str],
+    seat: str | None,
+    on_scene: list[str],
+    rows: Mapping[str, Mapping[str, Any]] | None = None,
+    scene_location: str | None = None,
+) -> list[str]:
+    """The seat's character first (the others are placed beside them), then the cast's PCs, then any cast NPC the
+    wiki puts at the scene's place; none already there. Presence follows where the wiki says a person is, never
+    the scenario's whole cast (the operator's test-play, 2026-11-24: Orrin, the missing merchant, was given a
+    token in Saltmere with the party)."""
+    known = rows or {}
+
+    def belongs(one: str) -> bool:
+        if one == seat:
+            return True
+        row = known.get(one)
+        if row is None:
+            return False
+        if row.get("kind") == "pc":
+            return True
+        return scene_location is not None and str(row.get("location_id") or "") == str(scene_location)
+
     order = [*([seat] if seat else []), *cast]
-    return [one for index, one in enumerate(order) if one not in on_scene and one not in order[:index]]
+    return [
+        one
+        for index, one in enumerate(order)
+        if one not in on_scene and one not in order[:index] and (rows is None or belongs(one))
+    ]
 
 
 class PlacePartyManager(AbstractBLLManager[Any], RouterMixin):
@@ -74,6 +101,7 @@ class PlacePartyManager(AbstractBLLManager[Any], RouterMixin):
             place_in_scene,
             scene_now,
             scene_people,
+            world_entities_by_id,
         )
 
         requester = str(self.requester.id)
@@ -86,8 +114,14 @@ class PlacePartyManager(AbstractBLLManager[Any], RouterMixin):
             return PartyPlacedEnvelope(place_party=PartyPlaced())
         seat, _marks = play_context(requester, self.model_registry, chat.id)
         on_scene = await scene_people(self.model_registry, requester, wiki) or []
+        cast = [str(one) for one in chat.character_ids or []]
+        rows = {
+            str(row["id"]): row
+            for row in world_entities_by_id(self.model_registry, requester, [*cast, *([seat] if seat else [])])
+        }
         placed: list[str] = []
-        for person_id in party_to_place([str(one) for one in chat.character_ids or []], seat, on_scene):
+        location = str(scene.get("location_id")) if scene.get("location_id") else None
+        for person_id in party_to_place(cast, seat, on_scene, rows, location):
             near = seat if seat and seat != person_id and (seat in on_scene or seat in placed) else None
             if await place_in_scene(self.model_registry, requester, wiki, person_id, near) is not None:
                 placed.append(person_id)

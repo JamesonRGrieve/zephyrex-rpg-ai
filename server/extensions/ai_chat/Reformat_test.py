@@ -56,3 +56,56 @@ def test_a_rewrite_is_refused_and_a_resort_is_kept() -> None:
     assert faithful(PROSE, [*kept, {"text": "Drink or leave."}])
     assert not faithful(PROSE, [{"text": "A woman greets you and the barkeep is rude."}])
     assert not faithful(PROSE, kept[:1])
+
+
+def test_the_formatters_result_is_checked_requirement_by_requirement() -> None:
+    # The operator, 2026-11-24: "pass the result of the formatter to the decision model and ask if it meets the
+    # format requirements such as all actions correctly in an action block attributed to their actor and all
+    # dialogue in quotes with tone and direction".
+    from zephyrex.extensions.ai_chat.Reformat import (
+        check_questions,
+        failed_checks,
+        rendered_runs,
+    )
+
+    runs = [
+        {"speaker_id": None, "speaker_name": None, "lines": [{"kind": "narrate", "text": "Rain on the quay."}]},
+        {
+            "speaker_id": "del",
+            "speaker_name": "Delphine",
+            "lines": [
+                {"kind": "say", "manner": "whisper", "target_id": None, "target_name": "Brenna", "text": "Not here."},
+                {"kind": "do", "manner": None, "target_id": None, "target_name": None, "text": "She glances away."},
+            ],
+        },
+    ]
+    assert rendered_runs(runs).split("\n") == [
+        "[narrate] the narrator: Rain on the quay.",
+        '[say] Delphine (whisper, to Brenna): "Not here."',
+        "[do] Delphine: She glances away.",
+    ]
+    questions = check_questions()
+    assert set(questions) == {"format_actions", "format_dialogue", "format_narrator"}
+    assert all(set(one["criteria"]) == {"meets", "fails"} for one in questions.values())
+    answers = {key: {"choice": "meets"} for key in questions} | {"format_dialogue": {"choice": "fails"}}
+    assert failed_checks(answers) == [
+        "Every piece of dialogue is a speech line, in quotes, with its tone and whom it is said to."
+    ]
+    assert failed_checks(None) == []
+
+
+def test_a_line_the_reply_credits_is_that_persons_own() -> None:
+    # The operator's test-play, 2026-11-24 (chat 64e11be8): with no runs from the formatter, Delphine's reply
+    # was saved inside the narration as "Delphine Halloway (to you): ...".
+    from zephyrex.extensions.ai_chat.BLL_AI_Chat import credited_runs  # type: ignore[import-not-found]
+
+    people = [{"id": "del", "name": "Delphine Halloway"}, {"id": "bren", "name": "Brenna"}]
+    text = '[location: Saltmere]\nThe quay is quiet.\nDelphine Halloway (to you): "He never came back."'
+    runs = credited_runs(text, people)
+    assert [(run["speaker_id"], [line["kind"] for line in run["lines"]]) for run in runs] == [
+        (None, ["narrate"]),
+        ("del", ["say"]),
+    ]
+    assert runs[1]["speaker_name"] == "Delphine Halloway"
+    assert runs[1]["lines"][0]["text"] == "He never came back."
+    assert credited_runs("Rain on the quay.", people) == []

@@ -954,7 +954,19 @@
     "instruction": "Below is a narrator's reply in a roleplay. Rewrite it as items, in order, keeping every word of it and adding none: a \"say\" item for each spoken line (its words only, without quotation marks), a \"do\" item for what one person does, and a \"narrate\" item for everything else. speaker is who says or does it, and can only be one of these people: {{names}}; anyone else, an unnamed stranger or a crowd, is narration (speaker null), their words kept in quotation marks. target is whom a line is aimed at, from the same people, or null. One person is always the same speaker. Answer with JSON only.",
     "timeout_seconds": 90,
     "min_kept": 0.9,
-    "max_added": 0.1
+    "max_added": 0.1,
+    "$checks": "The formatter's result put to the decision model (the operator, 2026-11-24: \"pass the result of the formatter to the decision model and ask if it meets the format requirements such as all actions correctly in an action block attributed to their actor and all dialogue in quotes with tone and direction\"). Each requirement a question, met or not; one not met sends the reformat once more, naming it.",
+    "checks": {
+      "actions": "Every action is in an action line credited to the one who does it.",
+      "dialogue": "Every piece of dialogue is a speech line, in quotes, with its tone and whom it is said to.",
+      "narrator": "No speech or dialogue is credited to the narrator."
+    },
+    "check_instructions": "This is a story reply sorted into lines. Does it meet this requirement? {{requirement}}",
+    "check_options": {
+      "meets": "the lines meet it",
+      "fails": "some line breaks it"
+    },
+    "retry_note": "Your last answer broke these requirements: {{failed}} Sort the prose again so that it meets them."
   },
   "builder_pick": {
     "$comment": "AI-assisted character creation (the operator, 2026-11-23: \"AI-assisted character creation modes, beside the builder and the freeform character\"): each unchosen choice of the VTT builder's steps, in step order (later options depend on earlier picks), put to the decision model as a choice among its options, the state the person's concept and the picks so far; recorded through the builder's choose. Never invented: an answer outside the options, or none, leaves that choice to the person. Ability scores are never picked (a rules method the person rolls or assigns). BuilderPick.py.",

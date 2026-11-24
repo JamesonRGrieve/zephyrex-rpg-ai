@@ -84,3 +84,19 @@ def test_a_failed_turn_says_so_and_ends() -> None:
         assert await asyncio.wait_for(_read(turn), timeout=2) == ["event: error\ndata: no model\n\n"]
 
     asyncio.run(scenario())
+
+
+def test_a_turn_says_where_it_has_got_to() -> None:
+    # The operator, 2026-11-24: Stop "can't disappear mid generation or while waiting for formatting".
+    async def run() -> list[str]:
+        turn = Turns.Turn("c1")
+        seen = [turn.stage]
+        turn.add('event: delta\ndata: {"text": "Rain"}\n\n')
+        seen.append(turn.stage)
+        turn.add('event: stage\ndata: {"stage": "formatting"}\n\n')
+        seen.append(turn.stage)
+        turn.add('event: stage\ndata: {"stage": "saving"}\n\n')
+        seen.append(turn.stage)
+        return seen
+
+    assert asyncio.run(run()) == ["generating", "generating", "formatting", "saving"]

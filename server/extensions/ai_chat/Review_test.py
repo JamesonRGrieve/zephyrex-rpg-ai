@@ -58,7 +58,10 @@ def test_decision_calls_are_kept_under_the_message_and_feedback_snapshots_them(
         found = {key: {"choice": "yes"} for key in questions}
         if heard is not None:
             await heard({"phase": "start", "attempt": 2 if model == "Judge A" else 1})
-            await heard({"phase": "end", "attempt": 2 if model == "Judge A" else 1, "answers": found, "ms": 5})
+            scores = {key: {"yes": 0.8, "no": 0.2} for key in questions}
+            attempt = 2 if model == "Judge A" else 1
+            end = {"phase": "end", "attempt": attempt, "answers": found, "ms": 5, "scores": scores}
+            await heard(end)
         return found, None
 
     monkeypatch.setattr(BLL_AI_Chat, "ask_decider_detailed", decide)
@@ -87,6 +90,10 @@ def test_decision_calls_are_kept_under_the_message_and_feedback_snapshots_them(
     failed = next(call for call in calls if call["status"] == "failed")
     assert failed["error"] == {"kind": "timeout", "detail": "x"}
     assert "running" in running  # kept while it ran
+    # Each option offered, and its score (the operator, 2026-11-24).
+    done = next(call for call in calls if call["status"] == "done")
+    assert all(question["options"] == ["yes", "no"] for question in done["questions"])
+    assert all(answer["scores"] == {"yes": 0.8, "no": 0.2} for answer in done["answers"].values())
 
     reply = _make(
         server, user, "chat_message", chat_id=chat["id"], parent_id=line["id"], role="narrator", swipes=["Rain."]

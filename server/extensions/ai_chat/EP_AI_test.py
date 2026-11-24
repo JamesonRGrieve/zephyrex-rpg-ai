@@ -1499,6 +1499,10 @@ class TestGenerate:
             missing = client.get(f"/v1/ai_chat/turn_stream?chat_id={chat['id']}", headers=_headers(user))
             assert missing.status_code == 404, missing.text
             asked = {"generate": {"chat_id": chat["id"], "leaf_id": line["id"], "speaker_id": ada["id"]}}
+            # Nothing in progress before the turn (the operator, 2026-11-24: the page asks, to show Stop).
+            idle = client.get(f"/v1/ai_chat/processing?chat_id={chat['id']}", headers=_headers(user))
+            assert idle.status_code == 200, idle.text
+            assert idle.json()["processing"]["processing"] is False
             started = client.post("/v1/ai_chat/turn", json=asked, headers=_headers(user))
             assert started.status_code == 204, started.text
             first = client.get(f"/v1/ai_chat/turn_stream?chat_id={chat['id']}", headers=_headers(user))
@@ -1507,6 +1511,10 @@ class TestGenerate:
             assert again.text.replace(": keepalive\n\n", "") == first.text.replace(": keepalive\n\n", "")
             stopped = client.post("/v1/ai_chat/turn_stop", json={"turn_stop": {"chat_id": chat["id"]}}, headers=_headers(user))
             assert stopped.json()["turn_stop"] == {"chat_id": chat["id"], "stopped": False}
+            # Done and saved: no longer in progress; the turn's stages were said on the way.
+            done = client.get(f"/v1/ai_chat/processing?chat_id={chat['id']}", headers=_headers(user)).json()
+            assert done["processing"]["processing"] is False
+            assert "event: stage" in first.text
             # The server saved the reply itself (a dropped subscriber loses nothing), as a structured turn does.
             assert "event: saved" in first.text and first.text.index("event: saved") < first.text.index("event: done")
             lines = client.get(f"/v1/chat_message?chat_id={chat['id']}", headers=_headers(user)).json()["chat_messages"]
