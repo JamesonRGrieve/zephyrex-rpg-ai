@@ -91,6 +91,9 @@ async function placeOnScene(page: Page, chatId: string, name: string): Promise<v
   );
   const who = people.persons.find((one) => one.name === name);
   expect(who, `${name} is a person of the campaign`).toBeDefined();
+  // Someone the story already brought onto the scene (the map step placed them) keeps their one token.
+  const tokens = await api<{ scene_tokens: { entity_id: string | null }[] }>(page, 'GET', `scene/${scene?.id ?? ''}/tokens`);
+  if (tokens.scene_tokens.some((one) => one.entity_id === who?.id)) return;
   await post(page, 'scene_token', { scene_id: scene?.id ?? '', person_id: who?.id ?? '', name });
 }
 
