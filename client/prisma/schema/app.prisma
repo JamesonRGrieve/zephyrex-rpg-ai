@@ -108,6 +108,8 @@ model Chat {
   groupSettings String  @default("{}")
   /// STscript's /inject injections (audit gap 5), kept until flushed; a JSON list.
   injections   String   @default("[]")
+  /// The VTT scene the chat's location banner last marked (server ChatModel.banner_scene_id; lite has no VTT scenes).
+  bannerSceneId String?
   campaignId   String?
   scenarioId   String?
   createdAt    DateTime @default(now())

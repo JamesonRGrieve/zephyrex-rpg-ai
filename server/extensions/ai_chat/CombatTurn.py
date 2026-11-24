@@ -78,6 +78,15 @@ def combat_pick(
     return {"action_id": action_id, "target_ids": [target]}
 
 
+def _stance_word(value: Any) -> str:
+    """An attitude as its word: the word itself, or a record's attitude, disposition or stance (live run, build58,
+    2026-11-24: the wiki's current attitude came as a record, and combat_check crashed with "unhashable type:
+    'dict'", so no fight ever opened)."""
+    if isinstance(value, Mapping):
+        value = value.get("attitude") or value.get("disposition") or value.get("stance") or ""
+    return value if isinstance(value, str) else ""
+
+
 def combat_stances(
     people: Sequence[Mapping[str, Any]],
     party: Sequence[str],
@@ -103,12 +112,13 @@ def combat_stances(
             regard = dict(source.get(who) or {})
             # The wiki's attitude toward the party as a whole ("party", 5bf4e75): toward each PC here, below any
             # pair of its own.
-            party_word = str(regard.pop("party", "") or "")
+            party_word = _stance_word(regard.pop("party", ""))
             if party_word in stance_of:
                 for pc in party_ids:
                     if pc != who:
                         toward.setdefault(pc, stance_of[party_word])
-            for other, word in regard.items():
+            for other, value in regard.items():
+                word = _stance_word(value)
                 if str(other) in here and str(other) != who and word in stance_of:
                     toward[str(other)] = stance_of[word]
         hostile_to = [other for other, stance in toward.items() if stance == "hostile"]

@@ -153,6 +153,7 @@ const CONTEXT_SIDEBAR = <ContextSidebar />;
 import { MapView } from './MapView';
 import { decideRoll, makeRoll } from '~/features/chat/rollStep';
 import { completeText, metaBreak, narrateSegments, plainDashes, replayOf, seatCut } from '~/features/chat/voiceGuard';
+import { actedParts } from '~/features/chat/actionLines';
 import { aimAt, clarify, ensurePerson, mapStep, refreshStatusLine, worldTick } from '~/features/chat/mapStep';
 import { type AuthoringStep, authorNpc, npcNeeded } from '~/features/chat/authorNpc';
 import { fetchSpeechOptions } from '~/features/chat/speechOptions';
@@ -1662,7 +1663,13 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
     const parts =
       result.runs !== undefined
         ? partsOfRuns(result.runs, castList)
-        : narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== '');
+        : // The lite edition has no reformat step: each person's action in the narration becomes their action line
+          // (Parity's actedParts, the twin of ActionLines.py); with multi-actor turns off a moved action is cut.
+          actedParts(
+            narrateSegments(result.text, castList, seatName).filter((part) => part.text.trim() !== ''),
+            castList,
+            groupModes.multi_actor === false,
+          );
     let parent = parentId;
     let saved: ChatMessage | null = null;
     // A line is saved only as someone in the chat's cast (the server refuses anyone else, and the

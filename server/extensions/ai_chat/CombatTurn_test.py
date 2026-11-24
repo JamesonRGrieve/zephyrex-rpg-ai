@@ -433,3 +433,11 @@ def test_the_party_never_turns_on_itself_and_bystanders_stay_out() -> None:
     ]
     preset = defaulted_choices(choices, ["brenna", "tam"], ["thing"])
     assert preset == {"open_0": {"choice": "friendly"}, "open_1": {"choice": "neutral"}}
+
+
+def test_an_attitude_given_as_a_record_is_read_as_its_word() -> None:
+    # build58 live run: the wiki's current attitude came as a record, and combat_check crashed.
+    people = [{"id": "brenna", "name": "Brenna"}, {"id": "thing", "name": "Thing"}]
+    attitudes = {"thing": {"brenna": {"attitude": "hostile", "since": "today"}, "party": {"attitude": "hostile"}}}
+    stances, _questions = combat_stances(people, ["brenna"], {}, attitudes, [])
+    assert stances["thing"] == {"stance": "hostile", "hostile_to": ["brenna"]}

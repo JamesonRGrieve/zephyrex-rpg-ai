@@ -97,10 +97,10 @@ from zephyrex.extensions.ai_chat.LineLabels import (  # type: ignore[import-not-
 )
 from zephyrex.extensions.ai_chat.Lore import activate_lore  # type: ignore[import-not-found]
 from zephyrex.extensions.ai_chat.MapStep import (  # type: ignore[import-not-found]
+    banner_due,
     departures,
     map_questions,
     movers,
-    scene_changed,
     scene_changes,
     scene_questions,
     seat_place,
@@ -659,6 +659,9 @@ class ChatModel(ApplicationModel, UpdateMixinModel, metaclass=ModelMeta):
     )
     injections: list[dict[str, Any]] = Field(
         default_factory=list, description="STscript's /inject injections, kept until flushed"
+    )
+    banner_scene_id: str | None = Field(
+        None, description="The VTT scene the chat's location banner last marked (null: none yet)"
     )
 
     table_comment: ClassVar[str] = "Zephyrex RPG AI chats"
@@ -2249,10 +2252,6 @@ class BattlemapDrawn(PlainModel):
 class BattlemapDrawnEnvelope(PlainModel):
     battlemap: BattlemapDrawn
 
-
-#: The VTT scene each person's chat last saw (map_step's banner: a scene change only). The first one seen
-#: shows the banner; so does the first after a restart.
-_SEEN_SCENES: dict[tuple[str, str], str] = {}
 
 #: Battlemaps being drawn in the background of a turn (kept so none is collected mid-draw).
 _BATTLEMAP_TASKS: set[asyncio.Task[Any]] = set()
@@ -4540,9 +4539,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             if entity.get("kind") == "person" and not entity.get("deleted")
         ]
 
-        # The banner marks a VTT scene change only (the operator, 2026-11-23), never a move within a scene.
-        seen_key = (requester, chat.id)
-        scene_before = _SEEN_SCENES.get(seen_key)
+        # The banner marks a VTT scene change only (the operator, 2026-11-23), never a move within a scene. The
+        # scene it last marked is kept on the chat, so a restart never shows it again (the operator, 2026-11-24).
+        scene_before = getattr(chat, "banner_scene_id", None)
 
         async def answer(moves: list[dict[str, Any]], reason: str | None) -> MapStepEnvelope:
             # The banner's place is server truth (the operator, 2026-11-21), on every answer.
@@ -4550,9 +4549,9 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
             scene = await scene_now(
                 self.model_registry, requester, wiki_campaign_for(self._manager(CampaignFrameManager), chat.campaign_id)
             )
-            changed = scene_changed(scene_before, scene)
-            if scene is not None:
-                _SEEN_SCENES[seen_key] = str(scene["id"])
+            changed = banner_due(scene_before, scene)
+            if scene is not None and str(scene["id"]) != scene_before:
+                self._manager(ChatManager).update_trusted(chat.id, banner_scene_id=str(scene["id"]))
             # Who the round's lines took off the scene or brought onto it, whoever wrote them (the operator,
             # 2026-11-23: "the DM correctly moves people on the map, triggering their presence updates").
             scene_moves = await self._scene_moves(asked, chat, scene, round_turns, context["world"], playing_id)

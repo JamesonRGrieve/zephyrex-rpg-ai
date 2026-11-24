@@ -127,6 +127,8 @@ export const chatSchema = z.object({
   variables: z.record(z.string(), z.string()).default({}),
   group_settings: z.record(z.string(), z.unknown()).default({}),
   injections: z.array(z.record(z.string(), z.unknown())).default([]),
+  /** The VTT scene the chat's location banner last marked (the server sets it). */
+  banner_scene_id: z.string().nullable().optional(),
   campaign_id: z.string().nullable(),
   scenario_id: z.string().nullable(),
 });

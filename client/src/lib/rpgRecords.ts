@@ -308,6 +308,7 @@ const CHAT_COLUMNS: Columns = {
   variables: jsonObject('variables'),
   group_settings: jsonObject('groupSettings'),
   injections: jsonList('injections'),
+  banner_scene_id: plain('bannerSceneId'),
   campaign_id: plain('campaignId'),
   scenario_id: plain('scenarioId'),
 };

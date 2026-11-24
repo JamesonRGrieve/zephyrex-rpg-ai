@@ -119,6 +119,14 @@ def scene_changed(previous: str | None, current: Mapping[str, Any] | None) -> bo
     return previous != str(current["id"])
 
 
+def banner_due(previous: str | None, current: Mapping[str, Any] | None) -> bool:
+    """Whether a map step shows the banner: the scene changed from the one the chat's banner last marked
+    (ChatModel.banner_scene_id; scene_changed). A chat with none yet takes its current scene as seen, never a
+    change: its opening already showed it (the operator, 2026-11-24: "Got another random ass location banner",
+    when the previous scene was kept only in process memory and a restart forgot it)."""
+    return previous is not None and scene_changed(previous, current)
+
+
 SCENE: dict[str, Any] = MAP_STEP["scene"]
 
 

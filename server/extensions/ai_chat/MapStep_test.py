@@ -89,3 +89,12 @@ def test_a_name_with_a_leading_article_is_matched_without_it() -> None:
     thing = {"id": "t", "name": "The Bloated Drowned Thing", "aliases": []}
     assert _named("A bloated drowned thing heaves itself out of the millrace at me.", thing)
     assert not _named("A drowned man floats past.", thing)
+
+
+def test_the_first_scene_a_server_sees_for_a_chat_is_no_banner() -> None:
+    # The operator, 2026-11-24: "Got another random ass location banner" (after a restart, the first map step).
+    from zephyrex.extensions.ai_chat.MapStep import banner_due
+
+    assert not banner_due(None, {"id": "s1"})
+    assert not banner_due("s1", {"id": "s1"})
+    assert banner_due("s1", {"id": "s2"})
