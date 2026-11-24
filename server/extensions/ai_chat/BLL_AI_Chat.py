@@ -91,7 +91,7 @@ from zephyrex.extensions.ai_chat.Instruct import (  # type: ignore[import-not-fo
     render_instruct,
 )
 from zephyrex.extensions.ai_chat.LineLabels import (  # type: ignore[import-not-found]
-    label_questions,
+    label_chunks,
     message_lines,
     read_labels,
 )
@@ -4944,13 +4944,17 @@ class AIChatManager(AbstractBLLManager[Any], RouterMixin):
         deciding = self._decider()
         answers = None
         if deciding is not None:
-            state, questions = label_questions(lines, previous, people)
-            answers = await self._decide(
-                "label_lines",
-                asked,
-                state,
-                questions,
-            )
+            # In small calls, at most two at once (Self Hosted AI, 2026-11-24: one call of ~48 questions outran
+            # the 970's 120 s deadline and was cancelled whole); the answers merge by the line's place.
+            gate = asyncio.Semaphore(2)
+
+            async def one(state: str, questions: dict[str, dict[str, Any]]) -> Any:
+                async with gate:
+                    return await self._decide("label_lines", asked, state, questions)
+
+            parts = await asyncio.gather(*(one(state, qs) for state, qs in label_chunks(lines, previous, people)))
+            merged = {key: value for part in parts if isinstance(part, Mapping) for key, value in part.items()}
+            answers = merged or None
         labels = read_labels(lines, answers, people)
         if answers is not None:
             # Kept with the line, so a reload shows them without another call.

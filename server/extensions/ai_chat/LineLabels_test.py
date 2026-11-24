@@ -31,3 +31,17 @@ def test_the_questions() -> None:
 @pytest.mark.parametrize("case", CASES["read_cases"], ids=[case["name"] for case in CASES["read_cases"]])
 def test_the_labels(case: dict[str, Any]) -> None:
     assert read_labels(case["lines"], case["answers"], CASES["people"]) == case["labels"]
+
+
+def test_a_long_message_is_labelled_in_small_calls_that_merge() -> None:
+    # Self Hosted AI, 2026-11-24: one call of ~48 questions outran the 970's deadline.
+    from zephyrex.extensions.ai_chat.LineLabels import label_chunks, label_questions
+
+    lines = [f"Line number {n}." for n in range(7)]
+    people = [{"id": "hesk", "name": "Old Hesk"}]
+    chunks = label_chunks(lines, ["Before one.", "Before two."], people, 3)
+    assert [len(questions) // 4 for _state, questions in chunks] == [3, 3, 1]
+    merged = {key for _state, questions in chunks for key in questions}
+    assert merged == set(label_questions(lines, [], people)[1])
+    # The second chunk reads the two lines before it.
+    assert chunks[1][0].splitlines()[:2] == ["Before: Line number 1.", "Before: Line number 2."]

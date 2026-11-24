@@ -77,6 +77,30 @@ def label_questions(
     return state, questions
 
 
+#: Lines per decision call (Self Hosted AI, 2026-11-24: one call of ~48 questions, 12 lines x 4, outran the 970's
+#: 120 s deadline while other decisions shared its 4 slots, and llama-server cancelled all 48).
+CHUNK_LINES = 3
+
+
+def label_chunks(
+    lines: Sequence[str], previous: Sequence[str], people: Sequence[Mapping[str, Any]], size: int = CHUNK_LINES
+) -> list[tuple[str, dict[str, dict[str, Any]]]]:
+    """The labelling split into small calls: each chunk's state (the two lines before it, then its lines) and
+    its questions, keyed by the line's place in the whole message (kind_<n>), so the answers merge for
+    read_labels."""
+    chunks: list[tuple[str, dict[str, dict[str, Any]]]] = []
+    for offset in range(0, len(lines), max(1, size)):
+        part = list(lines[offset : offset + max(1, size)])
+        before = [*previous, *lines[:offset]][-2:]
+        state, questions = label_questions(part, before, people)
+        renamed: dict[str, dict[str, Any]] = {}
+        for key, question in questions.items():
+            field, _, index = key.rpartition("_")
+            renamed[f"{field}_{offset + int(index)}"] = question
+        chunks.append((state, renamed))
+    return chunks
+
+
 def read_labels(
     lines: Sequence[str], answers: Mapping[str, Any] | None, people: Sequence[Mapping[str, Any]]
 ) -> list[dict[str, Any]]:
