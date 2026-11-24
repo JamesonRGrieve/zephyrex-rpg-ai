@@ -78,7 +78,9 @@ describe('timedOut (build60 live run, 2026-11-24)', () => {
 
   it('never calls a refusal, a stop or a dropped connection a timeout', () => {
     expect(timedOut(new DOMException('stopped', 'AbortError'))).toBe(false);
-    expect(timedOut(new TypeError('fetch failed', { cause: Object.assign(new Error('x'), { code: 'ECONNRESET' }) }))).toBe(false);
+    expect(timedOut(new TypeError('fetch failed', { cause: Object.assign(new Error('x'), { code: 'ECONNRESET' }) }))).toBe(
+      false,
+    );
     expect(timedOut(new ApiError(502, { message: 'The model endpoint answered 500', code: 'model_refused' }))).toBe(false);
     expect(timedOut('nothing')).toBe(false);
   });
