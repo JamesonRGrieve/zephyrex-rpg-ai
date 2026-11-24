@@ -105,6 +105,8 @@ export const EXTRA_BODY = contract.extra_body;
 export const WORLD_LORE = contract.world_lore;
 /** Who speaks next, by the decision model: its question and options' labels. */
 export const DECIDE_TURN = contract.decide_turn;
+/** Every action an action line (features/chat/actionLines.ts; the server's ActionLines.py). */
+export const ACTION_LINES = contract.action_lines;
 /** Whether an action needs a roll, by the decision model: its questions and the light dice style. */
 export const DECIDE_ROLL = contract.decide_roll;
 /** A campaign's opening: the seat's told position. */
