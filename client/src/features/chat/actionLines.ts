@@ -177,7 +177,14 @@ export function actionLines(
             continue;
           }
           wrong.push(sentence.trim());
-          lines.push({ speaker_id: actor, kind: 'do', manner: null, target_id: null, target_name: null, text: action(rest) });
+          lines.push({
+            speaker_id: actor,
+            kind: 'do',
+            manner: null,
+            target_id: null,
+            target_name: null,
+            text: action(rest),
+          });
           last = actor;
         }
         continue;
@@ -240,7 +247,11 @@ function grouped(lines: readonly Placed[], names: ReadonlyMap<string, string>): 
       previousRun.lines.push({ ...line });
       continue;
     }
-    runs.push({ speaker_id: speaker, speaker_name: speaker === null ? null : (names.get(speaker) ?? null), lines: [{ ...line }] });
+    runs.push({
+      speaker_id: speaker,
+      speaker_name: speaker === null ? null : (names.get(speaker) ?? null),
+      lines: [{ ...line }],
+    });
   }
   return runs;
 }
