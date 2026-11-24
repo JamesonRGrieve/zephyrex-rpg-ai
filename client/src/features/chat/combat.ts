@@ -81,11 +81,22 @@ export interface CombatTurn {
 }
 
 /** An AI-run combatant's turn, decided among the VTT's options and taken by the VTT; null on any failure. */
-export async function combatTurn(chatId: string, encounterId: string, personId: string): Promise<CombatTurn | null> {
+export async function combatTurn(
+  chatId: string,
+  encounterId: string,
+  personId: string,
+  /** The person's own line, when it is their turn: which of the VTT's options it describes is read from it. */
+  lineId?: string,
+): Promise<CombatTurn | null> {
   const answer = Reflect.get(
     Object(
       await post('ai_chat/combat_turn', {
-        combat_turn: { chat_id: chatId, encounter_id: encounterId, person_id: personId },
+        combat_turn: {
+          chat_id: chatId,
+          encounter_id: encounterId,
+          person_id: personId,
+          ...(lineId === undefined ? {} : { line_id: lineId }),
+        },
       }),
     ),
     'combat_turn',

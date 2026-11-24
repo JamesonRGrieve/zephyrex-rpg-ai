@@ -1222,9 +1222,33 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
       const party = new Set(play.aiIds);
       const aiRuns = (personId: string) => (chat.seat === 'gm' ? party.has(personId) : personId !== seat);
       const now = encounter.combatants.find((one) => one.id === encounter?.currentId);
-      if (passOwn && now !== undefined && now.personId !== null && !aiRuns(now.personId))
-        encounter = (await nextTurn(encounter.id)) ?? encounter;
       let parent = after;
+      if (passOwn && now !== undefined && now.personId !== null && !aiRuns(now.personId)) {
+        // The person's own turn: what their line describes, among the VTT's options, is what their character
+        // does; the VTT rolls it (Parity's combat_turn with line_id), and the turn passes on.
+        const own =
+          after.role === 'character' && after.speaker_character_id === now.personId
+            ? await during(`${now.name}'s turn`, combatTurn(chat.id, encounter.id, now.personId, after.id))
+            : null;
+        if (own !== null && own.acted) {
+          const names = own.targetIds.map(
+            (id) => encounter?.combatants.find((one) => one.personId === id)?.name ?? castById.get(id)?.name ?? 'someone',
+          );
+          const rolled = await create({
+            chat_id: chat.id,
+            parent_id: parent.id,
+            role: 'system',
+            channel: 'roll',
+            swipes: [combatLine(now.name, names, own.result)],
+          });
+          setLeafId(rolled.id);
+          parent = (await narrateAfter(rolled.id)) ?? rolled;
+          encounter = (await currentEncounter(chat.campaign_id)) ?? encounter;
+        } else if (own !== null && own.reason === 'the line describes no action') {
+          notify('What does your character do?', 'Your line names none of the actions open to you in this fight.');
+          return parent;
+        } else encounter = (await nextTurn(encounter.id)) ?? encounter;
+      }
       for (let step = 0; step < encounter.combatants.length && roundRef.current === mine; step += 1) {
         const turn = aiTurn(encounter, aiRuns);
         if (turn === null || turn.personId === null) break;
