@@ -125,6 +125,25 @@ import { type ActionGroup, type ChatAction, ContextSidebar, setContextActions, s
 import { SidebarContent } from 'zephyrex/components/appwrapper/src/SidebarContentManager';
 import { useSidebar } from 'zephyrex/ui/sidebar';
 
+/** A page of a chat's rows (the framework's largest; a list answers 100 when not told). */
+const ROW_PAGE = 1000;
+
+/** Every row of a chat's list, page by page, so none drops off once a busy chat makes hundreds. */
+async function everyRow(
+  client: { get: (path: string, query: Record<string, string>) => Promise<unknown> },
+  path: string,
+  key: string,
+  chatId: string,
+): Promise<unknown[]> {
+  const all: unknown[] = [];
+  for (let offset = 0; ; offset += ROW_PAGE) {
+    const page = await client.get(path, { chat_id: chatId, limit: String(ROW_PAGE), offset: String(offset) });
+    const rows = Reflect.get(Object(page), key);
+    const got: unknown[] = Array.isArray(rows) ? rows : [];
+    all.push(...got);
+    if (got.length < ROW_PAGE) return all;
+  }
+}
 /** One element for the right-hand sidebar, so its content is set once, not on every render. */
 const CONTEXT_SIDEBAR = <ContextSidebar />;
 import { MapView } from './MapView';
@@ -423,9 +442,7 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const feedbackList = useSWR(
     ['rpg-ai', 'message-feedback', chat.id],
     async () => {
-      const page = await client.get('/v1/message_feedback', { chat_id: chat.id });
-      const rows = Reflect.get(Object(page), 'message_feedbacks');
-      return Array.isArray(rows) ? rows : [];
+      return everyRow(client, '/v1/message_feedback', 'message_feedbacks', chat.id);
     },
     { shouldRetryOnError: false },
   );
@@ -1033,21 +1050,33 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
   const decisionList = useSWR(
     ['rpg-ai', 'decision-calls', chat.id],
     async () => {
-      const page = await client.get('/v1/decision_call', { chat_id: chat.id });
-      const rows = Reflect.get(Object(page), 'decision_calls');
-      return Array.isArray(rows) ? rows : [];
+      // Every one of them (the operator, 2026-11-24: they "do not persist" once the chat passed a page).
+      return everyRow(client, '/v1/decision_call', 'decision_calls', chat.id);
     },
     { shouldRetryOnError: false, refreshInterval: writing || roundStep !== null ? 2000 : 0 },
   );
   const decisionsByMessage = useMemo(() => {
+    // Under the message each was about; one the server tied to no message goes under the last message made
+    // before it (the operator: "an icon under the prior message").
+    const messages = [...(list.data ?? [])].sort((a, b) => a.created_at.localeCompare(b.created_at));
+    const priorTo = (at: string): string | null => {
+      let found: string | null = null;
+      for (const message of messages) {
+        if (message.created_at > at) break;
+        found = message.id;
+      }
+      return found;
+    };
     const by = new Map<string, DecisionCall[]>();
     for (const row of decisionList.data ?? []) {
       const call = readDecisionCall(row);
-      if (call === null || call.messageId === null) continue;
-      by.set(call.messageId, [...(by.get(call.messageId) ?? []), call]);
+      if (call === null) continue;
+      const under = call.messageId ?? (call.createdAt === '' ? null : priorTo(call.createdAt));
+      if (under === null) continue;
+      by.set(under, [...(by.get(under) ?? []), call]);
     }
     return by;
-  }, [decisionList.data]);
+  }, [decisionList.data, list.data]);
   const during = async <T,>(label: string, work: Promise<T>): Promise<T> => {
     setRoundStep(label);
     try {
