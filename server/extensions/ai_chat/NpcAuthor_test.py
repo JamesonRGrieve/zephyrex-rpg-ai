@@ -47,5 +47,8 @@ def test_whoever_the_line_brings_in_to_attack_is_an_attacker() -> None:
     ]
     line = "As the ferry bumps the mill steps, a bloated drowned thing heaves itself out of the water at Tam."
     assert attackers(line + " Roll initiative!", people) == ["thing"]
+    # The seat's line as saved, its speaker's name first (build60's live run: the creature came out friendly).
+    saved = "Brenna Ashdown A bloated drowned thing heaves itself out of the millrace at me. I strike at it."
+    assert attackers(saved, [*people, {"id": "bren", "name": "Brenna Ashdown"}]) == ["thing"]
     # A line that fights no one makes no attacker.
     assert attackers("A bloated drowned thing drifts past the ferry, face down.", people) == []

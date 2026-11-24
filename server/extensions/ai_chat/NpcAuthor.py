@@ -58,7 +58,13 @@ def attackers(line: str, people: Sequence[Mapping[str, Any]]) -> list[str]:
     the reason the fight starts, so they are hostile to the party without a question."""
     if not ATTACKING.search(line):
         return []
-    phrases = {_bare(match.group(1).lower()) for match in EMERGING.finditer(line)}
+    # A saved line puts its speaker's name first ("Brenna Ashdown A bloated drowned thing heaves…", build60's live
+    # run: the creature came out friendly): a person's name opening a line is taken off before the phrases are read.
+    names = sorted({str(person.get("name") or "").strip() for person in people} - {""}, key=len, reverse=True)
+    alternatives = "|".join(re.escape(name) for name in names)
+    opener = re.compile(rf"^\s*(?:{alternatives})\b[:\s]*", re.IGNORECASE) if names else None
+    lines = [opener.sub("", one) if opener is not None else one for one in line.splitlines()]
+    phrases = {_bare(match.group(1).lower()) for text in lines for match in EMERGING.finditer(text)}
     found: list[str] = []
     for person in people:
         name = _bare(str(person.get("name") or ""))

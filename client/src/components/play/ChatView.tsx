@@ -1422,6 +1422,12 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
           // The story still answers the line (live run, 2026-11-24: a fight with no legal target ended the round
           // without a word); the narrator tells what happens, the VTT's order waits for a real action.
           return (await narrateAfter(parent.id)) ?? parent;
+        } else if (own === null && after.role === 'character' && after.speaker_character_id === now.personId) {
+          // The VTT refused the seat's turn (build60's live run, 2026-11-24: "This campaign's game system has no
+          // rules pack yet; use a check instead"): the line is still answered, by the narrator, and the order
+          // waits rather than turning over with no one having acted.
+          notify('The VTT could not take that turn', 'The GM tells what happens; the fight order waits.');
+          return (await narrateAfter(parent.id)) ?? parent;
         } else encounter = (await nextTurn(encounter.id)) ?? encounter;
       }
       for (let step = 0; step < encounter.combatants.length && roundRef.current === mine; step += 1) {
