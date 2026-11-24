@@ -35,6 +35,29 @@ const config: StorybookConfig = {
     webpackConfig.resolve = webpackConfig.resolve || {};
     // This app's `~/*` alias (tsconfig paths); the framework is a compiled package.
     webpackConfig.resolve.alias = { ...(webpackConfig.resolve.alias || {}), '~': APP_SRC };
+    // The VTT's play UI ships as TypeScript source (next.config.js transpiles it, as transpilePackages); the
+    // stories build compiles it with the same rule as the app's own TypeScript, or webpack can't parse it
+    // (2026-11-24: "Module parse failed" on vtt-play's extension.tsx and index.ts stopped every story test).
+    webpackConfig.module = webpackConfig.module || {};
+    const rules = (webpackConfig.module.rules = webpackConfig.module.rules || []);
+    const typescript = rules.find(
+      (rule): rule is { test: RegExp; use?: unknown; loader?: unknown; options?: unknown } =>
+        typeof rule === 'object' &&
+        rule !== null &&
+        'test' in rule &&
+        rule.test instanceof RegExp &&
+        rule.test.test('a.tsx') &&
+        ('use' in rule || 'loader' in rule),
+    );
+    if (typescript !== undefined) {
+      // Its own rule (the app's rule leaves node_modules out, where pnpm links the package).
+      rules.push({
+        test: /\.[cm]?[jt]sx?$/,
+        include: /[\\/]vtt-play[\\/]src[\\/]/,
+        ...(typescript.use === undefined ? {} : { use: typescript.use }),
+        ...(typescript.loader === undefined ? {} : { loader: typescript.loader, options: typescript.options }),
+      } as (typeof rules)[number]);
+    }
     return webpackConfig;
   },
 };
