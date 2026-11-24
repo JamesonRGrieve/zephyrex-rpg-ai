@@ -15,7 +15,10 @@ from rpg_ai_app import create
 
 @pytest.fixture(scope="module")
 def server() -> Iterator[TestClient]:
-    yield TestClient(create())
+    # Entered, so the app starts as it does when served: ai_campaign's on_start registers its frame copy with
+    # the wiki (register_instantiate_hook).
+    with TestClient(create()) as client:
+        yield client
 
 
 def _headers(user: Any) -> dict[str, str]:

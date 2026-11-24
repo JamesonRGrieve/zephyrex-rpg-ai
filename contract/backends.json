@@ -1,0 +1,543 @@
+{
+  "$comment": "What rpg-ai needs from a world backend (the in-house wiki and VTT, or a Foundry-backed one: the operator, 2026-11-24, \"Have an option to directly integrate with Foundry VTT via actors and journals instead of using our in house vtt and wiki\"). Every ability rpg-ai calls, by extension, with its arguments, what it answers and the fields rpg-ai reads; `required` ones a backend must offer for play, the rest it may leave out (rpg-ai then does without). Held by server/extensions/ai_chat/Backends_test.py: each loaded_ability rpg-ai calls is listed here, and the in-house backends offer every required one.",
+  "abilities": {
+    "rpg_core": {
+      "world_entities": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id"
+        ],
+        "returns": "[entity]",
+        "required": true,
+        "reads": [
+          "id",
+          "name",
+          "kind",
+          "aliases",
+          "deleted",
+          "canon",
+          "location_id",
+          "parent_id",
+          "summary",
+          "entry",
+          "voice",
+          "tts_voice",
+          "disposition"
+        ],
+        "for": "the cast, presence, places, lore names"
+      },
+      "world_entities_by_id": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "ids"
+        ],
+        "returns": "[entity]",
+        "required": true,
+        "reads": [
+          "id",
+          "name",
+          "kind",
+          "location_id",
+          "summary",
+          "voice",
+          "tts_voice"
+        ],
+        "for": "persons named by id"
+      },
+      "world_entities_matching": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id",
+          "text",
+          "limit"
+        ],
+        "returns": "[entity]",
+        "required": false,
+        "reads": [
+          "id",
+          "name",
+          "kind",
+          "deleted"
+        ],
+        "for": "canon checks"
+      },
+      "lore_search": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id",
+          "text",
+          "k",
+          "token_budget"
+        ],
+        "returns": "{passages: [passage]}",
+        "required": false,
+        "reads": [
+          "passages"
+        ],
+        "for": "lore in the prompt"
+      },
+      "register_embedder": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "embed",
+          "model"
+        ],
+        "returns": "{model}",
+        "required": false,
+        "reads": [],
+        "for": "the lore search's embedder"
+      },
+      "campaign_framing": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id"
+        ],
+        "returns": "{framing}",
+        "required": true,
+        "reads": [
+          "premise",
+          "opening",
+          "default_location_id"
+        ],
+        "for": "the GM's framing"
+      },
+      "campaign_documents": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id"
+        ],
+        "returns": "[document]",
+        "required": false,
+        "reads": [
+          "title",
+          "text"
+        ],
+        "for": "the GM's handouts"
+      },
+      "session_report": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id",
+          "title",
+          "body",
+          "occurred_at",
+          "mentions"
+        ],
+        "returns": "{id}",
+        "required": false,
+        "reads": [
+          "id"
+        ],
+        "for": "a session's report"
+      },
+      "advance_clock": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id",
+          "minutes",
+          "reason"
+        ],
+        "returns": "{day, time}",
+        "required": false,
+        "reads": [
+          "day",
+          "time"
+        ],
+        "for": "world time"
+      },
+      "move_person": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "person_id",
+          "location_id",
+          "reason"
+        ],
+        "returns": "bool",
+        "required": true,
+        "reads": [],
+        "for": "map_step's moves"
+      },
+      "ensure_person": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id",
+          "name",
+          "summary"
+        ],
+        "returns": "entity",
+        "required": true,
+        "reads": [
+          "id",
+          "name"
+        ],
+        "for": "an NPC authored mid-play"
+      },
+      "update_person": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "person_id",
+          "fields"
+        ],
+        "returns": "entity",
+        "required": true,
+        "reads": [
+          "id"
+        ],
+        "for": "an NPC's written fields"
+      },
+      "import_card_person": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "fields"
+        ],
+        "returns": "{person_id, campaign_id}",
+        "required": false,
+        "reads": [
+          "person_id",
+          "campaign_id"
+        ],
+        "for": "a character card as a person"
+      },
+      "current_attitudes": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "campaign_id",
+          "person_ids"
+        ],
+        "returns": "{who: {toward | party: band}}",
+        "required": false,
+        "reads": [],
+        "for": "combat dispositions"
+      },
+      "learn_fact": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "person_id",
+          "target_entity_type",
+          "target_entity_id",
+          "text",
+          "learned_in"
+        ],
+        "returns": "{known_fact, created}",
+        "required": false,
+        "reads": [
+          "created"
+        ],
+        "for": "a PC's learned facts"
+      },
+      "register_instantiate_hook": {
+        "args": [
+          "model_registry",
+          "requester_id",
+          "hook"
+        ],
+        "returns": "{registered}",
+        "required": false,
+        "reads": [],
+        "for": "a scenario's frame copied into a new playthrough (the hook: model_registry, requester_id, source_campaign_id, new_campaign_id, id_map)"
+      }
+    },
+    "rpg_scene": {
+      "current_scene": {
+        "args": [
+          "requester_id",
+          "campaign_id"
+        ],
+        "returns": "{id, name, location_id} | None",
+        "required": true,
+        "reads": [
+          "id",
+          "name",
+          "location_id"
+        ],
+        "for": "presence, map_step, place_party, combat"
+      },
+      "scene_tokens": {
+        "args": [
+          "requester_id",
+          "scene_id"
+        ],
+        "returns": "[token]",
+        "required": true,
+        "reads": [
+          "entity_id"
+        ],
+        "for": "who is present"
+      },
+      "place_person": {
+        "args": [
+          "requester_id",
+          "scene_id",
+          "person_id",
+          "near_person_id"
+        ],
+        "returns": "token",
+        "required": true,
+        "reads": [
+          "id"
+        ],
+        "for": "arrivals and place_party"
+      },
+      "remove_person_from_scene": {
+        "args": [
+          "requester_id",
+          "scene_id",
+          "person_id"
+        ],
+        "returns": "{removed}",
+        "required": true,
+        "reads": [
+          "removed"
+        ],
+        "for": "departures"
+      },
+      "pilot_token": {
+        "args": [
+          "requester_id",
+          "person_id",
+          "location_id"
+        ],
+        "returns": "token | None",
+        "required": false,
+        "reads": [],
+        "for": "NPCs piloted by world time"
+      },
+      "set_scene_background": {
+        "args": [
+          "requester_id",
+          "scene_id",
+          "link"
+        ],
+        "returns": "scene",
+        "required": false,
+        "reads": [],
+        "for": "a drawn battlemap"
+      }
+    },
+    "rpg_combat": {
+      "current_encounter": {
+        "args": [
+          "requester_id",
+          "campaign_id"
+        ],
+        "returns": "order | None",
+        "required": true,
+        "reads": [
+          "id",
+          "status"
+        ],
+        "for": "is a fight going"
+      },
+      "start_encounter": {
+        "args": [
+          "requester_id",
+          "campaign_id",
+          "scene_id",
+          "person_ids",
+          "dispositions"
+        ],
+        "returns": "order",
+        "required": true,
+        "reads": [
+          "id",
+          "status",
+          "round",
+          "combatants",
+          "open_choices",
+          "unrolled"
+        ],
+        "for": "a fight the story starts"
+      },
+      "roll_initiative": {
+        "args": [
+          "requester_id",
+          "encounter_id"
+        ],
+        "returns": "order",
+        "required": true,
+        "reads": [
+          "unrolled"
+        ],
+        "for": "a fight in setup"
+      },
+      "start_combat": {
+        "args": [
+          "requester_id",
+          "encounter_id"
+        ],
+        "returns": "order",
+        "required": true,
+        "reads": [
+          "status"
+        ],
+        "for": "a fight in setup"
+      },
+      "next_turn": {
+        "args": [
+          "requester_id",
+          "encounter_id"
+        ],
+        "returns": "order",
+        "required": true,
+        "reads": [
+          "current_combatant_id",
+          "round"
+        ],
+        "for": "a turn passed"
+      },
+      "end_encounter": {
+        "args": [
+          "requester_id",
+          "encounter_id"
+        ],
+        "returns": "order",
+        "required": true,
+        "reads": [],
+        "for": "a half-made fight undone"
+      },
+      "set_disposition": {
+        "args": [
+          "requester_id",
+          "encounter_id",
+          "person_id",
+          "disposition",
+          "hostile_to"
+        ],
+        "returns": "order",
+        "required": false,
+        "reads": [
+          "open_choices"
+        ],
+        "for": "stances settled or turned"
+      },
+      "combat_options": {
+        "args": [
+          "requester_id",
+          "encounter_id",
+          "person_id"
+        ],
+        "returns": "{turn, action_available, actions, targets, reach, hp, hp_max}",
+        "required": true,
+        "reads": [
+          "turn",
+          "action_available",
+          "actions",
+          "targets",
+          "reach",
+          "hp",
+          "hp_max"
+        ],
+        "for": "a combatant's turn"
+      },
+      "take_combat_action": {
+        "args": [
+          "requester_id",
+          "encounter_id",
+          "person_id",
+          "action_id",
+          "target_ids"
+        ],
+        "returns": "{hit, roll, total, damage, target_hp, target_defeated}",
+        "required": true,
+        "reads": [
+          "hit",
+          "roll",
+          "total",
+          "damage",
+          "target_hp",
+          "target_defeated"
+        ],
+        "for": "an action resolved by the backend's own rolls"
+      }
+    },
+    "rpg_dice": {
+      "test_options": {
+        "args": [
+          "requester_id",
+          "person_id"
+        ],
+        "returns": "{tests}",
+        "required": true,
+        "reads": [
+          "tests"
+        ],
+        "for": "needs_roll and the roll step"
+      },
+      "character_sheet": {
+        "args": [
+          "requester_id",
+          "person_id"
+        ],
+        "returns": "sheet",
+        "required": false,
+        "reads": [],
+        "for": "a sheet shown or read"
+      }
+    },
+    "rpg_builder": {
+      "builder_choices": {
+        "args": [
+          "requester_id",
+          "person_id"
+        ],
+        "returns": "{choices}",
+        "required": false,
+        "reads": [],
+        "for": "character creation's open choices"
+      },
+      "choose": {
+        "args": [
+          "requester_id",
+          "person_id",
+          "kind",
+          "trait_id"
+        ],
+        "returns": "{...}",
+        "required": false,
+        "reads": [],
+        "for": "a creation choice taken"
+      },
+      "npc_sheet": {
+        "args": [
+          "requester_id",
+          "person_id",
+          "role",
+          "hint",
+          "option_id"
+        ],
+        "returns": "sheet",
+        "required": false,
+        "reads": [],
+        "for": "an authored NPC's sheet"
+      },
+      "npc_sheet_options": {
+        "args": [
+          "requester_id",
+          "campaign_id"
+        ],
+        "returns": "[option]",
+        "required": false,
+        "reads": [
+          "id",
+          "name"
+        ],
+        "for": "which sheet an NPC is"
+      }
+    }
+  }
+}

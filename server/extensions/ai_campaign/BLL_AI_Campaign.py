@@ -561,11 +561,14 @@ def _copy_frame_on_instantiate(
     )
 
 
-try:
-    from zephyrex.extensions.rpg_core.BLL_RPGCore import (  # type: ignore[import-not-found,attr-defined,unused-ignore]
-        AFTER_INSTANTIATE,
-    )
-except ImportError:
-    AFTER_INSTANTIATE = None
-if AFTER_INSTANTIATE is not None and _copy_frame_on_instantiate not in AFTER_INSTANTIATE:
-    AFTER_INSTANTIATE.append(_copy_frame_on_instantiate)
+def register_frame_copy(model_registry: Any, requester_id: str) -> bool:
+    """The frame copy registered with the wiki through its published ability (register_instantiate_hook), never
+    its internals, so any backend that offers the ability serves (the operator, 2026-11-24: the Foundry
+    option). False when the loaded backend has no such ability."""
+    from zephyrex.extensions.AbstractExtensionProvider import loaded_ability
+
+    register = loaded_ability(model_registry, "rpg_core", "register_instantiate_hook")
+    if register is None:
+        return False
+    register(model_registry, requester_id, _copy_frame_on_instantiate)
+    return True
