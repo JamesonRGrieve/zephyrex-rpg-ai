@@ -2587,6 +2587,10 @@ function ChatSurface({ chat }: { chat: Chat }): ReactElement {
             )}
             aria-label='Chat'
             aria-live='polite'
+            // The log is still being worked on while a round runs (an NPC authored, the fight check), not only while
+            // a reply streams: a reader waits, and so does the live test (build62 live run, 2026-11-24: the next
+            // line went in while the GM's fight line was still being read, and the fight never started from it).
+            aria-busy={roundRunning || authoring !== null}
           >
             {list.data === undefined && <SkeletonRows rows={4} avatar />}
             {list.data !== undefined && views.length === 0 && writingAfter === null && !hidden.pending && (
